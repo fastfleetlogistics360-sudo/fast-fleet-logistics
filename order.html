@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create Delivery Order | FAST FLEET LOGISTICS</title>
+  <meta name="description" content="Book a FastFleet dispatch rider, car, or van for same-day delivery in Lagos and nearby Nigerian cities with live tracking and wallet payments.">
+  <link rel="icon" href="assets/fastfleet-logo.png">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/styles.css">
+  <script defer src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script defer src="js/supabase-config.js"></script>
+  <script defer src="js/app.js"></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <div class="nav-wrap">
+        <a class="brand" href="index.html" aria-label="FAST FLEET LOGISTICS home">
+          <img class="brand-logo" src="assets/fastfleet-logo.png" alt="FAST FLEET LOGISTICS logo">
+          <span class="brand-title"><strong>FAST FLEET</strong><span>LOGISTICS</span></span>
+        </a>
+        <nav class="nav-links" aria-label="Main navigation">
+          <a href="index.html">Home</a>
+          <a href="order.html">Order</a>
+          <a href="track.html">Track</a>
+          <a href="dashboard.html">Dashboard</a>
+          <a href="services.html">Services</a>
+          <a href="driver.html">Riders</a>
+          <a href="support.html">Support</a>
+        </nav>
+        <div class="nav-actions">
+          <a class="button ghost" data-auth-signed-out href="auth.html?return=order.html">Sign in</a>
+          <a class="button secondary" data-auth-signed-in hidden href="dashboard.html"><span data-user-name>Account</span></a>
+          <button class="button ghost" data-auth-signed-in data-sign-out hidden type="button">Sign out</button>
+        </div>
+        <button class="menu-toggle" data-mobile-toggle type="button" aria-label="Open menu"></button>
+      </div>
+      <div class="mobile-panel" data-mobile-panel>
+        <a href="index.html">Home</a>
+        <a href="order.html">Order</a>
+        <a href="track.html">Track</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="services.html">Services</a>
+        <a href="driver.html">Riders</a>
+        <a href="support.html">Support</a>
+        <a class="button secondary" data-auth-signed-out href="auth.html?return=order.html">Sign in</a>
+      </div>
+    </header>
+
+    <main class="page-main">
+      <section class="page-hero">
+        <div class="container">
+          <div>
+            <span class="kicker">Book a ride</span>
+            <h1>Create a <span>delivery order.</span></h1>
+            <p>Choose pickup, destination, package size, speed and vehicle. FAST FLEET calculates a fare and assigns a nearby courier.</p>
+          </div>
+          <a class="button secondary" href="track.html">Track existing order</a>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container app-grid">
+          <form class="panel pad" data-order-form>
+            <div class="panel-head">
+              <div>
+                <span class="kicker">Book a ride</span>
+                <h2>Pickup and delivery</h2>
+              </div>
+              <span class="status-pill orange">Fare summary</span>
+            </div>
+
+            <div class="form-grid">
+              <div class="field">
+                <label for="customerName">Your name</label>
+                <input id="customerName" name="customer_name" autocomplete="name" required placeholder="Sender name">
+              </div>
+              <div class="field">
+                <label for="customerPhone">Your phone</label>
+                <input id="customerPhone" name="customer_phone" autocomplete="tel" required placeholder="+234...">
+              </div>
+              <div class="field full" style="margin-bottom: 1rem;">
+                <label for="pickup">Pickup address</label>
+                <input id="pickup" name="pickup" data-location-search list="fastfleetOrderLocations" autocomplete="street-address" required placeholder="Enter pickup location">
+                <datalist id="fastfleetOrderLocations" data-location-list></datalist>
+              </div>
+              <div class="field full" style="margin-bottom: 1rem;">
+                <button class="button secondary small" data-use-location="pickup" type="button">Use my location</button>
+                <div class="location-rationale">Location is used only to detect your pickup point and improve route estimates for this delivery.</div>
+              </div>
+              <div class="field full" style="margin-bottom: 1rem;">
+                <label for="dropoff">Drop-off address</label>
+                <input id="dropoff" name="dropoff" data-location-search list="fastfleetOrderLocations" required placeholder="Enter delivery destination">
+              </div>
+              <div class="field">
+                <label for="recipientName">Recipient name</label>
+                <input id="recipientName" name="recipient_name" required placeholder="Receiver name">
+              </div>
+              <div class="field">
+                <label for="recipientPhone">Recipient phone</label>
+                <input id="recipientPhone" name="recipient_phone" required placeholder="+234...">
+              </div>
+              <div class="field" style="margin-bottom: 1rem;">
+                <label for="packageType">Package type</label>
+                <select id="packageType" name="package_type">
+                  <option>Documents</option>
+                  <option>Retail parcel</option>
+                  <option>Food and grocery</option>
+                  <option>Fragile item</option>
+                  <option>Bulk delivery</option>
+                </select>
+              </div>
+              <div class="field" style="margin-bottom: 1rem;">
+                <label for="pickupDate">Pickup date</label>
+                <input id="pickupDate" name="pickup_date" type="date">
+              </div>
+              <div class="field">
+                <label for="pickupTime">Pickup time</label>
+                <input id="pickupTime" name="pickup_time" type="time">
+              </div>
+              <div class="field">
+                <label for="paymentMethod">Payment</label>
+                <select id="paymentMethod" name="payment_method">
+                  <option value="card">Card</option>
+                  <option value="wallet">Wallet</option>
+                  <option value="transfer">Bank transfer</option>
+                  <option value="cash">Cash on pickup</option>
+                  <option value="business">Business wallet</option>
+                </select>
+              </div>
+              <div class="field full" style="margin-bottom: 2rem;"> 
+                <label for="pickupNote">Pickup note</label>
+                <textarea id="pickupNote" name="pickup_note" placeholder="Apartment, gate code, package instruction or rider note"></textarea>
+              </div>
+            </div>
+
+            <div class="field" style="margin-bottom: 2rem;">
+              <label>Vehicle type</label>
+              <div class="select-row">
+                <label class="choice"><input type="radio" name="vehicle" value="bike" checked><span data-icon="B">Bike<small>Fast parcels</small></span></label>
+                <label class="choice"><input type="radio" name="vehicle" value="car"><span data-icon="C">Car<small>Medium items</small></span></label>
+                <label class="choice"><input type="radio" name="vehicle" value="van"><span data-icon="V">Van<small>Bulk goods</small></span></label>
+              </div>
+            </div>
+
+            <div class="field" style="margin-bottom: 2rem;">
+              <label>Delivery speed</label>
+              <div class="select-row">
+                <label class="choice"><input type="radio" name="speed" value="standard" checked><span data-icon="S">Standard<small>Best price</small></span></label>
+                <label class="choice"><input type="radio" name="speed" value="express"><span data-icon="E">Express<small>Faster ETA</small></span></label>
+                <label class="choice"><input type="radio" name="speed" value="priority"><span data-icon="P">Priority<small>Top dispatch</small></span></label>
+          
+              </div>
+            </div>
+
+            <button class="button primary block" type="submit">Confirm order <span aria-hidden="true">-></span></button>
+          </form>
+
+          <aside>
+            <div class="map-panel compact js-map" id="orderMap" data-map-label="Pickup and drop-off route"></div>
+            <div class="panel pad stack-top">
+              <div class="panel-head">
+                <div>
+                  <span class="kicker">Fare estimate</span>
+                  <h2 data-order-price>NGN 0</h2>
+                </div>
+                <span class="status-pill green">Available</span>
+              </div>
+              <div class="quote-box">
+                <div class="quote-row"><span>Distance</span><strong data-order-distance>0 km</strong></div>
+                <div class="quote-row"><span>ETA</span><strong data-order-eta>0 min</strong></div>
+                <div class="quote-row"><span>Vehicle</span><strong data-order-vehicle>Motorbike</strong></div>
+              </div>
+              <div class="quote-box">
+                <div data-courier-preview><strong>Courier preview</strong><span>Enter details to match a rider.</span></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-grid">
+        <div><strong>FAST FLEET LOGISTICS</strong><p>Dispatch ordering, live route tracking and delivery management.</p></div>
+        <div><strong>App</strong><a href="auth.html">Account</a><a href="track.html">Track order</a></div>
+        <div><strong>Help</strong><a href="services.html">Services</a><a href="support.html">Support</a></div>
+      </div>
+    </footer>
+  </div>
+  <div class="toast-region" data-toast-region></div>
+</body>
+</html>

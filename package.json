@@ -1,0 +1,34 @@
+{
+  "name": "fastfleet-logistics",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Premium logistics marketplace for customers, riders, fleet partners, and administrators.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "cloudflare:pack": "node scripts/prepare-cloudflare-pages.mjs",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.4",
+    "framer-motion": "^12.6.3",
+    "lucide-react": "^0.468.0",
+    "next": "^15.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.24.0",
+    "eslint-config-next": "^15.3.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.2"
+  }
+}

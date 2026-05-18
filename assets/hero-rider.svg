@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 950" role="img" aria-label="FastFleet rider on a motorcycle delivery">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#f8fbff"/><stop offset=".45" stop-color="#fff4e9"/><stop offset="1" stop-color="#d7f9e7"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="24" stdDeviation="24" flood-color="#082968" flood-opacity=".22"/></filter>
+  </defs>
+  <rect width="1600" height="950" fill="url(#bg)"/>
+  <path d="M0 610c215-86 421-120 620-102 228 20 365 118 602 84 145-20 265-78 378-142v500H0z" fill="#0d3b82"/>
+  <path d="M0 695c245-52 469-52 690 0 226 53 454 47 720-18" fill="none" stroke="#ffb84d" stroke-width="10" stroke-linecap="round" stroke-dasharray="54 42"/>
+  <g opacity=".8">
+    <rect x="98" y="248" width="260" height="286" rx="28" fill="#fff"/>
+    <rect x="430" y="192" width="190" height="340" rx="24" fill="#def2ff"/>
+    <rect x="1180" y="236" width="260" height="300" rx="28" fill="#fff"/>
+  </g>
+  <g filter="url(#shadow)">
+    <circle cx="554" cy="705" r="76" fill="#081f49"/>
+    <circle cx="1032" cy="705" r="76" fill="#081f49"/>
+    <circle cx="554" cy="705" r="34" fill="#fff"/>
+    <circle cx="1032" cy="705" r="34" fill="#fff"/>
+    <path d="M566 680h230l86-134 108 134h42" fill="none" stroke="#ff6a00" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M762 535l96 145" stroke="#082968" stroke-width="26" stroke-linecap="round"/>
+    <path d="M820 492c36-68 100-86 165-44l58 37-42 66-72-37-42 78-82-30z" fill="#0d3b82"/>
+    <circle cx="972" cy="389" r="48" fill="#ffb84d"/>
+    <path d="M916 350c54-38 122-20 144 30-44 3-86 0-126-13z" fill="#082968"/>
+    <rect x="1042" y="470" width="184" height="132" rx="24" fill="#fff"/>
+    <path d="M1074 512h122M1074 548h86" stroke="#ff8a2b" stroke-width="18" stroke-linecap="round"/>
+  </g>
+</svg>

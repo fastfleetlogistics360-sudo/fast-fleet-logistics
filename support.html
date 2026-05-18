@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support | FAST FLEET LOGISTICS</title>
+  <meta name="description" content="Contact FastFleet Logistics support for delivery orders, tracking, business dispatch, rider applications, wallet payments, and account deletion requests.">
+  <link rel="canonical" href="https://fastfleetlogistics.pages.dev/support.html">
+  <link rel="icon" href="assets/fastfleet-logo.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <script defer src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script defer src="js/supabase-config.js"></script>
+  <script defer src="js/app.js"></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <div class="nav-wrap">
+        <a class="brand" href="index.html" aria-label="FAST FLEET LOGISTICS home">
+          <img class="brand-logo" src="assets/fastfleet-logo.png" alt="FAST FLEET LOGISTICS logo">
+          <span class="brand-title"><strong>FAST FLEET</strong><span>LOGISTICS</span></span>
+        </a>
+        <nav class="nav-links" aria-label="Main navigation">
+          <a href="index.html">Home</a>
+          <a href="order.html">Order</a>
+          <a href="track.html">Track</a>
+          <a href="dashboard.html">Dashboard</a>
+          <a href="services.html">Services</a>
+          <a href="driver.html">Riders</a>
+          <a href="support.html">Support</a>
+        </nav>
+        <div class="nav-actions">
+          <a class="button ghost" data-auth-signed-out href="auth.html">Sign in</a>
+          <a class="button secondary" data-auth-signed-in hidden href="dashboard.html"><span data-user-name>Account</span></a>
+          <a class="button primary" href="order.html">Book delivery</a>
+        </div>
+        <button class="menu-toggle" data-mobile-toggle type="button" aria-label="Open menu"></button>
+      </div>
+      <div class="mobile-panel" data-mobile-panel>
+        <a href="index.html">Home</a>
+        <a href="order.html">Order</a>
+        <a href="track.html">Track</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="services.html">Services</a>
+        <a href="driver.html">Riders</a>
+        <a href="support.html">Support</a>
+      </div>
+    </header>
+
+    <main class="page-main">
+      <section class="page-hero">
+        <div class="container">
+          <div>
+            <span class="kicker">Support center</span>
+            <h1>Dispatch help, <span>fast.</span></h1>
+            <p>Send a support request for order changes, courier issues, business accounts or rider onboarding.</p>
+          </div>
+          <a class="button secondary" href="track.html">Track order</a>
+        </div>
+      </section>
+
+      <section class="section white">
+        <div class="container cards-grid">
+          <article class="support-card">
+            <div class="icon-box orange">O</div>
+            <h3>Order support</h3>
+            <p>Help with pickup edits, recipient changes, delivery status and cancellations.</p>
+          </article>
+          <article class="support-card">
+            <div class="icon-box">B</div>
+            <h3>Business dispatch</h3>
+            <p>Set up repeat deliveries, monthly billing and team access.</p>
+          </article>
+          <article class="support-card">
+            <div class="icon-box orange">R</div>
+            <h3>Rider support</h3>
+            <p>Courier onboarding, vehicle updates and delivery workflow questions.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container app-grid">
+          <form class="panel pad" data-support-form>
+            <div class="panel-head">
+              <div>
+                <span class="kicker">Contact dispatch</span>
+                <h2>Send request</h2>
+              </div>
+              <span class="status-pill green">Online</span>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="supportName">Name</label>
+                <input id="supportName" name="name" required placeholder="Your name">
+              </div>
+              <div class="field">
+                <label for="supportEmail">Email</label>
+                <input id="supportEmail" name="email" type="email" required placeholder="you@example.com">
+              </div>
+              <div class="field">
+                <label for="supportPhone">Phone</label>
+                <input id="supportPhone" name="phone" required placeholder="+234...">
+              </div>
+              <div class="field">
+                <label for="supportTopic">Topic</label>
+                <select id="supportTopic" name="topic">
+                  <option>Delivery order</option>
+                  <option>Tracking</option>
+                  <option>Business account</option>
+                  <option>Rider application</option>
+                </select>
+              </div>
+              <div class="field full">
+                <label for="supportMessage">Message</label>
+                <textarea id="supportMessage" name="message" required placeholder="How can dispatch help?"></textarea>
+              </div>
+            </div>
+            <button class="button primary block" type="submit">Send support request <span aria-hidden="true">-></span></button>
+          </form>
+
+          <aside class="panel pad">
+            <span class="kicker">Frequently asked</span>
+            <h2>Quick answers</h2>
+            <div class="quote-box">
+              <div>
+                <strong>Do I need an account?</strong>
+                <p>Create an account to place orders and sync delivery history through Supabase.</p>
+              </div>
+              <div>
+                <strong>Can I use my current location?</strong>
+                <p>Yes. The order page can request browser location and place it into pickup details.</p>
+              </div>
+              <div>
+                <strong>How do I track a package?</strong>
+                <p>Use the tracking code generated after booking, or open an order from the dashboard.</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-grid">
+        <div><strong>FAST FLEET LOGISTICS</strong><p>Support for delivery customers, businesses and courier partners.</p></div>
+        <div><strong>Orders</strong><a href="order.html">Book delivery</a><a href="track.html">Track package</a></div>
+        <div><strong>More</strong><a href="services.html">Services</a><a href="driver.html">Riders</a></div>
+      </div>
+    </footer>
+  </div>
+  <div class="toast-region" data-toast-region></div>
+</body>
+</html>

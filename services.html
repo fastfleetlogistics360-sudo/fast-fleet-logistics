@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Services | FAST FLEET LOGISTICS</title>
+  <link rel="icon" href="assets/fastfleet-logo.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <script defer src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script defer src="js/supabase-config.js"></script>
+  <script defer src="js/app.js"></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <div class="nav-wrap">
+        <a class="brand" href="index.html" aria-label="FAST FLEET LOGISTICS home">
+          <img class="brand-logo" src="assets/fastfleet-logo.png" alt="FAST FLEET LOGISTICS logo">
+          <span class="brand-title"><strong>FAST FLEET</strong><span>LOGISTICS</span></span>
+        </a>
+        <nav class="nav-links" aria-label="Main navigation">
+          <a href="index.html">Home</a>
+          <a href="order.html">Order</a>
+          <a href="track.html">Track</a>
+          <a href="dashboard.html">Dashboard</a>
+          <a href="services.html">Services</a>
+          <a href="driver.html">Riders</a>
+          <a href="support.html">Support</a>
+        </nav>
+        <div class="nav-actions">
+          <a class="button ghost" data-auth-signed-out href="auth.html">Sign in</a>
+          <a class="button secondary" data-auth-signed-in hidden href="dashboard.html"><span data-user-name>Account</span></a>
+          <a class="button primary" href="order.html">Book delivery</a>
+        </div>
+        <button class="menu-toggle" data-mobile-toggle type="button" aria-label="Open menu"></button>
+      </div>
+      <div class="mobile-panel" data-mobile-panel>
+        <a href="index.html">Home</a>
+        <a href="order.html">Order</a>
+        <a href="track.html">Track</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="services.html">Services</a>
+        <a href="driver.html">Riders</a>
+        <a href="support.html">Support</a>
+      </div>
+    </header>
+
+    <main class="page-main">
+      <section class="page-hero">
+        <div class="container">
+          <div>
+            <span class="kicker">Delivery services</span>
+            <h1>Vehicles for <span>every package.</span></h1>
+            <p>FAST FLEET supports quick bike dispatch, car delivery, van movement and larger truck jobs from one ordering flow.</p>
+          </div>
+          <a class="button secondary" href="order.html">Book now</a>
+        </div>
+      </section>
+
+      <section class="section white">
+        <div class="container">
+          <div class="section-title center">
+            <span class="kicker">Service menu</span>
+            <h2>Pick the right dispatch mode.</h2>
+            <p>Each vehicle option is available on the order page with live fare estimates.</p>
+          </div>
+          <div class="cards-grid">
+            <article class="service-card">
+              <div class="icon-box orange">B</div>
+              <h3>Bike dispatch</h3>
+              <p>Documents, food, small retail parcels and same-day city deliveries.</p>
+            </article>
+            <article class="service-card">
+              <div class="icon-box">C</div>
+              <h3>Car delivery</h3>
+              <p>Medium parcels, delicate packages and protected indoor items.</p>
+            </article>
+            <article class="service-card">
+              <div class="icon-box orange">V</div>
+              <h3>Van movement</h3>
+              <p>Bulk store orders, office equipment, event items and multi-drop jobs.</p>
+            </article>
+            <article class="service-card">
+              <div class="icon-box">T</div>
+              <h3>Box truck</h3>
+              <p>Large business shipments and scheduled logistics movements.</p>
+            </article>
+            <article class="service-card">
+              <div class="icon-box orange">R</div>
+              <h3>Real-time tracking</h3>
+              <p>Pickup, courier assignment, transit status and delivery confirmation.</p>
+            </article>
+            <article class="service-card">
+              <div class="icon-box">W</div>
+              <h3>Business wallet</h3>
+              <p>Built for teams that need repeat dispatches, receipts and order history.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container app-grid">
+          <div class="panel pad">
+            <span class="kicker">Fare structure</span>
+            <h2>Transparent delivery pricing</h2>
+            <p>Every quote combines a base vehicle fee, route distance and selected delivery speed. Priority jobs move to the top of the dispatch queue.</p>
+            <div class="quote-box">
+              <div class="quote-row"><span>Bike base</span><strong>NGN 1,800</strong></div>
+              <div class="quote-row"><span>Car base</span><strong>NGN 3,200</strong></div>
+              <div class="quote-row"><span>Van base</span><strong>NGN 6,500</strong></div>
+              <div class="quote-row"><span>Truck base</span><strong>NGN 12,000</strong></div>
+            </div>
+          </div>
+          <div class="panel pad">
+            <span class="kicker">Best fit</span>
+            <h2>For customers and businesses</h2>
+            <p>Use FAST FLEET for personal deliveries, ecommerce fulfilment, office dispatch, supplier movement and regular business logistics.</p>
+            <div class="inline-actions">
+              <a class="button primary" href="order.html">Create order <span aria-hidden="true">-></span></a>
+              <a class="button secondary" href="support.html">Talk to support</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-grid">
+        <div><strong>FAST FLEET LOGISTICS</strong><p>Delivery service menu and vehicle options.</p></div>
+        <div><strong>Order</strong><a href="order.html">Book delivery</a><a href="track.html">Track package</a></div>
+        <div><strong>More</strong><a href="driver.html">Riders</a><a href="support.html">Support</a></div>
+      </div>
+    </footer>
+  </div>
+  <div class="toast-region" data-toast-region></div>
+</body>
+</html>

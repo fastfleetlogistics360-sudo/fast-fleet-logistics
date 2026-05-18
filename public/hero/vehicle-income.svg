@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1100" role="img" aria-label="Vehicle owner earning with bike car and van deliveries">
+  <defs>
+    <linearGradient id="incomeBg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#08111f"/>
+      <stop offset="0.45" stop-color="#123b64"/>
+      <stop offset="1" stop-color="#15a36b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1800" height="1100" fill="url(#incomeBg)"/>
+  <g opacity="0.18" stroke="#ffffff" stroke-width="3">
+    <path d="M120 210h1560M120 420h1560M120 630h1560"/>
+    <path d="M260 120v620M520 120v620M780 120v620M1040 120v620M1300 120v620M1560 120v620"/>
+  </g>
+  <path d="M0 760h1800v340H0z" fill="#0a1728"/>
+  <path d="M230 835h1340" stroke="#f4a62a" stroke-width="18" stroke-linecap="round" stroke-dasharray="72 52"/>
+  <g transform="translate(1050 500)">
+    <rect x="0" y="90" width="520" height="190" rx="38" fill="#f6f8fb"/>
+    <rect x="72" y="22" width="250" height="110" rx="22" fill="#dbe5ef"/>
+    <rect x="342" y="132" width="130" height="72" rx="14" fill="#f4a62a"/>
+    <circle cx="118" cy="298" r="58" fill="#08111f"/>
+    <circle cx="412" cy="298" r="58" fill="#08111f"/>
+    <circle cx="118" cy="298" r="24" fill="#ffffff"/>
+    <circle cx="412" cy="298" r="24" fill="#ffffff"/>
+  </g>
+  <g transform="translate(630 650)">
+    <circle cx="68" cy="155" r="50" fill="#08111f"/>
+    <circle cx="238" cy="155" r="50" fill="#08111f"/>
+    <path d="M72 145h85l64-78 30 88H158l-25-58" fill="none" stroke="#15a36b" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="186" cy="28" r="28" fill="#ffffff"/>
+    <path d="M174 64l-32 70h58l38 36" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g transform="translate(260 330)">
+    <rect width="430" height="280" rx="30" fill="#ffffff" opacity="0.94"/>
+    <circle cx="92" cy="86" r="38" fill="#15a36b"/>
+    <path d="M80 88h24M92 76v24" stroke="#ffffff" stroke-width="12" stroke-linecap="round"/>
+    <rect x="150" y="63" width="190" height="22" rx="11" fill="#08111f"/>
+    <rect x="150" y="108" width="236" height="16" rx="8" fill="#64748b"/>
+    <rect x="44" y="175" width="332" height="18" rx="9" fill="#dbe5ef"/>
+    <rect x="44" y="214" width="270" height="18" rx="9" fill="#f4a62a"/>
+  </g>
+</svg>

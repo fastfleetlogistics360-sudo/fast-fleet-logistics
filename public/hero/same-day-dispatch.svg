@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1100" role="img" aria-label="Same day dispatch handoff with tracked route">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#10233a"/>
+      <stop offset="0.58" stop-color="#0f3460"/>
+      <stop offset="1" stop-color="#f4a62a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1800" height="1100" fill="url(#bg)"/>
+  <circle cx="1400" cy="250" r="165" fill="#f4a62a" opacity="0.85"/>
+  <g opacity="0.18" fill="#ffffff">
+    <rect x="126" y="160" width="150" height="520" rx="12"/>
+    <rect x="320" y="250" width="220" height="430" rx="12"/>
+    <rect x="590" y="120" width="170" height="560" rx="12"/>
+    <rect x="810" y="300" width="140" height="380" rx="12"/>
+  </g>
+  <path d="M-20 755c270-120 528-132 772-36 300 118 530 112 800-48 118-70 218-104 320-96v525H-20z" fill="#0a1728"/>
+  <path d="M210 790c235-76 420-63 612 39 250 133 464 118 692-34" fill="none" stroke="#15a36b" stroke-width="20" stroke-linecap="round" stroke-dasharray="56 42"/>
+  <g transform="translate(930 518)">
+    <rect x="55" y="142" width="430" height="175" rx="38" fill="#f6f8fb"/>
+    <path d="M128 142h245l68 72H86z" fill="#dbe5ef"/>
+    <circle cx="150" cy="330" r="52" fill="#0a1728"/>
+    <circle cx="392" cy="330" r="52" fill="#0a1728"/>
+    <circle cx="150" cy="330" r="22" fill="#ffffff"/>
+    <circle cx="392" cy="330" r="22" fill="#ffffff"/>
+    <rect x="190" y="184" width="110" height="54" rx="10" fill="#ef6c00"/>
+    <rect x="318" y="184" width="90" height="54" rx="10" fill="#15a36b"/>
+  </g>
+  <g transform="translate(430 455)">
+    <circle cx="95" cy="42" r="42" fill="#f6f8fb"/>
+    <path d="M85 100l-50 148 112 8 46 116" fill="none" stroke="#f6f8fb" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M142 152l118 62" fill="none" stroke="#f6f8fb" stroke-width="34" stroke-linecap="round"/>
+    <rect x="252" y="165" width="124" height="100" rx="16" fill="#f4a62a"/>
+  </g>
+  <g transform="translate(250 210)">
+    <rect width="330" height="180" rx="26" fill="#ffffff" opacity="0.93"/>
+    <rect x="44" y="45" width="145" height="18" rx="9" fill="#0a1728"/>
+    <rect x="44" y="85" width="238" height="14" rx="7" fill="#64748b"/>
+    <rect x="44" y="124" width="192" height="14" rx="7" fill="#15a36b"/>
+  </g>
+</svg>

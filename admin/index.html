@@ -1,0 +1,1601 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FastFleet Admin</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="icon" href="../assets/fastfleet-logo.png">
+  <style>
+    :root {
+      --navy: #061f54;
+      --navy-2: #083b8f;
+      --orange: #ff6a00;
+      --gold: #ffc04d;
+      --aqua: #25d6c4;
+      --ink: #101828;
+      --muted: #667085;
+      --line: #d9e2f1;
+      --paper: #f7fbff;
+      --success: #16a34a;
+      --warning: #f59e0b;
+      --danger: #dc2626;
+      --radius: 8px;
+      --shadow: 0 24px 70px rgba(2, 12, 32, 0.18);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% -8%, rgba(255, 192, 77, 0.24), transparent 28%),
+        radial-gradient(circle at 88% 2%, rgba(37, 214, 196, 0.16), transparent 30%),
+        linear-gradient(135deg, #061f54 0%, #083b8f 42%, #f7fbff 42%, #f7fbff 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    .login-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(360px, 1.05fr);
+      gap: 34px;
+      align-items: center;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 36px 20px;
+    }
+
+    .login-copy {
+      color: #fff;
+    }
+
+    .brand-lockup {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--gold);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .login-copy h1 {
+      max-width: 760px;
+      margin: 26px 0 0;
+      font-size: clamp(2.6rem, 7vw, 5.8rem);
+      line-height: 0.94;
+      letter-spacing: 0;
+    }
+
+    .login-copy p {
+      max-width: 600px;
+      margin: 22px 0 0;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 1.02rem;
+      font-weight: 700;
+      line-height: 1.72;
+    }
+
+    .capability-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .capability-grid div,
+    .card,
+    .stat,
+    .record-row {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      box-shadow: 0 16px 42px rgba(8, 41, 104, 0.08);
+    }
+
+    .capability-grid div {
+      border-color: rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.1);
+      padding: 16px;
+      box-shadow: none;
+    }
+
+    .capability-grid strong {
+      display: block;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 900;
+    }
+
+    .capability-grid span {
+      display: block;
+      margin-top: 5px;
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 0.78rem;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .login-card {
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 7px 11px;
+      background: #eaf4ff;
+      color: var(--navy-2);
+      font-size: 0.78rem;
+      font-weight: 900;
+    }
+
+    .login-card h2,
+    .panel-head h1,
+    .card h2 {
+      margin: 14px 0 0;
+      color: var(--navy);
+      font-size: 2rem;
+      line-height: 1.05;
+    }
+
+    .login-card p,
+    .card p {
+      color: var(--muted);
+      font-size: 0.92rem;
+      font-weight: 700;
+      line-height: 1.65;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .field span {
+      color: #344054;
+      font-size: 0.75rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .input,
+    .select,
+    .textarea {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--ink);
+      padding: 12px;
+      outline: none;
+      font-weight: 750;
+    }
+
+    .textarea {
+      min-height: 94px;
+      resize: vertical;
+    }
+
+    .input:focus,
+    .select:focus,
+    .textarea:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 4px rgba(255, 192, 77, 0.22);
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .two {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .three {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .button {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      padding: 10px 16px;
+      background: linear-gradient(135deg, var(--orange), #ff9b35);
+      color: #fff;
+      font-weight: 900;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 30px rgba(255, 106, 0, 0.22);
+    }
+
+    .button.secondary {
+      background: #fff;
+      color: var(--navy);
+      border-color: var(--line);
+      box-shadow: none;
+    }
+
+    .button.dark {
+      background: var(--navy);
+      color: #fff;
+    }
+
+    .button.small {
+      min-height: 36px;
+      padding: 8px 11px;
+      font-size: 0.86rem;
+    }
+
+    .button.block {
+      width: 100%;
+    }
+
+    .message {
+      margin-top: 16px;
+      border-radius: var(--radius);
+      padding: 12px;
+      background: #fff7ed;
+      color: #9a3412;
+      font-size: 0.9rem;
+      font-weight: 800;
+    }
+
+    .panel {
+      min-height: 100vh;
+      background: var(--paper);
+    }
+
+    .panel-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid rgba(8, 41, 104, 0.12);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(18px);
+    }
+
+    .panel-topbar-inner,
+    .panel-body {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 14px 20px;
+    }
+
+    .panel-topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .logo-lockup {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .logo-lockup img {
+      width: 46px;
+      height: 46px;
+      border-radius: var(--radius);
+      object-fit: cover;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .logo-lockup strong {
+      display: block;
+      color: var(--navy);
+      font-weight: 950;
+    }
+
+    .logo-lockup span {
+      display: block;
+      color: var(--orange);
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+    }
+
+    .panel-body {
+      padding-top: 30px;
+      padding-bottom: 54px;
+    }
+
+    .panel-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      gap: 24px;
+      align-items: end;
+    }
+
+    .panel-head h1 {
+      margin-top: 10px;
+      font-size: clamp(2.2rem, 5vw, 4.3rem);
+      max-width: 680px;
+    }
+
+    .panel-head p {
+      margin: 14px 0 0;
+      max-width: 640px;
+      color: var(--muted);
+      font-weight: 750;
+      line-height: 1.7;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      padding: 16px;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.73rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 8px;
+      color: var(--navy);
+      font-size: 1.55rem;
+      font-weight: 950;
+    }
+
+    .admin-grid {
+      display: grid;
+      grid-template-columns: 0.82fr 1.18fr;
+      gap: 18px;
+      margin-top: 22px;
+    }
+
+    .card {
+      padding: 20px;
+    }
+
+    .card-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .card-head small {
+      color: var(--orange);
+      font-weight: 950;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 16px 0 0;
+    }
+
+    .summary {
+      border-radius: var(--radius);
+      background: var(--paper);
+      border: 1px solid var(--line);
+      padding: 13px;
+    }
+
+    .summary span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    .summary strong {
+      display: block;
+      margin-top: 7px;
+      color: var(--navy);
+      font-size: 1.12rem;
+      font-weight: 950;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 220px auto;
+      gap: 10px;
+      align-items: end;
+      margin-top: 16px;
+    }
+
+    .record-list {
+      display: grid;
+      gap: 10px;
+      max-height: 660px;
+      margin-top: 16px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .record-row {
+      padding: 14px;
+      box-shadow: none;
+    }
+
+    .record-main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+    }
+
+    .record-row h3 {
+      margin: 0;
+      color: var(--navy);
+      font-size: 1rem;
+    }
+
+    .record-row p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 750;
+      line-height: 1.55;
+    }
+
+    .amount {
+      text-align: right;
+      font-size: 1.05rem;
+      font-weight: 950;
+    }
+
+    .amount.income {
+      color: var(--success);
+    }
+
+    .amount.expense {
+      color: var(--danger);
+    }
+
+    .amount.transfer {
+      color: var(--navy);
+    }
+
+    .record-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 5px 9px;
+      background: #eef4ff;
+      color: var(--navy);
+      font-size: 0.76rem;
+      font-weight: 900;
+    }
+
+    .pill.green {
+      background: #ecfdf3;
+      color: #047857;
+    }
+
+    .pill.amber {
+      background: #fffbeb;
+      color: #b45309;
+    }
+
+    .pill.red {
+      background: #fff1f2;
+      color: #be123c;
+    }
+
+    .ops-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .ops-item {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      padding: 16px;
+      color: inherit;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .ops-item:hover,
+    .ops-item:focus {
+      border-color: var(--orange);
+      box-shadow: 0 18px 34px rgba(6, 31, 84, 0.1);
+      outline: none;
+      transform: translateY(-2px);
+    }
+
+    .action-board {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .queue-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .queue-item {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      padding: 14px;
+      transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .queue-item:hover {
+      border-color: rgba(255, 106, 0, 0.34);
+      box-shadow: 0 16px 34px rgba(8, 41, 104, 0.08);
+      transform: translateY(-2px);
+    }
+
+    .queue-item h3 {
+      margin: 0;
+      color: var(--navy);
+      font-size: 1rem;
+    }
+
+    .queue-item p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 750;
+      line-height: 1.55;
+    }
+
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+
+    .switch-row input {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--orange);
+    }
+
+    .driver-location-grid,
+    .delivery-status-grid {
+      display: grid;
+      gap: 9px;
+      margin-top: 10px;
+    }
+
+    .driver-location-grid span,
+    .delivery-status-grid span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .driver-location-grid strong,
+    .delivery-status-grid strong {
+      color: var(--navy);
+    }
+
+    .status-chain {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .status-chain span {
+      border-radius: 999px;
+      background: #eef4ff;
+      color: var(--navy);
+      padding: 5px 9px;
+      font-size: 0.72rem;
+      font-weight: 900;
+    }
+
+    .status-chain span.is-active {
+      background: #fff0e2;
+      color: #9a3412;
+    }
+
+    .ops-item strong {
+      color: var(--navy);
+      font-size: 1.05rem;
+    }
+
+    .ops-item p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 980px) {
+      body {
+        background: linear-gradient(180deg, #061f54 0%, #083b8f 38%, #f7fbff 38%, #f7fbff 100%);
+      }
+
+      .login-shell,
+      .panel-head,
+      .admin-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stat-grid,
+      .summary-grid,
+      .action-board,
+      .ops-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .login-shell {
+        padding: 24px 14px;
+      }
+
+      .capability-grid,
+      .two,
+      .three,
+      .stat-grid,
+      .summary-grid,
+      .action-board,
+      .ops-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .panel-topbar-inner {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      .record-main {
+        grid-template-columns: 1fr;
+      }
+
+      .amount {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="loginView" class="login-shell">
+    <section class="login-copy">
+      <div class="brand-lockup">FastFleet private admin</div>
+      <h1>Run the company from one command center.</h1>
+      <p>Launch states, track riders, review withdrawals, control platform operations, and keep updateable company transaction records.</p>
+      <div class="capability-grid">
+        <div><strong>Finance</strong><span>Income, maintenance, payroll, fuel, permits, refunds.</span></div>
+        <div><strong>Operations</strong><span>Riders, delivery oversight, site controls, support work.</span></div>
+        <div><strong>Audit</strong><span>Searchable logs with export and status tracking.</span></div>
+      </div>
+    </section>
+
+    <section class="card login-card">
+      <span class="badge">Admin login</span>
+      <h2>Sign in to continue</h2>
+      <p>Use the admin credentials already configured for FastFleet.</p>
+      <form id="loginForm" class="form-grid">
+        <label class="field">
+          <span>Username</span>
+          <input id="username" class="input" autocomplete="username" value="FastFleetAdmin">
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input id="password" class="input" type="password" autocomplete="current-password">
+        </label>
+        <button class="button block" type="submit">Enter admin</button>
+      </form>
+      <div id="loginMessage" class="message" hidden></div>
+    </section>
+  </main>
+
+  <main id="panelView" class="panel" hidden>
+    <header class="panel-topbar">
+      <div class="panel-topbar-inner">
+        <div class="logo-lockup">
+          <img src="../assets/fastfleet-logo.png" alt="FastFleet Logistics">
+          <div>
+            <strong>FastFleet Admin</strong>
+            <span>Logistics control</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button id="exportButton" class="button secondary small" type="button">Export CSV</button>
+          <button id="logoutButton" class="button dark small" type="button">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="panel-body">
+      <div class="panel-head">
+        <div>
+          <span class="badge">Private admin</span>
+          <h1>Company operating ledger.</h1>
+          <p>Update delivery income, vehicle maintenance, site maintenance, payroll, fuel, supplier payments, customer refunds, and other records from here.</p>
+        </div>
+        <div class="stat-grid">
+          <div class="stat"><span>Live states</span><strong>2</strong></div>
+          <div class="stat"><span>Pending withdrawals</span><strong>7</strong></div>
+          <div class="stat"><span>Active riders</span><strong>91</strong></div>
+          <div class="stat"><span>Success rate</span><strong>98.2%</strong></div>
+        </div>
+      </div>
+
+      <div class="admin-grid">
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <small>Company books</small>
+              <h2>Transaction log</h2>
+              <p>Add or update records for proper company accounting and operational memory.</p>
+            </div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="summary"><span>Income</span><strong id="incomeTotal">NGN 0</strong></div>
+            <div class="summary"><span>Expenses</span><strong id="expenseTotal">NGN 0</strong></div>
+            <div class="summary"><span>Net</span><strong id="netTotal">NGN 0</strong></div>
+            <div class="summary"><span>Attention</span><strong id="attentionTotal">0 pending</strong></div>
+          </div>
+
+          <form id="logForm" class="form-grid">
+            <input id="editingId" type="hidden">
+            <div class="two">
+              <label class="field">
+                <span>Date</span>
+                <input id="entryDate" class="input" type="date" required>
+              </label>
+              <label class="field">
+                <span>Category</span>
+                <select id="category" class="select" required></select>
+              </label>
+            </div>
+            <div class="three">
+              <label class="field">
+                <span>Direction</span>
+                <select id="direction" class="select" required>
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                  <option value="transfer">Transfer</option>
+                </select>
+              </label>
+              <label class="field" style="grid-column:span 2">
+                <span>Amount</span>
+                <input id="amount" class="input" inputmode="decimal" placeholder="0" required>
+              </label>
+            </div>
+            <label class="field">
+              <span>Title</span>
+              <input id="title" class="input" placeholder="e.g. Brake pads and oil service" required>
+            </label>
+            <div class="two">
+              <label class="field">
+                <span>Counterparty</span>
+                <input id="counterparty" class="input" placeholder="Vendor, customer, staff">
+              </label>
+              <label class="field">
+                <span>Reference</span>
+                <input id="reference" class="input" placeholder="Invoice, payout, receipt ref">
+              </label>
+            </div>
+            <div class="two">
+              <label class="field">
+                <span>Payment method</span>
+                <input id="paymentMethod" class="input" placeholder="Transfer, cash, card">
+              </label>
+              <label class="field">
+                <span>Status</span>
+                <select id="status" class="select">
+                  <option value="pending">Pending</option>
+                  <option value="cleared">Cleared</option>
+                  <option value="flagged">Flagged</option>
+                </select>
+              </label>
+            </div>
+            <label class="field">
+              <span>Notes</span>
+              <textarea id="notes" class="textarea" placeholder="What should the company remember about this record?"></textarea>
+            </label>
+            <div class="two">
+              <button id="saveButton" class="button" type="submit">Add log</button>
+              <button id="newButton" class="button secondary" type="button">New record</button>
+            </div>
+          </form>
+          <div id="panelMessage" class="message" hidden></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <small>Ledger</small>
+              <h2>Recent company records</h2>
+              <p>Search, filter, edit, and export transaction history.</p>
+            </div>
+          </div>
+          <div class="toolbar">
+            <label class="field">
+              <span>Search</span>
+              <input id="search" class="input" placeholder="Title, vendor, ref, notes">
+            </label>
+            <label class="field">
+              <span>Filter</span>
+              <select id="filter" class="select"></select>
+            </label>
+            <button id="clearButton" class="button secondary" type="button">Clear</button>
+          </div>
+          <div id="recordList" class="record-list"></div>
+        </section>
+      </div>
+
+      <div class="ops-grid">
+        <a class="ops-item" href="#riderApprovals"><strong>Rider approvals</strong><p>Review KYC, vehicles, operating zones, and approval status.</p></a>
+        <a class="ops-item" href="#deliveryStatusControl"><strong>Delivery statuses</strong><p>Update every stage and reflect it in the user dashboard.</p></a>
+        <a class="ops-item" href="#withdrawalReview"><strong>Withdrawal review</strong><p>Approve, reject with reason, or mark rider payouts as credited.</p></a>
+        <a class="ops-item" href="#siteControls"><strong>Site controls</strong><p>Manage platform switches, launch content, wallet policy, and support flow.</p></a>
+        <a class="ops-item" href="#riskSignals"><strong>Risk signals</strong><p>Track fraud, payment mismatches, and operational exceptions.</p></a>
+      </div>
+
+      <div class="action-board">
+        <section id="riderApprovals" class="card">
+          <div class="card-head">
+            <div>
+              <small>Rider approvals</small>
+              <h2>Unboarded driver list</h2>
+              <p>Review every driver waiting for onboarding, including name, state, and exact operating location.</p>
+            </div>
+          </div>
+          <div class="queue-list" id="riderQueue"></div>
+        </section>
+
+        <section id="deliveryStatusControl" class="card">
+          <div class="card-head">
+            <div>
+              <small>Delivery status</small>
+              <h2>Status chain control</h2>
+              <p>Change an order stage here and the same local order record updates in the user's dashboard and tracking page.</p>
+            </div>
+          </div>
+          <div class="queue-list" id="deliveryQueue"></div>
+        </section>
+
+        <section id="withdrawalReview" class="card">
+          <div class="card-head">
+            <div>
+              <small>Withdrawal review</small>
+              <h2>Rider payout queue</h2>
+              <p>Approve, reject with reason, or mark payout credited in the live admin API.</p>
+            </div>
+          </div>
+          <div class="queue-list" id="withdrawalQueue"></div>
+        </section>
+
+        <section id="siteControls" class="card">
+          <div class="card-head">
+            <div>
+              <small>Site controls</small>
+              <h2>Platform switches</h2>
+              <p>These controls map to the Supabase <strong>platform_settings</strong> row used by the Next admin.</p>
+            </div>
+          </div>
+          <div class="queue-list">
+            <label class="switch-row"><strong>Bookings enabled</strong><input id="bookingsSwitch" type="checkbox" checked></label>
+            <label class="switch-row"><strong>Rider onboarding enabled</strong><input id="onboardingSwitch" type="checkbox" checked></label>
+            <label class="switch-row"><strong>Wallet top-ups enabled</strong><input id="walletSwitch" type="checkbox" checked></label>
+            <label class="switch-row"><strong>Withdrawals enabled</strong><input id="withdrawalSwitch" type="checkbox" checked></label>
+            <button id="saveControlsButton" class="button" type="button">Save controls draft</button>
+          </div>
+        </section>
+
+        <section id="riskSignals" class="card">
+          <div class="card-head">
+            <div>
+              <small>Risk signals</small>
+              <h2>Exceptions queue</h2>
+              <p>Track payment mismatches, support escalations, and fraud signals from the live database.</p>
+            </div>
+          </div>
+          <div class="queue-list" id="riskQueue"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var ADMIN_USERNAME = "FastFleetAdmin";
+      var ADMIN_PASSWORD = "Fastfleet360@#";
+      var SESSION_KEY = "fastfleet.staticAdminSession";
+      var LOG_KEY = "fastfleet.companyTransactionLogs";
+      var RIDER_KEY = "fastfleet.staticRiderApprovals";
+      var LIVE_RIDER_KEY = "fastfleet.riders";
+      var ORDER_KEY = "fastfleet.orders";
+      var WITHDRAWAL_KEY = "fastfleet.staticWithdrawals";
+      var RISK_KEY = "fastfleet.staticRiskSignals";
+      var CONTROLS_KEY = "fastfleet.staticSiteControls";
+      var STATUS_FLOW = ["Order received", "Courier assigned", "Picked up", "In transit", "Delivered"];
+      var categories = [
+        ["delivery_income", "Delivery income"],
+        ["vehicle_maintenance", "Vehicle maintenance"],
+        ["site_maintenance", "Site maintenance"],
+        ["fuel", "Fuel"],
+        ["payroll", "Payroll"],
+        ["rider_payout", "Rider payout"],
+        ["office_expense", "Office expense"],
+        ["software", "Software"],
+        ["tax", "Tax"],
+        ["insurance", "Insurance"],
+        ["licensing_permits", "Licensing and permits"],
+        ["rent_utilities", "Rent and utilities"],
+        ["marketing", "Marketing"],
+        ["customer_refund", "Customer refund"],
+        ["supplier_payment", "Supplier payment"],
+        ["asset_purchase", "Asset purchase"],
+        ["other", "Other"]
+      ];
+
+      var demoLogs = [
+        {
+          id: "CTL-1001",
+          entryDate: today(),
+          category: "delivery_income",
+          direction: "income",
+          amount: 486000,
+          title: "Same-day delivery collections",
+          counterparty: "FastFleet customers",
+          reference: "DAY-CLOSE",
+          paymentMethod: "Wallet / Paystack",
+          status: "cleared",
+          notes: "Daily delivery income summary.",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          id: "CTL-1002",
+          entryDate: today(),
+          category: "vehicle_maintenance",
+          direction: "expense",
+          amount: 73500,
+          title: "Brake pads and oil service",
+          counterparty: "Fleet garage",
+          reference: "MAINT-042",
+          paymentMethod: "Transfer",
+          status: "pending",
+          notes: "Two bikes serviced before evening shift.",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          id: "CTL-1003",
+          entryDate: yesterday(),
+          category: "site_maintenance",
+          direction: "expense",
+          amount: 42500,
+          title: "Landing page and hosting maintenance",
+          counterparty: "Web operations",
+          reference: "SITE-015",
+          paymentMethod: "Card",
+          status: "cleared",
+          notes: "Monthly platform maintenance.",
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          updatedAt: new Date(Date.now() - 86400000).toISOString()
+        }
+      ];
+
+      var demoRiders = [
+        { id: "RP-1001", name: "Amina Yusuf", vehicle: "Bike", state: "Lagos", location: "Admiralty Way, Lekki Phase 1", zone: "Lekki / VI", status: "submitted" },
+        { id: "RP-1002", name: "Samuel Ojo", vehicle: "Car", state: "Lagos", location: "Allen Avenue, Ikeja", zone: "Ikeja / Ogba", status: "under review" },
+        { id: "RP-1003", name: "Kunle Balogun", vehicle: "Van", state: "Ogun", location: "Tollgate Road, Ota", zone: "Ota / Ogun", status: "more info required" },
+        { id: "RP-1004", name: "Chinedu Okafor", vehicle: "Bike", state: "Lagos", location: "Bode Thomas Street, Surulere", zone: "Surulere / Yaba", status: "submitted" },
+        { id: "RP-1005", name: "Rasheed Alabi", vehicle: "Bike", state: "Ogun", location: "Panseke Road, Abeokuta", zone: "Abeokuta", status: "submitted" },
+        { id: "RP-1006", name: "Blessing Nwosu", vehicle: "Car", state: "Lagos", location: "Chevron Drive, Lekki", zone: "Lekki / Ajah", status: "under review" },
+        { id: "RP-1007", name: "Moses Danjuma", vehicle: "Bike", state: "Lagos", location: "Ikorodu Road, Maryland", zone: "Maryland / Ketu", status: "submitted" },
+        { id: "RP-1008", name: "Temitope Adeyemi", vehicle: "Van", state: "Ogun", location: "Sagamu Benin Expressway, Sagamu", zone: "Sagamu / Ijebu Ode", status: "submitted" }
+      ];
+
+      var demoWithdrawals = [
+        { id: "WR-901", name: "Tunde Adebayo", bank: "Kuda Bank", amount: 24000, status: "pending", reason: "" },
+        { id: "WR-902", name: "Blessing Nwosu", bank: "GTBank", amount: 37500, status: "approved", reason: "" }
+      ];
+
+      var demoRisks = [
+        { id: "FS-1001", title: "Payment mismatch", detail: "Wallet debit did not match delivery amount.", score: 82, status: "open" },
+        { id: "ST-1001", title: "Urgent support ticket", detail: "Customer says Paystack debited them but wallet has not updated.", score: 71, status: "open" }
+      ];
+
+      var els = {
+        loginView: document.getElementById("loginView"),
+        panelView: document.getElementById("panelView"),
+        loginForm: document.getElementById("loginForm"),
+        loginMessage: document.getElementById("loginMessage"),
+        username: document.getElementById("username"),
+        password: document.getElementById("password"),
+        logoutButton: document.getElementById("logoutButton"),
+        exportButton: document.getElementById("exportButton"),
+        logForm: document.getElementById("logForm"),
+        editingId: document.getElementById("editingId"),
+        entryDate: document.getElementById("entryDate"),
+        category: document.getElementById("category"),
+        direction: document.getElementById("direction"),
+        amount: document.getElementById("amount"),
+        title: document.getElementById("title"),
+        counterparty: document.getElementById("counterparty"),
+        reference: document.getElementById("reference"),
+        paymentMethod: document.getElementById("paymentMethod"),
+        status: document.getElementById("status"),
+        notes: document.getElementById("notes"),
+        saveButton: document.getElementById("saveButton"),
+        newButton: document.getElementById("newButton"),
+        panelMessage: document.getElementById("panelMessage"),
+        search: document.getElementById("search"),
+        filter: document.getElementById("filter"),
+        clearButton: document.getElementById("clearButton"),
+        recordList: document.getElementById("recordList"),
+        incomeTotal: document.getElementById("incomeTotal"),
+        expenseTotal: document.getElementById("expenseTotal"),
+        netTotal: document.getElementById("netTotal"),
+        attentionTotal: document.getElementById("attentionTotal")
+        ,
+        riderQueue: document.getElementById("riderQueue"),
+        deliveryQueue: document.getElementById("deliveryQueue"),
+        withdrawalQueue: document.getElementById("withdrawalQueue"),
+        riskQueue: document.getElementById("riskQueue"),
+        bookingsSwitch: document.getElementById("bookingsSwitch"),
+        onboardingSwitch: document.getElementById("onboardingSwitch"),
+        walletSwitch: document.getElementById("walletSwitch"),
+        withdrawalSwitch: document.getElementById("withdrawalSwitch"),
+        saveControlsButton: document.getElementById("saveControlsButton")
+      };
+
+      fillCategorySelects();
+      ensureLogs();
+      ensureActionData();
+      resetForm();
+      showSession();
+
+      els.loginForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        if (els.username.value.trim() !== ADMIN_USERNAME || els.password.value !== ADMIN_PASSWORD) {
+          showMessage(els.loginMessage, "Invalid admin username or password.");
+          return;
+        }
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ ok: true, at: new Date().toISOString() }));
+        els.password.value = "";
+        showSession();
+      });
+
+      els.logoutButton.addEventListener("click", function () {
+        localStorage.removeItem(SESSION_KEY);
+        showSession();
+      });
+
+      els.logForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var amount = Number(String(els.amount.value || "").replace(/,/g, ""));
+        if (!els.title.value.trim() || !Number.isFinite(amount) || amount < 0) {
+          showMessage(els.panelMessage, "Add a clear title and a valid amount.");
+          return;
+        }
+        var now = new Date().toISOString();
+        var id = els.editingId.value || "LOCAL-" + Date.now();
+        var existing = logs().find(function (item) { return item.id === id; });
+        var record = {
+          id: id,
+          entryDate: els.entryDate.value || today(),
+          category: els.category.value,
+          direction: els.direction.value,
+          amount: amount,
+          title: els.title.value.trim(),
+          counterparty: els.counterparty.value.trim(),
+          reference: els.reference.value.trim(),
+          paymentMethod: els.paymentMethod.value.trim(),
+          status: els.status.value,
+          notes: els.notes.value.trim(),
+          createdAt: existing ? existing.createdAt : now,
+          updatedAt: now
+        };
+        saveLogs(upsert(logs(), record));
+        resetForm();
+        renderLogs();
+        showMessage(els.panelMessage, existing ? "Company transaction log updated." : "Company transaction log added.");
+      });
+
+      els.newButton.addEventListener("click", resetForm);
+      els.search.addEventListener("input", renderLogs);
+      els.filter.addEventListener("change", renderLogs);
+      els.clearButton.addEventListener("click", function () {
+        els.search.value = "";
+        els.filter.value = "all";
+        renderLogs();
+      });
+      els.exportButton.addEventListener("click", exportCsv);
+      els.saveControlsButton.addEventListener("click", saveStaticControls);
+
+      function showSession() {
+        var active = Boolean(readJson(SESSION_KEY, null));
+        els.loginView.hidden = active;
+        els.panelView.hidden = !active;
+        if (active) {
+          renderLogs();
+          renderActionQueues();
+          loadStaticControls();
+        }
+      }
+
+      function fillCategorySelects() {
+        els.category.innerHTML = categories.map(function (item) {
+          return "<option value=\"" + item[0] + "\">" + item[1] + "</option>";
+        }).join("");
+        els.filter.innerHTML = "<option value=\"all\">All categories</option>" + categories.map(function (item) {
+          return "<option value=\"" + item[0] + "\">" + item[1] + "</option>";
+        }).join("");
+      }
+
+      function resetForm() {
+        els.editingId.value = "";
+        els.entryDate.value = today();
+        els.category.value = "delivery_income";
+        els.direction.value = "income";
+        els.amount.value = "";
+        els.title.value = "";
+        els.counterparty.value = "";
+        els.reference.value = "";
+        els.paymentMethod.value = "";
+        els.status.value = "pending";
+        els.notes.value = "";
+        els.saveButton.textContent = "Add log";
+      }
+
+      function renderLogs() {
+        var query = els.search.value.trim().toLowerCase();
+        var filter = els.filter.value;
+        var items = logs().filter(function (item) {
+          var text = [item.title, item.counterparty, item.reference, item.notes, labelFor(item.category)].join(" ").toLowerCase();
+          return (filter === "all" || item.category === filter) && (!query || text.indexOf(query) !== -1);
+        });
+        updateSummary(logs());
+        els.recordList.innerHTML = items.length ? items.map(recordHtml).join("") : "<div class=\"record-row\"><p>No company transaction logs match this view.</p></div>";
+        Array.prototype.forEach.call(els.recordList.querySelectorAll("[data-edit]"), function (button) {
+          button.addEventListener("click", function () {
+            editRecord(button.getAttribute("data-edit"));
+          });
+        });
+      }
+
+      function recordHtml(item) {
+        var sign = item.direction === "income" ? "+" : item.direction === "expense" ? "-" : "";
+        return [
+          "<article class=\"record-row\">",
+          "<div class=\"record-main\">",
+          "<div><h3>", escapeHtml(item.title), "</h3>",
+          "<p>", formatDate(item.entryDate), " · ", escapeHtml(item.counterparty || "No counterparty"), " · ", escapeHtml(item.reference || "No reference"), "</p>",
+          item.notes ? "<p>" + escapeHtml(item.notes) + "</p>" : "",
+          "</div>",
+          "<div class=\"amount ", item.direction, "\">", sign, money(item.amount), "</div>",
+          "</div>",
+          "<div class=\"record-meta\">",
+          "<span class=\"pill\">", escapeHtml(labelFor(item.category)), "</span>",
+          "<span class=\"pill ", statusTone(item.status), "\">", escapeHtml(item.status), "</span>",
+          "<span class=\"pill\">", escapeHtml(item.paymentMethod || "No method"), "</span>",
+          "<button class=\"button secondary small\" type=\"button\" data-edit=\"", item.id, "\">Edit</button>",
+          "</div>",
+          "</article>"
+        ].join("");
+      }
+
+      function editRecord(id) {
+        var item = logs().find(function (record) { return record.id === id; });
+        if (!item) return;
+        els.editingId.value = item.id;
+        els.entryDate.value = item.entryDate;
+        els.category.value = item.category;
+        els.direction.value = item.direction;
+        els.amount.value = String(item.amount);
+        els.title.value = item.title;
+        els.counterparty.value = item.counterparty || "";
+        els.reference.value = item.reference || "";
+        els.paymentMethod.value = item.paymentMethod || "";
+        els.status.value = item.status;
+        els.notes.value = item.notes || "";
+        els.saveButton.textContent = "Update log";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      function updateSummary(items) {
+        var income = 0;
+        var expenses = 0;
+        var pending = 0;
+        var flagged = 0;
+        items.forEach(function (item) {
+          if (item.direction === "income") income += Number(item.amount) || 0;
+          if (item.direction === "expense") expenses += Number(item.amount) || 0;
+          if (item.status === "pending") pending += 1;
+          if (item.status === "flagged") flagged += 1;
+        });
+        els.incomeTotal.textContent = money(income);
+        els.expenseTotal.textContent = money(expenses);
+        els.netTotal.textContent = money(income - expenses);
+        els.attentionTotal.textContent = pending + " pending / " + flagged + " flagged";
+      }
+
+      function exportCsv() {
+        var headers = ["Date", "Category", "Direction", "Amount NGN", "Title", "Counterparty", "Reference", "Payment method", "Status", "Notes"];
+        var rows = logs().map(function (item) {
+          return [
+            item.entryDate,
+            labelFor(item.category),
+            item.direction,
+            String(item.amount),
+            item.title,
+            item.counterparty || "",
+            item.reference || "",
+            item.paymentMethod || "",
+            item.status,
+            item.notes || ""
+          ];
+        });
+        var csv = [headers].concat(rows).map(function (row) {
+          return row.map(csvCell).join(",");
+        }).join("\n");
+        var url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = "fastfleet-company-logs-" + today() + ".csv";
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function ensureActionData() {
+        if (!localStorage.getItem(RIDER_KEY)) localStorage.setItem(RIDER_KEY, JSON.stringify(demoRiders));
+        if (!localStorage.getItem(WITHDRAWAL_KEY)) localStorage.setItem(WITHDRAWAL_KEY, JSON.stringify(demoWithdrawals));
+        if (!localStorage.getItem(RISK_KEY)) localStorage.setItem(RISK_KEY, JSON.stringify(demoRisks));
+      }
+
+      function renderActionQueues() {
+        var riders = riderApplications();
+        var deliveries = readJson(ORDER_KEY, []);
+        var withdrawals = readJson(WITHDRAWAL_KEY, []);
+        var risks = readJson(RISK_KEY, []);
+
+        els.riderQueue.innerHTML = riders.length ? riders.map(function (rider) {
+          return [
+            "<article class=\"queue-item\"><h3>", escapeHtml(rider.name), "</h3>",
+            "<div class=\"driver-location-grid\">",
+            "<div><span>State</span><strong>", escapeHtml(rider.state || "Not supplied"), "</strong></div>",
+            "<div><span>Location</span><strong>", escapeHtml(rider.location || rider.zone || "Not supplied"), "</strong></div>",
+            "</div>",
+            "<p>", escapeHtml(rider.vehicle), " · ", escapeHtml(rider.zone || "No zone"), " · <strong>", escapeHtml(rider.status), "</strong></p>",
+            "<div class=\"record-meta\">",
+            "<button class=\"button small\" data-rider-action=\"approved\" data-id=\"", rider.id, "\">Approve</button>",
+            "<button class=\"button secondary small\" data-rider-action=\"more info required\" data-id=\"", rider.id, "\">More info</button>",
+            "<button class=\"button secondary small\" data-rider-action=\"rejected\" data-id=\"", rider.id, "\">Reject</button>",
+            "</div></article>"
+          ].join("");
+        }).join("") : "<div class=\"queue-item\"><p>No unboarded driver applications yet.</p></div>";
+
+        els.deliveryQueue.innerHTML = deliveries.length ? deliveries.map(function (order) {
+          var current = order.status || "Order received";
+          return [
+            "<article class=\"queue-item\"><h3>", escapeHtml(order.order_code || "Order"), "</h3>",
+            "<div class=\"delivery-status-grid\">",
+            "<div><span>Pickup</span><strong>", escapeHtml(order.pickup_address || "No pickup"), "</strong></div>",
+            "<div><span>Drop-off</span><strong>", escapeHtml(order.dropoff_address || "No drop-off"), "</strong></div>",
+            "</div>",
+            "<div class=\"status-chain\">", STATUS_FLOW.map(function (status) {
+              return "<span class=\"" + (status === current ? "is-active" : "") + "\">" + escapeHtml(status) + "</span>";
+            }).join(""), "</div>",
+            "<div class=\"record-meta\"><select class=\"select\" data-order-status=\"", escapeHtml(order.order_code), "\">",
+            STATUS_FLOW.map(function (status) {
+              return "<option value=\"" + escapeHtml(status) + "\"" + (status === current ? " selected" : "") + ">" + escapeHtml(status) + "</option>";
+            }).join(""),
+            "</select></div></article>"
+          ].join("");
+        }).join("") : "<div class=\"queue-item\"><p>No local delivery orders yet. New customer orders will appear here for status updates.</p></div>";
+
+        els.withdrawalQueue.innerHTML = withdrawals.map(function (item) {
+          return [
+            "<article class=\"queue-item\"><h3>", escapeHtml(item.name), " · ", money(item.amount), "</h3>",
+            "<p>", escapeHtml(item.bank), " · <strong>", escapeHtml(item.status), "</strong>", item.reason ? " · " + escapeHtml(item.reason) : "", "</p>",
+            "<div class=\"record-meta\">",
+            "<button class=\"button small\" data-withdrawal-action=\"approved\" data-id=\"", item.id, "\">Approve</button>",
+            "<button class=\"button secondary small\" data-withdrawal-action=\"rejected\" data-id=\"", item.id, "\">Reject</button>",
+            "<button class=\"button dark small\" data-withdrawal-action=\"paid\" data-id=\"", item.id, "\">Mark credited</button>",
+            "</div></article>"
+          ].join("");
+        }).join("");
+
+        els.riskQueue.innerHTML = risks.map(function (item) {
+          return [
+            "<article class=\"queue-item\"><h3>", escapeHtml(item.title), " · ", item.score, "%</h3>",
+            "<p>", escapeHtml(item.detail), " · <strong>", escapeHtml(item.status), "</strong></p>",
+            "<div class=\"record-meta\"><button class=\"button small\" data-risk-action=\"resolved\" data-id=\"", item.id, "\">Resolve</button></div>",
+            "</article>"
+          ].join("");
+        }).join("");
+
+        bindQueueButtons();
+      }
+
+      function riderApplications() {
+        var staticRows = readJson(RIDER_KEY, []);
+        var liveRows = readJson(LIVE_RIDER_KEY, []).map(function (item, index) {
+          return {
+            id: item.id || item.created_at || "LIVE-RIDER-" + index,
+            name: item.full_name || item.name || "Unnamed driver",
+            vehicle: item.vehicle_type || "Vehicle not supplied",
+            state: item.state || item.coverage_area || "",
+            location: item.location || item.coverage_area || "",
+            zone: item.coverage_area || item.location || "",
+            status: item.status || "submitted"
+          };
+        });
+        var ids = {};
+        return staticRows.concat(liveRows).filter(function (item) {
+          if (ids[item.id]) return false;
+          ids[item.id] = true;
+          return item.status !== "approved";
+        });
+      }
+
+      function bindQueueButtons() {
+        Array.prototype.forEach.call(document.querySelectorAll("[data-rider-action]"), function (button) {
+          button.addEventListener("click", function () {
+            updateRiderStatus(button.getAttribute("data-id"), button.getAttribute("data-rider-action"));
+            showMessage(els.panelMessage, "Driver onboarding status updated locally.");
+          });
+        });
+        Array.prototype.forEach.call(document.querySelectorAll("[data-withdrawal-action]"), function (button) {
+          button.addEventListener("click", function () {
+            var status = button.getAttribute("data-withdrawal-action");
+            var patch = { status: status };
+            if (status === "rejected") patch.reason = window.prompt("Rejection reason:") || "Rejected by admin";
+            updateLocalQueue(WITHDRAWAL_KEY, button.getAttribute("data-id"), patch);
+            showMessage(els.panelMessage, "Static withdrawal draft updated. The live Next admin writes this to Supabase securely.");
+          });
+        });
+        Array.prototype.forEach.call(document.querySelectorAll("[data-risk-action]"), function (button) {
+          button.addEventListener("click", function () {
+            updateLocalQueue(RISK_KEY, button.getAttribute("data-id"), { status: "resolved" });
+            showMessage(els.panelMessage, "Static risk signal marked resolved locally.");
+          });
+        });
+        Array.prototype.forEach.call(document.querySelectorAll("[data-order-status]"), function (select) {
+          select.addEventListener("change", function () {
+            updateOrderStatus(select.getAttribute("data-order-status"), select.value);
+          });
+        });
+      }
+
+      function updateLocalQueue(key, id, patch) {
+        var items = readJson(key, []).map(function (item) {
+          if (item.id !== id) return item;
+          return Object.assign({}, item, patch);
+        });
+        localStorage.setItem(key, JSON.stringify(items));
+        renderActionQueues();
+      }
+
+      function updateRiderStatus(id, status) {
+        var foundStatic = false;
+        var staticRows = readJson(RIDER_KEY, []).map(function (item) {
+          if (item.id !== id) return item;
+          foundStatic = true;
+          return Object.assign({}, item, { status: status });
+        });
+        localStorage.setItem(RIDER_KEY, JSON.stringify(staticRows));
+        if (!foundStatic) {
+          var liveRows = readJson(LIVE_RIDER_KEY, []).map(function (item, index) {
+            var itemId = item.id || item.created_at || "LIVE-RIDER-" + index;
+            if (itemId !== id) return item;
+            return Object.assign({}, item, { status: status });
+          });
+          localStorage.setItem(LIVE_RIDER_KEY, JSON.stringify(liveRows));
+        }
+        renderActionQueues();
+      }
+
+      function updateOrderStatus(orderCode, status) {
+        var orders = readJson(ORDER_KEY, []).map(function (order) {
+          if (String(order.order_code) !== String(orderCode)) return order;
+          return Object.assign({}, order, {
+            status: status,
+            updated_at: new Date().toISOString()
+          });
+        });
+        localStorage.setItem(ORDER_KEY, JSON.stringify(orders));
+        renderActionQueues();
+        showMessage(els.panelMessage, "Delivery status updated for " + orderCode + ". User dashboard and tracking will show the new stage.");
+      }
+
+      function loadStaticControls() {
+        var controls = readJson(CONTROLS_KEY, null);
+        if (!controls) return;
+        els.bookingsSwitch.checked = Boolean(controls.bookings);
+        els.onboardingSwitch.checked = Boolean(controls.onboarding);
+        els.walletSwitch.checked = Boolean(controls.wallet);
+        els.withdrawalSwitch.checked = Boolean(controls.withdrawals);
+      }
+
+      function saveStaticControls() {
+        localStorage.setItem(CONTROLS_KEY, JSON.stringify({
+          bookings: els.bookingsSwitch.checked,
+          onboarding: els.onboardingSwitch.checked,
+          wallet: els.walletSwitch.checked,
+          withdrawals: els.withdrawalSwitch.checked
+        }));
+        showMessage(els.panelMessage, "Site controls draft saved locally. The Next admin saves the same controls to Supabase platform_settings.");
+      }
+
+      function ensureLogs() {
+        if (!localStorage.getItem(LOG_KEY)) saveLogs(demoLogs);
+      }
+
+      function logs() {
+        return readJson(LOG_KEY, []);
+      }
+
+      function saveLogs(items) {
+        localStorage.setItem(LOG_KEY, JSON.stringify(items));
+      }
+
+      function upsert(items, record) {
+        var found = false;
+        var next = items.map(function (item) {
+          if (item.id !== record.id) return item;
+          found = true;
+          return record;
+        });
+        if (!found) next.unshift(record);
+        return next.sort(function (a, b) {
+          return String(b.entryDate + b.createdAt).localeCompare(String(a.entryDate + a.createdAt));
+        });
+      }
+
+      function readJson(key, fallback) {
+        try {
+          var raw = localStorage.getItem(key);
+          return raw ? JSON.parse(raw) : fallback;
+        } catch (error) {
+          return fallback;
+        }
+      }
+
+      function showMessage(target, text) {
+        target.textContent = text;
+        target.hidden = false;
+      }
+
+      function today() {
+        return new Date().toISOString().slice(0, 10);
+      }
+
+      function yesterday() {
+        return new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      }
+
+      function labelFor(value) {
+        var item = categories.find(function (entry) { return entry[0] === value; });
+        return item ? item[1] : "Other";
+      }
+
+      function statusTone(status) {
+        if (status === "cleared") return "green";
+        if (status === "flagged") return "red";
+        return "amber";
+      }
+
+      function money(value) {
+        return new Intl.NumberFormat("en-NG", {
+          style: "currency",
+          currency: "NGN",
+          maximumFractionDigits: 0
+        }).format(Math.round(Number(value) || 0));
+      }
+
+      function formatDate(value) {
+        return new Date(value + "T00:00:00").toLocaleDateString("en-NG", {
+          year: "numeric",
+          month: "short",
+          day: "numeric"
+        });
+      }
+
+      function csvCell(value) {
+        return "\"" + String(value == null ? "" : value).replace(/"/g, "\"\"") + "\"";
+      }
+
+      function escapeHtml(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+    })();
+  </script>
+</body>
+</html>

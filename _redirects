@@ -1,0 +1,7 @@
+/admin /admin/index.html 200
+/admin/ /admin/index.html 200
+/admin/* /admin/index.html 200
+/privacy /privacy.html 200
+/terms /terms.html 200
+/cookies /cookies.html 200
+/ndpr /ndpr.html 200

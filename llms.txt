@@ -1,0 +1,24 @@
+# FAST FLEET LOGISTICS
+
+FAST FLEET LOGISTICS is an on-demand dispatch, courier, and parcel delivery platform for customers, businesses, riders, and fleet partners in Nigeria.
+
+Primary services:
+- Dispatch rider booking for documents, retail parcels, food, grocery, pharmacy, and urgent errands.
+- Same-day delivery with bike, car, and van options.
+- Live delivery tracking, courier matching, wallet payments, Paystack references, and customer dashboard records.
+- Rider onboarding with KYC, vehicle details, operating zones, payout records, and driver support.
+- Business logistics for vendors, offices, repeat deliveries, and fleet operations.
+
+Important public URLs:
+- Home: https://fastfleetlogistics.pages.dev/
+- App home: https://fastfleetlogistics.pages.dev/mainpage.html
+- Book delivery: https://fastfleetlogistics.pages.dev/order.html
+- Track delivery: https://fastfleetlogistics.pages.dev/track.html
+- Customer dashboard: https://fastfleetlogistics.pages.dev/dashboard.html
+- Rider onboarding: https://fastfleetlogistics.pages.dev/driver.html
+- Support: https://fastfleetlogistics.pages.dev/support.html
+- Privacy policy: https://fastfleetlogistics.pages.dev/privacy.html
+- Terms: https://fastfleetlogistics.pages.dev/terms.html
+
+Search topics:
+dispatch riders in Lagos, courier service Nigeria, same-day delivery Lagos, parcel delivery app, dispatch rider app, rider onboarding, business logistics Nigeria, bike delivery service, van delivery Lagos.

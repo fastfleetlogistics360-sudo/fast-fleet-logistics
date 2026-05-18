@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register a Business | FAST FLEET LOGISTICS</title>
+  <link rel="icon" href="assets/fastfleet-logo.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <script defer src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script defer src="js/supabase-config.js"></script>
+  <script defer src="js/app.js"></script>
+</head>
+<body class="business-onboarding">
+  <div class="site-shell">
+    <header class="topbar">
+      <div class="nav-wrap">
+        <a class="brand" href="index.html" aria-label="FAST FLEET LOGISTICS home">
+          <img class="brand-logo" src="assets/fastfleet-logo.png" alt="FAST FLEET LOGISTICS logo">
+          <span class="brand-title"><strong>FAST FLEET</strong><span>LOGISTICS</span></span>
+        </a>
+        <nav class="nav-links" aria-label="Main navigation">
+          <a href="mainpage.html">Home</a>
+          <a href="order.html">Order</a>
+          <a href="track.html">Track</a>
+          <a href="dashboard.html">Dashboard</a>
+          <a href="services.html">Services</a>
+          <a href="driver.html">Riders</a>
+          <a href="support.html">Support</a>
+        </nav>
+        <div class="nav-actions">
+          <a class="button ghost" data-auth-signed-out href="auth.html">Sign in</a>
+          <a class="button primary" href="register-driver.html">Register driver</a>
+        </div>
+        <button class="menu-toggle" data-mobile-toggle type="button" aria-label="Open menu"></button>
+      </div>
+      <div class="mobile-panel" data-mobile-panel>
+        <a href="mainpage.html">Home</a>
+        <a href="order.html">Order</a>
+        <a href="track.html">Track</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="services.html">Services</a>
+        <a href="driver.html">Riders</a>
+        <a href="support.html">Support</a>
+      </div>
+    </header>
+
+    <main class="page-main">
+      <section class="onboarding-hero">
+        <div class="container">
+          <div>
+            <span class="eyebrow"><span class="pulse-dot"></span> Business onboarding</span>
+            <h1>Register your business for dispatch.</h1>
+            <p>Set up your company profile, preferred pickup location, proof documents, and billing contact for repeat deliveries.</p>
+          </div>
+          <div class="onboarding-steps">
+            <div class="onboarding-step"><strong>1. Company profile</strong><span>Business name, contact person, and address.</span></div>
+            <div class="onboarding-step"><strong>2. Proof</strong><span>CAC certificate or business registration proof.</span></div>
+            <div class="onboarding-step"><strong>3. Delivery setup</strong><span>Package types, pickup zone, and billing preference.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container app-grid onboarding-form">
+          <form class="panel pad" data-business-form>
+            <div class="panel-head">
+              <div><span class="kicker">Business KYC</span><h2>Company verification</h2></div>
+              <span class="status-pill orange">Open</span>
+            </div>
+            <div class="form-grid">
+              <div class="field"><label for="businessName">Business name</label><input id="businessName" name="business_name" required placeholder="Registered or trading name"></div>
+              <div class="field"><label for="businessType">Business type</label><select id="businessType" name="business_type"><option>Retail store</option><option>Restaurant / food vendor</option><option>Pharmacy</option><option>Office / corporate</option><option>Marketplace seller</option><option>Other</option></select></div>
+              <div class="field"><label for="contactName">Contact person</label><input id="contactName" name="contact_name" required placeholder="Full name"></div>
+              <div class="field"><label for="contactPhone">Phone</label><input id="contactPhone" name="phone" required placeholder="+234..."></div>
+              <div class="field"><label for="contactEmail">Email</label><input id="contactEmail" name="email" type="email" required placeholder="business@example.com"></div>
+              <div class="field"><label for="businessState">State</label><input id="businessState" name="state" data-location-search list="businessLocations" required placeholder="Lagos or Ogun"></div>
+              <div class="field full"><label for="businessLocation">Main pickup location</label><input id="businessLocation" name="location" data-location-search list="businessLocations" required placeholder="Example: Admiralty Way, Lekki Phase 1, Lagos"></div>
+              <datalist id="businessLocations" data-location-list></datalist>
+              <div class="field"><label for="cacNumber">CAC / registration number</label><input id="cacNumber" name="registration_number" placeholder="RC / BN number"></div>
+              <div class="field"><label for="deliveryVolume">Expected weekly deliveries</label><select id="deliveryVolume" name="delivery_volume"><option>1 - 10</option><option>11 - 50</option><option>51 - 200</option><option>200+</option></select></div>
+              <div class="field"><label for="businessPackage">Main package type</label><select id="businessPackage" name="package_type"><option>Retail parcel</option><option>Food and grocery</option><option>Documents</option><option>Pharmacy items</option><option>Bulk delivery</option></select></div>
+              <div class="field"><label for="billingMethod">Billing preference</label><select id="billingMethod" name="billing_method"><option>Business wallet</option><option>Card per order</option><option>Bank transfer</option><option>Monthly invoice</option></select></div>
+              <div class="field full"><label for="businessProof">Business registration proof</label><input id="businessProof" name="business_proof" type="file" multiple accept="image/*,application/pdf"></div>
+              <div class="field full"><label for="businessNotes">Dispatch needs</label><textarea id="businessNotes" name="notes" placeholder="Pickup windows, package handling, recurring route, or billing notes"></textarea></div>
+            </div>
+            <button class="button primary block" type="submit">Submit business application</button>
+          </form>
+
+          <aside class="panel pad">
+            <span class="kicker">Business checklist</span>
+            <h2>What FastFleet needs</h2>
+            <div class="requirement-list">
+              <div><strong>Business proof</strong><span>CAC document, registration proof, or trade evidence.</span></div>
+              <div><strong>Pickup location</strong><span>Street, city, state, and contact person for dispatch.</span></div>
+              <div><strong>Delivery profile</strong><span>Package type, weekly volume, and preferred pickup windows.</span></div>
+              <div><strong>Billing</strong><span>Wallet, transfer, card, or invoice preference for repeat work.</span></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer"></footer>
+  </div>
+  <div class="toast-region" data-toast-region></div>
+</body>
+</html>

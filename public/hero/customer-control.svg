@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1100" role="img" aria-label="Courier rider moving through a premium Lagos city route">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0a1728"/>
+      <stop offset="0.55" stop-color="#123b64"/>
+      <stop offset="1" stop-color="#15a36b"/>
+    </linearGradient>
+    <linearGradient id="road" x1="0" x2="1">
+      <stop offset="0" stop-color="#101827"/>
+      <stop offset="1" stop-color="#24364f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1800" height="1100" fill="url(#sky)"/>
+  <g opacity="0.2" stroke="#ffffff" stroke-width="2">
+    <path d="M0 170h1800M0 330h1800M0 490h1800M0 650h1800M0 810h1800"/>
+    <path d="M180 0v1100M420 0v1100M660 0v1100M900 0v1100M1140 0v1100M1380 0v1100M1620 0v1100"/>
+  </g>
+  <g opacity="0.72">
+    <rect x="980" y="215" width="120" height="390" rx="10" fill="#f6f8fb"/>
+    <rect x="1130" y="145" width="180" height="470" rx="12" fill="#dbe5ef"/>
+    <rect x="1340" y="250" width="110" height="365" rx="10" fill="#f4a62a"/>
+    <rect x="1485" y="190" width="170" height="430" rx="12" fill="#f6f8fb"/>
+    <path d="M900 615h840v70H900z" fill="#0a1728"/>
+  </g>
+  <path d="M-90 795C270 690 470 660 745 700c260 38 452 186 810 86 180-50 285-54 410-21v335H-90z" fill="url(#road)"/>
+  <path d="M25 830c275-78 475-82 705-25 205 51 390 164 715 77" fill="none" stroke="#f4a62a" stroke-width="22" stroke-linecap="round" stroke-dasharray="70 56"/>
+  <g transform="translate(660 640)">
+    <circle cx="78" cy="185" r="64" fill="#0a1728"/>
+    <circle cx="300" cy="185" r="64" fill="#0a1728"/>
+    <circle cx="78" cy="185" r="32" fill="#f6f8fb"/>
+    <circle cx="300" cy="185" r="32" fill="#f6f8fb"/>
+    <path d="M85 175h100l78-92 37 102H185l-28-70" fill="none" stroke="#f4a62a" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M262 84c42 8 70 30 84 68" fill="none" stroke="#15a36b" stroke-width="24" stroke-linecap="round"/>
+    <circle cx="230" cy="24" r="34" fill="#f6f8fb"/>
+    <path d="M210 62l-34 78h70l45 46" fill="none" stroke="#f6f8fb" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="318" y="56" width="92" height="68" rx="12" fill="#f4a62a"/>
+  </g>
+  <g transform="translate(260 240)">
+    <rect width="390" height="240" rx="28" fill="#ffffff" opacity="0.92"/>
+    <circle cx="74" cy="74" r="34" fill="#15a36b"/>
+    <rect x="128" y="52" width="190" height="18" rx="9" fill="#0a1728"/>
+    <rect x="128" y="88" width="138" height="14" rx="7" fill="#64748b"/>
+    <path d="M68 166h254" stroke="#dbe5ef" stroke-width="18" stroke-linecap="round"/>
+    <path d="M68 166h178" stroke="#ef6c00" stroke-width="18" stroke-linecap="round"/>
+  </g>
+</svg>

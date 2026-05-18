@@ -1,0 +1,168 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --fleet-ink: 8 17 31;
+  --fleet-night: 10 23 40;
+  --fleet-navy: 15 52 96;
+  --fleet-blue: 27 117 187;
+  --fleet-gold: 244 166 42;
+  --fleet-ember: 239 108 0;
+  --fleet-leaf: 21 163 107;
+  --fleet-mint: 199 249 223;
+  --fleet-paper: 246 248 251;
+  --fleet-line: 219 229 239;
+  --fleet-grid: rgba(15, 52, 96, 0.08);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --fleet-ink: 246 248 251;
+  --fleet-night: 10 23 40;
+  --fleet-navy: 15 52 96;
+  --fleet-blue: 27 117 187;
+  --fleet-gold: 250 204 93;
+  --fleet-ember: 251 146 60;
+  --fleet-leaf: 52 211 153;
+  --fleet-mint: 25 78 61;
+  --fleet-paper: 8 17 31;
+  --fleet-line: 45 62 84;
+  --fleet-grid: rgba(199, 249, 223, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: rgb(var(--fleet-paper));
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+::selection {
+  background: rgba(244, 166, 42, 0.35);
+}
+
+.hero-surface {
+  background:
+    linear-gradient(115deg, rgba(8, 17, 31, 0.98), rgba(15, 52, 96, 0.94) 58%, rgba(21, 163, 107, 0.88)),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: auto, 38px 38px, 38px 38px;
+}
+
+.map-grid {
+  background:
+    linear-gradient(var(--fleet-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--fleet-grid) 1px, transparent 1px),
+    #eef5f7;
+  background-size: 42px 42px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.form-field {
+  @apply grid gap-2;
+}
+
+.form-label {
+  @apply text-xs font-black uppercase tracking-[0.14em] text-slate-500;
+}
+
+.form-input {
+  @apply min-h-12 w-full rounded-fleet border border-fleet-line bg-white px-3 text-sm font-bold text-fleet-night outline-none transition placeholder:text-slate-400 focus:border-fleet-gold focus:ring-4 focus:ring-fleet-gold/20;
+}
+
+.form-textarea {
+  @apply min-h-28 w-full rounded-fleet border border-fleet-line bg-white px-3 py-3 text-sm font-bold text-fleet-night outline-none transition placeholder:text-slate-400 focus:border-fleet-gold focus:ring-4 focus:ring-fleet-gold/20;
+}
+
+.section-wrap {
+  @apply mx-auto max-w-7xl px-4 sm:px-6;
+}
+
+@layer base {
+  html[data-theme="dark"] [class~="bg-white"],
+  html[data-theme="dark"] [class~="bg-white/70"],
+  html[data-theme="dark"] [class~="bg-white/80"],
+  html[data-theme="dark"] [class~="bg-white/85"],
+  html[data-theme="dark"] [class~="bg-white/90"],
+  html[data-theme="dark"] [class~="bg-white/92"],
+  html[data-theme="dark"] [class~="bg-[#fffdf4]"],
+  html[data-theme="dark"] [class~="bg-[#fffdf7]"],
+  html[data-theme="dark"] [class~="bg-[#fff8e8]/90"] {
+    background-color: rgba(255, 255, 255, 0.96) !important;
+  }
+
+  html[data-theme="dark"] [class~="bg-fleet-paper"] {
+    background-color: rgba(8, 17, 31, 0.98) !important;
+  }
+
+  html[data-theme="dark"] [class~="text-slate-400"],
+  html[data-theme="dark"] [class~="text-slate-500"],
+  html[data-theme="dark"] [class~="text-slate-600"],
+  html[data-theme="dark"] [class~="text-slate-700"] {
+    color: rgb(71, 84, 103) !important;
+  }
+
+  html[data-theme="dark"] [class~="bg-amber-50"],
+  html[data-theme="dark"] [class~="bg-emerald-50"],
+  html[data-theme="dark"] [class~="bg-rose-50"],
+  html[data-theme="dark"] [class~="bg-red-50"] {
+    background-color: rgba(30, 41, 59, 0.92) !important;
+  }
+
+  html[data-theme="dark"] [class~="border-white/60"],
+  html[data-theme="dark"] [class~="border-white/70"] {
+    border-color: rgba(148, 163, 184, 0.24) !important;
+  }
+
+  html[data-theme="dark"] input,
+  html[data-theme="dark"] select,
+  html[data-theme="dark"] textarea {
+    background-color: rgb(255, 255, 255);
+    color: rgb(10, 23, 40);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}

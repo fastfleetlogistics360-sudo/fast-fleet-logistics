@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard | FAST FLEET LOGISTICS</title>
+  <link rel="icon" href="assets/fastfleet-logo.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <script defer src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script defer src="js/supabase-config.js"></script>
+  <script defer src="js/app.js"></script>
+</head>
+<body class="dashboard-page">
+  <div class="site-shell">
+    <header class="topbar">
+      <div class="nav-wrap">
+        <a class="brand" href="index.html" aria-label="FAST FLEET LOGISTICS home">
+          <img class="brand-logo" src="assets/fastfleet-logo.png" alt="FAST FLEET LOGISTICS logo">
+          <span class="brand-title"><strong>FAST FLEET</strong><span>LOGISTICS</span></span>
+        </a>
+        <nav class="nav-links dashboard-nav" aria-label="Dashboard navigation">
+          <a href="dashboard.html">Overview</a>
+          <a href="#wallet">Wallet</a>
+          <a href="#orders">Orders</a>
+          <a href="#transactions">Transactions</a>
+          <a href="support.html">Support</a>
+        </nav>
+        <div class="nav-actions">
+          <a class="button ghost" data-auth-signed-out href="auth.html?return=dashboard.html">Sign in</a>
+          <a class="button secondary" data-auth-signed-in hidden href="dashboard.html"><span data-user-name>Account</span></a>
+          <button class="button ghost" data-auth-signed-in data-sign-out hidden type="button">Sign out</button>
+          <a class="button primary" href="order.html">New order</a>
+        </div>
+        <button class="menu-toggle" data-mobile-toggle type="button" aria-label="Open menu"></button>
+      </div>
+      <div class="mobile-panel" data-mobile-panel>
+        <div class="dashboard-drawer">
+          <button class="drawer-close" data-mobile-close type="button" aria-label="Close menu">x</button>
+          <div class="drawer-profile">
+            <strong data-user-name>Account</strong>
+            <span class="drawer-avatar" aria-hidden="true">A</span>
+          </div>
+          <div class="drawer-shortcuts">
+            <a class="drawer-shortcut" href="support.html"><span>?</span>Help</a>
+            <a class="drawer-shortcut" href="#wallet"><span>W</span>Wallet</a>
+            <a class="drawer-shortcut" href="#orders"><span>R</span>Activity</a>
+          </div>
+          <div class="drawer-links">
+            <a class="drawer-link" href="dashboard.html"><span>A</span>Manage account</a>
+            <a class="drawer-link" href="order.html"><span>P</span>Book delivery</a>
+            <a class="drawer-link" href="track.html"><span>T</span>Track package</a>
+            <a class="drawer-link" href="privacy.html"><span>S</span>Privacy and safety</a>
+          </div>
+          <div class="drawer-bottom">
+            <button class="button danger block" data-delete-account type="button">Delete my account</button>
+            <button class="button secondary block" data-sign-out type="button">Sign out</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-main">
+      <section class="dashboard-welcome">
+        <div class="container">
+          <div>
+            <span class="kicker">Dashboard</span>
+            <h1>Hi, <span data-dashboard-greeting>there</span>.</h1>
+            <p>Your wallet, orders and delivery records are ready.</p>
+          </div>
+          <a class="button primary" href="order.html">Create order</a>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="notice" data-dashboard-gate hidden>Sign in to sync dashboard orders with your account.</div>
+          <div class="spacer-sm"></div>
+          <div class="dashboard-summary">
+            <div class="feature-card compact-card" id="wallet">
+              <span class="kicker">Wallet balance</span>
+              <h3 data-wallet-balance>NGN 0</h3>
+              <p>Top up before booking or keep refunds here.</p>
+              <button class="button primary small" data-wallet-topup type="button">Top up with Paystack</button>
+            </div>
+            <div class="feature-card compact-card">
+              <span class="kicker">Total orders</span>
+              <h3 data-stat-orders>0</h3>
+              <p>All delivery requests.</p>
+            </div>
+            <div class="feature-card compact-card">
+              <span class="kicker">Active</span>
+              <h3 data-stat-active>0</h3>
+              <p>Open dispatch jobs.</p>
+            </div>
+            <div class="feature-card compact-card">
+              <span class="kicker">Spend</span>
+              <h3 data-stat-spend>NGN 0</h3>
+              <p>Delivery fees.</p>
+            </div>
+          </div>
+
+          <div class="spacer-md"></div>
+          <div class="dashboard-grid simple-dashboard-grid">
+            <section class="panel pad" id="orders">
+              <div class="panel-head">
+                <div>
+                  <span class="kicker">Recent orders</span>
+                  <h2>Delivery history</h2>
+                </div>
+                <a class="button secondary small" href="track.html">Track</a>
+              </div>
+              <div data-dashboard-orders>
+                <div class="empty-state">Loading delivery history...</div>
+              </div>
+            </section>
+
+            <aside class="panel pad" id="transactions">
+              <div class="panel-head">
+                <div>
+                  <span class="kicker">Wallet activity</span>
+                  <h2>Transaction history</h2>
+                </div>
+                <button class="button secondary small" data-wallet-topup type="button">Top up</button>
+              </div>
+              <div class="transaction-list" data-wallet-transactions>
+                <div class="empty-state">No wallet transactions yet.</div>
+              </div>
+              <div class="dashboard-actions">
+                <a class="button secondary small" href="track.html">Track order</a>
+                <button class="button ghost small" data-sign-out type="button">Log out</button>
+              </div>
+            </aside>
+          </div>
+
+          <div class="spacer-md"></div>
+          <section class="panel pad">
+            <div class="panel-head">
+              <div>
+                <span class="kicker">Privacy controls</span>
+                <h2>Account deletion</h2>
+              </div>
+              <span class="status-pill red">Required for stores</span>
+            </div>
+            <p>Request deletion of your FastFleet profile, delivery records tied to your account, wallet metadata, support records, and stored rider/customer data. Active deliveries and legally required payment records may need review before final removal.</p>
+            <button class="button danger" data-delete-account type="button">Delete my account</button>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-grid">
+        <div><strong>FAST FLEET LOGISTICS</strong><p>Customer delivery operations dashboard.</p></div>
+        <div><strong>App</strong><a href="order.html">Create order</a><a href="track.html">Track delivery</a></div>
+        <div><strong>Company</strong><a href="driver.html">Rider onboarding</a><a href="support.html">Support</a></div>
+      </div>
+    </footer>
+  </div>
+  <div class="toast-region" data-toast-region></div>
+</body>
+</html>

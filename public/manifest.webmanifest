@@ -1,0 +1,30 @@
+{
+  "name": "FastFleet Logistics",
+  "short_name": "FastFleet",
+  "description": "Premium logistics marketplace for Lagos and Ogun deliveries.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f8fb",
+  "theme_color": "#0f3460",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/fastfleet-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Book delivery",
+      "short_name": "Book",
+      "url": "/book"
+    },
+    {
+      "name": "Track delivery",
+      "short_name": "Track",
+      "url": "/track"
+    }
+  ]
+}
