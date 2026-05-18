@@ -1,20 +1,67 @@
 import { Bike, Building2, Home, MapPin, Navigation2, PackageCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
 
+const googleMapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
 export function RoutePreview({
   compact = false,
   className,
   label = "Lagos live route",
   status,
-  riderName = "Verified rider"
+  riderName = "Verified rider",
+  pickupAddress = "Victoria Island, Lagos",
+  dropoffAddress = "Ikeja GRA, Lagos"
 }: {
   compact?: boolean;
   className?: string;
   label?: string;
   status?: string;
   riderName?: string;
+  pickupAddress?: string;
+  dropoffAddress?: string;
 }) {
   const progress = statusProgress(status);
+  const mapUrl = googleMapsKey ? googleDirectionsUrl(pickupAddress, dropoffAddress) : null;
+
+  if (mapUrl) {
+    return (
+      <div className={cn("relative overflow-hidden rounded-fleet border border-fleet-line bg-slate-100", compact ? "min-h-[220px]" : "min-h-[360px]", className)}>
+        <iframe
+          title={`${label} Google Map`}
+          src={mapUrl}
+          className="absolute inset-0 h-full w-full border-0"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          allowFullScreen
+        />
+        <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-fleet border border-white/80 bg-white/92 p-4 shadow-lift backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">{label}</span>
+              <strong className="mt-1 block truncate text-lg font-black text-fleet-night">{riderName}</strong>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+              <Navigation2 className="h-3.5 w-3.5" />
+              {movementLabel(status)}
+            </span>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-fleet-paper">
+            <div className="h-full rounded-full bg-gradient-to-r from-fleet-leaf via-fleet-gold to-fleet-ember transition-all duration-700" style={{ width: `${progress}%` }} />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-black text-slate-600">
+            <span className="truncate rounded-fleet bg-fleet-paper px-2 py-2">
+              <MapPin className="mr-1 inline h-3.5 w-3.5 text-fleet-leaf" />
+              {pickupAddress}
+            </span>
+            <span className="truncate rounded-fleet bg-fleet-paper px-2 py-2">
+              <PackageCheck className="mr-1 inline h-3.5 w-3.5 text-fleet-blue" />
+              {dropoffAddress}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("map-grid relative overflow-hidden rounded-fleet border border-fleet-line", compact ? "min-h-[220px]" : "min-h-[360px]", className)}>
@@ -62,6 +109,18 @@ export function RoutePreview({
       </div>
     </div>
   );
+}
+
+function googleDirectionsUrl(origin: string, destination: string) {
+  const params = new URLSearchParams({
+    key: googleMapsKey || "",
+    origin,
+    destination,
+    mode: "driving",
+    units: "metric"
+  });
+
+  return `https://www.google.com/maps/embed/v1/directions?${params.toString()}`;
 }
 
 function statusProgress(status?: string) {

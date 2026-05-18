@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+
   images: {
     remotePatterns: [
       {
@@ -11,6 +12,7 @@ const nextConfig: NextConfig = {
       }
     ]
   },
+
   async headers() {
     return [
       {

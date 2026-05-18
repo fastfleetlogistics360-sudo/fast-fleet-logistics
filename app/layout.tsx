@@ -6,6 +6,8 @@ import { PageTransition } from "@/components/motion/page-transition";
 import { PwaRegister } from "@/components/layout/pwa-register";
 import { ThemeScript } from "@/components/layout/theme-script";
 
+export const runtime = "nodejs";
+
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://fastfleetlogistics.netlify.app"),
   title: {

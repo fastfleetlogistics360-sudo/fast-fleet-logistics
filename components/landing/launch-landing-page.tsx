@@ -38,7 +38,7 @@ export function LaunchLandingPage() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <section className="relative isolate grid min-h-dvh place-items-center overflow-hidden bg-[#fffdf7] px-4 py-10 text-fleet-night sm:px-6">
+    <section className="relative isolate grid min-h-[88dvh] place-items-center overflow-hidden bg-[#fffdf7] px-4 py-10 text-fleet-night sm:px-6">
       <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,246,226,0.94),rgba(255,255,255,0.98)_28%,rgba(255,255,255,0.98)_72%,rgba(239,246,255,0.94))]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(244,166,42,0.16),transparent_30%),radial-gradient(circle_at_10%_76%,rgba(15,52,96,0.12),transparent_32%),radial-gradient(circle_at_92%_72%,rgba(21,163,107,0.12),transparent_32%)]" />

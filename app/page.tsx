@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AppWorkflowCards } from "@/components/landing/app-workflow-cards";
 import { LaunchLandingPage } from "@/components/landing/launch-landing-page";
 
 export const metadata: Metadata = {
@@ -6,5 +7,10 @@ export const metadata: Metadata = {
 };
 
 export default function LandingPage() {
-  return <LaunchLandingPage />;
+  return (
+    <>
+      <LaunchLandingPage />
+      <AppWorkflowCards />
+    </>
+  );
 }

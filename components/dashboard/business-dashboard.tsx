@@ -195,7 +195,13 @@ export function BusinessDashboard() {
             <StatusBadge tone="green">Realtime</StatusBadge>
           </div>
           <div className="mt-4">
-            <RoutePreview label="Business route monitor" status={deliveries[0]?.status} riderName="Assigned courier" />
+            <RoutePreview
+              label="Business route monitor"
+              status={deliveries[0]?.status}
+              riderName="Assigned courier"
+              pickupAddress={deliveries[0]?.pickup_address || profile.pickup_address || "Victoria Island, Lagos"}
+              dropoffAddress={deliveries[0]?.dropoff_address || "Ikeja GRA, Lagos"}
+            />
           </div>
         </Card>
 

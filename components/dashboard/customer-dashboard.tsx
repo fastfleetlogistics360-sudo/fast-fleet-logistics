@@ -273,7 +273,12 @@ export function CustomerDashboard() {
             <StatusBadge tone="green">Realtime</StatusBadge>
           </div>
           <div className="mt-4">
-            <RoutePreview label="Rider moving live" status={activeDelivery?.status} />
+            <RoutePreview
+              label="Rider moving live"
+              status={activeDelivery?.status}
+              pickupAddress={activeDelivery?.pickup_address || "Victoria Island, Lagos"}
+              dropoffAddress={activeDelivery?.dropoff_address || "Ikeja GRA, Lagos"}
+            />
           </div>
         </Card>
 

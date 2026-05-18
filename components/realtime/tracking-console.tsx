@@ -180,7 +180,13 @@ export function TrackingConsole() {
           </div>
         </Card>
 
-        <RoutePreview label="Realtime rider route" status={delivery?.status} riderName={delivery?.rider?.full_name || "Verified rider en route"} />
+        <RoutePreview
+          label="Realtime rider route"
+          status={delivery?.status}
+          riderName={delivery?.rider?.full_name || "Verified rider en route"}
+          pickupAddress={delivery?.pickup_address || sample.pickup_address}
+          dropoffAddress={delivery?.dropoff_address || sample.dropoff_address}
+        />
       </div>
 
       <div className="grid gap-5">

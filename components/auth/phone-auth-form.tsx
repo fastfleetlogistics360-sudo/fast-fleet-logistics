@@ -12,6 +12,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { AppleIcon, GoogleIcon } from "@/components/icons/social-icons";
 
 const roleOptions: Array<{
   role: UserRole;
@@ -158,6 +159,30 @@ export function PhoneAuthForm({
     }
   }
 
+  async function continueWithProvider(provider: "google" | "apple") {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const supabase = createClient();
+      const redirectTo =
+        typeof window === "undefined"
+          ? undefined
+          : `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(returnToOverride || returnTo || targetRoleHome)}&role=${encodeURIComponent(role)}`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo,
+          queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : undefined
+        }
+      });
+
+      if (error) throw error;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : `Could not continue with ${provider === "google" ? "Google" : "Apple"}.`);
+      setLoading(false);
+    }
+  }
+
   async function saveUserProfile(userId: string, userRole: UserRole) {
     const supabase = createClient();
     const payload: {
@@ -229,6 +254,27 @@ export function PhoneAuthForm({
           onClick={() => setMode("login")}
         >
           Sign in
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => continueWithProvider("google")}
+          disabled={loading}
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-fleet-line bg-white px-4 text-sm font-black text-fleet-night shadow-[0_12px_26px_rgba(8,17,31,0.06)] transition hover:-translate-y-0.5 hover:border-fleet-gold disabled:pointer-events-none disabled:opacity-55"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon className="h-4 w-4" />}
+          Continue with Google
+        </button>
+        <button
+          type="button"
+          onClick={() => continueWithProvider("apple")}
+          disabled={loading}
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-fleet-night bg-fleet-night px-4 text-sm font-black text-white shadow-[0_12px_26px_rgba(8,17,31,0.14)] transition hover:-translate-y-0.5 hover:bg-[#10233a] disabled:pointer-events-none disabled:opacity-55"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <AppleIcon className="h-4 w-4" />}
+          Continue with Apple
         </button>
       </div>
 
