@@ -10,6 +10,8 @@ import { Card } from "@/components/ui/card";
 import { RoutePreview } from "@/components/maps/route-preview";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
+import type { WalletKycStatus } from "@/lib/kyc";
 
 type BusinessProfile = {
   business_name: string;
@@ -31,6 +33,11 @@ type DeliveryRow = {
   price_ngn: number;
   eta_minutes: number;
   created_at: string;
+};
+
+type WalletRow = {
+  balance_ngn: number;
+  locked_balance_ngn: number;
 };
 
 const sampleProfile: BusinessProfile = {
@@ -100,6 +107,7 @@ const businessMenuSections: Array<{
 export function BusinessDashboard() {
   const [profile, setProfile] = useState<BusinessProfile>(sampleProfile);
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>(sampleDeliveries);
+  const [wallet, setWallet] = useState<WalletRow>({ balance_ngn: 0, locked_balance_ngn: 0 });
   const [loading, setLoading] = useState(true);
 
   const stats = useMemo(() => {
@@ -118,7 +126,7 @@ export function BusinessDashboard() {
         } = await supabase.auth.getUser();
         if (!user) return;
 
-        const [businessResult, deliveriesResult] = await Promise.all([
+        const [businessResult, deliveriesResult, walletResult] = await Promise.all([
           supabase
             .from("business_profiles")
             .select("business_name, contact_name, phone, email, industry, dispatch_volume, pickup_address, registration_status")
@@ -129,12 +137,14 @@ export function BusinessDashboard() {
             .select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, eta_minutes, created_at")
             .eq("customer_id", user.id)
             .order("created_at", { ascending: false })
-            .limit(12)
+            .limit(12),
+          supabase.from("wallets").select("balance_ngn, locked_balance_ngn").eq("user_id", user.id).eq("wallet_type", "customer").maybeSingle()
         ]);
 
         if (!mounted) return;
         if (businessResult.data) setProfile(businessResult.data);
         if (deliveriesResult.data?.length) setDeliveries(deliveriesResult.data);
+        if (walletResult.data) setWallet(walletResult.data);
       } catch {
         // Demo data keeps the dashboard useful before Supabase is connected.
       } finally {
@@ -183,6 +193,17 @@ export function BusinessDashboard() {
           <StatTile label="Spend" value={formatMoney(stats.spend)} helper="Delivery fees" />
           <StatTile label="Volume" value={profile.dispatch_volume?.split(" ")[0] || "10+"} helper="Weekly estimate" />
         </div>
+      </div>
+
+      <div id="wallet" className="mt-6 scroll-mt-24">
+        <WalletDashboardCard
+          userName={profile.contact_name || profile.business_name}
+          walletType="customer"
+          balance={Number(wallet.balance_ngn || 0)}
+          lockedBalance={Number(wallet.locked_balance_ngn || 0)}
+          kycStatus={businessWalletStatus(profile.registration_status)}
+          returnTo="/business/dashboard"
+        />
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
@@ -260,7 +281,7 @@ export function BusinessDashboard() {
       </Card>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
-        <Card className="p-5">
+        <Card id="profile" className="scroll-mt-24 p-5">
           <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Saved pickup profile</span>
           <div className="mt-4 grid gap-3 text-sm font-bold text-slate-600">
             <Info label="Industry" value={profile.industry || "Not set"} />
@@ -269,7 +290,7 @@ export function BusinessDashboard() {
           </div>
         </Card>
 
-        <Card className="p-5">
+        <Card id="orders" className="scroll-mt-24 p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
               <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Recent deliveries</span>
@@ -304,6 +325,12 @@ export function BusinessDashboard() {
       </div>
     </section>
   );
+}
+
+function businessWalletStatus(status: string): WalletKycStatus {
+  if (status === "active") return "verified";
+  if (status === "rejected") return "more_info_needed";
+  return "pending";
 }
 
 function Info({ label, value }: { label: string; value: string }) {

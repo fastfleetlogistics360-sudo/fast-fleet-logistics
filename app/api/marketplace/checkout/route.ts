@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
+import { createClient } from "@/lib/supabase/server";
 
 const PAYSTACK_INITIALIZE_URL = "https://api.paystack.co/transaction/initialize";
 const DELIVERY_FEE_NGN = 1000;
@@ -47,6 +48,40 @@ export async function POST(request: Request) {
     const callbackUrl = new URL(`${siteUrl}/${payload.kind === "shopping" ? "shopping-mall" : "restaurants"}`);
     callbackUrl.searchParams.set("paid", "1");
     callbackUrl.searchParams.set("reference", reference);
+    const pickupAddress = Array.from(new Set(items.map((item) => item.store).filter(Boolean))).join(", ") || (payload.kind === "shopping" ? "Shopping pickup" : "Restaurant pickup");
+
+    try {
+      const supabase = await createClient();
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("deliveries").insert({
+          delivery_code: reference,
+          customer_id: user.id,
+          pickup_address: pickupAddress,
+          dropoff_address: payload.address || "Customer delivery address",
+          pickup_contact: payload.kind === "shopping" ? "Shopping vendor" : "Restaurant vendor",
+          dropoff_contact: payload.phone || payload.email,
+          parcel_type: payload.kind === "shopping" ? "shopping items" : "food order",
+          vehicle_type: "bike",
+          delivery_speed: "same_day",
+          payment_method: "card",
+          status: "pending_payment",
+          price_ngn: expectedAmount,
+          distance_km: 5,
+          eta_minutes: 35,
+          metadata: {
+            source: "fastfleet_marketplace",
+            kind: payload.kind,
+            items,
+            paystack_reference: reference
+          }
+        });
+      }
+    } catch {
+      // Local delivery fallback is still written in the browser before redirect.
+    }
 
     const response = await fetch(PAYSTACK_INITIALIZE_URL, {
       method: "POST",

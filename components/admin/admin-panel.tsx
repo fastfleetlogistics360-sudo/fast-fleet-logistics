@@ -27,7 +27,10 @@ import {
   Send,
   ShieldAlert,
   SlidersHorizontal,
+  Store as StoreIcon,
   TicketCheck,
+  Trash2,
+  Utensils,
   UsersRound,
   WalletCards
 } from "lucide-react";
@@ -35,6 +38,14 @@ import type { LucideIcon } from "lucide-react";
 import { defaultLaunchStateRecords, rememberLiveState } from "@/lib/launch-states";
 import type { LaunchStateRecord } from "@/lib/launch-states";
 import { formatMoney } from "@/lib/format";
+import { riderReviewLabel } from "@/lib/kyc";
+import {
+  defaultRestaurantKitchens,
+  normalizeRestaurantKitchens,
+  restaurantMenuStorageKey,
+  type RestaurantKitchen,
+  type RestaurantMenuItem
+} from "@/lib/restaurant-menu";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -410,6 +421,7 @@ export function AdminPanel() {
   const [adminDeliveries, setAdminDeliveries] = useState<AdminDelivery[]>(demoDeliveries);
   const [adminWithdrawals, setAdminWithdrawals] = useState<AdminWithdrawal[]>(demoWithdrawals);
   const [companyLogs, setCompanyLogs] = useState<CompanyTransactionLog[]>(demoCompanyTransactionLogs);
+  const [restaurantMenus, setRestaurantMenus] = useState<RestaurantKitchen[]>(defaultRestaurantKitchens);
   const [companyLogForm, setCompanyLogForm] = useState<CompanyTransactionForm>(blankCompanyTransactionForm);
   const [companyLogSearch, setCompanyLogSearch] = useState("");
   const [companyLogCategory, setCompanyLogCategory] = useState<"all" | CompanyTransactionCategory>("all");
@@ -443,14 +455,15 @@ export function AdminPanel() {
   async function loadAdminData() {
     setBusyAction("refresh");
     try {
-      const [statesResponse, ridersResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, riskSignalsResponse] = await Promise.all([
+      const [statesResponse, ridersResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, riskSignalsResponse, restaurantsResponse] = await Promise.all([
         fetch("/api/admin/states"),
         fetch("/api/admin/riders"),
         fetch("/api/admin/deliveries"),
         fetch("/api/admin/withdrawals"),
         fetch("/api/admin/company-transactions"),
         fetch("/api/admin/site-controls"),
-        fetch("/api/admin/risk-signals")
+        fetch("/api/admin/risk-signals"),
+        fetch("/api/admin/restaurants")
       ]);
       const statesResult = await statesResponse.json().catch(() => ({}));
       const ridersResult = await ridersResponse.json().catch(() => ({}));
@@ -459,6 +472,7 @@ export function AdminPanel() {
       const companyLogsResult = await companyLogsResponse.json().catch(() => ({}));
       const siteControlsResult = await siteControlsResponse.json().catch(() => ({}));
       const riskSignalsResult = await riskSignalsResponse.json().catch(() => ({}));
+      const restaurantsResult = await restaurantsResponse.json().catch(() => ({}));
 
       if (Array.isArray(statesResult.states)) setLaunchStates(statesResult.states);
       if (Array.isArray(ridersResult.riders) && ridersResult.riders.length > 0) setAdminRiders(ridersResult.riders);
@@ -473,8 +487,12 @@ export function AdminPanel() {
       if (siteControlsResult.controls) setSiteControls(siteControlsResult.controls);
       if (Array.isArray(riskSignalsResult.riskSignals)) setRiskSignals(riskSignalsResult.riskSignals);
       if (Array.isArray(riskSignalsResult.supportTickets)) setSupportTickets(riskSignalsResult.supportTickets);
-      if (statesResult.demo || ridersResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || riskSignalsResult.demo) {
-        setAdminMessage("Admin is running in demo mode. Add SUPABASE_SERVICE_ROLE_KEY in Netlify and run the Supabase schema to make launches, rider approvals, delivery timelines, withdrawals, site controls, risk signals, and company logs write to Supabase.");
+      if (Array.isArray(restaurantsResult.restaurants)) {
+        const savedMenus = readDemoRestaurantMenus();
+        setRestaurantMenus(restaurantsResult.demo && savedMenus.length > 0 ? savedMenus : normalizeRestaurantKitchens(restaurantsResult.restaurants));
+      }
+      if (statesResult.demo || ridersResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || riskSignalsResult.demo || restaurantsResult.demo) {
+        setAdminMessage("Admin is running in demo mode. Add SUPABASE_SERVICE_ROLE_KEY in Netlify and run the Supabase schema to make launches, rider approvals, delivery timelines, withdrawals, site controls, risk signals, company logs, and restaurant menus write to Supabase.");
       }
     } catch {
       setAdminMessage("Could not reach the admin API. Showing saved demo data for now.");
@@ -541,7 +559,7 @@ export function AdminPanel() {
             : item
         )
       );
-      setAdminMessage(`${current?.users?.full_name || "Rider"} status updated to ${status.replaceAll("_", " ")}.`);
+      setAdminMessage(`${current?.users?.full_name || "Rider"} KYC status updated to ${riderReviewLabel(status)}.`);
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "Could not update rider review.");
     } finally {
@@ -775,6 +793,86 @@ export function AdminPanel() {
     window.location.hash = "company-transaction-logs";
   }
 
+  function updateKitchen(kitchenId: string, patch: Partial<RestaurantKitchen>) {
+    setRestaurantMenus((menus) => menus.map((kitchen) => (kitchen.id === kitchenId ? { ...kitchen, ...patch } : kitchen)));
+  }
+
+  function updateKitchenItem(kitchenId: string, itemId: string, patch: Partial<RestaurantMenuItem>) {
+    setRestaurantMenus((menus) =>
+      menus.map((kitchen) =>
+        kitchen.id === kitchenId
+          ? {
+              ...kitchen,
+              items: kitchen.items.map((item) => (item.id === itemId ? { ...item, ...patch } : item))
+            }
+          : kitchen
+      )
+    );
+  }
+
+  function addKitchenItem(kitchenId: string) {
+    setRestaurantMenus((menus) =>
+      menus.map((kitchen) =>
+        kitchen.id === kitchenId
+          ? {
+              ...kitchen,
+              items: [
+                ...kitchen.items,
+                {
+                  id: `item-${Date.now()}`,
+                  name: "New food item",
+                  type: "Meal",
+                  price: 0,
+                  portion: "1 portion",
+                  imageUrl: kitchen.items[0]?.imageUrl || defaultRestaurantKitchens[0].items[0].imageUrl
+                }
+              ]
+            }
+          : kitchen
+      )
+    );
+  }
+
+  function removeKitchenItem(kitchenId: string, itemId: string) {
+    setRestaurantMenus((menus) =>
+      menus.map((kitchen) =>
+        kitchen.id === kitchenId && kitchen.items.length > 1
+          ? { ...kitchen, items: kitchen.items.filter((item) => item.id !== itemId) }
+          : kitchen
+      )
+    );
+  }
+
+  async function saveRestaurantMenus() {
+    const restaurants = normalizeRestaurantKitchens(restaurantMenus);
+    setBusyAction("restaurants:save");
+    setAdminMessage(null);
+    try {
+      const response = await fetch("/api/admin/restaurants", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurants })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not save restaurant menus.");
+      const saved = normalizeRestaurantKitchens(result.restaurants);
+      setRestaurantMenus(saved);
+      writeDemoRestaurantMenus(saved);
+      setAdminMessage("Restaurant kitchen menus saved. The restaurant page will load the updated meals and prices.");
+    } catch (error) {
+      const canUseLocalFallback = error instanceof TypeError || (error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY"));
+      if (!canUseLocalFallback) {
+        setAdminMessage(error instanceof Error ? error.message : "Could not save restaurant menus.");
+        return;
+      }
+      setRestaurantMenus(restaurants);
+      writeDemoRestaurantMenus(restaurants);
+      setAdminMessage("Saved restaurant menus in this browser for demo mode. Add SUPABASE_SERVICE_ROLE_KEY in Vercel for live site-wide menu updates.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   function exportCompanyLogs() {
     const headers = ["Date", "Category", "Direction", "Amount NGN", "Title", "Counterparty", "Reference", "Payment method", "Status", "Notes"];
     const rows = filteredCompanyLogs.map((log) => [
@@ -872,6 +970,13 @@ export function AdminPanel() {
           onClick={() => openAdminSection("site-controls")}
         />
         <ActionCard
+          icon={Utensils}
+          title="Kitchen menus"
+          body="Edit restaurant prices, portions, photos, and add new food items."
+          count={`${restaurantMenus.reduce((count, kitchen) => count + kitchen.items.length, 0)} meals`}
+          onClick={() => openAdminSection("restaurant-menus")}
+        />
+        <ActionCard
           icon={AlertTriangle}
           title="Risk signals"
           body="Track fraud, payment mismatches, and operational exceptions."
@@ -900,6 +1005,16 @@ export function AdminPanel() {
         onCategoryChange={setCompanyLogCategory}
         onEdit={editCompanyLog}
         onExport={exportCompanyLogs}
+      />
+
+      <RestaurantMenuSection
+        restaurants={restaurantMenus}
+        busyAction={busyAction}
+        onKitchenChange={updateKitchen}
+        onItemChange={updateKitchenItem}
+        onAddItem={addKitchenItem}
+        onRemoveItem={removeKitchenItem}
+        onSave={saveRestaurantMenus}
       />
 
       <div className="mt-6 grid gap-4 xl:grid-cols-3">
@@ -1409,6 +1524,145 @@ function CompanyTransactionSection({
   );
 }
 
+function RestaurantMenuSection({
+  restaurants,
+  busyAction,
+  onKitchenChange,
+  onItemChange,
+  onAddItem,
+  onRemoveItem,
+  onSave
+}: {
+  restaurants: RestaurantKitchen[];
+  busyAction: string | null;
+  onKitchenChange: (kitchenId: string, patch: Partial<RestaurantKitchen>) => void;
+  onItemChange: (kitchenId: string, itemId: string, patch: Partial<RestaurantMenuItem>) => void;
+  onAddItem: (kitchenId: string) => void;
+  onRemoveItem: (kitchenId: string, itemId: string) => void;
+  onSave: () => void;
+}) {
+  const saving = busyAction === "restaurants:save";
+
+  return (
+    <Card id="restaurant-menus" className="mt-6 scroll-mt-24 overflow-hidden">
+      <div className="flex flex-col gap-4 border-b border-fleet-line p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-fleet bg-fleet-night text-white">
+            <StoreIcon className="h-5 w-5" />
+          </span>
+          <div>
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Kitchen authority</span>
+            <h2 className="mt-1 text-2xl font-black text-fleet-night">Restaurant menus and pricing</h2>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
+              Update each kitchen profile, portion price, meal photo, and new food item. These records feed the public restaurant marketplace.
+            </p>
+          </div>
+        </div>
+        <Button type="button" onClick={onSave} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          Save restaurant menus
+        </Button>
+      </div>
+
+      <div className="grid gap-5 p-4">
+        {restaurants.map((kitchen) => (
+          <article key={kitchen.id} className="rounded-fleet border border-fleet-line bg-white p-4">
+            <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
+              <img src={kitchen.imageUrl} alt={kitchen.name} className="h-44 w-full rounded-fleet object-cover lg:h-full" />
+              <div className="grid gap-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="form-field">
+                    <span className="form-label">Kitchen name</span>
+                    <input className="form-input" value={kitchen.name} onChange={(event) => onKitchenChange(kitchen.id, { name: event.target.value })} />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Area</span>
+                    <input className="form-input" value={kitchen.area} onChange={(event) => onKitchenChange(kitchen.id, { area: event.target.value })} />
+                  </label>
+                </div>
+                <label className="form-field">
+                  <span className="form-label">Address</span>
+                  <input className="form-input" value={kitchen.address} onChange={(event) => onKitchenChange(kitchen.id, { address: event.target.value })} />
+                </label>
+                <label className="form-field">
+                  <span className="form-label">Description</span>
+                  <textarea className="form-input min-h-20" value={kitchen.description} onChange={(event) => onKitchenChange(kitchen.id, { description: event.target.value })} />
+                </label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="form-field">
+                    <span className="form-label">Meal types</span>
+                    <input
+                      className="form-input"
+                      value={kitchen.mealTypes.join(", ")}
+                      onChange={(event) =>
+                        onKitchenChange(kitchen.id, {
+                          mealTypes: event.target.value.split(",").map((item) => item.trim()).filter(Boolean)
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Restaurant photo URL</span>
+                    <input className="form-input" value={kitchen.imageUrl} onChange={(event) => onKitchenChange(kitchen.id, { imageUrl: event.target.value })} />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-lg font-black text-fleet-night">{kitchen.name} food items</h3>
+                <span className="text-sm font-bold text-slate-500">Each price is sold as the portion shown.</span>
+              </div>
+              <Button type="button" size="sm" variant="secondary" onClick={() => onAddItem(kitchen.id)}>
+                <Plus className="h-4 w-4" />
+                Add new food item
+              </Button>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              {kitchen.items.map((item) => (
+                <div key={item.id} className="grid gap-3 rounded-fleet border border-fleet-line bg-fleet-paper p-3 xl:grid-cols-[64px_1.2fr_0.8fr_120px_0.8fr_1fr_auto] xl:items-end">
+                  <img src={item.imageUrl} alt={item.name} className="h-16 w-16 rounded-fleet object-cover" />
+                  <label className="form-field">
+                    <span className="form-label">Food item</span>
+                    <input className="form-input bg-white" value={item.name} onChange={(event) => onItemChange(kitchen.id, item.id, { name: event.target.value })} />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Meal type</span>
+                    <input className="form-input bg-white" value={item.type} onChange={(event) => onItemChange(kitchen.id, item.id, { type: event.target.value })} />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Price</span>
+                    <input
+                      className="form-input bg-white"
+                      value={String(item.price)}
+                      onChange={(event) => onItemChange(kitchen.id, item.id, { price: Number(event.target.value || 0) })}
+                      inputMode="numeric"
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Portion</span>
+                    <input className="form-input bg-white" value={item.portion} onChange={(event) => onItemChange(kitchen.id, item.id, { portion: event.target.value })} />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Small photo URL</span>
+                    <input className="form-input bg-white" value={item.imageUrl} onChange={(event) => onItemChange(kitchen.id, item.id, { imageUrl: event.target.value })} />
+                  </label>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => onRemoveItem(kitchen.id, item.id)} disabled={kitchen.items.length <= 1}>
+                    <Trash2 className="h-4 w-4" />
+                    Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function FinanceStat({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <div className="rounded-fleet border border-fleet-line bg-fleet-paper p-4">
@@ -1555,7 +1809,7 @@ function RiderApprovalSection({
                   </span>
                 </div>
                 <StatusBadge tone={rider.application_status === "approved" ? "green" : rider.application_status === "rejected" ? "red" : "amber"}>
-                  {rider.application_status.replaceAll("_", " ")}
+                  {riderReviewLabel(rider.application_status)}
                 </StatusBadge>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1858,6 +2112,21 @@ function readDemoCompanyLogs() {
 function writeDemoCompanyLogs(logs: CompanyTransactionLog[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(companyLogStorageKey, JSON.stringify(logs));
+}
+
+function readDemoRestaurantMenus() {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(restaurantMenuStorageKey) || "[]");
+    return Array.isArray(parsed) ? normalizeRestaurantKitchens(parsed) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDemoRestaurantMenus(restaurants: RestaurantKitchen[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(restaurantMenuStorageKey, JSON.stringify(restaurants));
 }
 
 function upsertCompanyLog(logs: CompanyTransactionLog[], log: CompanyTransactionLog) {

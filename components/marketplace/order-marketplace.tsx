@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown, Loader2, Minus, Plus, ShoppingCart } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, Loader2, MapPin, Minus, Plus, ShoppingCart } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
+import { normalizeRestaurantKitchens, restaurantMenuStorageKey } from "@/lib/restaurant-menu";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -11,19 +12,27 @@ import { StatusBadge } from "@/components/ui/status-badge";
 const deliveryFee = 1000;
 
 type StoreItem = {
+  id?: string;
   name: string;
   type: string;
   price: number;
+  portion?: string;
+  imageUrl?: string;
 };
 
 export type Store = {
+  id?: string;
   name: string;
   area: string;
+  address?: string;
   description: string;
+  mealTypes?: string[];
+  imageUrl?: string;
   items: StoreItem[];
 };
 
 export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: string; eyebrow: string; stores: Store[]; kind: "restaurant" | "shopping" }) {
+  const [liveStores, setLiveStores] = useState<Store[]>(stores);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -31,9 +40,41 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    setLiveStores(stores);
+  }, [stores]);
+
+  useEffect(() => {
+    if (kind !== "restaurant") return;
+
+    function applyStoredMenu() {
+      try {
+        const stored = window.localStorage.getItem(restaurantMenuStorageKey);
+        if (stored) setLiveStores(normalizeRestaurantKitchens(JSON.parse(stored)));
+      } catch {
+        // Keep the server-rendered menu when saved demo data is malformed.
+      }
+    }
+
+    applyStoredMenu();
+    fetch("/api/marketplace/restaurants")
+      .then((response) => response.json())
+      .then((payload) => {
+        if (Array.isArray(payload.restaurants)) {
+          const restaurants = normalizeRestaurantKitchens(payload.restaurants);
+          setLiveStores(restaurants);
+          window.localStorage.setItem(restaurantMenuStorageKey, JSON.stringify(restaurants));
+        }
+      })
+      .catch(() => applyStoredMenu());
+
+    window.addEventListener("storage", applyStoredMenu);
+    return () => window.removeEventListener("storage", applyStoredMenu);
+  }, [kind]);
+
   const selectedItems = useMemo(
     () =>
-      stores.flatMap((store) =>
+      liveStores.flatMap((store) =>
         store.items
           .map((item) => {
             const key = itemKey(store.name, item.name);
@@ -42,7 +83,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           })
           .filter((item) => item.quantity > 0)
       ),
-    [quantities, stores]
+    [quantities, liveStores]
   );
   const itemsTotal = selectedItems.reduce((sum, item) => sum + item.subtotal, 0);
   const total = itemsTotal + PLATFORM_CHECKOUT_FEE_NGN + deliveryFee;
@@ -82,6 +123,24 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       });
       const payload = await response.json();
       if (!response.ok || !payload.authorizationUrl) throw new Error(payload.error || "Paystack checkout failed.");
+      const deliveryCode = String(payload.reference || `FFM-${Date.now()}`);
+      const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]");
+      localStorage.setItem(
+        "fastfleet.next.deliveries",
+        JSON.stringify([
+          {
+            delivery_code: deliveryCode,
+            pickup_address: selectedItems.map((item) => item.store).filter(Boolean).join(", ") || (kind === "restaurant" ? "Restaurant pickup" : "Shopping pickup"),
+            dropoff_address: address,
+            status: "searching",
+            price_ngn: total,
+            eta_minutes: 35,
+            source: `${kind}_checkout`,
+            created_at: new Date().toISOString()
+          },
+          ...stored
+        ])
+      );
       window.location.assign(payload.authorizationUrl);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Checkout failed.");
@@ -101,12 +160,34 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           </p>
 
           <div className="mt-8 grid gap-4">
-            {stores.map((store) => (
-              <details key={store.name} className="group overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_18px_48px_rgba(8,17,31,0.08)]" open>
-                <summary className="flex cursor-pointer items-center justify-between gap-4 p-4">
-                  <span>
+            {liveStores.map((store) => (
+              <details key={store.id || store.name} className="group overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_18px_48px_rgba(8,17,31,0.08)]">
+                <summary className="grid cursor-pointer gap-4 p-4 sm:grid-cols-[128px_1fr_auto] sm:items-center">
+                  {store.imageUrl ? (
+                    <img
+                      src={store.imageUrl}
+                      alt={store.name}
+                      className="h-28 w-full rounded-fleet object-cover sm:h-24 sm:w-32"
+                    />
+                  ) : null}
+                  <span className="min-w-0">
                     <strong className="block text-xl font-black text-fleet-night">{store.name}</strong>
-                    <span className="mt-1 block text-sm font-bold text-slate-500">{store.area} · {store.description}</span>
+                    <span className="mt-1 block text-sm font-bold leading-6 text-slate-500">{store.area} · {store.description}</span>
+                    {store.address ? (
+                      <span className="mt-2 flex items-start gap-1 text-xs font-bold leading-5 text-slate-500">
+                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
+                        {store.address}
+                      </span>
+                    ) : null}
+                    {store.mealTypes?.length ? (
+                      <span className="mt-3 flex flex-wrap gap-2">
+                        {store.mealTypes.map((mealType) => (
+                          <span key={mealType} className="rounded-full bg-fleet-paper px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.1em] text-slate-500">
+                            {mealType}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
                   </span>
                   <ChevronDown className="h-5 w-5 shrink-0 text-fleet-ember transition group-open:rotate-180" />
                 </summary>
@@ -116,10 +197,15 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
                     const quantity = quantities[key] || 0;
                     return (
                       <article key={key} className="rounded-fleet border border-fleet-line bg-fleet-paper p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <span>
+                        <div className="grid grid-cols-[56px_1fr_auto] items-start gap-3">
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt={item.name} className="h-14 w-14 rounded-fleet object-cover" />
+                          ) : (
+                            <span className="h-14 w-14 rounded-fleet bg-white" />
+                          )}
+                          <span className="min-w-0">
                             <strong className="block text-sm font-black text-fleet-night">{item.name}</strong>
-                            <span className="mt-1 block text-xs font-bold text-slate-500">{item.type}</span>
+                            <span className="mt-1 block text-xs font-bold text-slate-500">{item.type} · {item.portion || "1 portion"}</span>
                           </span>
                           <strong className="text-sm font-black text-fleet-night">{formatMoney(item.price)}</strong>
                         </div>

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { dashboardMenuForPath } from "@/lib/dashboard-menus";
 import { LinkButton } from "@/components/ui/button";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, XIcon } from "@/components/icons/social-icons";
 import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
@@ -62,6 +63,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
   const isAdminEnvironment = pathname.startsWith("/admin");
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState<string | null>(null);
+  const dashboardMenu = dashboardMenuForPath(pathname);
 
   useEffect(() => {
     try {
@@ -183,21 +185,57 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 </button>
               </div>
             </div>
-            <div className="grid gap-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "rounded-fleet px-3 py-3 text-sm font-extrabold text-slate-700",
-                    pathname === item.href && "bg-fleet-paper text-fleet-night"
-                  )}
-                  onClick={() => setOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
+            {dashboardMenu ? (
+              <div className="grid max-h-[62dvh] gap-3 overflow-y-auto pr-1">
+                {dashboardMenu.map((section) => (
+                  <div key={section.title} className="rounded-fleet border border-fleet-line bg-white">
+                    <div className="border-b border-fleet-line px-3 py-2 text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500">{section.title}</div>
+                    <div className="grid gap-1 p-1.5">
+                      {section.items.map((item) => {
+                        const Icon = item.icon;
+                        const active = pathname === item.href;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={cn(
+                              "flex items-center gap-3 rounded-fleet px-3 py-3 text-left transition",
+                              active ? "bg-fleet-night text-white" : "text-slate-700 hover:bg-fleet-paper"
+                            )}
+                            onClick={() => setOpen(false)}
+                          >
+                            <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-fleet", active ? "bg-white/10 text-white" : "bg-fleet-paper text-fleet-ember")}>
+                              <Icon className="h-4 w-4" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <strong className="block text-sm font-black">{item.title}</strong>
+                              <span className={cn("block text-xs font-bold leading-5", active ? "text-white/70" : "text-slate-500")}>{item.body}</span>
+                            </span>
+                            {item.tag ? <span className="rounded-full bg-fleet-gold/20 px-2 py-1 text-[0.65rem] font-black text-fleet-ember">{item.tag}</span> : null}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-1">
+                {navItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "rounded-fleet px-3 py-3 text-sm font-extrabold text-slate-700",
+                      pathname === item.href && "bg-fleet-paper text-fleet-night"
+                    )}
+                    onClick={() => setOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            )}
             <div className="mt-3 grid grid-cols-2 gap-2">
               <SmartWalletTopUp compact className="col-span-2" />
               {accountName ? (

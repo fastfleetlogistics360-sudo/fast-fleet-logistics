@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { RoutePreview } from "@/components/maps/route-preview";
-import { WalletCard } from "@/components/wallet/wallet-card";
+import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
 import { JoinStateWaitlistButton } from "@/components/waitlist/join-state-waitlist-button";
 
 type DeliveryRow = {
@@ -81,6 +81,35 @@ const sampleDeliveries: DeliveryRow[] = [
   }
 ];
 
+function localDeliveryRows(): DeliveryRow[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]") as Array<Record<string, unknown>>;
+    return stored
+      .map((item) => ({
+        delivery_code: String(item.delivery_code || ""),
+        pickup_address: String(item.pickup_address || item.pickup || item.store || "Marketplace checkout"),
+        dropoff_address: String(item.dropoff_address || item.dropoff || item.address || "Customer delivery address"),
+        status: String(item.status || "pending_payment"),
+        price_ngn: Number(item.price_ngn || item.total || 0),
+        eta_minutes: Number(item.eta_minutes || item.estimate_eta_minutes || 35),
+        created_at: String(item.created_at || new Date().toISOString())
+      }))
+      .filter((item) => item.delivery_code);
+  } catch {
+    return [];
+  }
+}
+
+function mergeDeliveryRows(rows: DeliveryRow[]) {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.delivery_code)) return false;
+    seen.add(row.delivery_code);
+    return true;
+  });
+}
+
 const tools: Array<[string, string, LucideIcon]> = [
   ["Saved addresses", "Home, office, warehouse, and vendor pickup points", Home],
   ["Wallet records", "Funding, refunds, receipts, and delivery charges", Wallet],
@@ -123,7 +152,8 @@ export function CustomerDashboard() {
 
         if (!user) {
           if (mounted) {
-            setDeliveries(sampleDeliveries);
+            const localDeliveries = localDeliveryRows();
+            setDeliveries(localDeliveries.length ? localDeliveries : sampleDeliveries);
             setProfile({ default_zone: "Lagos" });
             setWallet({ balance_ngn: 54500, locked_balance_ngn: 0 });
           }
@@ -144,7 +174,8 @@ export function CustomerDashboard() {
         if (!mounted) return;
 
         setProfile(profileResult.data || { default_zone: "Lagos", email: user.email, phone: user.phone });
-        setDeliveries(deliveriesResult.data?.length ? deliveriesResult.data : sampleDeliveries);
+        const mergedDeliveries = mergeDeliveryRows([...(deliveriesResult.data || []), ...localDeliveryRows()]);
+        setDeliveries(mergedDeliveries.length ? mergedDeliveries : sampleDeliveries);
         setWallet(walletResult.data || { balance_ngn: 0, locked_balance_ngn: 0 });
 
         const launchResult = await supabase.from("platform_launch_states").select("state, status").eq("status", "live");
@@ -178,7 +209,8 @@ export function CustomerDashboard() {
         }
       } catch {
         if (mounted) {
-          setDeliveries(sampleDeliveries);
+          const localDeliveries = localDeliveryRows();
+          setDeliveries(localDeliveries.length ? localDeliveries : sampleDeliveries);
           setWallet({ balance_ngn: 54500, locked_balance_ngn: 0 });
         }
       } finally {
@@ -252,14 +284,14 @@ export function CustomerDashboard() {
         </div>
       </div>
 
-      <div className="mt-6">
-        <WalletCard
-          title="Customer wallet"
+      <div id="wallet" className="mt-6 scroll-mt-24">
+        <WalletDashboardCard
+          userName={firstName}
           walletType="customer"
           balance={Number(wallet?.balance_ngn || 0)}
           lockedBalance={Number(wallet?.locked_balance_ngn || 0)}
-          transactions={transactions}
-          helper="Top up with Paystack and pay for dispatch from one balance."
+          kycStatus="verified"
+          returnTo="/dashboard"
         />
       </div>
 
@@ -317,7 +349,7 @@ export function CustomerDashboard() {
         ))}
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div id="addresses" className="mt-6 grid scroll-mt-24 gap-4 lg:grid-cols-2">
         <Card className="p-5">
           <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Saved addresses</span>
           <div className="mt-4 grid gap-3">
