@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Bike, Building2, ChevronRight, LogIn, UserPlus, X } from "lucide-react";
 import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
@@ -122,15 +123,22 @@ export function LaunchLandingPage() {
 }
 
 function AuthModal({ intent, onClose }: { intent: AuthIntent; onClose: () => void }) {
+  const [mounted, setMounted] = useState(false);
   const title = intent === "signup" ? "Create your FastFleet account" : "Sign in to FastFleet";
   const description =
     intent === "signup"
       ? "Sign up with phone OTP, choose your access type, and continue into FastFleet."
       : "Enter your phone details to receive an OTP and return to your delivery workspace.";
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <motion.div
-      className="fixed inset-0 z-[80] grid place-items-center bg-fleet-night/70 px-3 py-8 backdrop-blur-sm"
+      className="fixed inset-0 z-[160] grid place-items-center bg-fleet-night/70 px-3 py-8 backdrop-blur-sm"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -159,6 +167,7 @@ function AuthModal({ intent, onClose }: { intent: AuthIntent; onClose: () => voi
           </Suspense>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }

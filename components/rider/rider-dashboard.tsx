@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import {
-  AlertCircle,
   ArrowDownToLine,
   Bell,
   Bike,
   CheckCircle2,
   Clock,
+  CreditCard,
+  Eye,
+  EyeOff,
   FileCheck2,
   Flag,
   Gauge,
@@ -28,13 +30,13 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatMoney } from "@/lib/format";
+import { cn } from "@/lib/cn";
 import { isLaunchState, launchStateLabel, localLiveStates, normalizeState } from "@/lib/launch-states";
 import { sampleRiders } from "@/lib/dispatch";
 import { Card } from "@/components/ui/card";
 import { LinkButton, Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { RoutePreview } from "@/components/maps/route-preview";
-import { WalletCard } from "@/components/wallet/wallet-card";
 import { JoinStateWaitlistButton } from "@/components/waitlist/join-state-waitlist-button";
 
 type DeliveryJob = {
@@ -159,6 +161,10 @@ export function RiderDashboard() {
   const [walletBalance, setWalletBalance] = useState(145800);
   const [lockedBalance, setLockedBalance] = useState(0);
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([]);
+  const [showWalletBalance, setShowWalletBalance] = useState(true);
+  const [topUpAmount, setTopUpAmount] = useState("10000");
+  const [walletTopUpLoading, setWalletTopUpLoading] = useState(false);
+  const [walletMessage, setWalletMessage] = useState<string | null>(null);
   const [withdrawalAmount, setWithdrawalAmount] = useState("3000");
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [withdrawalLoading, setWithdrawalLoading] = useState(false);
@@ -367,6 +373,31 @@ export function RiderDashboard() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [online, profile.default_zone, riderProfile.id, tripStatus]);
 
+  async function topUpWallet() {
+    const amount = Number(topUpAmount);
+    setWalletMessage(null);
+    if (!Number.isFinite(amount) || amount < 500) {
+      setWalletMessage("Enter a wallet top-up amount of at least NGN 500.");
+      return;
+    }
+
+    setWalletTopUpLoading(true);
+    try {
+      const response = await fetch("/api/wallet/topup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, walletType: "rider", returnTo: "/rider/dashboard" })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not start Paystack wallet funding.");
+      window.location.assign(data.authorizationUrl);
+    } catch (error) {
+      setWalletMessage(error instanceof Error ? error.message : "Could not start Paystack wallet funding.");
+    } finally {
+      setWalletTopUpLoading(false);
+    }
+  }
+
   async function requestWithdrawal() {
     const amount = Number(withdrawalAmount);
     setWithdrawalMessage(null);
@@ -446,6 +477,27 @@ export function RiderDashboard() {
 
   return (
     <section className="section-wrap py-8 sm:py-12">
+      <DriverWalletBankCard
+        balance={walletBalance}
+        lockedBalance={lockedBalance}
+        showBalance={showWalletBalance}
+        onToggleBalance={() => setShowWalletBalance((value) => !value)}
+        topUpAmount={topUpAmount}
+        onTopUpAmountChange={setTopUpAmount}
+        onTopUp={topUpWallet}
+        topUpLoading={walletTopUpLoading}
+        withdrawalAmount={withdrawalAmount}
+        onWithdrawalAmountChange={setWithdrawalAmount}
+        onWithdraw={requestWithdrawal}
+        withdrawalLoading={withdrawalLoading}
+        withdrawalDisabled={!kycApproved}
+        kycStatusLabel={kycStatusLabel}
+        kycApproved={kycApproved}
+        withdrawnLast24Hours={withdrawnLast24Hours}
+        walletMessage={walletMessage}
+        withdrawalMessage={withdrawalMessage}
+      />
+
       <div className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]">
         <Card className="p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -610,62 +662,6 @@ export function RiderDashboard() {
       </div>
 
       <div className="mt-6">
-        <WalletCard
-          title="Rider wallet"
-          walletType="rider"
-          balance={walletBalance}
-          lockedBalance={lockedBalance}
-          transactions={walletTransactions}
-          helper="Track earnings, bonuses, withdrawals, and optional wallet funding."
-        />
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Card className="p-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Withdrawal controls</span>
-              <strong className="mt-2 block text-4xl font-black text-fleet-night">{formatMoney(walletBalance)}</strong>
-              <span className="mt-1 block text-xs font-bold text-slate-500">
-                24-hour usage: {formatMoney(withdrawnLast24Hours)} / {formatMoney(200000)}
-              </span>
-            </div>
-            <StatusBadge tone={kycApproved ? "green" : kycUnderReview ? "blue" : "amber"}>{kycStatusLabel}</StatusBadge>
-          </div>
-          <div className="mt-5 grid gap-3">
-            <label className="form-field">
-              <span className="form-label">Withdrawal amount</span>
-              <input
-                className="form-input"
-                value={withdrawalAmount}
-                onChange={(event) => setWithdrawalAmount(event.target.value)}
-                inputMode="numeric"
-                placeholder="3000"
-              />
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <Button type="button" onClick={requestWithdrawal} disabled={withdrawalLoading || !kycApproved}>
-                {withdrawalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownToLine className="h-4 w-4" />}
-                Withdraw earning
-              </Button>
-              <LinkButton href="/support" variant="secondary">
-                <Wallet className="h-4 w-4" />
-                Support
-              </LinkButton>
-            </div>
-          </div>
-          <div className="mt-4 rounded-fleet bg-fleet-paper p-3 text-xs font-bold leading-5 text-slate-600">
-            Minimum withdrawal is NGN 3,000. Maximum is NGN 200,000 per 24 hours. Admin approval is required before payout.
-          </div>
-          {!kycApproved ? (
-            <div className="mt-3 flex gap-2 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              Upload and pass KYC verification before withdrawal requests can be approved.
-            </div>
-          ) : null}
-          {withdrawalMessage ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{withdrawalMessage}</div> : null}
-        </Card>
-
         <Card className="p-5">
           <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Withdrawal status</span>
           <div className="mt-4 grid gap-3">
@@ -717,7 +713,14 @@ export function RiderDashboard() {
         <Card className="p-5">
           <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Transaction history</span>
           <div className="mt-4 grid gap-3">
-            {transactions.map(([label, detail, amount]) => (
+            {(walletTransactions.length
+              ? walletTransactions.map((transaction) => [
+                  transaction.transaction_type.replaceAll("_", " "),
+                  transaction.provider_reference || transaction.provider || transaction.status,
+                  transaction.amount_ngn
+                ])
+              : transactions
+            ).map(([label, detail, amount]) => (
               <div key={`${label}-${detail}`} className="flex items-center justify-between gap-4 rounded-fleet bg-fleet-paper p-3">
                 <span>
                   <strong className="block text-sm font-black text-fleet-night">{label}</strong>
@@ -766,6 +769,140 @@ export function RiderDashboard() {
   );
 }
 
+function DriverWalletBankCard({
+  balance,
+  lockedBalance,
+  showBalance,
+  onToggleBalance,
+  topUpAmount,
+  onTopUpAmountChange,
+  onTopUp,
+  topUpLoading,
+  withdrawalAmount,
+  onWithdrawalAmountChange,
+  onWithdraw,
+  withdrawalLoading,
+  withdrawalDisabled,
+  kycStatusLabel,
+  kycApproved,
+  withdrawnLast24Hours,
+  walletMessage,
+  withdrawalMessage
+}: {
+  balance: number;
+  lockedBalance: number;
+  showBalance: boolean;
+  onToggleBalance: () => void;
+  topUpAmount: string;
+  onTopUpAmountChange: (value: string) => void;
+  onTopUp: () => void;
+  topUpLoading: boolean;
+  withdrawalAmount: string;
+  onWithdrawalAmountChange: (value: string) => void;
+  onWithdraw: () => void;
+  withdrawalLoading: boolean;
+  withdrawalDisabled: boolean;
+  kycStatusLabel: string;
+  kycApproved: boolean;
+  withdrawnLast24Hours: number;
+  walletMessage: string | null;
+  withdrawalMessage: string | null;
+}) {
+  const displayBalance = showBalance ? formatMoney(balance) : "NGN ••••••";
+
+  return (
+    <Card className="mb-6 overflow-hidden border-fleet-night/10 bg-fleet-night text-white shadow-[0_22px_60px_rgba(8,17,31,0.2)]">
+      <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
+        <div>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-fleet-gold">
+                <Wallet className="h-4 w-4" />
+                Driver wallet
+              </span>
+              <div className="mt-4 flex items-center gap-3">
+                <strong className="text-3xl font-black tracking-normal sm:text-5xl">{displayBalance}</strong>
+                <button
+                  type="button"
+                  onClick={onToggleBalance}
+                  className="inline-grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/15"
+                  aria-label={showBalance ? "Hide wallet balance" : "Show wallet balance"}
+                >
+                  {showBalance ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="mt-2 max-w-lg text-sm font-semibold leading-6 text-white/68">
+                Paystack top-ups credit this rider balance after server verification. Withdrawals are held for admin approval before payout.
+              </p>
+            </div>
+            <StatusBadge tone={kycApproved ? "green" : "amber"} className="shrink-0 bg-white/10 text-white">
+              {kycStatusLabel}
+            </StatusBadge>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 text-xs font-bold text-white/78 sm:max-w-xl">
+            <div className="rounded-fleet border border-white/10 bg-white/10 p-3">
+              <span className="block text-white/48">Locked</span>
+              <strong className="mt-1 block text-base text-white">{showBalance ? formatMoney(lockedBalance) : "NGN •••"}</strong>
+            </div>
+            <div className="rounded-fleet border border-white/10 bg-white/10 p-3">
+              <span className="block text-white/48">24h withdrawals</span>
+              <strong className="mt-1 block text-base text-white">{showBalance ? formatMoney(withdrawnLast24Hours) : "NGN •••"}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-fleet border border-white/10 bg-white p-3 text-fleet-night shadow-[0_18px_40px_rgba(0,0,0,0.18)] sm:p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="form-field">
+              <span className="form-label">Top-up amount</span>
+              <input
+                className="form-input"
+                value={topUpAmount}
+                onChange={(event) => onTopUpAmountChange(event.target.value.replace(/[^\d]/g, ""))}
+                inputMode="numeric"
+                placeholder="10000"
+              />
+            </label>
+            <label className="form-field">
+              <span className="form-label">Withdraw amount</span>
+              <input
+                className="form-input"
+                value={withdrawalAmount}
+                onChange={(event) => onWithdrawalAmountChange(event.target.value.replace(/[^\d]/g, ""))}
+                inputMode="numeric"
+                placeholder="3000"
+              />
+            </label>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <Button type="button" onClick={onTopUp} disabled={topUpLoading || Number(topUpAmount) < 500}>
+              {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+              Top-Up
+            </Button>
+            <Button type="button" variant="secondary" onClick={onWithdraw} disabled={withdrawalLoading || withdrawalDisabled}>
+              {withdrawalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowDownToLine className="h-4 w-4" />}
+              Withdraw Balance
+            </Button>
+          </div>
+
+          <p className="mt-3 rounded-fleet bg-fleet-paper p-3 text-xs font-bold leading-5 text-slate-600">
+            Minimum withdrawal is NGN 3,000. Maximum is NGN 200,000 per 24 hours.
+          </p>
+          {!kycApproved ? (
+            <p className="mt-2 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">
+              Complete KYC before withdrawal requests can be approved.
+            </p>
+          ) : null}
+          {walletMessage ? <p className="mt-2 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{walletMessage}</p> : null}
+          {withdrawalMessage ? <p className="mt-2 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{withdrawalMessage}</p> : null}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function DriverSmartCards({
   metrics,
   highlights
@@ -773,27 +910,58 @@ function DriverSmartCards({
   metrics: string[][];
   highlights: Array<[string, string, LucideIcon]>;
 }) {
+  const [activeCard, setActiveCard] = useState(0);
+  const cardRefs = useRef<Array<HTMLElement | null>>([]);
   const cards = [
     ...metrics.map(([label, value, helper]) => ({ label, value, helper, Icon: Gauge })),
     ...highlights.map(([label, value, Icon]) => ({ label, value, helper: "Driver performance signal", Icon }))
   ];
 
+  function handleScroll(event: UIEvent<HTMLDivElement>) {
+    const node = event.currentTarget;
+    const firstCard = cardRefs.current[0];
+    if (!firstCard) return;
+    const nextIndex = Math.round(node.scrollLeft / (firstCard.offsetWidth + 12));
+    setActiveCard(Math.max(0, Math.min(cards.length - 1, nextIndex)));
+  }
+
+  function goToCard(index: number) {
+    cardRefs.current[index]?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+    setActiveCard(index);
+  }
+
   return (
-    <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-4 [scrollbar-width:none] xl:grid xl:grid-cols-4 xl:overflow-visible xl:pb-0 [&::-webkit-scrollbar]:hidden">
-      {cards.map(({ label, value, helper, Icon }) => (
-        <article
-          key={`${label}-${value}`}
-          className="relative min-h-[150px] w-[min(76vw,260px)] shrink-0 snap-start overflow-hidden rounded-fleet border border-fleet-line bg-white p-4 shadow-[0_16px_38px_rgba(8,17,31,0.08)] transition hover:-translate-y-1 hover:shadow-lift xl:w-auto"
-        >
-          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-fleet-ember via-fleet-gold to-fleet-leaf" />
-          <span className="grid h-10 w-10 place-items-center rounded-fleet bg-fleet-night text-white">
-            <Icon className="h-4 w-4" />
-          </span>
-          <strong className="mt-4 block text-2xl font-black text-fleet-night">{value}</strong>
-          <span className="mt-1 block text-sm font-black text-slate-700">{label}</span>
-          <span className="mt-2 block text-xs font-bold leading-5 text-slate-500">{helper}</span>
-        </article>
-      ))}
+    <div>
+      <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-3 [scrollbar-width:none] xl:grid xl:grid-cols-4 xl:overflow-visible xl:pb-0 [&::-webkit-scrollbar]:hidden" onScroll={handleScroll}>
+        {cards.map(({ label, value, helper, Icon }, index) => (
+          <article
+            key={`${label}-${value}`}
+            ref={(node) => {
+              cardRefs.current[index] = node;
+            }}
+            className="relative min-h-[118px] w-[min(48vw,178px)] shrink-0 snap-start overflow-hidden rounded-fleet border border-fleet-line bg-white p-3 shadow-[0_10px_24px_rgba(8,17,31,0.07)] transition hover:-translate-y-1 hover:shadow-lift xl:w-auto"
+          >
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-fleet-ember via-fleet-gold to-fleet-leaf" />
+            <span className="grid h-8 w-8 place-items-center rounded-fleet bg-fleet-night text-white">
+              <Icon className="h-3.5 w-3.5" />
+            </span>
+            <strong className="mt-3 block text-xl font-black text-fleet-night">{value}</strong>
+            <span className="mt-0.5 block text-xs font-black text-slate-700">{label}</span>
+            <span className="mt-1 block text-[0.68rem] font-bold leading-4 text-slate-500">{helper}</span>
+          </article>
+        ))}
+      </div>
+      <div className="mt-1 flex justify-center gap-2 xl:hidden" aria-label="Driver dashboard card pages">
+        {cards.map((card, index) => (
+          <button
+            key={`${card.label}-${index}`}
+            type="button"
+            aria-label={`Show ${card.label}`}
+            onClick={() => goToCard(index)}
+            className={cn("h-2 rounded-full transition-all", activeCard === index ? "w-6 bg-fleet-ember" : "w-2 bg-slate-300")}
+          />
+        ))}
+      </div>
     </div>
   );
 }

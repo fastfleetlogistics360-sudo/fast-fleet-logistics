@@ -41,12 +41,12 @@ const navItems = [
   { href: "/support", label: "Support" }
 ];
 
-const bottomItems: Array<{ href: string; label: string; icon: LucideIcon }> = [
+const bottomItems: Array<{ href: string; label: string; icon: LucideIcon; activePaths?: string[] }> = [
   { href: "/book", label: "Book", icon: PackageCheck },
   { href: "/track", label: "Track", icon: Route },
-  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
-  { href: "/rider/dashboard", label: "Rider", icon: Bike },
-  { href: "/business/dashboard", label: "Biz", icon: Building2 }
+  { href: "/main", label: "Home", icon: LayoutDashboard, activePaths: ["/main", "/dashboard"] },
+  { href: "/rider/onboarding", label: "Rider", icon: Bike, activePaths: ["/rider/onboarding", "/rider/dashboard"] },
+  { href: "/business/register", label: "Biz", icon: Building2, activePaths: ["/business/register", "/business/dashboard"] }
 ];
 
 const socialItems: Array<{ href: string; label: string; icon: (props: ComponentPropsWithoutRef<"svg">) => ReactElement; hover: string }> = [
@@ -266,7 +266,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
       <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/70 bg-white/92 p-1 shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Mobile app">
         {bottomItems.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.href;
+          const active = item.activePaths ? item.activePaths.some((path) => pathname === path) : pathname === item.href;
           return (
             <Link
               key={item.href}
