@@ -26,10 +26,13 @@ import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
 import { createClient } from "@/lib/supabase/client";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { SupportWidget } from "@/components/support/support-widget";
+import { CookieConsent } from "@/components/layout/cookie-consent";
 
 const navItems = [
   { href: "/main", label: "Home" },
   { href: "/book", label: "Book" },
+  { href: "/restaurants", label: "Food" },
+  { href: "/shopping-mall", label: "Mall" },
   { href: "/track", label: "Track" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/rider/onboarding", label: "Riders" },
@@ -295,6 +298,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
       <SupportWidget />
       </>
       )}
+      <CookieConsent />
     </div>
   );
 }

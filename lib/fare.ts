@@ -15,6 +15,8 @@ const SPEED_MULTIPLIERS: Record<DeliverySpeed, number> = {
   interstate: 1.92
 };
 
+export const PLATFORM_CHECKOUT_FEE_NGN = 200;
+
 function stableHash(value: string) {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -42,7 +44,7 @@ export function estimateFare(input: FareInput): FareEstimate {
   const zoneSurcharge = input.zone?.toLowerCase().includes("ogun") ? 800 : 0;
   const baseFare = vehicle.base + zoneSurcharge;
   const distanceFare = distanceKm * vehicle.perKm;
-  const platformFee = Math.max(450, (baseFare + distanceFare) * 0.065);
+  const platformFee = PLATFORM_CHECKOUT_FEE_NGN;
   const total = Math.round(((baseFare + distanceFare) * speedMultiplier + platformFee) / 50) * 50;
   const etaMinutes = Math.max(
     16,

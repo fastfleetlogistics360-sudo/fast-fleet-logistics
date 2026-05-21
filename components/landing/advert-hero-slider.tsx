@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, BadgeCheck, Bike, Clock3, MapPinned, ShieldCheck, Truck } from "lucide-react";
 import { LinkButton } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
 
 const slides = [
   {
@@ -46,7 +45,6 @@ const slides = [
 
 export function AdvertHeroSlider() {
   const [active, setActive] = useState(0);
-  const [signedIn, setSignedIn] = useState(false);
   const reduceMotion = useReducedMotion();
   const slide = slides[active];
   const Icon = slide.icon;
@@ -59,15 +57,6 @@ export function AdvertHeroSlider() {
 
     return () => window.clearInterval(timer);
   }, [reduceMotion]);
-
-  useEffect(() => {
-    try {
-      const supabase = createClient();
-      supabase.auth.getUser().then(({ data }) => setSignedIn(Boolean(data.user)));
-    } catch {
-      setSignedIn(false);
-    }
-  }, []);
 
   return (
     <section className="relative isolate min-h-[calc(100vh-76px)] overflow-hidden bg-fleet-night text-white">
@@ -114,34 +103,20 @@ export function AdvertHeroSlider() {
             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             transition={{ delay: 0.22, duration: 0.48 }}
           >
-            {signedIn ? (
-              <>
-                <LinkButton href="/dashboard" size="lg">
-                  Open dashboard
-                  <ArrowRight className="h-4 w-4" />
-                </LinkButton>
-                <LinkButton href="/book" variant="secondary" size="lg">
-                  Book delivery
-                </LinkButton>
-              </>
-            ) : (
-              <>
-                <LinkButton href="/auth" size="lg">
-                  Create account
-                  <ArrowRight className="h-4 w-4" />
-                </LinkButton>
-                <LinkButton href="/auth?account=driver" variant="dark" size="lg">
-                  <Bike className="h-4 w-4" />
-                  Register as a driver
-                </LinkButton>
-                <LinkButton href="/auth?account=business" variant="secondary" size="lg">
-                  Register a business
-                </LinkButton>
-                <LinkButton href="/auth" variant="secondary" size="lg">
-                  Sign in
-                </LinkButton>
-              </>
-            )}
+            <LinkButton href="/auth" size="lg">
+              Create account
+              <ArrowRight className="h-4 w-4" />
+            </LinkButton>
+            <LinkButton href="/auth?account=driver" variant="dark" size="lg">
+              <Bike className="h-4 w-4" />
+              Register as a driver
+            </LinkButton>
+            <LinkButton href="/auth?account=business" variant="secondary" size="lg">
+              Register a business
+            </LinkButton>
+            <LinkButton href="/auth" variant="secondary" size="lg">
+              Sign in
+            </LinkButton>
             <LinkButton href="/auth?account=driver" variant="dark" size="lg">
               <Bike className="h-4 w-4" />
               Earn with delivery

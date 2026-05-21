@@ -1,4 +1,4 @@
-const CACHE_NAME = "fastfleet-v4";
+const CACHE_NAME = "fastfleet-v5";
 const APP_SHELL = [
   "/",
   "/offline",
@@ -24,21 +24,32 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
 
+  if (url.pathname.startsWith("/_next/") || url.pathname.startsWith("/api/")) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   if (url.pathname.startsWith("/admin") || url.pathname.startsWith("/api/admin")) {
     event.respondWith(fetch(event.request));
     return;
   }
 
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return response;
-      })
-      .catch(async () => {
-        const cached = await caches.match(event.request);
-        return cached || caches.match("/offline");
-      })
-  );
+  if (event.request.mode === "navigate") {
+    event.respondWith(fetch(event.request).catch(() => caches.match("/offline")));
+    return;
+  }
+
+  if (["image", "font", "style"].includes(event.request.destination)) {
+    event.respondWith(
+      caches.match(event.request).then(
+        (cached) =>
+          cached ||
+          fetch(event.request).then((response) => {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+            return response;
+          })
+      )
+    );
+  }
 });

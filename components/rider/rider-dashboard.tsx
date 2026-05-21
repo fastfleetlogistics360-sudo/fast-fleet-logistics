@@ -32,7 +32,6 @@ import { isLaunchState, launchStateLabel, localLiveStates, normalizeState } from
 import { sampleRiders } from "@/lib/dispatch";
 import { Card } from "@/components/ui/card";
 import { LinkButton, Button } from "@/components/ui/button";
-import { StatTile } from "@/components/ui/stat-tile";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { RoutePreview } from "@/components/maps/route-preview";
 import { WalletCard } from "@/components/wallet/wallet-card";
@@ -86,6 +85,9 @@ const highlights: Array<[string, string, LucideIcon]> = [
   ["Performance", "Excellent", Gauge],
   ["Notifications", "8 unread", Bell]
 ];
+
+const needsKycActionStatuses = new Set(["not_started", "draft", "more_info_required", "rejected"]);
+const reviewKycStatuses = new Set(["submitted", "under_review", "pending", "pending_approval"]);
 
 const driverMenuSections: Array<{
   title: string;
@@ -167,6 +169,9 @@ export function RiderDashboard() {
   const activeTrip = availableJobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status));
   const selectedState = normalizeState(profile.default_zone) || "Lagos";
   const kycApproved = riderProfile.application_status === "approved";
+  const kycNeedsAction = !riderProfile.id || needsKycActionStatuses.has(riderProfile.application_status);
+  const kycUnderReview = !kycApproved && !kycNeedsAction && reviewKycStatuses.has(riderProfile.application_status);
+  const kycStatusLabel = kycApproved ? "KYC approved" : kycUnderReview ? "Under review" : "Action required";
   const withdrawnLast24Hours = withdrawalRequests
     .filter((request) => new Date(request.created_at).getTime() >= Date.now() - 24 * 60 * 60 * 1000)
     .filter((request) => request.status !== "rejected")
@@ -257,8 +262,9 @@ export function RiderDashboard() {
   }, [online, riderProfile.id]);
 
   useEffect(() => {
-    if (!kycApproved) setShowKycPrompt(true);
-  }, [kycApproved]);
+    if (kycNeedsAction) setShowKycPrompt(true);
+    if (!kycNeedsAction) setShowKycPrompt(false);
+  }, [kycNeedsAction]);
 
   async function refreshJobs(riderId = riderProfile.id) {
     if (!riderId) return;
@@ -467,31 +473,33 @@ export function RiderDashboard() {
           {toast ? <div className="mt-4 rounded-fleet bg-fleet-night p-3 text-sm font-bold text-white">{toast}</div> : null}
         </Card>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {metrics.map(([label, value, helper]) => (
-            <StatTile key={label} label={label} value={value} helper={helper} />
-          ))}
-        </div>
+        <DriverSmartCards metrics={metrics} highlights={highlights} />
       </div>
 
       {!kycApproved ? (
-        <Card className="mt-6 border-amber-200 bg-amber-50 p-5">
+        <Card className={`mt-6 p-5 ${kycUnderReview ? "border-blue-200 bg-blue-50" : "border-amber-200 bg-amber-50"}`}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex gap-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-fleet bg-white text-amber-700 shadow-lift">
+              <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-fleet bg-white shadow-lift ${kycUnderReview ? "text-blue-700" : "text-amber-700"}`}>
                 <FileCheck2 className="h-5 w-5" />
               </span>
               <div>
-                <span className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">KYC required</span>
-                <h2 className="mt-1 text-xl font-black text-fleet-night">Complete driver verification to unlock withdrawals.</h2>
-                <p className="mt-1 text-sm font-bold leading-6 text-amber-800">
-                  Upload identity, vehicle papers, selfie, and bank details. Admin approval activates full driver earnings access.
+                <span className={`text-xs font-black uppercase tracking-[0.16em] ${kycUnderReview ? "text-blue-700" : "text-amber-700"}`}>{kycStatusLabel}</span>
+                <h2 className="mt-1 text-xl font-black text-fleet-night">
+                  {kycUnderReview ? "Your driver verification is under review." : "Complete driver verification to unlock withdrawals."}
+                </h2>
+                <p className={`mt-1 text-sm font-bold leading-6 ${kycUnderReview ? "text-blue-800" : "text-amber-800"}`}>
+                  {kycUnderReview
+                    ? "Operations will approve you or request more information from the admin panel. You will not see the completion pop-up while review is pending."
+                    : "Upload identity, vehicle papers, selfie, and bank details. Admin approval activates full driver earnings access."}
                 </p>
               </div>
             </div>
-            <LinkButton href="/rider/onboarding" className="shrink-0">
-              Open KYC
-            </LinkButton>
+            {kycNeedsAction ? (
+              <LinkButton href="/rider/onboarding" className="shrink-0">
+                Open KYC
+              </LinkButton>
+            ) : null}
           </div>
         </Card>
       ) : null}
@@ -504,9 +512,9 @@ export function RiderDashboard() {
           </div>
           <Bike className="h-5 w-5 text-fleet-ember" />
         </div>
-        <div className="mt-5 grid gap-5 lg:grid-cols-3">
+        <div className="-mx-5 mt-5 flex snap-x gap-4 overflow-x-auto px-5 pb-4 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
           {driverMenuSections.map((section) => (
-            <div key={section.title} className="rounded-fleet border border-fleet-line bg-white">
+            <div key={section.title} className="w-[min(84vw,360px)] shrink-0 snap-start rounded-fleet border border-fleet-line bg-white shadow-[0_16px_38px_rgba(8,17,31,0.07)] transition hover:-translate-y-1 hover:shadow-lift lg:w-auto">
               <div className="border-b border-fleet-line px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">{section.title}</div>
               <div className="divide-y divide-fleet-line">
                 {section.items.map(([title, body, Icon, tag]) => (
@@ -601,16 +609,6 @@ export function RiderDashboard() {
         </Card>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {highlights.map(([label, value, Icon]) => (
-          <Card key={label as string} className="p-5">
-            <Icon className="h-5 w-5 text-fleet-ember" />
-            <strong className="mt-4 block text-2xl font-black text-fleet-night">{value as string}</strong>
-            <span className="text-sm font-bold text-slate-500">{label as string}</span>
-          </Card>
-        ))}
-      </div>
-
       <div className="mt-6">
         <WalletCard
           title="Rider wallet"
@@ -632,7 +630,7 @@ export function RiderDashboard() {
                 24-hour usage: {formatMoney(withdrawnLast24Hours)} / {formatMoney(200000)}
               </span>
             </div>
-            <StatusBadge tone={kycApproved ? "green" : "amber"}>{kycApproved ? "KYC approved" : "KYC pending"}</StatusBadge>
+            <StatusBadge tone={kycApproved ? "green" : kycUnderReview ? "blue" : "amber"}>{kycStatusLabel}</StatusBadge>
           </div>
           <div className="mt-5 grid gap-3">
             <label className="form-field">
@@ -732,7 +730,7 @@ export function RiderDashboard() {
         </Card>
       </div>
 
-      {showKycPrompt && !kycApproved ? (
+      {showKycPrompt && kycNeedsAction ? (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-fleet-night/70 px-4 py-8 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Driver KYC required">
           <Card className="relative w-full max-w-xl border-amber-200 bg-white p-5 shadow-[0_28px_90px_rgba(0,0,0,0.35)] sm:p-6">
             <button
@@ -765,6 +763,38 @@ export function RiderDashboard() {
         </div>
       ) : null}
     </section>
+  );
+}
+
+function DriverSmartCards({
+  metrics,
+  highlights
+}: {
+  metrics: string[][];
+  highlights: Array<[string, string, LucideIcon]>;
+}) {
+  const cards = [
+    ...metrics.map(([label, value, helper]) => ({ label, value, helper, Icon: Gauge })),
+    ...highlights.map(([label, value, Icon]) => ({ label, value, helper: "Driver performance signal", Icon }))
+  ];
+
+  return (
+    <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-4 [scrollbar-width:none] xl:grid xl:grid-cols-4 xl:overflow-visible xl:pb-0 [&::-webkit-scrollbar]:hidden">
+      {cards.map(({ label, value, helper, Icon }) => (
+        <article
+          key={`${label}-${value}`}
+          className="relative min-h-[150px] w-[min(76vw,260px)] shrink-0 snap-start overflow-hidden rounded-fleet border border-fleet-line bg-white p-4 shadow-[0_16px_38px_rgba(8,17,31,0.08)] transition hover:-translate-y-1 hover:shadow-lift xl:w-auto"
+        >
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-fleet-ember via-fleet-gold to-fleet-leaf" />
+          <span className="grid h-10 w-10 place-items-center rounded-fleet bg-fleet-night text-white">
+            <Icon className="h-4 w-4" />
+          </span>
+          <strong className="mt-4 block text-2xl font-black text-fleet-night">{value}</strong>
+          <span className="mt-1 block text-sm font-black text-slate-700">{label}</span>
+          <span className="mt-2 block text-xs font-bold leading-5 text-slate-500">{helper}</span>
+        </article>
+      ))}
+    </div>
   );
 }
 

@@ -28,6 +28,11 @@ type UploadedDoc = {
   url?: string;
 };
 
+type Bank = {
+  name: string;
+  code: string;
+};
+
 export function RiderOnboardingFlow() {
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -35,6 +40,9 @@ export function RiderOnboardingFlow() {
   const [signedIn, setSignedIn] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankMessage, setBankMessage] = useState<string | null>(null);
   const [docs, setDocs] = useState<Record<string, UploadedDoc>>({});
   const [form, setForm] = useState({
     fullName: "",
@@ -45,11 +53,24 @@ export function RiderOnboardingFlow() {
     plateNumber: "",
     vehicleColor: "",
     bankName: "",
+    bankCode: "",
     accountNumber: "",
     accountName: ""
   });
 
   const completion = useMemo(() => Math.round(((current + 1) / steps.length) * 100), [current]);
+  const stepComplete = useMemo(
+    () => [
+      Boolean(form.fullName.trim() && form.phone.trim() && form.address.trim() && form.zone.trim()),
+      Boolean(form.vehicleType && form.plateNumber.trim() && form.vehicleColor.trim()),
+      documentTypes.every(([type]) => Boolean(docs[type]?.url || docs[type]?.progress === 100)),
+      Boolean(form.bankName.trim() && form.bankCode.trim() && form.accountNumber.trim().length === 10 && form.accountName.trim()),
+      true
+    ],
+    [docs, form]
+  );
+  const firstIncompleteStep = stepComplete.findIndex((complete) => !complete);
+  const furthestAllowedStep = firstIncompleteStep === -1 ? steps.length - 1 : firstIncompleteStep;
 
   useEffect(() => {
     try {
@@ -63,8 +84,72 @@ export function RiderOnboardingFlow() {
     }
   }, []);
 
+  useEffect(() => {
+    fetch("/api/paystack/banks")
+      .then((response) => response.json())
+      .then((payload) => {
+        if (Array.isArray(payload.banks)) setBanks(payload.banks);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const accountNumber = form.accountNumber.replace(/\D/g, "");
+    if (!form.bankCode || accountNumber.length !== 10) {
+      setBankMessage(null);
+      return;
+    }
+
+    let cancelled = false;
+    setBankLoading(true);
+    setBankMessage("Checking account name...");
+    const timer = window.setTimeout(() => {
+      fetch(`/api/paystack/resolve-account?bankCode=${encodeURIComponent(form.bankCode)}&accountNumber=${encodeURIComponent(accountNumber)}`)
+        .then((response) => response.json())
+        .then((payload) => {
+          if (cancelled) return;
+          if (payload.accountName) {
+            update("accountName", payload.accountName);
+            setBankMessage("Account name verified.");
+          } else {
+            update("accountName", "");
+            setBankMessage(payload.error || "Could not verify this account number.");
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setBankMessage("Could not verify account name right now.");
+        })
+        .finally(() => {
+          if (!cancelled) setBankLoading(false);
+        });
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [form.accountNumber, form.bankCode]);
+
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
+  }
+
+  function openStep(index: number) {
+    if (index <= furthestAllowedStep) {
+      setCurrent(index);
+      setMessage(null);
+      return;
+    }
+    setMessage(`Complete ${steps[furthestAllowedStep]} before moving to ${steps[index]}.`);
+  }
+
+  function nextStep() {
+    if (!stepComplete[current]) {
+      setMessage(`Complete ${steps[current]} before continuing.`);
+      return;
+    }
+    setMessage(null);
+    setCurrent((value) => Math.min(steps.length - 1, value + 1));
   }
 
   async function handleFile(type: string, file: File) {
@@ -132,6 +217,7 @@ export function RiderOnboardingFlow() {
           vehicle_color: form.vehicleColor,
           operating_zone: form.zone,
           bank_name: form.bankName,
+          bank_code: form.bankCode,
           account_number: form.accountNumber,
           account_name: form.accountName,
           online: false,
@@ -241,16 +327,18 @@ export function RiderOnboardingFlow() {
             <button
               key={step}
               type="button"
-              onClick={() => setCurrent(index)}
+              onClick={() => openStep(index)}
+              disabled={index > furthestAllowedStep}
               className={`flex items-center justify-between rounded-fleet px-3 py-3 text-left text-sm font-black transition ${
                 current === index ? "bg-fleet-night text-white" : "bg-white text-slate-600 hover:bg-fleet-paper"
-              }`}
+              } disabled:cursor-not-allowed disabled:opacity-45`}
             >
               {step}
-              <span>{index + 1}</span>
+              <span>{stepComplete[index] ? "Done" : index + 1}</span>
             </button>
           ))}
         </div>
+        {message ? <div className="mt-4 rounded-fleet bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800">{message}</div> : null}
       </Card>
 
       <Card className="p-4 sm:p-6">
@@ -302,12 +390,39 @@ export function RiderOnboardingFlow() {
         {current === 3 ? (
           <StepShell icon={Banknote} title="Banking setup">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Bank name" value={form.bankName} onChange={(value) => update("bankName", value)} placeholder="Access Bank" />
-              <Field label="Account number" value={form.accountNumber} onChange={(value) => update("accountNumber", value)} placeholder="0123456789" />
-              <Field label="Verified account name" value={form.accountName} onChange={(value) => update("accountName", value)} placeholder="Auto verification result" wide />
+              <label className="form-field">
+                <span className="form-label">Bank</span>
+                <select
+                  className="form-input"
+                  value={form.bankCode}
+                  onChange={(event) => {
+                    const selected = banks.find((bank) => bank.code === event.target.value);
+                    update("bankCode", selected?.code || "");
+                    update("bankName", selected?.name || "");
+                    update("accountName", "");
+                  }}
+                >
+                  <option value="">Select bank</option>
+                  {banks.map((bank) => (
+                    <option key={bank.code} value={bank.code}>
+                      {bank.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Field
+                label="Account number"
+                value={form.accountNumber}
+                onChange={(value) => {
+                  update("accountNumber", value.replace(/\D/g, "").slice(0, 10));
+                  update("accountName", "");
+                }}
+                placeholder="0123456789"
+              />
+              <Field label="Verified account name" value={form.accountName} onChange={(value) => update("accountName", value)} placeholder="Auto verification result" wide readOnly />
             </div>
             <div className="mt-5 rounded-fleet border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
-              Bank verification UI is ready for your preferred payout provider webhook.
+              {bankLoading ? "Checking Paystack for the account name..." : bankMessage || "Select a bank and enter a 10-digit account number to verify the account name automatically."}
             </div>
           </StepShell>
         ) : null}
@@ -331,11 +446,11 @@ export function RiderOnboardingFlow() {
             Back
           </Button>
           {current < steps.length - 1 ? (
-            <Button type="button" onClick={() => setCurrent((value) => Math.min(steps.length - 1, value + 1))}>
+            <Button type="button" onClick={nextStep}>
               Continue
             </Button>
           ) : (
-            <Button type="button" disabled={loading} onClick={submitApplication}>
+            <Button type="button" disabled={loading || !stepComplete.slice(0, 4).every(Boolean)} onClick={submitApplication}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               Submit for review
             </Button>
@@ -363,18 +478,20 @@ function Field({
   value,
   onChange,
   placeholder,
-  wide
+  wide,
+  readOnly
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   wide?: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <label className={`form-field ${wide ? "sm:col-span-2" : ""}`}>
       <span className="form-label">{label}</span>
-      <input className="form-input" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+      <input className="form-input" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} readOnly={readOnly} />
     </label>
   );
 }
