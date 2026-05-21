@@ -6,7 +6,7 @@ Use this before switching the public site from preview/demo storage to live Supa
 
 - Create one production Supabase project.
 - Keep the Project URL and anon public key for frontend config.
-- Keep the service role key private. Use it only in secure server environments, never in static HTML or browser JavaScript.
+- Keep the service role key private. Use it only in secure server environments, never in browser JavaScript.
 
 ## 2. Run the database schema
 
@@ -19,9 +19,7 @@ Use this before switching the public site from preview/demo storage to live Supa
 - Enable Email auth.
 - Add production redirect URLs:
   - `https://your-domain.com/auth`
-  - `https://your-domain.com/auth.html`
   - `https://your-domain.com/dashboard`
-  - `https://your-domain.com/dashboard.html`
 - If using Google or Apple login, add their provider client IDs/secrets in Supabase Auth Providers.
 
 ## 4. Configure frontend environment
@@ -39,16 +37,7 @@ PAYSTACK_SECRET_KEY=your-live-or-test-paystack-secret
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 ```
 
-For the static Cloudflare upload, update `js/supabase-config.js` with only:
-
-```js
-window.FASTFLEET_SUPABASE = {
-  url: "your-project-url",
-  anonKey: "your-anon-public-key"
-};
-```
-
-Do not put service role keys, admin passwords, or Paystack secret keys in `js/supabase-config.js`.
+Do not put service role keys, admin passwords, or Paystack secret keys in client-side code.
 
 ## 5. Test live workflows
 
@@ -68,7 +57,7 @@ Safe to share for wiring:
 - Supabase Project URL.
 - Supabase anon public key.
 - Your production domain.
-- Whether you are deploying the static `cloudflare-pages/` folder or the full Next app.
+- Which Next-compatible host or adapter you are using.
 - Screenshots of Supabase table errors or Auth redirect settings.
 
 Do not paste these into chat unless you intentionally want them handled in your local files:

@@ -3,105 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Register as a Driver | FAST FLEET LOGISTICS</title>
-  <link rel="icon" href="assets/fastfleet-logo.png">
-  <link rel="stylesheet" href="css/styles.css">
-  <script defer src="https://unpkg.com/@supabase/supabase-js@2"></script>
-  <script defer src="js/supabase-config.js"></script>
-  <script defer src="js/app.js"></script>
+  <meta http-equiv="refresh" content="0; url=/rider/onboarding">
+  <title>FastFleet Logistics | Register Driver</title>
+  <link rel="canonical" href="/rider/onboarding">
+  <script>window.location.replace("/rider/onboarding");</script>
 </head>
 <body>
-  <div class="site-shell">
-    <header class="topbar">
-      <div class="nav-wrap">
-        <a class="brand" href="index.html" aria-label="FAST FLEET LOGISTICS home">
-          <img class="brand-logo" src="assets/fastfleet-logo.png" alt="FAST FLEET LOGISTICS logo">
-          <span class="brand-title"><strong>FAST FLEET</strong><span>LOGISTICS</span></span>
-        </a>
-        <nav class="nav-links" aria-label="Main navigation">
-          <a href="mainpage.html">Home</a>
-          <a href="order.html">Order</a>
-          <a href="track.html">Track</a>
-          <a href="dashboard.html">Dashboard</a>
-          <a href="services.html">Services</a>
-          <a href="driver.html">Riders</a>
-          <a href="support.html">Support</a>
-        </nav>
-        <div class="nav-actions">
-          <a class="button ghost" data-auth-signed-out href="auth.html">Sign in</a>
-          <a class="button primary" href="register-business.html">Register business</a>
-        </div>
-        <button class="menu-toggle" data-mobile-toggle type="button" aria-label="Open menu"></button>
-      </div>
-      <div class="mobile-panel" data-mobile-panel>
-        <a href="mainpage.html">Home</a>
-        <a href="order.html">Order</a>
-        <a href="track.html">Track</a>
-        <a href="dashboard.html">Dashboard</a>
-        <a href="services.html">Services</a>
-        <a href="driver.html">Riders</a>
-        <a href="support.html">Support</a>
-      </div>
-    </header>
-
-    <main class="page-main">
-      <section class="onboarding-hero">
-        <div class="container">
-          <div>
-            <span class="eyebrow"><span class="pulse-dot"></span> Driver onboarding</span>
-            <h1>Register as a FastFleet driver.</h1>
-            <p>Submit your identity, vehicle, payout, and operating-zone details so dispatch can review and activate your courier profile.</p>
-          </div>
-          <div class="onboarding-steps">
-            <div class="onboarding-step"><strong>1. Profile</strong><span>Name, phone, email, and coverage location.</span></div>
-            <div class="onboarding-step"><strong>2. Vehicle</strong><span>Plate number, vehicle type, and road documents.</span></div>
-            <div class="onboarding-step"><strong>3. Review</strong><span>Admin checks KYC before assigning jobs.</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="container app-grid onboarding-form">
-          <form class="panel pad" data-rider-form>
-            <div class="panel-head">
-              <div><span class="kicker">KYC application</span><h2>Driver verification</h2></div>
-              <span class="status-pill orange">Open</span>
-            </div>
-            <div class="form-grid">
-              <div class="field"><label for="driverName">Full name</label><input id="driverName" name="full_name" required placeholder="Your legal name"></div>
-              <div class="field"><label for="driverPhone">Phone</label><input id="driverPhone" name="phone" required placeholder="+234..."></div>
-              <div class="field"><label for="driverEmail">Email</label><input id="driverEmail" name="email" type="email" required placeholder="you@example.com"></div>
-              <div class="field"><label for="driverState">State</label><input id="driverState" name="state" data-location-search list="driverLocations" required placeholder="Lagos or Ogun"></div>
-              <div class="field full"><label for="driverLocation">Current location / operating streets</label><input id="driverLocation" name="location" data-location-search list="driverLocations" required placeholder="Example: Allen Avenue, Ikeja, Lagos"></div>
-              <datalist id="driverLocations" data-location-list></datalist>
-              <div class="field"><label for="driverVehicle">Vehicle type</label><select id="driverVehicle" name="vehicle_type"><option>Motorbike</option><option>Car</option><option>Delivery van</option><option>Box truck</option></select></div>
-              <div class="field"><label for="driverPlate">Plate number</label><input id="driverPlate" name="plate_number" required placeholder="ABC-123XY"></div>
-              <div class="field"><label for="driverNin">NIN / ID number</label><input id="driverNin" name="nin_number" required placeholder="NIN or government ID"></div>
-              <div class="field"><label for="driverLicense">Driver license number</label><input id="driverLicense" name="license_number" required placeholder="License number"></div>
-              <div class="field"><label for="driverBank">Bank name</label><input id="driverBank" name="bank_name" required placeholder="Access Bank"></div>
-              <div class="field"><label for="driverAccount">Account number</label><input id="driverAccount" name="account_number" required placeholder="0123456789"></div>
-              <div class="field full"><label for="driverDocs">KYC documents</label><input id="driverDocs" name="kyc_documents" type="file" multiple accept="image/*,application/pdf"></div>
-              <div class="field full"><label for="driverExperience">Delivery experience</label><textarea id="driverExperience" name="experience" placeholder="Tell us your delivery zones and experience"></textarea></div>
-            </div>
-            <button class="button primary block" type="submit">Submit driver application</button>
-          </form>
-
-          <aside class="panel pad">
-            <span class="kicker">Review checklist</span>
-            <h2>What admin will check</h2>
-            <div class="requirement-list">
-              <div><strong>Identity</strong><span>NIN or government ID, phone, and email.</span></div>
-              <div><strong>Vehicle</strong><span>Plate number, vehicle documents, and service readiness.</span></div>
-              <div><strong>Location</strong><span>State, city, street coverage, and dispatch zone.</span></div>
-              <div><strong>Payout</strong><span>Bank details for future rider withdrawals.</span></div>
-            </div>
-          </aside>
-        </div>
-      </section>
-    </main>
-
-    <footer class="footer"></footer>
-  </div>
-  <div class="toast-region" data-toast-region></div>
+  <p>Redirecting to <a href="/rider/onboarding">rider onboarding</a>.</p>
 </body>
 </html>

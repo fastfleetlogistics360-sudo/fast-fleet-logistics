@@ -3,9 +3,9 @@
 ## Public URLs
 
 - Marketing URL: https://fastfleetlogistics.pages.dev/
-- Support URL: https://fastfleetlogistics.pages.dev/support.html
-- Privacy Policy: https://fastfleetlogistics.pages.dev/privacy.html
-- Terms of Service: https://fastfleetlogistics.pages.dev/terms.html
+- Support URL: https://fastfleetlogistics.pages.dev/support
+- Privacy Policy: https://fastfleetlogistics.pages.dev/privacy
+- Terms of Service: https://fastfleetlogistics.pages.dev/terms
 
 ## Google Play Data Safety Draft
 

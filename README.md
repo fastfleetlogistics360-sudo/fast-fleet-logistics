@@ -1,6 +1,6 @@
 # FastFleet Logistics
 
-FastFleet is a premium logistics marketplace for Lagos and Ogun State dispatch operations. The original static HTML/CSS/JS pages are preserved in the project root as a legacy fallback, while the upgraded production app now lives in the Next.js `app/`, `components/`, `lib/`, and `types/` structure.
+FastFleet is a premium logistics marketplace for Lagos and Ogun State dispatch operations. The production app now lives in the Next.js `app/`, `components/`, `lib/`, and `types/` structure, with the React/Next landing and main pages as the only supported front-door design.
 
 ## Stack
 
@@ -20,17 +20,7 @@ npm run dev
 
 ## Cloudflare Pages
 
-Do not upload the whole project folder to Cloudflare Pages. The working folder contains `node_modules` and local build/cache files, which can easily push the upload over Cloudflare's 1,000-file direct upload limit.
-
-For drag-and-drop Cloudflare Pages hosting, run:
-
-```bash
-npm run cloudflare:pack
-```
-
-Upload the generated `cloudflare-pages/` folder. It contains only the production static pages, assets, CSS, JavaScript, redirects, sitemap, and robots file, and the script fails if the folder ever goes above 1,000 files.
-
-For the full Next.js app with server routes, use a Git-based Cloudflare Pages setup or a Next-compatible Cloudflare adapter so dependencies are installed during Cloudflare's build step rather than uploaded.
+Use a Git-based Cloudflare Pages setup or a Next-compatible Cloudflare adapter so the Next.js app, server routes, middleware, cookies, and Supabase SSR behavior are deployed together. The old drag-and-drop static landing/main page is no longer the supported experience.
 
 Create `.env.local` from `.env.example`:
 
@@ -75,9 +65,7 @@ The admin login is separate from customer and driver registration. Real admin ac
 
 ## Netlify
 
-This folder contains both legacy static files and a Next.js production app. Netlify will detect Next.js when you upload the full folder because `package.json`, `next.config.ts`, and `app/` are present. Use the included `netlify.toml` for the Next.js app.
-
-If you only want the old static `index.html` version, upload only the static files and folders: `index.html`, `auth.html`, `dashboard.html`, `driver.html`, `order.html`, `services.html`, `support.html`, `track.html`, `assets/`, `css/`, and `js/`.
+This folder is intended to deploy as a Next.js production app. Netlify will detect Next.js when you upload the full folder because `package.json`, `next.config.ts`, and `app/` are present. Use the included `netlify.toml` for the Next.js app.
 
 ## Key Routes
 
@@ -91,6 +79,6 @@ If you only want the old static `index.html` version, upload only the static fil
 - `/admin` admin operations panel
 - `/support` support center
 
-## Legacy Files
+## Static Redirects
 
-The original `index.html`, `order.html`, `track.html`, `dashboard.html`, `driver.html`, `support.html`, `services.html`, `css/`, and `js/` files remain untouched so existing demo behavior and fallback pages continue to work.
+The root `index.html` and `mainpage.html` files are intentionally minimal redirects to `/` and `/main` so older links reach the React/Next design instead of the removed static card pages.
