@@ -66,7 +66,7 @@ export async function PATCH(request: Request) {
     .from("deliveries")
     .update(patch)
     .eq("id", id)
-    .select("id, delivery_code, status, accepted_at, picked_up_at, delivered_at")
+    .select("id, customer_id, rider_profiles(user_id), delivery_code, status, accepted_at, picked_up_at, delivered_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -77,6 +77,28 @@ export async function PATCH(request: Request) {
     title: status.replaceAll("_", " "),
     body: "Admin updated this customer delivery timeline."
   });
+
+  const riderProfiles = data.rider_profiles as { user_id?: string | null } | null;
+  await Promise.allSettled([
+    supabase.from("notifications").insert({
+      user_id: data.customer_id,
+      title: status === "delivered" ? "Delivery completed" : "Delivery updated",
+      body: `${data.delivery_code} is now ${status.replaceAll("_", " ")}.`,
+      type: status === "delivered" ? "delivery_completed" : "delivery_update",
+      channel: "in_app",
+      metadata: { delivery_id: data.id, delivery_code: data.delivery_code, status }
+    }),
+    riderProfiles?.user_id
+      ? supabase.from("notifications").insert({
+          user_id: riderProfiles.user_id,
+          title: "Delivery timeline updated",
+          body: `${data.delivery_code} is now ${status.replaceAll("_", " ")}.`,
+          type: "delivery_update",
+          channel: "in_app",
+          metadata: { delivery_id: data.id, delivery_code: data.delivery_code, status }
+        })
+      : Promise.resolve()
+  ]);
 
   return NextResponse.json({ delivery: data });
 }

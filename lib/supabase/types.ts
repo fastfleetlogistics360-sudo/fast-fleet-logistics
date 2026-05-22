@@ -31,6 +31,24 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["users"]["Insert"]>;
       };
+      profiles: {
+        Row: {
+          id: string;
+          user_id: string;
+          full_name: string | null;
+          phone: string | null;
+          email: string | null;
+          account_type: UserRole;
+          avatar_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["profiles"]["Row"]> & {
+          id: string;
+          user_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
+      };
       business_profiles: {
         Row: {
           id: string;
@@ -58,10 +76,14 @@ export interface Database {
           user_id: string;
           application_status: RiderApplicationStatus;
           vehicle_type: VehicleType | null;
+          vehicle_make: string | null;
+          vehicle_model: string | null;
+          vehicle_year: number | null;
           plate_number: string | null;
           vehicle_color: string | null;
           operating_zone: string | null;
           bank_name: string | null;
+          bank_code: string | null;
           account_number: string | null;
           account_name: string | null;
           rating: number;
@@ -152,6 +174,56 @@ export interface Database {
           document_type: string;
         };
         Update: Partial<Database["public"]["Tables"]["rider_documents"]["Row"]>;
+      };
+      rider_applications: {
+        Row: {
+          id: string;
+          user_id: string;
+          status: "pending_review" | "under_review" | "approved" | "rejected" | "more_info_required";
+          full_name: string;
+          phone: string;
+          email: string;
+          lga: string;
+          vehicle_type: "motorcycle" | "tricycle" | "car" | "van";
+          vehicle_make: string;
+          vehicle_model: string;
+          vehicle_year: number;
+          plate_number: string;
+          vehicle_color: string;
+          government_id_type: "nin_slip" | "voters_card" | "drivers_licence" | "passport";
+          bank_name: string;
+          bank_code: string;
+          account_number: string;
+          account_name: string;
+          bvn_encrypted: string;
+          documents: Json;
+          agreement_accepted_at: string;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["rider_applications"]["Row"]> & {
+          user_id: string;
+          full_name: string;
+          phone: string;
+          email: string;
+          lga: string;
+          vehicle_type: "motorcycle" | "tricycle" | "car" | "van";
+          vehicle_make: string;
+          vehicle_model: string;
+          vehicle_year: number;
+          plate_number: string;
+          vehicle_color: string;
+          government_id_type: "nin_slip" | "voters_card" | "drivers_licence" | "passport";
+          bank_name: string;
+          bank_code: string;
+          account_number: string;
+          account_name: string;
+          bvn_encrypted: string;
+          agreement_accepted_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["rider_applications"]["Row"]>;
       };
       push_subscriptions: {
         Row: {

@@ -75,9 +75,37 @@ create table if not exists public.users (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  full_name text,
+  phone text,
+  email text,
+  account_type public.user_role not null default 'customer',
+  avatar_url text,
+  lga text,
+  is_admin boolean not null default false,
+  kyc_status text not null default 'pending_review' check (kyc_status in ('pending_review', 'approved', 'rejected')),
+  deleted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint profiles_id_matches_user_id check (id = user_id)
+);
+
+alter table if exists public.profiles
+  add column if not exists lga text,
+  add column if not exists is_admin boolean not null default false,
+  add column if not exists kyc_status text not null default 'pending_review',
+  add column if not exists deleted_at timestamptz;
+
 drop trigger if exists users_set_updated_at on public.users;
 create trigger users_set_updated_at
 before update on public.users
+for each row execute function public.set_updated_at();
+
+drop trigger if exists profiles_set_updated_at on public.profiles;
+create trigger profiles_set_updated_at
+before update on public.profiles
 for each row execute function public.set_updated_at();
 
 create or replace function public.current_user_role()
@@ -88,6 +116,16 @@ security definer
 set search_path = public
 as $$
   select coalesce((select role::text from public.users where id = auth.uid()), 'customer');
+$$;
+
+create or replace function public.current_user_is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select is_admin from public.profiles where user_id = auth.uid()), false);
 $$;
 
 create or replace function public.handle_new_auth_user()
@@ -124,6 +162,22 @@ begin
     default_zone = coalesce(excluded.default_zone, public.users.default_zone),
     updated_at = now();
 
+  insert into public.profiles (id, user_id, full_name, phone, email, account_type)
+  values (
+    new.id,
+    new.id,
+    coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name'),
+    new.phone,
+    new.email,
+    next_role
+  )
+  on conflict (id) do update set
+    full_name = coalesce(excluded.full_name, public.profiles.full_name),
+    phone = coalesce(excluded.phone, public.profiles.phone),
+    email = coalesce(excluded.email, public.profiles.email),
+    account_type = excluded.account_type,
+    updated_at = now();
+
   return new;
 end;
 $$;
@@ -140,9 +194,13 @@ create table if not exists public.rider_profiles (
   address text,
   operating_zone text,
   vehicle_type public.vehicle_type,
+  vehicle_make text,
+  vehicle_model text,
+  vehicle_year integer,
   plate_number text,
   vehicle_color text,
   bank_name text,
+  bank_code text,
   account_number text,
   account_name text,
   rating numeric(3,2) not null default 5.00,
@@ -166,7 +224,7 @@ for each row execute function public.set_updated_at();
 create table if not exists public.rider_documents (
   id uuid primary key default gen_random_uuid(),
   rider_profile_id uuid not null references public.rider_profiles(id) on delete cascade,
-  document_type text not null check (document_type in ('nin', 'license', 'vehicle_papers', 'selfie')),
+  document_type text not null check (document_type in ('nin', 'license', 'vehicle_papers', 'selfie', 'profile_photo', 'government_id', 'drivers_licence', 'vehicle_registration', 'insurance_certificate', 'guarantor_letter')),
   file_url text,
   storage_path text,
   status text not null default 'submitted' check (status in ('submitted', 'approved', 'rejected', 'more_info_required')),
@@ -180,6 +238,66 @@ create trigger rider_documents_set_updated_at
 before update on public.rider_documents
 for each row execute function public.set_updated_at();
 
+do $$ begin
+  alter table public.rider_documents drop constraint rider_documents_document_type_check;
+exception when undefined_object then null;
+end $$;
+
+alter table public.rider_documents
+  add constraint rider_documents_document_type_check
+  check (document_type in ('nin', 'license', 'vehicle_papers', 'selfie', 'profile_photo', 'government_id', 'drivers_licence', 'vehicle_registration', 'insurance_certificate', 'guarantor_letter'));
+
+create table if not exists public.rider_applications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  rider_id uuid references public.profiles(id) on delete cascade,
+  status text not null default 'pending_review' check (status in ('pending_review', 'under_review', 'approved', 'rejected', 'more_info_required')),
+  full_name text not null,
+  phone text not null,
+  email text not null,
+  lga text not null,
+  vehicle_type text not null check (vehicle_type in ('motorcycle', 'tricycle', 'car', 'van')),
+  vehicle_make text not null,
+  vehicle_model text not null,
+  vehicle_year integer not null,
+  plate_number text not null,
+  vehicle_color text not null,
+  government_id_type text not null check (government_id_type in ('nin_slip', 'voters_card', 'drivers_licence', 'passport')),
+  bank_name text not null,
+  bank_code text not null,
+  account_number text not null,
+  account_name text not null,
+  bvn_encrypted text not null,
+  bvn_hash text,
+  nin_url text,
+  licence_url text,
+  vehicle_reg_url text,
+  insurance_url text,
+  guarantor_url text,
+  rejection_reason text,
+  documents jsonb not null default '[]'::jsonb,
+  agreement_accepted_at timestamptz not null,
+  reviewed_by uuid references public.users(id),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table if exists public.rider_applications
+  add column if not exists rider_id uuid references public.profiles(id) on delete cascade,
+  add column if not exists bvn_hash text,
+  add column if not exists nin_url text,
+  add column if not exists licence_url text,
+  add column if not exists vehicle_reg_url text,
+  add column if not exists insurance_url text,
+  add column if not exists guarantor_url text,
+  add column if not exists rejection_reason text;
+
+drop trigger if exists rider_applications_set_updated_at on public.rider_applications;
+create trigger rider_applications_set_updated_at
+before update on public.rider_applications
+for each row execute function public.set_updated_at();
+
 create table if not exists public.saved_addresses (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
@@ -187,10 +305,16 @@ create table if not exists public.saved_addresses (
   address text not null,
   latitude numeric,
   longitude numeric,
+  lat numeric,
+  lng numeric,
   contact_name text,
   contact_phone text,
   created_at timestamptz not null default now()
 );
+
+alter table if exists public.saved_addresses
+  add column if not exists lat numeric,
+  add column if not exists lng numeric;
 
 create table if not exists public.business_profiles (
   id uuid primary key default gen_random_uuid(),
@@ -210,6 +334,24 @@ create table if not exists public.business_profiles (
 drop trigger if exists business_profiles_set_updated_at on public.business_profiles;
 create trigger business_profiles_set_updated_at
 before update on public.business_profiles
+for each row execute function public.set_updated_at();
+
+create table if not exists public.business_team_members (
+  id uuid primary key default gen_random_uuid(),
+  business_profile_id uuid not null references public.business_profiles(id) on delete cascade,
+  invited_by uuid references public.users(id) on delete set null,
+  user_id uuid references public.users(id) on delete set null,
+  email text not null,
+  role text not null default 'viewer' check (role in ('dispatcher', 'viewer')),
+  status text not null default 'invited' check (status in ('invited', 'active', 'removed')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (business_profile_id, email)
+);
+
+drop trigger if exists business_team_members_set_updated_at on public.business_team_members;
+create trigger business_team_members_set_updated_at
+before update on public.business_team_members
 for each row execute function public.set_updated_at();
 
 create table if not exists public.deliveries (
@@ -248,6 +390,29 @@ create trigger deliveries_set_updated_at
 before update on public.deliveries
 for each row execute function public.set_updated_at();
 
+create table if not exists public.orders (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.profiles(id) on delete cascade,
+  rider_id uuid references public.profiles(id),
+  business_id uuid references public.profiles(id),
+  pickup_address text not null,
+  dropoff_address text not null,
+  package_type text not null,
+  vehicle_type text not null check (vehicle_type in ('any', 'bike', 'car', 'van')),
+  status text not null default 'pending' check (status in ('pending', 'assigned', 'picked_up', 'delivered', 'cancelled')),
+  amount numeric not null default 0,
+  payment_method text not null default 'wallet',
+  payment_status text not null default 'pending',
+  proof_of_delivery_url text,
+  created_at timestamptz not null default now(),
+  delivered_at timestamptz
+);
+
+create index if not exists orders_customer_id_idx on public.orders(customer_id);
+create index if not exists orders_rider_id_idx on public.orders(rider_id);
+create index if not exists orders_business_id_idx on public.orders(business_id);
+create index if not exists orders_status_idx on public.orders(status, created_at desc);
+
 create table if not exists public.delivery_events (
   id uuid primary key default gen_random_uuid(),
   delivery_id uuid not null references public.deliveries(id) on delete cascade,
@@ -275,11 +440,17 @@ create table if not exists public.wallets (
   user_id uuid not null references public.users(id) on delete cascade,
   wallet_type text not null check (wallet_type in ('customer', 'rider', 'platform')),
   balance_ngn numeric not null default 0,
+  balance numeric not null default 0,
+  currency text not null default 'NGN',
   locked_balance_ngn numeric not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, wallet_type)
 );
+
+alter table if exists public.wallets
+  add column if not exists balance numeric not null default 0,
+  add column if not exists currency text not null default 'NGN';
 
 drop trigger if exists wallets_set_updated_at on public.wallets;
 create trigger wallets_set_updated_at
@@ -291,13 +462,23 @@ create table if not exists public.transactions (
   wallet_id uuid not null references public.wallets(id) on delete cascade,
   delivery_id uuid references public.deliveries(id),
   transaction_type text not null check (transaction_type in ('wallet_funding', 'delivery_payment', 'rider_earning', 'withdrawal', 'refund', 'commission')),
+  type text,
   amount_ngn numeric not null,
+  amount numeric,
   status text not null default 'pending' check (status in ('pending', 'successful', 'failed', 'reversed')),
   provider text,
   provider_reference text,
+  reference text,
+  description text,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+alter table if exists public.transactions
+  add column if not exists type text,
+  add column if not exists amount numeric,
+  add column if not exists reference text,
+  add column if not exists description text;
 
 create unique index if not exists transactions_provider_reference_idx
   on public.transactions(provider_reference);
@@ -1083,7 +1264,21 @@ create table if not exists public.notifications (
   type text not null,
   channel text not null check (channel in ('in_app', 'push', 'email')),
   metadata jsonb not null default '{}'::jsonb,
+  read boolean not null default false,
   read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table if exists public.notifications
+  add column if not exists read boolean not null default false;
+
+create table if not exists public.promotions (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  image_url text,
+  cta_label text,
+  cta_url text,
+  active boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -1118,14 +1313,19 @@ create table if not exists public.support_tickets (
   user_id uuid references public.users(id),
   delivery_id uuid references public.deliveries(id),
   contact_name text,
+  name text,
   contact_email text,
+  email text,
   contact_phone text,
+  phone text,
   topic text not null,
+  tracking_code text,
   subject text,
   message text not null,
   priority text not null default 'normal' check (priority in ('low', 'normal', 'high', 'urgent')),
   status text not null default 'open' check (status in ('open', 'in_progress', 'resolved', 'closed')),
   assigned_admin_id uuid references public.users(id),
+  admin_notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -1133,7 +1333,12 @@ create table if not exists public.support_tickets (
 alter table if exists public.support_tickets
   add column if not exists contact_name text,
   add column if not exists contact_email text,
-  add column if not exists contact_phone text;
+  add column if not exists contact_phone text,
+  add column if not exists name text,
+  add column if not exists email text,
+  add column if not exists phone text,
+  add column if not exists tracking_code text,
+  add column if not exists admin_notes text;
 
 create table if not exists public.support_messages (
   id uuid primary key default gen_random_uuid(),
@@ -1159,6 +1364,44 @@ create table if not exists public.account_deletion_requests (
   reviewed_at timestamptz,
   admin_notes text
 );
+
+create or replace function public.hard_delete_expired_accounts()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  deleted_count integer := 0;
+  target_record record;
+begin
+  if public.current_user_role() <> 'admin' then
+    raise exception 'Only admins can run account deletion cleanup';
+  end if;
+
+  for target_record in
+    select user_id
+    from public.profiles
+    where deleted_at is not null
+      and deleted_at <= now() - interval '90 days'
+  loop
+    delete from auth.users where id = target_record.user_id;
+    deleted_count := deleted_count + 1;
+  end loop;
+
+  update public.account_deletion_requests
+  set status = 'completed',
+      reviewed_at = now()
+  where user_id is null
+     or exists (
+      select 1 from public.profiles p
+      where p.user_id = account_deletion_requests.user_id
+        and p.deleted_at <= now() - interval '90 days'
+     );
+
+  return deleted_count;
+end;
+$$;
 
 create table if not exists public.pricing_rules (
   id uuid primary key default gen_random_uuid(),
@@ -1193,10 +1436,13 @@ create table if not exists public.fraud_signals (
 create index if not exists users_role_idx on public.users(role);
 create index if not exists users_phone_idx on public.users(phone);
 create index if not exists business_profiles_user_id_idx on public.business_profiles(user_id);
+create index if not exists profiles_user_id_idx on public.profiles(user_id);
 create index if not exists business_profiles_status_idx on public.business_profiles(registration_status);
 create index if not exists rider_profiles_user_id_idx on public.rider_profiles(user_id);
 create index if not exists rider_profiles_status_idx on public.rider_profiles(application_status);
 create index if not exists rider_profiles_online_zone_idx on public.rider_profiles(online, operating_zone);
+create index if not exists rider_applications_user_id_idx on public.rider_applications(user_id);
+create index if not exists rider_applications_status_idx on public.rider_applications(status, created_at desc);
 create index if not exists deliveries_customer_id_idx on public.deliveries(customer_id);
 create index if not exists deliveries_rider_id_idx on public.deliveries(rider_id);
 create index if not exists deliveries_status_idx on public.deliveries(status);
@@ -1213,10 +1459,16 @@ create index if not exists withdrawal_requests_status_idx on public.withdrawal_r
 create index if not exists support_tickets_status_idx on public.support_tickets(status, priority);
 create index if not exists support_messages_ticket_idx on public.support_messages(ticket_id, created_at);
 create index if not exists rider_locations_zone_idx on public.rider_locations(zone, updated_at desc);
+create index if not exists business_team_members_business_idx on public.business_team_members(business_profile_id, created_at desc);
+create index if not exists business_team_members_email_idx on public.business_team_members(email);
 
 alter table public.users enable row level security;
+alter table public.profiles enable row level security;
+alter table public.orders enable row level security;
 alter table public.business_profiles enable row level security;
+alter table public.business_team_members enable row level security;
 alter table public.rider_profiles enable row level security;
+alter table public.rider_applications enable row level security;
 alter table public.rider_documents enable row level security;
 alter table public.saved_addresses enable row level security;
 alter table public.deliveries enable row level security;
@@ -1227,6 +1479,7 @@ alter table public.transactions enable row level security;
 alter table public.company_transaction_logs enable row level security;
 alter table public.withdrawal_requests enable row level security;
 alter table public.notifications enable row level security;
+alter table public.promotions enable row level security;
 alter table public.state_waitlist enable row level security;
 alter table public.platform_launch_states enable row level security;
 alter table public.platform_settings enable row level security;
@@ -1253,17 +1506,100 @@ create policy "Users can insert own profile"
   on public.users for insert
   with check (auth.uid() = id);
 
+drop policy if exists "Profiles are readable by owner or admins" on public.profiles;
+create policy "Profiles are readable by owner or admins"
+  on public.profiles for select
+  using (user_id = auth.uid() or public.current_user_is_admin());
+
+drop policy if exists "Profiles are inserted by owner" on public.profiles;
+create policy "Profiles are inserted by owner"
+  on public.profiles for insert
+  with check (user_id = auth.uid() and id = auth.uid());
+
+drop policy if exists "Profiles are updated by owner" on public.profiles;
+create policy "Profiles are updated by owner"
+  on public.profiles for update
+  using (user_id = auth.uid() or public.current_user_is_admin())
+  with check (user_id = auth.uid() or public.current_user_is_admin());
+
+drop policy if exists "Orders visible to participants and admins" on public.orders;
+create policy "Orders visible to participants and admins"
+  on public.orders for select
+  using (
+    customer_id = auth.uid()
+    or rider_id = auth.uid()
+    or business_id = auth.uid()
+    or public.current_user_is_admin()
+  );
+
+drop policy if exists "Customers and businesses create own orders" on public.orders;
+create policy "Customers and businesses create own orders"
+  on public.orders for insert
+  with check (customer_id = auth.uid() or business_id = auth.uid());
+
+drop policy if exists "Orders updated by assigned rider or admins" on public.orders;
+create policy "Orders updated by assigned rider or admins"
+  on public.orders for update
+  using (
+    rider_id = auth.uid()
+    or customer_id = auth.uid()
+    or business_id = auth.uid()
+    or public.current_user_is_admin()
+  )
+  with check (
+    rider_id = auth.uid()
+    or customer_id = auth.uid()
+    or business_id = auth.uid()
+    or public.current_user_is_admin()
+  );
+
 drop policy if exists "Riders manage own rider profile and admins manage all" on public.rider_profiles;
 create policy "Riders manage own rider profile and admins manage all"
   on public.rider_profiles for all
   using (user_id = auth.uid() or public.current_user_role() = 'admin')
   with check (user_id = auth.uid() or public.current_user_role() = 'admin');
 
+drop policy if exists "Rider applications visible to owner and admins" on public.rider_applications;
+create policy "Rider applications visible to owner and admins"
+  on public.rider_applications for select
+  using (user_id = auth.uid() or rider_id = auth.uid() or public.current_user_is_admin());
+
+drop policy if exists "Riders create own applications" on public.rider_applications;
+create policy "Riders create own applications"
+  on public.rider_applications for insert
+  with check (user_id = auth.uid());
+
+drop policy if exists "Rider applications updated by owner before review or admins" on public.rider_applications;
+create policy "Rider applications updated by owner before review or admins"
+  on public.rider_applications for update
+  using (public.current_user_is_admin() or (user_id = auth.uid() and status = 'pending_review'))
+  with check (public.current_user_is_admin() or (user_id = auth.uid() and status = 'pending_review'));
+
 drop policy if exists "Businesses manage own business profile and admins manage all" on public.business_profiles;
 create policy "Businesses manage own business profile and admins manage all"
   on public.business_profiles for all
   using (user_id = auth.uid() or public.current_user_role() = 'admin')
   with check (user_id = auth.uid() or public.current_user_role() = 'admin');
+
+drop policy if exists "Businesses manage own team members and admins manage all" on public.business_team_members;
+create policy "Businesses manage own team members and admins manage all"
+  on public.business_team_members for all
+  using (
+    public.current_user_role() = 'admin'
+    or exists (
+      select 1 from public.business_profiles bp
+      where bp.id = business_profile_id and bp.user_id = auth.uid()
+    )
+    or user_id = auth.uid()
+  )
+  with check (
+    public.current_user_role() = 'admin'
+    or exists (
+      select 1 from public.business_profiles bp
+      where bp.id = business_profile_id and bp.user_id = auth.uid()
+    )
+    or user_id = auth.uid()
+  );
 
 drop policy if exists "Rider documents visible to owner and admins" on public.rider_documents;
 create policy "Rider documents visible to owner and admins"
@@ -1429,6 +1765,17 @@ create policy "Users manage own notifications"
   using (user_id = auth.uid() or public.current_user_role() = 'admin')
   with check (user_id = auth.uid() or public.current_user_role() = 'admin');
 
+drop policy if exists "Customers read active promotions" on public.promotions;
+create policy "Customers read active promotions"
+  on public.promotions for select
+  using (active = true or public.current_user_is_admin());
+
+drop policy if exists "Admins manage promotions" on public.promotions;
+create policy "Admins manage promotions"
+  on public.promotions for all
+  using (public.current_user_is_admin())
+  with check (public.current_user_is_admin());
+
 drop policy if exists "Users manage own push subscriptions" on public.push_subscriptions;
 create policy "Users manage own push subscriptions"
   on public.push_subscriptions for all
@@ -1524,6 +1871,10 @@ insert into storage.buckets (id, name, public)
 values ('rider-documents', 'rider-documents', false)
 on conflict (id) do nothing;
 
+insert into storage.buckets (id, name, public)
+values ('delivery-proofs', 'delivery-proofs', true)
+on conflict (id) do update set public = excluded.public;
+
 drop policy if exists "Riders upload own documents" on storage.objects;
 create policy "Riders upload own documents"
   on storage.objects for insert
@@ -1542,6 +1893,23 @@ create policy "Riders and admins read rider documents"
       or public.current_user_role() = 'admin'
     )
   );
+
+drop policy if exists "Assigned riders upload delivery proofs" on storage.objects;
+create policy "Assigned riders upload delivery proofs"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'delivery-proofs'
+    and exists (
+      select 1 from public.rider_profiles rp
+      where rp.user_id = auth.uid()
+        and rp.id::text = (storage.foldername(name))[1]
+    )
+  );
+
+drop policy if exists "Delivery proofs are readable by signed in users" on storage.objects;
+create policy "Delivery proofs are readable by signed in users"
+  on storage.objects for select
+  using (bucket_id = 'delivery-proofs' and auth.uid() is not null);
 
 do $$ begin
   alter publication supabase_realtime add table public.deliveries;

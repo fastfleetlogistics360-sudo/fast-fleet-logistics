@@ -9,20 +9,15 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  let redirectTarget: string | null = null;
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
-      const role = normalizeRole(profile?.role || user.user_metadata?.role || user.user_metadata?.account_type);
-      if (role !== "customer") redirectTarget = roleHome[role];
-    }
-  } catch {
-    // Local preview without Supabase env vars still renders the customer dashboard.
-  }
+  const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/auth?returnTo=/dashboard");
+
+  const { data: profile } = await supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>();
+  const role = normalizeRole(profile?.account_type || user.user_metadata?.role || user.user_metadata?.account_type);
+  const redirectTarget = role !== "customer" ? roleHome[role] : null;
   if (redirectTarget) redirect(redirectTarget);
 
   return <CustomerDashboard />;

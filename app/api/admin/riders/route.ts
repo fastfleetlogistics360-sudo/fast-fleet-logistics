@@ -87,12 +87,31 @@ export async function PATCH(request: Request) {
     .from("rider_profiles")
     .update(patch)
     .eq("id", id)
-    .select("id, application_status, operating_zone, suspension_reason, reviewed_at")
+    .select("id, user_id, application_status, operating_zone, suspension_reason, reviewed_at")
     .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  await Promise.allSettled([
+    supabase
+      .from("profiles")
+      .update({ kyc_status: status === "approved" ? "approved" : status === "rejected" ? "rejected" : "pending_review", updated_at: new Date().toISOString() })
+      .eq("user_id", data.user_id),
+    supabase
+      .from("rider_applications")
+      .update({ status, rejection_reason: status === "rejected" || status === "more_info_required" ? reason : null, reviewed_at: new Date().toISOString() })
+      .eq("user_id", data.user_id),
+    supabase.from("notifications").insert({
+      user_id: data.user_id,
+      title: status === "approved" ? "Rider KYC approved" : status === "rejected" ? "Rider KYC rejected" : "Rider KYC updated",
+      body: status === "approved" ? "Your rider account is approved. You can now go online." : reason || "Your rider application status changed.",
+      type: "rider_application",
+      channel: "in_app",
+      metadata: { rider_profile_id: data.id, status }
+    })
+  ]);
 
   return NextResponse.json({ rider: data });
 }

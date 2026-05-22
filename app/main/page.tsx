@@ -4,7 +4,8 @@ import { AdvertHeroSlider } from "@/components/landing/advert-hero-slider";
 import { HowItWorks } from "@/components/landing/how-it-works";
 
 export const metadata: Metadata = {
-  title: "Main Page"
+  title: "Book Same-Day Delivery",
+  description: "Book, track, and manage same-day dispatch deliveries with FastFleet across Lagos and Ogun."
 };
 
 export default function MainPage() {

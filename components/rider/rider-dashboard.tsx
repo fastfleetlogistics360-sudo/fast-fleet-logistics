@@ -1,340 +1,280 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
-import {
-  Bell,
-  Bike,
-  CheckCircle2,
-  Flag,
-  Gauge,
-  Loader2,
-  PlayCircle,
-  Star,
-  ToggleLeft,
-  ToggleRight,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { Banknote, Bike, Clock, Home, Loader2, PackageCheck, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { walletKycStatus } from "@/lib/kyc";
-import { isLaunchState, launchStateLabel, localLiveStates, normalizeState } from "@/lib/launch-states";
-import { sampleRiders } from "@/lib/dispatch";
+import { formatDateTime, formatMoney, initials } from "@/lib/format";
+import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
+import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
+import { NotificationBell } from "@/components/dashboard/notification-bell";
+import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { LinkButton, Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { RoutePreview } from "@/components/maps/route-preview";
-import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
-import { JoinStateWaitlistButton } from "@/components/waitlist/join-state-waitlist-button";
 
-type DeliveryJob = {
-  id?: string;
+type RiderTab = "home" | "jobs" | "earnings" | "account";
+type KycStatus = "approved" | "pending_review" | "rejected" | "submitted" | "under_review" | "more_info_required";
+
+type RiderDashboardProps = {
+  initialKycStatus?: KycStatus;
+  rejectionReason?: string | null;
+};
+
+type RiderProfile = {
+  id?: string | null;
+  full_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  lga?: string | null;
+  vehicle_type?: string | null;
+  plate_number?: string | null;
+  vehicle_color?: string | null;
+  bank_name?: string | null;
+  account_number?: string | null;
+  account_name?: string | null;
+  rating?: number | null;
+  completed_deliveries?: number | null;
+  online?: boolean | null;
+};
+
+type JobRow = {
+  id: string;
   delivery_code: string;
   pickup_address: string;
   dropoff_address: string;
-  vehicle_type: string;
   status: string;
   price_ngn: number;
-  distance_km: number;
-  eta_minutes: number;
-  created_at?: string;
+  distance_km?: number | null;
+  eta_minutes?: number | null;
+  created_at?: string | null;
+  proof_url?: string | null;
 };
 
-const demoJobs: DeliveryJob[] = [
-  {
-    delivery_code: "FF-REQ-901",
-    pickup_address: "Lekki Phase 1",
-    dropoff_address: "Victoria Island",
-    vehicle_type: "bike",
-    status: "searching",
-    price_ngn: 3850,
-    distance_km: 5.8,
-    eta_minutes: 24
-  },
-  {
-    delivery_code: "FF-REQ-902",
-    pickup_address: "Ikoyi",
-    dropoff_address: "Yaba",
-    vehicle_type: "bike",
-    status: "searching",
-    price_ngn: 5200,
-    distance_km: 9.2,
-    eta_minutes: 41
-  }
-];
-
-const highlights: Array<[string, string, LucideIcon]> = [
-  ["Completed deliveries", "182", CheckCircle2],
-  ["Rider level", "Gold", Star],
-  ["Performance", "Excellent", Gauge],
-  ["Notifications", "8 unread", Bell]
-];
-
-type WithdrawalRequest = {
+type WithdrawalRow = {
   id: string;
   amount_ngn: number;
   bank_name: string;
   account_number: string;
-  account_name: string | null;
-  status: "pending" | "approved" | "rejected" | "paid";
-  rejection_reason: string | null;
+  status: string;
   created_at: string;
-  reviewed_at?: string | null;
 };
 
-export function RiderDashboard() {
-  const [online, setOnline] = useState(true);
-  const [toast, setToast] = useState<string | null>(null);
-  const [tripStatus, setTripStatus] = useState("accepted");
-  const [availableJobs, setAvailableJobs] = useState<DeliveryJob[]>(demoJobs);
-  const [profile, setProfile] = useState<{ full_name?: string | null; email?: string | null; phone?: string | null; default_zone?: string | null }>({ default_zone: "Lagos" });
-  const [riderProfile, setRiderProfile] = useState<{
-    id: string | null;
-    application_status: string;
-    bank_name?: string | null;
-    account_number?: string | null;
-    account_name?: string | null;
-  }>({ id: null, application_status: "submitted" });
-  const [walletBalance, setWalletBalance] = useState(145800);
-  const [lockedBalance, setLockedBalance] = useState(0);
-  const [withdrawalAmount, setWithdrawalAmount] = useState("3000");
-  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
-  const [withdrawalLoading, setWithdrawalLoading] = useState(false);
-  const [withdrawalMessage, setWithdrawalMessage] = useState<string | null>(null);
-  const [liveStates, setLiveStates] = useState<string[]>(localLiveStates());
-  const currentRider = sampleRiders()[0];
-  const activeTrip = availableJobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status));
-  const selectedState = normalizeState(profile.default_zone) || "Lagos";
-  const kycApproved = riderProfile.application_status === "approved";
-  const firstName = (profile.full_name || profile.email || profile.phone || "Driver").trim().split(/\s+/)[0] || "Driver";
-  const withdrawnLast24Hours = withdrawalRequests
-    .filter((request) => new Date(request.created_at).getTime() >= Date.now() - 24 * 60 * 60 * 1000)
-    .filter((request) => request.status !== "rejected")
-    .reduce((sum, request) => sum + Number(request.amount_ngn || 0), 0);
-  const metrics = useMemo(
-    () => [
-      ["Today earnings", formatMoney(28600), "6 completed deliveries"],
-      ["Rating", currentRider.rating.toFixed(2), "Gold level rider"],
-      ["Acceptance", `${currentRider.acceptanceRate}%`, "High dispatch priority"]
-    ],
-    [currentRider.acceptanceRate, currentRider.rating, walletBalance]
+const tabs: Array<{ id: RiderTab; label: string; icon: LucideIcon }> = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "jobs", label: "Jobs", icon: PackageCheck },
+  { id: "earnings", label: "Earnings", icon: WalletCards },
+  { id: "account", label: "Account", icon: UserRound }
+];
+
+export function RiderAccessState({ status, rejectionReason }: { status: KycStatus; rejectionReason?: string | null }) {
+  const rejected = status === "rejected";
+  return (
+    <section className="section-wrap py-10">
+      <Card className="mx-auto max-w-2xl p-6 text-center">
+        <span className={cn("mx-auto grid h-16 w-16 place-items-center rounded-full", rejected ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700")}>
+          <ShieldAlert className="h-8 w-8" />
+        </span>
+        <StatusBadge tone={rejected ? "red" : "amber"} className="mt-5">{rejected ? "Rejected" : "Pending review"}</StatusBadge>
+        <h1 className="mt-3 text-3xl font-black text-fleet-night">{rejected ? "Your rider application needs attention" : "Your application is under review"}</h1>
+        <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
+          {rejected ? rejectionReason || "FastFleet operations rejected this application. Please review the note and re-apply." : "We review rider applications within 48 hours. You will receive an SMS and email when a decision is made."}
+        </p>
+        <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+          <LinkButton href="/rider/onboarding">{rejected ? "Re-apply" : "Update application"}</LinkButton>
+          <LinkButton href="/support" variant="secondary">Contact support</LinkButton>
+        </div>
+      </Card>
+    </section>
   );
+}
+
+export function RiderDashboard({ initialKycStatus = "approved", rejectionReason }: RiderDashboardProps) {
+  const [activeTab, setActiveTab] = useState<RiderTab>("home");
+  const [loading, setLoading] = useState(true);
+  const [online, setOnline] = useState(false);
+  const [onlineSince, setOnlineSince] = useState<Date | null>(null);
+  const [elapsed, setElapsed] = useState("0m");
+  const [jobs, setJobs] = useState<JobRow[]>([]);
+  const [profile, setProfile] = useState<RiderProfile>({});
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
+  const [incomingExpires, setIncomingExpires] = useState(30);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [withdrawalOpen, setWithdrawalOpen] = useState(false);
+  const [withdrawalAmount, setWithdrawalAmount] = useState("");
+  const [withdrawalMessage, setWithdrawalMessage] = useState<string | null>(null);
+  const [withdrawalLoading, setWithdrawalLoading] = useState(false);
+  const [prefs, setPrefs] = useState({ jobs: true, payouts: true, sms: true });
+
+  const incomingJob = jobs.find((job) => job.status === "searching") || null;
+  const activeJob = jobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status)) || null;
+  const recentTrips = jobs.filter((job) => job.status === "delivered").slice(0, 5);
+  const firstName = (profile.full_name || "Rider").split(/\s+/)[0] || "Rider";
+  const todayEarnings = jobs.filter((job) => job.status === "delivered").reduce((sum, job) => sum + Number(job.price_ngn || 0), 0);
 
   useEffect(() => {
-    let cleanup: (() => void) | undefined;
-    try {
-      const supabase = createClient();
-      supabase.auth.getUser().then(async ({ data }) => {
-        if (!data.user) return;
-        await supabase.from("rider_profiles").update({ online }).eq("user_id", data.user.id);
-        const riderResult = await supabase
-          .from("rider_profiles")
-          .select("id, application_status, bank_name, account_number, account_name")
-          .eq("user_id", data.user.id)
-          .maybeSingle();
-        setRiderProfile({
-          id: riderResult.data?.id || null,
-          application_status: riderResult.data?.application_status || "submitted",
-          bank_name: riderResult.data?.bank_name,
-          account_number: riderResult.data?.account_number,
-          account_name: riderResult.data?.account_name
-        });
-        const profileResult = await supabase.from("users").select("full_name, email, phone, default_zone").eq("id", data.user.id).maybeSingle();
-        setProfile(profileResult.data || { email: data.user.email, phone: data.user.phone, default_zone: "Lagos" });
-        const launchResult = await supabase.from("platform_launch_states").select("state, status").eq("status", "live");
-        if (launchResult.data?.length) setLiveStates(Array.from(new Set([...localLiveStates(), ...launchResult.data.map((row) => row.state)])));
-        const walletResult = await supabase
-          .from("wallets")
-          .select("id, balance_ngn, locked_balance_ngn")
-          .eq("user_id", data.user.id)
-          .eq("wallet_type", "rider")
-          .maybeSingle();
-        if (walletResult.data) {
-          setWalletBalance(Number(walletResult.data.balance_ngn || 0));
-          setLockedBalance(Number(walletResult.data.locked_balance_ngn || 0));
+    if (!onlineSince) return;
+    const timer = window.setInterval(() => {
+      const minutes = Math.floor((Date.now() - onlineSince.getTime()) / 60000);
+      const hours = Math.floor(minutes / 60);
+      setElapsed(hours ? `${hours}h ${minutes % 60}m` : `${minutes}m`);
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [onlineSince]);
+
+  useEffect(() => {
+    if (!incomingJob) return;
+    setIncomingExpires(30);
+    const timer = window.setInterval(() => {
+      setIncomingExpires((value) => {
+        if (value <= 1) {
+          setJobs((current) => current.filter((job) => job.id !== incomingJob.id));
+          return 30;
         }
-        if (riderResult.data?.id) {
-          if (online && riderResult.data.application_status === "approved") {
-            await supabase.rpc("assign_next_delivery_to_rider", { target_rider_profile_id: riderResult.data.id });
-          }
-          await refreshJobs(riderResult.data.id);
-          const withdrawalResult = await supabase
-            .from("withdrawal_requests")
-            .select("id, amount_ngn, bank_name, account_number, account_name, status, rejection_reason, created_at, reviewed_at")
-            .eq("rider_profile_id", riderResult.data.id)
-            .order("created_at", { ascending: false })
-            .limit(8);
-          setWithdrawalRequests((withdrawalResult.data || []) as WithdrawalRequest[]);
-        }
+        return value - 1;
       });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [incomingJob?.id]);
 
-      const channel = supabase
-        .channel("rider-delivery-requests")
-        .on("postgres_changes", { event: "*", schema: "public", table: "deliveries" }, async () => {
-          setToast("Delivery queue updated.");
-          notifyDriver("FastFleet job update", "A nearby customer request is ready for review.");
-          if (online && riderProfile.id) {
-            await supabase.rpc("assign_next_delivery_to_rider", { target_rider_profile_id: riderProfile.id });
-            await refreshJobs(riderProfile.id);
-          }
-        })
-        .subscribe();
-      cleanup = () => {
-        supabase.removeChannel(channel);
-      };
-    } catch {
-      cleanup = undefined;
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      setLoading(true);
+      try {
+        const supabase = createClient();
+        const {
+          data: { user }
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const [profileResult, riderResult, walletResult] = await Promise.all([
+          supabase.from("profiles").select("full_name, email, phone, lga").eq("user_id", user.id).maybeSingle(),
+          supabase.from("rider_profiles").select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online").eq("user_id", user.id).maybeSingle(),
+          supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle()
+        ]);
+        const riderId = (riderResult.data as RiderProfile | null)?.id || null;
+        const [jobsResult, withdrawalsResult] = await Promise.all([
+          riderId
+            ? supabase.from("deliveries").select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, distance_km, eta_minutes, created_at, proof_url").eq("rider_id", riderId).order("created_at", { ascending: false }).limit(40)
+            : Promise.resolve({ data: [] }),
+          riderId
+            ? supabase.from("withdrawal_requests").select("id, amount_ngn, bank_name, account_number, status, created_at").eq("rider_profile_id", riderId).order("created_at", { ascending: false }).limit(12)
+            : Promise.resolve({ data: [] })
+        ]);
+        if (!mounted) return;
+        const nextProfile = { ...((profileResult.data || {}) as RiderProfile), ...((riderResult.data || {}) as RiderProfile) };
+        setProfile(nextProfile);
+        setOnline(Boolean(nextProfile.online));
+        setOnlineSince(nextProfile.online ? new Date() : null);
+        setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
+        setJobs((jobsResult.data || []) as JobRow[]);
+        setWithdrawals((withdrawalsResult.data || []) as WithdrawalRow[]);
+      } catch {
+        if (mounted) setJobs([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
     }
-    return () => cleanup?.();
-  }, [online, riderProfile.id]);
+    void load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-  async function refreshJobs(riderId = riderProfile.id) {
-    if (!riderId) return;
-    try {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("deliveries")
-        .select("id, delivery_code, pickup_address, dropoff_address, vehicle_type, status, price_ngn, distance_km, eta_minutes, created_at")
-        .eq("rider_id", riderId)
-        .in("status", ["searching", "accepted", "rider_arrived", "picked_up", "in_transit"])
-        .order("created_at", { ascending: false })
-        .limit(8);
-      setAvailableJobs((data || []) as DeliveryJob[]);
-      const liveTrip = data?.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status));
-      if (liveTrip) setTripStatus(liveTrip.status);
-    } catch {
-      setAvailableJobs(demoJobs);
-    }
-  }
-
-  async function toggleAvailability() {
+  async function toggleOnline() {
     const nextOnline = !online;
     setOnline(nextOnline);
-    setToast(nextOnline ? "You are online. FastFleet is checking nearby customer requests." : "You are offline. New delivery offers are paused.");
-    if (nextOnline) requestNotificationAccess();
+    setOnlineSince(nextOnline ? new Date() : null);
     try {
       const supabase = createClient();
       const {
         data: { user }
       } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: rider } = await supabase.from("rider_profiles").update({ online: nextOnline }).eq("user_id", user.id).select("id").maybeSingle();
-      if (nextOnline && rider?.id) {
-        await supabase.rpc("assign_next_delivery_to_rider", { target_rider_profile_id: rider.id });
-        await refreshJobs(rider.id);
-      }
-    } catch {
-      // Demo mode keeps the toggle responsive without Supabase env vars.
-    }
-  }
-
-  async function respondToJob(job: DeliveryJob, decision: "accept" | "reject") {
-    setToast(decision === "accept" ? "Job accepted. Customer timeline is now green at courier assigned." : "Job rejected. It has returned to the dispatch queue.");
-    if (decision === "accept") {
-      setAvailableJobs((current) => current.map((item) => (item.delivery_code === job.delivery_code ? { ...item, status: "accepted" } : item)));
-      setTripStatus("accepted");
-    } else {
-      setAvailableJobs((current) => current.filter((item) => item.delivery_code !== job.delivery_code));
-    }
-    try {
-      if (!job.id) return;
-      const supabase = createClient();
-      if (decision === "accept") {
-        await supabase.rpc("accept_delivery_offer", { target_delivery_id: job.id });
-      } else {
-        await supabase.rpc("reject_delivery_offer", { target_delivery_id: job.id });
-      }
-      await refreshJobs();
-    } catch {
-      // Local demo offers are intentionally optimistic.
-    }
-  }
-
-  function requestNotificationAccess() {
-    if (typeof window === "undefined" || !("Notification" in window)) return;
-    if (Notification.permission === "default") {
-      Promise.resolve(Notification.requestPermission()).catch(() => undefined);
-    }
-  }
-
-  function notifyDriver(title: string, body: string) {
-    if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return;
-    new Notification(title, { body, tag: "fastfleet-driver-job" });
-  }
-
-  useEffect(() => {
-    if (!online || !riderProfile.id || tripStatus === "delivered" || typeof navigator === "undefined" || !navigator.geolocation) return;
-
-    const watchId = navigator.geolocation.watchPosition(
-      async (position) => {
-        try {
-          const supabase = createClient();
-          await supabase.from("rider_locations").upsert({
-            rider_profile_id: riderProfile.id,
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            heading: position.coords.heading,
-            speed: position.coords.speed,
-            zone: profile.default_zone || "Lagos",
-            updated_at: new Date().toISOString()
-          });
-        } catch {
-          // Location sharing is optional in demo mode and depends on browser permission.
+      const { error } = await supabase.from("rider_profiles").update({ online: nextOnline }).eq("user_id", user.id);
+      if (error) throw error;
+      if (nextOnline && profile.id) {
+        const { data } = await supabase.rpc("assign_next_delivery_to_rider", { target_rider_profile_id: profile.id });
+        if (data) {
+          const { data: offeredJob } = await supabase
+            .from("deliveries")
+            .select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, distance_km, eta_minutes, created_at, proof_url")
+            .eq("id", data)
+            .single();
+          if (offeredJob) setJobs((current) => [offeredJob as JobRow, ...current.filter((job) => job.id !== offeredJob.id)]);
         }
-      },
-      () => undefined,
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
-    );
+      }
+    } catch (error) {
+      setOnline(!nextOnline);
+      setOnlineSince(!nextOnline ? new Date() : null);
+    }
+  }
 
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [online, profile.default_zone, riderProfile.id, tripStatus]);
+  async function respondToJob(job: JobRow, accepted: boolean) {
+    try {
+      const response = await fetch("/api/rider/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: job.id, action: accepted ? "accept" : "decline" })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not update job.");
+      setJobs((current) => accepted ? current.map((item) => item.id === job.id ? (payload.job as JobRow) : item) : current.filter((item) => item.id !== job.id));
+    } catch {
+      // Keep the current server state visible when the action fails.
+    }
+  }
+
+  async function advanceJob(job: JobRow) {
+    try {
+      const supabase = createClient();
+      if (job.status === "picked_up" && proofFile) {
+        const extension = proofFile.name.split(".").pop() || "jpg";
+        const path = `${profile.id || "rider"}/${job.id}-${Date.now()}.${extension}`;
+        const { error: uploadError } = await supabase.storage.from("delivery-proofs").upload(path, proofFile);
+        if (uploadError) throw uploadError;
+        const { data } = supabase.storage.from("delivery-proofs").getPublicUrl(path);
+        const { error: proofError } = await supabase.from("deliveries").update({ proof_url: data.publicUrl }).eq("id", job.id);
+        if (proofError) throw proofError;
+      }
+      const response = await fetch("/api/rider/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: job.id, action: "advance" })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not advance delivery.");
+      setJobs((current) => current.map((item) => item.id === job.id ? (payload.job as JobRow) : item));
+      setProofFile(null);
+    } catch {
+      // Keep the current server state visible when the action fails.
+    }
+  }
 
   async function requestWithdrawal() {
     const amount = Number(withdrawalAmount);
     setWithdrawalMessage(null);
-    if (!riderProfile.id) {
-      setWithdrawalMessage("Complete driver onboarding before requesting a withdrawal.");
+    if (!amount || amount < 3000) {
+      setWithdrawalMessage("Enter an amount of at least NGN 3,000.");
       return;
     }
-    if (!kycApproved) {
-      setWithdrawalMessage("Your KYC must be approved before withdrawals are enabled.");
-      return;
-    }
-    if (amount < 3000 || amount > 200000) {
-      setWithdrawalMessage("Withdrawal amount must be between NGN 3,000 and NGN 200,000.");
-      return;
-    }
-    if (withdrawnLast24Hours + amount > 200000) {
-      setWithdrawalMessage("Your 24-hour withdrawal limit is NGN 200,000. The limit resets after 24 hours.");
-      return;
-    }
-    if (amount > walletBalance) {
-      setWithdrawalMessage("Your available balance is not enough for this withdrawal.");
-      return;
-    }
-
     setWithdrawalLoading(true);
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase.rpc("create_withdrawal_request", {
-        target_rider_profile_id: riderProfile.id,
-        next_amount_ngn: amount
+      const response = await fetch("/api/rider/withdrawals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount })
       });
-      if (error) throw error;
-      const request: WithdrawalRequest = {
-        id: String(data || `local-${Date.now()}`),
-        amount_ngn: amount,
-        bank_name: riderProfile.bank_name || "Bank pending",
-        account_number: riderProfile.account_number || "Account pending",
-        account_name: riderProfile.account_name || null,
-        status: "pending",
-        rejection_reason: null,
-        created_at: new Date().toISOString()
-      };
-      setWithdrawalRequests((current) => [request, ...current]);
-      setLockedBalance((value) => value + amount);
-      setWalletBalance((value) => value - amount);
-      setWithdrawalMessage("Withdrawal request sent. Admin will approve or reject it before payout within 24 hours.");
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not request withdrawal.");
+      setWithdrawals((current) => [payload.withdrawal as WithdrawalRow, ...current]);
+      setWalletBalance((current) => Math.max(0, current - amount));
+      setWithdrawalMessage("Withdrawal request submitted for admin payout review.");
+      setWithdrawalOpen(false);
     } catch (error) {
       setWithdrawalMessage(error instanceof Error ? error.message : "Could not request withdrawal.");
     } finally {
@@ -342,253 +282,203 @@ export function RiderDashboard() {
     }
   }
 
-  async function updateTrip(status: "in_transit" | "delivered") {
-    setTripStatus(status);
-    setToast(status === "in_transit" ? "Trip started. Customer can now watch the delivery move live." : "Trip ended. Delivery marked as completed.");
-    try {
-      const supabase = createClient();
-      const updatePayload =
-        status === "in_transit"
-          ? { status, picked_up_at: new Date().toISOString() }
-          : { status, delivered_at: new Date().toISOString() };
-      const targetCode = activeTrip?.delivery_code || "FF-240911";
-      await supabase
-        .from("deliveries")
-        .update(updatePayload)
-        .eq("delivery_code", targetCode);
-      setAvailableJobs((current) => current.map((item) => (item.delivery_code === targetCode ? { ...item, status } : item)));
-    } catch {
-      // Demo mode keeps the local trip controls responsive without Supabase env vars.
-    }
-  }
-
-  if (!isLaunchState(selectedState, liveStates)) {
-    return <RiderComingSoon state={selectedState} profile={profile} liveStates={liveStates} />;
-  }
+  if (initialKycStatus !== "approved") return <RiderAccessState status={initialKycStatus} rejectionReason={rejectionReason} />;
 
   return (
-    <section className="section-wrap overflow-x-hidden py-8 sm:py-12">
-      <div className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]">
-        <Card className="p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Rider dashboard</span>
-              <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-5xl">Driver&apos;s Account Dashboard</h1>
-              <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
-                Manage job requests, earnings, route previews, ratings, withdrawals, and support from one dispatch cockpit.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={toggleAvailability}
-              className={`inline-flex w-fit shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-left transition ${
-                online ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-fleet-paper text-slate-600"
-              }`}
-            >
-              <span>
-                <strong className="block text-xs font-black uppercase tracking-[0.12em]">{online ? "Online" : "Offline"}</strong>
-                <span className="text-[0.68rem] font-bold">{online ? "Receiving jobs" : "Paused"}</span>
-              </span>
-              {online ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
-            </button>
-          </div>
-          {toast ? <div className="mt-4 rounded-fleet bg-fleet-night p-3 text-sm font-bold text-white">{toast}</div> : null}
-        </Card>
-
-        <DriverSmartCards metrics={metrics} highlights={highlights} />
-      </div>
-
-      <div id="wallet" className="mt-6 scroll-mt-24">
-        <WalletDashboardCard
-          userName={firstName}
-          walletType="rider"
-          accountKind="rider"
-          balance={walletBalance}
-          lockedBalance={lockedBalance}
-          kycStatus={walletKycStatus(riderProfile.application_status)}
-          returnTo="/rider/dashboard"
-          onWithdraw={() => {
-            if (!withdrawalAmount) setWithdrawalAmount(String(Math.min(Math.max(walletBalance, 3000), 200000)));
-            void requestWithdrawal();
-          }}
-          withdrawLoading={withdrawalLoading}
-          withdrawDisabled={!kycApproved}
-          withdrawLabel="Withdraw"
-          transactionHref="/rider/dashboard/earnings"
-          notice={withdrawalMessage || `24-hour withdrawals: ${formatMoney(withdrawnLast24Hours)} / ${formatMoney(200000)}`}
-        />
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
+    <section className="min-h-screen bg-fleet-paper pb-24 lg:pb-0">
+      <div className="mx-auto grid max-w-7xl lg:grid-cols-[260px_1fr]">
+        <DesktopNav activeTab={activeTab} onChange={setActiveTab} />
+        <main className="min-w-0 px-4 py-5 sm:px-6 lg:py-8">
+          <header className="mb-5 flex items-center justify-between gap-4">
             <div>
-              <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Available jobs</span>
-              <h2 className="mt-1 text-2xl font-black text-fleet-night">Delivery requests</h2>
+              <h1 className="text-2xl font-black text-fleet-night sm:text-4xl">Ride workspace, {firstName}</h1>
+              <p className="mt-1 text-sm font-semibold text-slate-600">Jobs, earnings, and account controls in one mobile-first dashboard.</p>
             </div>
-            <StatusBadge tone="amber">Accept timer</StatusBadge>
-          </div>
-          <div className="mt-5 grid gap-3">
-            {availableJobs.map((job) => {
-              const isOffer = job.status === "searching";
-              return (
-              <article key={job.delivery_code} className="rounded-fleet border border-fleet-line bg-white p-4 shadow-[0_10px_22px_rgba(8,17,31,0.05)]">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <strong className="block font-black text-fleet-night">{job.delivery_code}</strong>
-                    <span className="text-xs font-bold text-slate-500">
-                      {job.pickup_address} to {job.dropoff_address}
-                    </span>
-                  </div>
-                  <StatusBadge tone={isOffer ? "amber" : "green"}>{isOffer ? "New offer" : job.status.replaceAll("_", " ")}</StatusBadge>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2 text-xs font-black text-slate-600">
-                  <span className="rounded-fleet bg-fleet-paper px-2 py-2 capitalize">{job.vehicle_type}</span>
-                  <span className="rounded-fleet bg-fleet-paper px-2 py-2">{Number(job.distance_km || 0).toFixed(1)} km</span>
-                  <span className="rounded-fleet bg-fleet-paper px-2 py-2">{formatMoney(job.price_ngn)}</span>
-                </div>
-                {isOffer ? (
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <Button type="button" variant="secondary" onClick={() => respondToJob(job, "reject")}>Reject</Button>
-                    <Button type="button" onClick={() => respondToJob(job, "accept")}>Accept</Button>
-                  </div>
-                ) : null}
-              </article>
-            );
-            })}
-            {availableJobs.length === 0 ? (
-              <div className="rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-500">
-                No nearby job offers yet. Keep the dashboard online to receive the next matching request.
-              </div>
-            ) : null}
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Route preview</span>
-          <h2 className="mt-1 text-2xl font-black text-fleet-night">Next pickup</h2>
-          <div className="mt-4">
-            <RoutePreview compact label="Rider route" status={tripStatus} riderName="Tunde Adebayo" />
-          </div>
-          <div className="mt-5 rounded-fleet border border-fleet-line bg-fleet-paper p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Active trip</span>
-                <strong className="mt-1 block text-lg font-black text-fleet-night">{activeTrip?.delivery_code || "No active trip"}</strong>
-                <span className="text-xs font-bold text-slate-500">{activeTrip ? `${activeTrip.pickup_address} to ${activeTrip.dropoff_address}` : "Accept a job to begin navigation"}</span>
-              </div>
-              <StatusBadge tone={tripStatus === "delivered" ? "green" : "amber"}>{tripStatus.replaceAll("_", " ")}</StatusBadge>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <Button type="button" variant="secondary" onClick={() => updateTrip("in_transit")} disabled={!activeTrip || tripStatus === "delivered"}>
-                <PlayCircle className="h-4 w-4" />
-                Start trip
-              </Button>
-              <Button type="button" onClick={() => updateTrip("delivered")} disabled={!activeTrip || tripStatus === "delivered"}>
-                <Flag className="h-4 w-4" />
-                End trip
-              </Button>
-            </div>
-          </div>
-        </Card>
+            <NotificationBell />
+          </header>
+          {activeTab === "home" ? <HomeTab loading={loading} online={online} elapsed={elapsed} onToggleOnline={toggleOnline} todayEarnings={todayEarnings} profile={profile} incomingJob={incomingJob} incomingExpires={incomingExpires} activeJob={activeJob} recentTrips={recentTrips} proofFile={proofFile} onProofFile={setProofFile} onRespond={respondToJob} onAdvance={advanceJob} /> : null}
+          {activeTab === "jobs" ? <JobsTab loading={loading} jobs={jobs} /> : null}
+          {activeTab === "earnings" ? <EarningsTab walletBalance={walletBalance} withdrawals={withdrawals} onOpenWithdrawal={() => setWithdrawalOpen(true)} /> : null}
+          {activeTab === "account" ? <AccountTab profile={profile} prefs={prefs} onPrefs={setPrefs} /> : null}
+        </main>
       </div>
-
+      <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
+      {withdrawalOpen ? <WithdrawalModal amount={withdrawalAmount} onAmount={setWithdrawalAmount} profile={profile} loading={withdrawalLoading} message={withdrawalMessage} onClose={() => setWithdrawalOpen(false)} onSubmit={requestWithdrawal} /> : null}
     </section>
   );
 }
 
-function DriverSmartCards({
-  metrics,
-  highlights
-}: {
-  metrics: string[][];
-  highlights: Array<[string, string, LucideIcon]>;
-}) {
-  const [activeCard, setActiveCard] = useState(0);
-  const cardRefs = useRef<Array<HTMLElement | null>>([]);
-  const cards = [
-    ...metrics.map(([label, value, helper]) => ({ label, value, helper, Icon: Gauge })),
-    ...highlights.map(([label, value, Icon]) => ({ label, value, helper: "Driver performance signal", Icon }))
-  ];
-
-  function handleScroll(event: UIEvent<HTMLDivElement>) {
-    const node = event.currentTarget;
-    const firstCard = cardRefs.current[0];
-    if (!firstCard) return;
-    const nextIndex = Math.round(node.scrollLeft / (firstCard.offsetWidth + 12));
-    setActiveCard(Math.max(0, Math.min(cards.length - 1, nextIndex)));
-  }
-
-  function goToCard(index: number) {
-    cardRefs.current[index]?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
-    setActiveCard(index);
-  }
-
+function DesktopNav({ activeTab, onChange }: { activeTab: RiderTab; onChange: (tab: RiderTab) => void }) {
   return (
-    <div className="min-w-0 max-w-full overflow-hidden">
-      <div className="flex max-w-full snap-x gap-3 overflow-x-auto pb-3 [scrollbar-width:none] xl:grid xl:grid-cols-4 xl:overflow-visible xl:pb-0 [&::-webkit-scrollbar]:hidden" onScroll={handleScroll}>
-        {cards.map(({ label, value, helper, Icon }, index) => (
-          <article
-            key={`${label}-${value}`}
-            ref={(node) => {
-              cardRefs.current[index] = node;
-            }}
-            className="relative min-h-[118px] w-[calc((100vw-44px)/2)] max-w-[178px] shrink-0 snap-start overflow-hidden rounded-fleet border border-fleet-line bg-white p-3 shadow-[0_10px_24px_rgba(8,17,31,0.07)] transition hover:-translate-y-1 hover:shadow-lift xl:w-auto xl:max-w-none"
-          >
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-fleet-ember via-fleet-gold to-fleet-leaf" />
-            <span className="grid h-8 w-8 place-items-center rounded-fleet bg-fleet-night text-white">
-              <Icon className="h-3.5 w-3.5" />
-            </span>
-            <strong className="mt-3 block text-xl font-black text-fleet-night">{value}</strong>
-            <span className="mt-0.5 block text-xs font-black text-slate-700">{label}</span>
-            <span className="mt-1 block text-[0.68rem] font-bold leading-4 text-slate-500">{helper}</span>
-          </article>
-        ))}
+    <aside className="sticky top-0 hidden h-screen border-r border-fleet-line bg-white p-4 lg:block">
+      <div className="rounded-fleet bg-fleet-navy p-4 text-white">
+        <span className="text-xl font-black">FastFleet</span>
+        <p className="mt-1 text-xs font-semibold text-white/70">Rider app</p>
       </div>
-      <div className="mt-1 flex justify-center gap-2 xl:hidden" aria-label="Driver dashboard card pages">
-        {cards.map((card, index) => (
-          <button
-            key={`${card.label}-${index}`}
-            type="button"
-            aria-label={`Show ${card.label}`}
-            onClick={() => goToCard(index)}
-            className={cn("h-2 rounded-full transition-all", activeCard === index ? "w-6 bg-fleet-ember" : "w-2 bg-slate-300")}
-          />
-        ))}
+      <nav className="mt-5 grid gap-2">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("flex items-center gap-3 rounded-fleet px-3 py-3 text-sm font-black", activeTab === tab.id ? "bg-fleet-navy text-white" : "text-slate-600 hover:bg-fleet-paper")}><Icon className="h-4 w-4" />{tab.label}</button>;
+        })}
+      </nav>
+    </aside>
+  );
+}
+
+function MobileTabs({ activeTab, onChange }: { activeTab: RiderTab; onChange: (tab: RiderTab) => void }) {
+  return (
+    <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-fleet border border-fleet-line bg-white/95 p-1 shadow-glow backdrop-blur lg:hidden">
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        return <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("grid min-h-14 place-items-center rounded-fleet text-[0.7rem] font-black", activeTab === tab.id ? "bg-fleet-navy text-white" : "text-slate-500")}><Icon className="h-4 w-4" />{tab.label}</button>;
+      })}
+    </nav>
+  );
+}
+
+function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, profile, incomingJob, incomingExpires, activeJob, recentTrips, proofFile, onProofFile, onRespond, onAdvance }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; todayEarnings: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; activeJob: JobRow | null; recentTrips: JobRow[]; proofFile: File | null; onProofFile: (file: File | null) => void; onRespond: (job: JobRow, accepted: boolean) => void; onAdvance: (job: JobRow) => void }) {
+  if (loading) return <DashboardSkeleton />;
+  return (
+    <div className="grid gap-5">
+      <Card className="p-5">
+        <button type="button" onClick={onToggleOnline} className={cn("flex w-full items-center justify-between rounded-fleet p-5 text-left transition", online ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600")}>
+          <span><strong className="block text-2xl font-black">{online ? "Go offline" : "Go online"}</strong><span className="text-sm font-bold">{online ? `Online for ${elapsed}` : "Paused from dispatch"}</span></span>
+          {online ? <ToggleRight className="h-12 w-12" /> : <ToggleLeft className="h-12 w-12" />}
+        </button>
+      </Card>
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label="Trips" value={String(profile.completed_deliveries || recentTrips.length)} />
+        <Stat label="Today" value={formatMoney(todayEarnings)} />
+        <Stat label="Rating" value={(profile.rating || 4.9).toFixed(1)} />
       </div>
+      {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
+      {activeJob ? <ActiveJob job={activeJob} proofFile={proofFile} onProofFile={onProofFile} onAdvance={onAdvance} /> : null}
+      <section>
+        <h2 className="mb-3 text-xl font-black text-fleet-night">Recent trips</h2>
+        <div className="grid gap-3">{recentTrips.length ? recentTrips.map((job) => <TripCard key={job.id} job={job} />) : <DashboardEmptyState title="No completed trips" body="Accepted jobs will move here after delivery." ctaLabel="Go online" ctaHref="/rider/dashboard" />}</div>
+      </section>
     </div>
   );
 }
 
-function RiderComingSoon({
-  state,
-  profile,
-  liveStates
-}: {
-  state: string;
-  profile: { email?: string | null; phone?: string | null };
-  liveStates: string[];
-}) {
+function IncomingJob({ job, expires, onRespond }: { job: JobRow; expires: number; onRespond: (job: JobRow, accepted: boolean) => void }) {
   return (
-    <section className="section-wrap py-10 sm:py-14">
-      <Card className="grid gap-0 overflow-hidden lg:grid-cols-[0.96fr_1.04fr]">
-        <div className="p-6 sm:p-8">
-          <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-amber-700">
-            <Bell className="h-4 w-4" />
-            Rider launch waitlist
-          </span>
-          <h1 className="mt-5 text-4xl font-black leading-tight text-fleet-night sm:text-6xl">COMING SOON TO YOUR STATE</h1>
-          <p className="mt-4 max-w-xl text-sm font-semibold leading-7 text-slate-600 sm:text-base">
-            Rider operations are live in {launchStateLabel(liveStates)}. Your {state} rider profile can stay on the waitlist while we prepare dispatch coverage there.
-          </p>
-          <div className="mt-7">
-            <JoinStateWaitlistButton state={state} email={profile.email} phone={profile.phone} />
-          </div>
+    <Card className="border-fleet-gold p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <StatusBadge tone="amber">Incoming job</StatusBadge>
+          <h2 className="mt-3 text-2xl font-black text-fleet-night">{job.pickup_address} to {job.dropoff_address}</h2>
+          <p className="mt-2 text-sm font-semibold text-slate-600">{job.distance_km || 6} km · {formatMoney(job.price_ngn)} estimated earning</p>
         </div>
-        <div className="min-h-[360px] bg-fleet-night p-4">
-          <RoutePreview className="h-full min-h-[330px]" label={`${state} rider launch`} status="searching" riderName="Rider network preparing" />
+        <span className="grid h-14 w-14 place-items-center rounded-full border-4 border-fleet-navy text-lg font-black text-fleet-navy">{expires}</span>
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <Button type="button" onClick={() => onRespond(job, true)} className="bg-emerald-600 hover:bg-emerald-700">Accept</Button>
+        <Button type="button" variant="secondary" onClick={() => onRespond(job, false)}>Decline</Button>
+      </div>
+    </Card>
+  );
+}
+
+function ActiveJob({ job, proofFile, onProofFile, onAdvance }: { job: JobRow; proofFile: File | null; onProofFile: (file: File | null) => void; onAdvance: (job: JobRow) => void }) {
+  const label = job.status === "accepted" ? "I've arrived at pickup" : job.status === "rider_arrived" ? "Package collected" : job.status === "picked_up" ? "Delivered" : "Complete delivery";
+  return (
+    <Card className="p-5">
+      <StatusBadge tone="blue">Active delivery</StatusBadge>
+      <h2 className="mt-3 text-xl font-black text-fleet-night">{job.delivery_code}</h2>
+      <p className="mt-2 text-sm font-semibold text-slate-600">{job.pickup_address} to {job.dropoff_address}</p>
+      {job.status === "picked_up" ? (
+        <label className="form-field mt-4">
+          <span className="form-label">Proof of delivery photo</span>
+          <input className="form-input py-3" type="file" accept="image/*" onChange={(event) => onProofFile(event.target.files?.[0] || null)} />
+          {proofFile ? <span className="text-xs font-bold text-slate-500">{proofFile.name}</span> : null}
+        </label>
+      ) : null}
+      <Button type="button" className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night" onClick={() => onAdvance(job)}>{label}</Button>
+    </Card>
+  );
+}
+
+function JobsTab({ loading, jobs }: { loading: boolean; jobs: JobRow[] }) {
+  const [filter, setFilter] = useState<"today" | "week" | "month">("today");
+  if (loading) return <DashboardSkeleton />;
+  return (
+    <div className="grid gap-4">
+      <div className="flex gap-2">{(["today", "week", "month"] as const).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={cn("rounded-full px-4 py-2 text-sm font-black capitalize", filter === item ? "bg-fleet-navy text-white" : "bg-white text-slate-600")}>{item === "week" ? "This week" : item === "month" ? "This month" : "Today"}</button>)}</div>
+      {jobs.length ? jobs.map((job) => <TripCard key={job.id} job={job} />) : <DashboardEmptyState title="No trips" body="Your trip history will appear here." ctaLabel="Go online" ctaHref="/rider/dashboard" />}
+    </div>
+  );
+}
+
+function EarningsTab({ walletBalance, withdrawals, onOpenWithdrawal }: { walletBalance: number; withdrawals: WithdrawalRow[]; onOpenWithdrawal: () => void }) {
+  const settledWithdrawals = withdrawals.slice(0, 14).map((item) => Number(item.amount_ngn || 0));
+  const chartValues = settledWithdrawals.length ? settledWithdrawals : [0];
+  const max = Math.max(...chartValues, 1);
+  return (
+    <div className="grid gap-5">
+      <Card className="bg-fleet-navy p-5 text-white">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">FastFleet owes you</p>
+        <h2 className="mt-3 text-4xl font-black">{formatMoney(walletBalance)}</h2>
+        <Button type="button" className="mt-5 bg-white text-fleet-navy hover:bg-white" onClick={onOpenWithdrawal}>Withdraw</Button>
+      </Card>
+      <Card className="p-5">
+        <h2 className="text-xl font-black text-fleet-night">Last 14 days</h2>
+        <div className="mt-5 flex h-48 items-end gap-2">
+          {chartValues.map((value, index) => <span key={`${value}-${index}`} className="flex-1 rounded-t bg-fleet-navy" style={{ height: `${Math.max(12, (value / max) * 100)}%` }} title={formatMoney(value)} />)}
         </div>
       </Card>
-    </section>
+      <Card className="p-5">
+        <h2 className="text-xl font-black text-fleet-night">Withdrawal history</h2>
+        <div className="mt-4 grid gap-3">{withdrawals.length ? withdrawals.map((item) => <div key={item.id} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3"><span><strong className="block text-sm font-black text-fleet-night">{formatMoney(item.amount_ngn)}</strong><span className="text-xs font-semibold text-slate-500">{formatDateTime(item.created_at)}</span></span><StatusBadge tone={item.status === "paid" ? "green" : "amber"}>{item.status}</StatusBadge></div>) : <DashboardEmptyState title="No withdrawals yet" body="Withdrawal requests will appear here after you submit one." ctaLabel="Withdraw" ctaHref="/rider/dashboard" icon={<Banknote className="h-7 w-7" />} />}</div>
+      </Card>
+    </div>
   );
+}
+
+function AccountTab({ profile, prefs, onPrefs }: { profile: RiderProfile; prefs: { jobs: boolean; payouts: boolean; sms: boolean }; onPrefs: (prefs: { jobs: boolean; payouts: boolean; sms: boolean }) => void }) {
+  return (
+    <div className="grid gap-5">
+      <Card className="p-5">
+        <div className="flex items-center gap-4">
+          <span className="grid h-16 w-16 place-items-center rounded-full bg-fleet-navy text-lg font-black text-white">{initials(profile.full_name || "Rider")}</span>
+          <div><h2 className="text-xl font-black text-fleet-night">{profile.full_name || "Rider"}</h2><p className="text-sm font-semibold text-slate-500">{profile.phone || "No phone"} · {profile.lga || "Lagos"}</p></div>
+        </div>
+      </Card>
+      <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Vehicle details</h2><div className="mt-4 grid gap-3 text-sm font-bold text-slate-600"><Info label="Vehicle" value={profile.vehicle_type || "Motorcycle"} /><Info label="Plate" value={profile.plate_number || "Pending"} /><Info label="Colour" value={profile.vehicle_color || "Pending"} /></div><p className="mt-4 text-xs font-bold text-slate-500">Vehicle edits require re-submission.</p></Card>
+      <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">KYC document status</h2><div className="mt-4 grid gap-2">{["Government ID", "Driver's Licence", "Vehicle registration", "Insurance", "Guarantor letter"].map((item) => <div key={item} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black text-fleet-night"><span>{item}</span><StatusBadge tone="amber">Pending</StatusBadge></div>)}</div></Card>
+      <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Rating breakdown</h2><p className="mt-3 text-3xl font-black text-fleet-night">{(profile.rating || 4.9).toFixed(1)} <Star className="inline h-6 w-6 fill-fleet-gold text-fleet-gold" /></p><p className="mt-1 text-sm font-semibold text-slate-600">{profile.completed_deliveries || 0} total trips</p></Card>
+      <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Notifications</h2><div className="mt-4 grid gap-3">{(["jobs", "payouts", "sms"] as const).map((key) => <label key={key} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black capitalize text-fleet-night">{key}<input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={prefs[key]} onChange={(event) => onPrefs({ ...prefs, [key]: event.target.checked })} /></label>)}</div></Card>
+      <Card className="p-5"><AccountDeletionButton /><Button type="button" variant="secondary" className="mt-3 w-full" onClick={async () => { const supabase = createClient(); await supabase.auth.signOut(); window.location.assign("/auth"); }}>Sign out</Button></Card>
+    </div>
+  );
+}
+
+function WithdrawalModal({ amount, onAmount, profile, loading, message, onClose, onSubmit }: { amount: string; onAmount: (value: string) => void; profile: RiderProfile; loading: boolean; message: string | null; onClose: () => void; onSubmit: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[120] grid place-items-end bg-fleet-night/35 p-3 sm:place-items-center">
+      <Card className="w-full max-w-md p-5">
+        <h2 className="text-2xl font-black text-fleet-night">Request withdrawal</h2>
+        <p className="mt-2 text-sm font-semibold text-slate-600">{profile.bank_name || "Bank pending"} · {profile.account_number || "Account pending"} · {profile.account_name || "Name pending"}</p>
+        <label className="form-field mt-5"><span className="form-label">Amount</span><input className="form-input" value={amount} onChange={(event) => onAmount(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="5000" /></label>
+        {message ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-sm font-bold text-amber-800">{message}</div> : null}
+        <div className="mt-5 grid gap-3 sm:grid-cols-2"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="button" disabled={loading || !amount} onClick={onSubmit}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Submit</Button></div>
+      </Card>
+    </div>
+  );
+}
+
+function TripCard({ job }: { job: JobRow }) {
+  return <article className="rounded-fleet border border-fleet-line bg-white p-4"><div className="flex items-start justify-between gap-3"><span><strong className="block text-sm font-black text-fleet-night">{job.delivery_code}</strong><span className="mt-1 block text-xs font-semibold leading-5 text-slate-500">{job.pickup_address} to {job.dropoff_address}</span></span><StatusBadge tone={job.status === "delivered" ? "green" : "blue"}>{job.status.replaceAll("_", " ")}</StatusBadge></div><div className="mt-3 flex items-center justify-between text-sm font-black text-fleet-night"><span>{formatMoney(job.price_ngn)}</span><span>{job.eta_minutes || 30} min</span></div></article>;
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return <Card className="p-3"><p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p><strong className="mt-2 block text-lg font-black text-fleet-night">{value}</strong></Card>;
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-fleet bg-fleet-paper p-3"><span className="block text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</span><strong className="block text-sm font-black text-fleet-night">{value}</strong></div>;
+}
+
+function DashboardSkeleton() {
+  return <div className="grid gap-4"><Skeleton className="h-36" /><div className="grid grid-cols-3 gap-3"><Skeleton className="h-24" /><Skeleton className="h-24" /><Skeleton className="h-24" /></div><Skeleton className="h-64" /></div>;
 }

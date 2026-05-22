@@ -6,15 +6,14 @@ const routes = [
   "/auth",
   "/book",
   "/track",
-  "/dashboard",
+  "/restaurants",
+  "/shopping-mall",
   "/privacy",
   "/terms",
   "/cookies",
   "/ndpr",
   "/rider/onboarding",
-  "/rider/dashboard",
   "/support",
-  "/admin",
   "/waitlist/thank-you",
   "/offline"
 ];
@@ -27,6 +26,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: `${baseUrl}${route}`,
     lastModified: now,
     changeFrequency: route === "" ? "daily" : "weekly",
-    priority: route === "" ? 1 : route.includes("dashboard") || route.includes("admin") ? 0.5 : 0.8
+    priority: route === "" ? 1 : 0.8
   }));
 }

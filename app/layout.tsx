@@ -45,7 +45,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/fastfleet-logo.png",
-    apple: "/fastfleet-logo.png"
+    apple: "/icons/icon-180.png"
   },
   appleWebApp: {
     capable: true,
@@ -66,6 +66,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <ThemeScript />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="FastFleet" />
+        <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+        <link rel="apple-touch-startup-image" href="/splash/splash-1170x2532.png" />
       </head>
       <body>
         <PwaRegister />

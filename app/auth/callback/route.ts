@@ -32,12 +32,23 @@ export async function GET(request: NextRequest) {
     const { data } = await supabase.auth.getUser();
     const user = data.user;
     if (user) {
+      const { data: existingProfile } = await supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>();
+      const { data: existingUser } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle<{ role?: string | null }>();
+      const accountRole = normalizeRole(existingProfile?.account_type || existingUser?.role || role);
       await supabase.from("users").upsert({
         id: user.id,
         email: user.email || "",
         full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "FastFleet user",
-        role,
+        role: accountRole,
         default_zone: "Lagos",
+        updated_at: new Date().toISOString()
+      });
+      await supabase.from("profiles").upsert({
+        id: user.id,
+        user_id: user.id,
+        email: user.email || "",
+        full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "FastFleet user",
+        account_type: accountRole,
         updated_at: new Date().toISOString()
       });
     }

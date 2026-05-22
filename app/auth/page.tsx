@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
-import { RoutePreview } from "@/components/maps/route-preview";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
   title: "Sign In"
@@ -9,20 +9,57 @@ export const metadata: Metadata = {
 
 export default function AuthPage() {
   return (
-    <section className="section-wrap grid gap-8 py-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:py-16">
-      <div>
-        <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">FastFleet account</span>
-        <h2 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-6xl">Sign in and keep every delivery in view.</h2>
-        <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-slate-600 sm:text-base">
-          Customers manage orders and wallet payments. Drivers get a locked driver account type, then complete KYC from the driver dashboard. Businesses get vendor dispatch tools after email verification.
-        </p>
-        <div className="mt-6">
-          <RoutePreview compact label="Auth location context" />
-        </div>
+    <section className="section-wrap grid gap-6 py-6 sm:py-10 lg:min-h-[calc(100vh-7rem)] lg:grid-cols-[0.92fr_1.08fr] lg:items-stretch">
+      <div className="flex items-center">
+        <Suspense fallback={<AuthFormSkeleton />}>
+          <PhoneAuthForm className="w-full" />
+        </Suspense>
       </div>
-      <Suspense>
-        <PhoneAuthForm />
-      </Suspense>
+      <aside className="overflow-hidden rounded-fleet bg-fleet-navy text-white shadow-glow">
+        <div className="grid min-h-[360px] gap-6 p-5 sm:p-8 lg:min-h-full lg:content-between">
+          <div>
+            <div className="inline-flex items-center gap-3">
+              <span className="grid h-11 w-11 place-items-center rounded-fleet bg-white text-lg font-black text-fleet-navy">FF</span>
+              <span className="text-xl font-black tracking-[0.02em]">FastFleet</span>
+            </div>
+            <h2 className="mt-8 max-w-xl text-4xl font-black leading-tight sm:text-5xl">Move orders, payouts, and rider onboarding from one secure account.</h2>
+            <p className="mt-4 max-w-lg text-sm font-semibold leading-7 text-white/75 sm:text-base">
+              Customers, riders, and business partners get a locked account type at registration, then land in the dashboard built for their work.
+            </p>
+          </div>
+          <div className="relative min-h-64 overflow-hidden rounded-fleet border border-white/15 bg-white/10 p-4">
+            <div className="absolute left-6 right-6 top-10 h-1 rounded-full bg-white/30" />
+            <div className="absolute left-10 top-8 grid h-12 w-12 place-items-center rounded-full bg-fleet-gold text-sm font-black text-fleet-night shadow-lift">A</div>
+            <div className="absolute right-10 top-8 grid h-12 w-12 place-items-center rounded-full bg-fleet-mint text-sm font-black text-fleet-night shadow-lift">B</div>
+            <div className="absolute left-1/2 top-4 h-20 w-20 -translate-x-1/2 rounded-full border-4 border-white/70 bg-fleet-blue shadow-lift">
+              <div className="absolute left-5 top-6 h-3 w-10 rounded-full bg-white" />
+              <div className="absolute bottom-3 left-4 h-5 w-5 rounded-full bg-fleet-night" />
+              <div className="absolute bottom-3 right-4 h-5 w-5 rounded-full bg-fleet-night" />
+            </div>
+            <div className="absolute bottom-5 left-5 right-5 grid gap-3 sm:grid-cols-3">
+              {["Email auth", "Phone OTP", "Google OAuth"].map((item) => (
+                <div key={item} className="rounded-fleet border border-white/15 bg-white/10 p-3 text-xs font-black uppercase tracking-[0.12em] text-white/85">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </aside>
     </section>
+  );
+}
+
+function AuthFormSkeleton() {
+  return (
+    <div className="rounded-fleet border border-fleet-line bg-white p-5 shadow-lift">
+      <Skeleton className="h-6 w-32" />
+      <Skeleton className="mt-4 h-10 w-4/5" />
+      <Skeleton className="mt-3 h-5 w-full" />
+      <Skeleton className="mt-6 h-12 w-full" />
+      <Skeleton className="mt-3 h-12 w-full" />
+      <Skeleton className="mt-3 h-12 w-full" />
+      <Skeleton className="mt-6 h-12 w-full" />
+    </div>
   );
 }
