@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Building2, Clock, Download, FileText, Home, MapPin, PackageCheck, Plus, Upload, UserPlus, UserRound, WalletCards } from "lucide-react";
+import { BarChart3, Building2, Clock, Download, FileText, Home, MapPin, PackageCheck, Plus, Upload, UserPlus, UserRound, WalletCards } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -14,7 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 
-type BusinessTab = "overview" | "dispatch" | "history" | "team" | "account";
+type BusinessTab = "overview" | "dispatch" | "history" | "analytics" | "team" | "account";
 
 type BusinessProfile = {
   business_name?: string | null;
@@ -65,6 +65,7 @@ const tabs: Array<{ id: BusinessTab; label: string; icon: LucideIcon }> = [
   { id: "overview", label: "Overview", icon: Home },
   { id: "dispatch", label: "Dispatch", icon: Plus },
   { id: "history", label: "History", icon: Clock },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "team", label: "Team", icon: UserPlus },
   { id: "account", label: "Account", icon: UserRound }
 ];
@@ -259,6 +260,16 @@ export function BusinessDashboard() {
     }
   }
 
+  async function deleteAddress(id: string) {
+    setAddresses((current) => current.filter((item) => item.id !== id));
+    try {
+      const supabase = createClient();
+      await supabase.from("saved_addresses").delete().eq("id", id);
+    } catch {
+      // Keep the local UI responsive even if a demo database is unavailable.
+    }
+  }
+
   async function inviteTeamMember() {
     if (!teamEmail.includes("@")) return;
     setTeamMessage(null);
@@ -313,8 +324,9 @@ export function BusinessDashboard() {
             <NotificationBell />
           </header>
           {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} stats={stats} orders={orders} /> : null}
-          {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsv={parseCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={(id) => setAddresses((current) => current.filter((item) => item.id !== id))} /> : null}
+          {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsv={parseCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={deleteAddress} /> : null}
           {activeTab === "history" ? <HistoryTab orders={filteredOrders} status={historyStatus} onStatus={setHistoryStatus} onExport={exportHistory} /> : null}
+          {activeTab === "analytics" ? <AnalyticsTab orders={orders} addresses={addresses} team={team} /> : null}
           {activeTab === "team" ? <TeamTab team={team} email={teamEmail} role={teamRole} message={teamMessage} onEmail={setTeamEmail} onRole={setTeamRole} onInvite={inviteTeamMember} onRemove={removeTeamMember} /> : null}
           {activeTab === "account" ? <AccountTab profile={profile} onProfile={setProfile} prefs={prefs} onPrefs={setPrefs} /> : null}
         </main>
@@ -334,7 +346,7 @@ function DesktopNav({ activeTab, onChange }: { activeTab: BusinessTab; onChange:
 }
 
 function MobileTabs({ activeTab, onChange }: { activeTab: BusinessTab; onChange: (tab: BusinessTab) => void }) {
-  return <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-fleet-line bg-white/95 p-1 shadow-glow backdrop-blur lg:hidden">{tabs.map((tab) => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("grid min-h-14 place-items-center rounded-fleet text-[0.62rem] font-black", activeTab === tab.id ? "bg-fleet-navy text-white" : "text-slate-500")}><Icon className="h-4 w-4" />{tab.label}</button>; })}</nav>;
+  return <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-6 rounded-fleet border border-fleet-line bg-white/95 p-1 shadow-glow backdrop-blur lg:hidden">{tabs.map((tab) => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("grid min-h-14 place-items-center rounded-fleet px-0.5 text-[0.58rem] font-black", activeTab === tab.id ? "bg-fleet-navy text-white" : "text-slate-500")}><Icon className="h-4 w-4" />{tab.label}</button>; })}</nav>;
 }
 
 function OverviewTab({ loading, profile, walletBalance, stats, orders }: { loading: boolean; profile: BusinessProfile; walletBalance: number; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[] }) {
@@ -365,6 +377,55 @@ function HistoryTab({ orders, status, onStatus, onExport }: { orders: DeliveryRo
 
 function TeamTab({ team, email, role, message, onEmail, onRole, onInvite, onRemove }: { team: TeamMember[]; email: string; role: "dispatcher" | "viewer"; message: string | null; onEmail: (email: string) => void; onRole: (role: "dispatcher" | "viewer") => void; onInvite: () => void; onRemove: (id: string) => void }) {
   return <div className="grid gap-5"><Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Invite team member</h2><div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto]"><input className="form-input" value={email} onChange={(event) => onEmail(event.target.value)} placeholder="dispatcher@example.com" /><select className="form-input" value={role} onChange={(event) => onRole(event.target.value as "dispatcher" | "viewer")}><option value="dispatcher">Dispatcher</option><option value="viewer">Viewer</option></select><Button type="button" disabled={!email.includes("@")} onClick={onInvite}>Invite</Button></div>{message ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-sm font-bold text-amber-800">{message}</div> : null}</Card><Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Team members</h2><div className="mt-4 grid gap-3">{team.length ? team.map((member) => <div key={member.id} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3"><span><strong className="block text-sm font-black text-fleet-night">{member.email}</strong><span className="mt-2 flex gap-2"><StatusBadge tone="blue">{member.role}</StatusBadge>{member.status ? <StatusBadge tone="amber">{member.status}</StatusBadge> : null}</span></span><Button type="button" size="sm" variant="secondary" onClick={() => onRemove(member.id)}>Remove</Button></div>) : <DashboardEmptyState title="No team members" body="Invite dispatchers or viewers to collaborate." ctaLabel="Invite member" ctaHref="/business/dashboard" />}</div></Card></div>;
+}
+
+function AnalyticsTab({ orders, addresses, team }: { orders: DeliveryRow[]; addresses: SavedAddress[]; team: TeamMember[] }) {
+  const delivered = orders.filter((order) => order.status === "delivered");
+  const active = orders.filter((order) => !["delivered", "cancelled"].includes(order.status));
+  const cancelled = orders.filter((order) => order.status === "cancelled");
+  const totalSpend = orders.reduce((sum, order) => sum + Number(order.price_ngn || 0), 0);
+  const averageCost = orders.length ? totalSpend / orders.length : 0;
+  const maxSpend = Math.max(...orders.map((order) => Number(order.price_ngn || 0)), 1);
+  const topRoutes = orders.slice(0, 5);
+
+  return (
+    <div className="grid gap-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Total spend" value={formatMoney(totalSpend)} />
+        <Stat label="Avg. delivery" value={formatMoney(averageCost)} />
+        <Stat label="Success rate" value={orders.length ? `${Math.round((delivered.length / orders.length) * 100)}%` : "0%"} />
+        <Stat label="Team seats" value={String(team.length)} />
+      </div>
+      <Card className="p-5">
+        <h2 className="text-xl font-black text-fleet-night">Dispatch performance</h2>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <StatusMetric label="Active" value={active.length} tone="blue" />
+          <StatusMetric label="Delivered" value={delivered.length} tone="green" />
+          <StatusMetric label="Cancelled" value={cancelled.length} tone="red" />
+        </div>
+        <div className="mt-6 flex h-44 items-end gap-2">
+          {(orders.length ? orders.slice(0, 12) : [{ id: "empty", price_ngn: 0 } as DeliveryRow]).map((order, index) => (
+            <span key={`${order.id}-${index}`} className="flex-1 rounded-t bg-fleet-navy" style={{ height: `${Math.max(12, (Number(order.price_ngn || 0) / maxSpend) * 100)}%` }} title={formatMoney(order.price_ngn || 0)} />
+          ))}
+        </div>
+      </Card>
+      <Card className="p-5">
+        <h2 className="text-xl font-black text-fleet-night">Route intelligence</h2>
+        <div className="mt-4 grid gap-3">
+          {topRoutes.length ? topRoutes.map((order) => <div key={order.id} className="rounded-fleet bg-fleet-paper p-3"><strong className="block text-sm font-black text-fleet-night">{order.pickup_address} to {order.dropoff_address}</strong><span className="mt-1 block text-xs font-semibold text-slate-500">{formatMoney(order.price_ngn)} · {order.status.replaceAll("_", " ")}</span></div>) : <DashboardEmptyState title="No route data yet" body="Create dispatches to see frequent routes, spend, and delivery outcomes." ctaLabel="New dispatch" ctaHref="/business/dashboard" />}
+        </div>
+      </Card>
+      <Card className="p-5">
+        <h2 className="text-xl font-black text-fleet-night">Saved address coverage</h2>
+        <p className="mt-2 text-sm font-semibold text-slate-600">{addresses.length ? `${addresses.length} saved pickup or drop-off locations are available for repeat dispatches.` : "Add warehouses, branches, and frequent customer locations to speed up future dispatches."}</p>
+      </Card>
+    </div>
+  );
+}
+
+function StatusMetric({ label, value, tone }: { label: string; value: number; tone: "blue" | "green" | "red" }) {
+  const color = tone === "green" ? "bg-emerald-50 text-emerald-700" : tone === "red" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700";
+  return <div className={cn("rounded-fleet p-4", color)}><span className="text-xs font-black uppercase tracking-[0.12em]">{label}</span><strong className="mt-2 block text-3xl font-black">{value}</strong></div>;
 }
 
 function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessProfile; onProfile: (profile: BusinessProfile) => void; prefs: { email: boolean; sms: boolean; wallet: boolean }; onPrefs: (prefs: { email: boolean; sms: boolean; wallet: boolean }) => void }) {

@@ -7,6 +7,14 @@
 - Privacy Policy: https://fastfleetlogistics.pages.dev/privacy
 - Terms of Service: https://fastfleetlogistics.pages.dev/terms
 
+## Store Submission Status
+
+- In-app account deletion: implemented in customer, rider, and business account settings with a red `Delete my account` action, confirmation modal, immediate profile anonymization, Supabase sign-out, and an `account_deletion_requests` queue record.
+- Native app binary: Capacitor wrapper config has been added in `capacitor.config.ts`. Native projects and signed `.ipa` / `.aab` files still require installing Capacitor packages and building in Xcode/Android Studio.
+- Store listing assets: generated in `store-assets/` for App Store screenshots/icon and Play Store screenshots/icon/feature graphic.
+- Google Play data safety form: drafted in `store-submission/google-play-data-safety.md`.
+- Notification system: in-app notification bell, unread count, read/read-all actions, Supabase Realtime subscription, `notifications` table, `push_subscriptions` table, and related schema policies are present.
+
 ## Google Play Data Safety Draft
 
 Data collected:
@@ -27,7 +35,7 @@ Data shared with third parties:
 Security and deletion:
 - Account deletion is available in dashboard.
 - Payment records may be retained where required for accounting, fraud prevention, dispute resolution, or legal compliance.
-- Users can request access, correction, export, or deletion through support.
+- Users can request access, correction, export, or deletion through dashboard settings or support.
 
 ## Apple App Privacy Nutrition Label Draft
 
@@ -52,3 +60,4 @@ Tracking:
 - Wallet top-ups are for real-world logistics and delivery services. Confirm final Apple review language before submitting iOS builds that use Paystack.
 - Likely content rating: Apple 4+ / Google Everyone, subject to the official questionnaire answers.
 - Declare in-app payments as real-world service payments, not digital content.
+- Use `store-submission/native-build-checklist.md` before opening App Store Connect or Play Console releases.

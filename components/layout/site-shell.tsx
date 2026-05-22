@@ -61,6 +61,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isLaunchLanding = pathname === "/";
   const isAdminEnvironment = pathname.startsWith("/admin");
+  const hasSiteChrome = !isLaunchLanding && !isAdminEnvironment;
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState<string | null>(null);
   const dashboardMenu = dashboardMenuForPath(pathname);
@@ -94,6 +95,10 @@ export function SiteShell({ children }: { children: ReactNode }) {
     };
   }, [open]);
 
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   async function signOut() {
     try {
       const supabase = createClient();
@@ -112,7 +117,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
           <ThemeToggle />
         </div>
       ) : null}
-      {isLaunchLanding || isAdminEnvironment ? null : (
+      {hasSiteChrome ? (
       <header className="sticky top-0 z-50 border-b border-white/60 bg-white/80 shadow-[0_10px_30px_rgba(8,17,31,0.06)] backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/" className="flex min-w-0 items-center gap-3" aria-label="FastFleet home">
@@ -171,16 +176,28 @@ export function SiteShell({ children }: { children: ReactNode }) {
           <button
             className="inline-grid h-11 w-11 place-items-center rounded-fleet border border-fleet-line bg-white text-fleet-night lg:hidden"
             type="button"
-            aria-label="Open menu"
+            aria-controls="mobile-site-menu"
+            aria-expanded={open}
+            aria-label={open ? "Close menu" : "Open menu"}
             onClick={() => setOpen((value) => !value)}
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
+      </header>
+      ) : null}
 
-        {open ? (
-          <div className="fixed inset-x-3 bottom-4 top-[88px] z-[80] overflow-y-auto rounded-fleet border border-fleet-line bg-white p-3 shadow-glow lg:hidden">
-            <div className="mb-2 flex items-center justify-between gap-3 rounded-fleet bg-fleet-paper p-2">
+      {hasSiteChrome && open ? (
+        <div className="fixed inset-0 z-[80] bg-fleet-night/20 backdrop-blur-sm lg:hidden" role="presentation" onClick={() => setOpen(false)}>
+          <div
+            id="mobile-site-menu"
+            className="absolute inset-x-3 bottom-4 top-[76px] overflow-y-auto rounded-fleet border border-fleet-line bg-white p-3 shadow-glow"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Site menu"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 mb-2 flex items-center justify-between gap-3 rounded-fleet bg-fleet-paper p-2">
               <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Menu</span>
               <div className="flex items-center gap-2">
                 <ThemeToggle />
@@ -194,8 +211,23 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 </button>
               </div>
             </div>
+            <nav className="grid gap-1" aria-label="Mobile primary">
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "rounded-fleet px-3 py-3 text-sm font-extrabold text-slate-700",
+                    pathname === item.href && "bg-fleet-paper text-fleet-night"
+                  )}
+                  onClick={() => setOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
             {dashboardMenu ? (
-              <div className="grid max-h-[62dvh] gap-3 overflow-y-auto pr-1">
+              <div className="mt-3 grid gap-3">
                 {dashboardMenu.map((section) => (
                   <div key={section.title} className="rounded-fleet border border-fleet-line bg-white">
                     <div className="border-b border-fleet-line px-3 py-2 text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500">{section.title}</div>
@@ -228,23 +260,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="grid gap-1">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "rounded-fleet px-3 py-3 text-sm font-extrabold text-slate-700",
-                      pathname === item.href && "bg-fleet-paper text-fleet-night"
-                    )}
-                    onClick={() => setOpen(false)}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            )}
+            ) : null}
             <div className="mt-3 grid grid-cols-2 gap-2">
               <SmartWalletTopUp compact className="col-span-2" />
               {accountName ? (
@@ -261,9 +277,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
               </LinkButton>
             </div>
           </div>
-        ) : null}
-      </header>
-      )}
+        </div>
+      ) : null}
 
       <main className={isLaunchLanding || isAdminEnvironment ? "" : "pb-20 lg:pb-0"}>{children}</main>
 

@@ -24,7 +24,7 @@ const terms = [
   },
   {
     title: "5. Cancellation and refunds",
-    body: "A customer may cancel within 5 minutes of booking for a full refund if no rider has picked up the package. After pickup, delivery fees are not refundable except where FastFleet confirms a platform-caused failure. Wallet refunds may be returned to the wallet balance or original payment channel depending on the transaction."
+    body: "A customer may cancel within 5 minutes of booking for a full refund if no rider has picked up the package. After a rider is assigned but before pickup, FastFleet may deduct reasonable rider-arrival or processing costs where permitted. After pickup, delivery fees are not refundable except where FastFleet confirms a platform-caused failure. Wallet refunds may be returned to the wallet balance or original payment channel depending on the transaction, payment provider timing, and fraud checks."
   },
   {
     title: "6. Payments and wallets",
@@ -32,7 +32,7 @@ const terms = [
   },
   {
     title: "7. Limitation of liability",
-    body: "To the fullest extent permitted by law, FastFleet is not liable for indirect, incidental, special, punitive, or consequential losses. FastFleet's aggregate liability for a delivery is limited to the delivery fee paid for that delivery unless Nigerian law requires otherwise."
+    body: "To the fullest extent permitted by law, FastFleet is not liable for indirect, incidental, special, punitive, or consequential losses, including loss of profit, business interruption, missed events, emotional distress, or losses caused by inaccurate sender or recipient information. FastFleet's aggregate liability for a delivery is limited to the delivery fee paid for that delivery unless Nigerian law requires otherwise."
   },
   {
     title: "8. Suspension and termination",
@@ -45,6 +45,10 @@ const terms = [
   {
     title: "10. Governing law",
     body: "These terms are governed by the laws of the Federal Republic of Nigeria. Version 1.0 is effective from May 22, 2026."
+  },
+  {
+    title: "11. Notices and updates",
+    body: "FastFleet may update these terms when products, fees, payment providers, safety rules, or legal obligations change. Material updates will be posted in-app or on this page. Questions about these terms, cancellations, refunds, or account closure can be sent to support@fastfleet.com.ng."
   }
 ];
 

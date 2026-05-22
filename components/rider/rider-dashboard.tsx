@@ -38,6 +38,7 @@ type RiderProfile = {
   rating?: number | null;
   completed_deliveries?: number | null;
   online?: boolean | null;
+  application_status?: KycStatus | null;
 };
 
 type JobRow = {
@@ -153,7 +154,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 
         const [profileResult, riderResult, walletResult] = await Promise.all([
           supabase.from("profiles").select("full_name, email, phone, lga").eq("user_id", user.id).maybeSingle(),
-          supabase.from("rider_profiles").select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online").eq("user_id", user.id).maybeSingle(),
+          supabase.from("rider_profiles").select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status").eq("user_id", user.id).maybeSingle(),
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle()
         ]);
         const riderId = (riderResult.data as RiderProfile | null)?.id || null;
@@ -299,7 +300,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
           {activeTab === "home" ? <HomeTab loading={loading} online={online} elapsed={elapsed} onToggleOnline={toggleOnline} todayEarnings={todayEarnings} profile={profile} incomingJob={incomingJob} incomingExpires={incomingExpires} activeJob={activeJob} recentTrips={recentTrips} proofFile={proofFile} onProofFile={setProofFile} onRespond={respondToJob} onAdvance={advanceJob} /> : null}
           {activeTab === "jobs" ? <JobsTab loading={loading} jobs={jobs} /> : null}
           {activeTab === "earnings" ? <EarningsTab walletBalance={walletBalance} withdrawals={withdrawals} onOpenWithdrawal={() => setWithdrawalOpen(true)} /> : null}
-          {activeTab === "account" ? <AccountTab profile={profile} prefs={prefs} onPrefs={setPrefs} /> : null}
+          {activeTab === "account" ? <AccountTab profile={profile} kycStatus={profile.application_status || initialKycStatus} prefs={prefs} onPrefs={setPrefs} /> : null}
         </main>
       </div>
       <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
@@ -400,12 +401,17 @@ function ActiveJob({ job, proofFile, onProofFile, onAdvance }: { job: JobRow; pr
 }
 
 function JobsTab({ loading, jobs }: { loading: boolean; jobs: JobRow[] }) {
-  const [filter, setFilter] = useState<"today" | "week" | "month">("today");
+  const [filter, setFilter] = useState<"active" | "available" | "completed">("active");
   if (loading) return <DashboardSkeleton />;
+  const filteredJobs = jobs.filter((job) => {
+    if (filter === "available") return job.status === "searching";
+    if (filter === "completed") return job.status === "delivered";
+    return ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status);
+  });
   return (
     <div className="grid gap-4">
-      <div className="flex gap-2">{(["today", "week", "month"] as const).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={cn("rounded-full px-4 py-2 text-sm font-black capitalize", filter === item ? "bg-fleet-navy text-white" : "bg-white text-slate-600")}>{item === "week" ? "This week" : item === "month" ? "This month" : "Today"}</button>)}</div>
-      {jobs.length ? jobs.map((job) => <TripCard key={job.id} job={job} />) : <DashboardEmptyState title="No trips" body="Your trip history will appear here." ctaLabel="Go online" ctaHref="/rider/dashboard" />}
+      <div className="flex gap-2">{(["active", "available", "completed"] as const).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={cn("rounded-full px-4 py-2 text-sm font-black capitalize", filter === item ? "bg-fleet-navy text-white" : "bg-white text-slate-600")}>{item}</button>)}</div>
+      {filteredJobs.length ? filteredJobs.map((job) => <TripCard key={job.id} job={job} />) : <DashboardEmptyState title="No jobs in this view" body="Go online to receive offers, then accept and advance each job from pickup to delivery." ctaLabel="Go online" ctaHref="/rider/dashboard" />}
     </div>
   );
 }
@@ -435,7 +441,9 @@ function EarningsTab({ walletBalance, withdrawals, onOpenWithdrawal }: { walletB
   );
 }
 
-function AccountTab({ profile, prefs, onPrefs }: { profile: RiderProfile; prefs: { jobs: boolean; payouts: boolean; sms: boolean }; onPrefs: (prefs: { jobs: boolean; payouts: boolean; sms: boolean }) => void }) {
+function AccountTab({ profile, kycStatus, prefs, onPrefs }: { profile: RiderProfile; kycStatus: KycStatus; prefs: { jobs: boolean; payouts: boolean; sms: boolean }; onPrefs: (prefs: { jobs: boolean; payouts: boolean; sms: boolean }) => void }) {
+  const approved = kycStatus === "approved";
+  const kycTone = approved ? "green" : kycStatus === "rejected" ? "red" : "amber";
   return (
     <div className="grid gap-5">
       <Card className="p-5">
@@ -445,7 +453,7 @@ function AccountTab({ profile, prefs, onPrefs }: { profile: RiderProfile; prefs:
         </div>
       </Card>
       <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Vehicle details</h2><div className="mt-4 grid gap-3 text-sm font-bold text-slate-600"><Info label="Vehicle" value={profile.vehicle_type || "Motorcycle"} /><Info label="Plate" value={profile.plate_number || "Pending"} /><Info label="Colour" value={profile.vehicle_color || "Pending"} /></div><p className="mt-4 text-xs font-bold text-slate-500">Vehicle edits require re-submission.</p></Card>
-      <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">KYC document status</h2><div className="mt-4 grid gap-2">{["Government ID", "Driver's Licence", "Vehicle registration", "Insurance", "Guarantor letter"].map((item) => <div key={item} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black text-fleet-night"><span>{item}</span><StatusBadge tone="amber">Pending</StatusBadge></div>)}</div></Card>
+      <Card className="p-5"><div className="flex items-center justify-between gap-3"><h2 className="text-xl font-black text-fleet-night">KYC document status</h2><StatusBadge tone={kycTone}>{kycStatus.replaceAll("_", " ")}</StatusBadge></div><div className="mt-4 grid gap-2">{["Government ID", "Driver's Licence", "Vehicle registration", "Insurance", "Guarantor letter"].map((item) => <div key={item} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black text-fleet-night"><span>{item}</span><StatusBadge tone={kycTone}>{approved ? "Approved" : "Review"}</StatusBadge></div>)}</div><LinkButton href="/rider/onboarding" variant="secondary" className="mt-4 w-full">Update KYC</LinkButton></Card>
       <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Rating breakdown</h2><p className="mt-3 text-3xl font-black text-fleet-night">{(profile.rating || 4.9).toFixed(1)} <Star className="inline h-6 w-6 fill-fleet-gold text-fleet-gold" /></p><p className="mt-1 text-sm font-semibold text-slate-600">{profile.completed_deliveries || 0} total trips</p></Card>
       <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Notifications</h2><div className="mt-4 grid gap-3">{(["jobs", "payouts", "sms"] as const).map((key) => <label key={key} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black capitalize text-fleet-night">{key}<input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={prefs[key]} onChange={(event) => onPrefs({ ...prefs, [key]: event.target.checked })} /></label>)}</div></Card>
       <Card className="p-5"><AccountDeletionButton /><Button type="button" variant="secondary" className="mt-3 w-full" onClick={async () => { const supabase = createClient(); await supabase.auth.signOut(); window.location.assign("/auth"); }}>Sign out</Button></Card>

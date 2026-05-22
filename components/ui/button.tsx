@@ -3,7 +3,7 @@ import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 type ButtonProps = ComponentPropsWithoutRef<"button"> & {
-  variant?: "primary" | "secondary" | "ghost" | "dark";
+  variant?: "primary" | "secondary" | "ghost" | "dark" | "destructive";
   size?: "sm" | "md" | "lg" | "icon";
 };
 
@@ -17,7 +17,8 @@ const variants = {
   primary: "border-transparent bg-fleet-ember text-white shadow-[0_16px_32px_rgba(239,108,0,0.2)] hover:bg-[#f47e18]",
   secondary: "border-fleet-line bg-white/90 text-fleet-night hover:border-fleet-gold hover:bg-white",
   ghost: "border-transparent bg-transparent text-fleet-night hover:bg-fleet-paper",
-  dark: "border-white/10 bg-fleet-night text-white hover:bg-[#10233a]"
+  dark: "border-white/10 bg-fleet-night text-white hover:bg-[#10233a]",
+  destructive: "border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
 };
 
 const sizes = {

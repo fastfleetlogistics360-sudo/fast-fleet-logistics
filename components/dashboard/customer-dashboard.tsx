@@ -238,7 +238,7 @@ export function CustomerDashboard() {
         <main className="min-w-0 px-4 py-5 sm:px-6 lg:py-8">
           <DashboardHeader title={`${greetingText}, ${firstName}`} subtitle={`${symbol} Your FastFleet mobile workspace is ready.`} />
           {activeTab === "home" ? (
-            <HomeTab loading={loading} profile={profile} balance={balance} activeOrder={activeOrder} orders={orders} promotions={promotions} loadError={loadError} onSelectOrder={setSelectedOrder} />
+            <HomeTab loading={loading} profile={profile} balance={balance} activeOrder={activeOrder} orders={orders} addresses={addresses} promotions={promotions} loadError={loadError} onSelectOrder={setSelectedOrder} />
           ) : null}
           {activeTab === "orders" ? (
             <OrdersTab loading={loading} orders={filteredOrders} filter={orderFilter} onFilter={setOrderFilter} onSelectOrder={setSelectedOrder} />
@@ -325,6 +325,7 @@ function HomeTab({
   balance,
   activeOrder,
   orders,
+  addresses,
   promotions,
   loadError,
   onSelectOrder
@@ -334,11 +335,22 @@ function HomeTab({
   balance: number;
   activeOrder: OrderRow | null;
   orders: OrderRow[];
+  addresses: SavedAddress[];
   promotions: PromotionRow[];
   loadError: string | null;
   onSelectOrder: (order: OrderRow) => void;
 }) {
   if (loading) return <DashboardSkeleton />;
+  const completedOrders = orders.filter((order) => order.status === "delivered");
+  const activeOrders = orders.filter((order) => !["delivered", "cancelled"].includes(order.status));
+  const monthlySpend = orders
+    .filter((order) => {
+      const createdAt = new Date(order.created_at);
+      const now = new Date();
+      return createdAt.getMonth() === now.getMonth() && createdAt.getFullYear() === now.getFullYear();
+    })
+    .reduce((sum, order) => sum + Number(order.price_ngn || 0), 0);
+  const lastCompletedOrder = completedOrders[0] || orders[0] || null;
   return (
     <div className="grid gap-5">
       {loadError ? <div className="rounded-fleet bg-red-50 p-3 text-sm font-bold text-red-700">{loadError}</div> : null}
@@ -356,6 +368,13 @@ function HomeTab({
         </div>
       </Card>
 
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <SummaryTile label="This month" value={formatMoney(monthlySpend)} />
+        <SummaryTile label="Active orders" value={String(activeOrders.length)} />
+        <SummaryTile label="Completed" value={String(completedOrders.length)} />
+        <SummaryTile label="Saved places" value={String(addresses.length)} />
+      </div>
+
       <div className="grid grid-cols-4 gap-2">
         {[
           ["Book", "/book"],
@@ -370,6 +389,19 @@ function HomeTab({
       </div>
 
       {activeOrder ? <ActiveDeliveryCard order={activeOrder} onSelect={() => onSelectOrder(activeOrder)} /> : <DashboardEmptyState title="No active delivery" body="Book your first delivery and live rider updates will appear here." ctaLabel="Book delivery" ctaHref="/book" />}
+
+      {lastCompletedOrder ? (
+        <Card className="p-4">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Quick re-order</p>
+              <h2 className="mt-1 text-lg font-black text-fleet-night">{lastCompletedOrder.pickup_address} to {lastCompletedOrder.dropoff_address}</h2>
+              <p className="mt-1 text-sm font-semibold text-slate-600">{formatMoney(lastCompletedOrder.price_ngn)} · {lastCompletedOrder.delivery_code}</p>
+            </div>
+            <LinkButton href={`/book?reorder=${lastCompletedOrder.delivery_code}`} className="shrink-0">Re-order</LinkButton>
+          </div>
+        </Card>
+      ) : null}
 
       <section>
         <div className="mb-3 flex items-center justify-between">
@@ -402,6 +434,15 @@ function HomeTab({
         )}
       </section>
     </div>
+  );
+}
+
+function SummaryTile({ label, value }: { label: string; value: string }) {
+  return (
+    <Card className="p-3">
+      <p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <strong className="mt-2 block text-lg font-black text-fleet-night">{value}</strong>
+    </Card>
   );
 }
 

@@ -40,7 +40,7 @@ export function AccountDeletionButton({ className }: { className?: string }) {
 
   return (
     <>
-      <Button type="button" variant="secondary" className={className || "w-full border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-50"} onClick={() => setOpen(true)}>
+      <Button type="button" variant="destructive" className={className || "w-full"} onClick={() => setOpen(true)}>
         <Trash2 className="h-4 w-4" />
         Delete my account
       </Button>

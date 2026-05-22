@@ -19,12 +19,12 @@ const sections = [
     body: "We share data only where needed to operate FastFleet. Supabase provides authentication, database, storage, sessions, and realtime infrastructure. Paystack processes payments, bank verification, wallet top-ups, and payout references. Map and location providers may process pickup, drop-off, route, and approximate location information to support dispatch and tracking. We may share limited records with regulators, law enforcement, payment partners, insurers, or dispute-resolution bodies when required by law or to protect users."
   },
   {
-    title: "4. Retention",
-    body: "Active account records are retained while the account remains active. When an account is deleted in-app, FastFleet flags the profile with deleted_at, removes direct contact fields, signs the user out, and queues the account for hard deletion after 90 days. Some payment, tax, transaction, fraud, dispute, and safety records may be retained for up to 7 years where Nigerian tax, accounting, anti-fraud, or legal obligations require it."
+    title: "4. Retention periods",
+    body: "Active account profile records are retained while the account remains active. Booking drafts and support chat metadata are normally retained for up to 24 months. Delivery records, proof of delivery, rider assignment logs, wallet transactions, refund records, payout records, fraud signals, and dispute evidence may be retained for up to 7 years where Nigerian tax, accounting, payment, safety, anti-fraud, or legal obligations require it. When an account is deleted in-app, FastFleet flags the profile with deleted_at, removes direct contact fields, signs the user out, and queues eligible account data for hard deletion after 90 days."
   },
   {
     title: "5. User rights",
-    body: "You may request access, correction, export, deletion, objection, or restriction of your personal data. You can update profile details inside the dashboard, use the in-app Delete my account control, or contact FastFleet for a data request. We may ask for identity verification before actioning sensitive requests."
+    body: "Under the Nigeria Data Protection Act 2023 and applicable NDPR/NDPC guidance, you may request access, correction, export, deletion, objection, restriction of processing, withdrawal of consent where processing relies on consent, and information about automated processing. You may also lodge a complaint with the Nigeria Data Protection Commission. You can update profile details inside the dashboard, use the in-app Delete my account control, or contact FastFleet for a data request. We may ask for identity verification before actioning sensitive requests."
   },
   {
     title: "6. Cookies and local storage",
@@ -40,11 +40,11 @@ const sections = [
   },
   {
     title: "9. Governing law and regulator",
-    body: "This policy is governed by the laws of the Federal Republic of Nigeria, the Nigeria Data Protection Regulation, and applicable guidance from NITDA and relevant Nigerian data-protection authorities."
+    body: "This policy is governed by the laws of the Federal Republic of Nigeria, including the Nigeria Data Protection Act 2023, the Nigeria Data Protection Regulation, and applicable guidance from the Nigeria Data Protection Commission, NITDA, and relevant Nigerian data-protection authorities."
   },
   {
     title: "10. Contact",
-    body: "For privacy requests, corrections, export, restriction, or deletion questions, contact privacy@fastfleet.com.ng."
+    body: "For privacy requests, corrections, export, restriction, deletion questions, or data-protection complaints, contact privacy@fastfleet.com.ng or support@fastfleet.com.ng. Postal and company registration contact details should be added here before final store submission if FastFleet operates through a registered legal entity."
   }
 ];
 
