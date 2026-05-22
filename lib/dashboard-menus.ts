@@ -4,7 +4,6 @@ import {
   Building2,
   Clock,
   CreditCard,
-  FileCheck2,
   FileText,
   Headphones,
   Home,
@@ -39,7 +38,7 @@ export const customerDashboardMenu: DashboardMenuSection[] = [
       { title: "Overview", body: "Wallet, orders, and active delivery", href: "/dashboard", icon: Home, tag: "Home" },
       { title: "Book delivery", body: "Create a new dispatch request", href: "/book", icon: Plus },
       { title: "Track delivery", body: "Live rider movement and timeline", href: "/track", icon: MapPin, tag: "Live" },
-      { title: "Wallet records", body: "Top-ups, refunds, and payments", href: "/dashboard#wallet", icon: Wallet }
+      { title: "Transaction history", body: "Top-ups, refunds, and payments", href: "/dashboard#transactions", icon: Wallet }
     ]
   },
   {
@@ -74,7 +73,6 @@ export const driverDashboardMenu: DashboardMenuSection[] = [
     title: "Profile & settings",
     items: [
       { title: "My profile", body: "Name, vehicle, coverage area", href: "/rider/dashboard/profile", icon: UserRound },
-      { title: "KYC status", body: "Verification and document review", href: "/rider/dashboard/kyc-status", icon: FileCheck2, tag: "KYC" },
       { title: "Availability", body: "Go online / go offline toggle", href: "/rider/dashboard/availability", icon: Settings },
       { title: "Support", body: "Report issues, get help", href: "/support", icon: Headphones }
     ]

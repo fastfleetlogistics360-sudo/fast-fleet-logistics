@@ -4,31 +4,35 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Bike, Building2, ChevronRight, LogIn, UserPlus, X } from "lucide-react";
 import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
 import { Button } from "@/components/ui/button";
 
-const adverts = [
+const landingSlides = [
   {
     image: "/hero/customer-control.svg",
-    label: "Customer dispatch advert",
-    position: "left-0 top-0 rounded-br-[34px]"
+    eyebrow: "FastFleet Logistics",
+    title: "Same-day dispatch for customers, riders, and businesses.",
+    body: "Book deliveries, track riders, fund wallets, and manage operations from one clean FastFleet workspace."
   },
   {
     image: "/hero/same-day-dispatch.svg",
-    label: "Same-day delivery advert",
-    position: "right-0 top-0 rounded-bl-[34px]"
+    eyebrow: "Live movement",
+    title: "Every parcel gets a clear route and visible status.",
+    body: "FastFleet keeps pickup, transit, delivery, support, and wallet actions close to the people who need them."
   },
   {
     image: "/hero/vehicle-income.svg",
-    label: "Rider earnings advert",
-    position: "bottom-0 left-0 rounded-tr-[34px]"
+    eyebrow: "Driver income",
+    title: "Turn your vehicle into verified delivery work.",
+    body: "Drivers can register, complete review, go online, receive jobs, and manage earnings from the dashboard."
   },
   {
     image: "/hero/business-logistics.svg",
-    label: "Business logistics advert",
-    position: "bottom-0 right-0 rounded-tl-[34px]"
+    eyebrow: "Business logistics",
+    title: "A sharper dispatch layer for vendors and teams.",
+    body: "Businesses get saved pickup points, route tracking, wallet controls, receipts, and support."
   }
 ];
 
@@ -36,86 +40,112 @@ type AuthIntent = "signup" | "login";
 
 export function LaunchLandingPage() {
   const [authIntent, setAuthIntent] = useState<AuthIntent | null>(null);
+  const [active, setActive] = useState(0);
   const reduceMotion = useReducedMotion();
+  const slide = landingSlides[active];
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    const timer = window.setInterval(() => {
+      setActive((value) => (value + 1) % landingSlides.length);
+    }, 5800);
+
+    return () => window.clearInterval(timer);
+  }, [reduceMotion]);
 
   return (
-    <section className="relative isolate grid min-h-[88dvh] place-items-center overflow-hidden bg-[#fffdf7] px-4 py-10 text-fleet-night sm:px-6">
+    <section className="relative isolate grid min-h-screen overflow-hidden bg-fleet-night px-4 py-8 text-white sm:px-6">
       <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,246,226,0.94),rgba(255,255,255,0.98)_28%,rgba(255,255,255,0.98)_72%,rgba(239,246,255,0.94))]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(244,166,42,0.16),transparent_30%),radial-gradient(circle_at_10%_76%,rgba(15,52,96,0.12),transparent_32%),radial-gradient(circle_at_92%_72%,rgba(21,163,107,0.12),transparent_32%)]" />
-        {adverts.map((advert) => (
+        <AnimatePresence mode="wait">
           <motion.div
-            key={advert.image}
-            className={`absolute h-40 w-[44vw] max-w-[310px] overflow-hidden shadow-[0_28px_80px_rgba(8,17,31,0.14)] opacity-[0.16] sm:h-60 md:w-[24vw] ${advert.position}`}
+            key={slide.image}
+            className="absolute inset-0"
             initial={reduceMotion ? false : { opacity: 0, scale: 1.04 }}
-            animate={reduceMotion ? undefined : { opacity: 0.16, scale: 1 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
+            animate={reduceMotion ? undefined : { opacity: 1, scale: 1 }}
+            exit={reduceMotion ? undefined : { opacity: 0, scale: 1.02 }}
+            transition={{ duration: 1.1, ease: "easeOut" }}
           >
-            <Image src={advert.image} alt={advert.label} fill className="object-cover object-center saturate-[0.68]" sizes="310px" />
+            <Image src={slide.image} alt={slide.title} fill className="object-cover object-center" sizes="100vw" priority />
           </motion.div>
-        ))}
+        </AnimatePresence>
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,17,31,0.96),rgba(8,17,31,0.74)_48%,rgba(8,17,31,0.34)),linear-gradient(180deg,rgba(8,17,31,0.22),rgba(8,17,31,0.88))]" />
       </div>
 
-      <motion.div
-        className="relative z-10 grid w-full max-w-[780px] justify-items-center rounded-b-[34px] bg-white/85 px-4 py-8 text-center shadow-[0_30px_90px_rgba(8,17,31,0.12)] backdrop-blur-xl sm:px-8 sm:py-10"
-        initial={reduceMotion ? false : { opacity: 0, y: 18 }}
-        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <Image
-          src="/fastfleet-logo.png"
-          alt="FastFleet Logistics"
-          width={330}
-          height={190}
-          className="max-h-[190px] w-[min(74vw,330px)] rounded-[24px] bg-[#fff8e8]/90 object-contain p-4 shadow-[0_20px_60px_rgba(8,17,31,0.1)]"
-          priority
-        />
+      <div className="section-wrap relative z-10 grid min-h-[calc(100vh-64px)] content-center">
+        <div className="max-w-3xl">
+          <Image
+            src="/fastfleet-logo.png"
+            alt="FastFleet Logistics"
+            width={86}
+            height={86}
+            className="h-20 w-20 rounded-fleet border border-white/20 bg-white object-cover p-1 shadow-[0_20px_60px_rgba(0,0,0,0.24)]"
+            priority
+          />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={slide.title}
+              initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -12 }}
+              transition={{ duration: 0.56, ease: "easeOut" }}
+            >
+              <span className="mt-8 inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-fleet-gold backdrop-blur-xl">
+                {slide.eyebrow}
+              </span>
+              <h1 className="mt-5 max-w-4xl text-4xl font-black leading-[0.95] text-white drop-shadow-[0_8px_28px_rgba(0,0,0,0.42)] sm:text-6xl lg:text-7xl">
+                {slide.title}
+              </h1>
+              <p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-white/85 sm:text-lg">
+                {slide.body}
+              </p>
+            </motion.div>
+          </AnimatePresence>
 
-        <h1 className="mt-7 max-w-3xl text-4xl font-black leading-[0.95] text-fleet-navy sm:text-6xl lg:text-7xl">
-          FAST FLEET LOGISTICS
-        </h1>
-        <p className="mt-6 max-w-[700px] text-base font-semibold leading-7 text-slate-700 sm:text-lg">
-          FastFleet is built for same-day parcel movement, vendor dispatch, rider income, and live delivery tracking across Nigerian cities.
-          Customers, businesses, and riders can connect through one clean logistics platform.
-        </p>
-        <p className="mt-4 max-w-[680px] text-base font-semibold leading-7 text-slate-700 sm:text-lg">
-          Sign up, sign in, or proceed to the main dispatch page to book, track, and manage deliveries.
-        </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Button type="button" size="lg" onClick={() => setAuthIntent("signup")} className="min-w-36 uppercase">
+              <UserPlus className="h-4 w-4" />
+              Sign Up
+            </Button>
+            <Button type="button" size="lg" variant="secondary" onClick={() => setAuthIntent("login")} className="min-w-36 uppercase">
+              <LogIn className="h-4 w-4" />
+              Sign In
+            </Button>
+            <Link
+              href="/main"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-white/15 bg-white px-5 text-base font-extrabold uppercase text-fleet-night shadow-[0_14px_32px_rgba(8,17,31,0.08)] transition duration-200 hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
+            >
+              Proceed to Main Page
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/auth?account=driver"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-white/15 bg-fleet-night/88 px-5 text-base font-extrabold uppercase text-white shadow-[0_14px_32px_rgba(8,17,31,0.14)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#10233a] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
+            >
+              <Bike className="h-4 w-4" />
+              Register as a driver
+            </Link>
+            <Link
+              href="/auth?account=business"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-white/15 bg-white/92 px-5 text-base font-extrabold uppercase text-fleet-night shadow-[0_14px_32px_rgba(8,17,31,0.08)] transition duration-200 hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
+            >
+              <Building2 className="h-4 w-4" />
+              Register a business
+            </Link>
+          </div>
 
-        <div className="mt-8 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
-          <Button type="button" size="lg" onClick={() => setAuthIntent("signup")} className="min-w-36 uppercase">
-            <UserPlus className="h-4 w-4" />
-            Sign Up
-          </Button>
-          <Button type="button" size="lg" variant="secondary" onClick={() => setAuthIntent("login")} className="min-w-36 uppercase">
-            <LogIn className="h-4 w-4" />
-            Sign In
-          </Button>
-          <Link
-            href="/main"
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-fleet-navy/15 bg-white/80 px-5 text-base font-extrabold uppercase text-fleet-navy shadow-[0_14px_32px_rgba(8,17,31,0.08)] transition duration-200 hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
-          >
-            Proceed to Main Page
-            <ChevronRight className="h-4 w-4" />
-          </Link>
+          <div className="mt-10 flex gap-2">
+            {landingSlides.map((item, index) => (
+              <button
+                key={item.title}
+                type="button"
+                onClick={() => setActive(index)}
+                className={`h-1.5 rounded-full transition-all ${active === index ? "w-12 bg-fleet-gold" : "w-5 bg-white/45 hover:bg-white/75"}`}
+                aria-label={`Show landing slide ${index + 1}`}
+              />
+            ))}
+          </div>
         </div>
-        <div className="mt-3 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
-          <Link
-            href="/auth?account=driver"
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-fleet-navy bg-fleet-night px-5 text-base font-extrabold uppercase text-white shadow-[0_14px_32px_rgba(8,17,31,0.14)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#10233a] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
-          >
-            <Bike className="h-4 w-4" />
-            Register as a driver
-          </Link>
-          <Link
-            href="/auth?account=business"
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-fleet-navy/15 bg-white/90 px-5 text-base font-extrabold uppercase text-fleet-navy shadow-[0_14px_32px_rgba(8,17,31,0.08)] transition duration-200 hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
-          >
-            <Building2 className="h-4 w-4" />
-            Register a business
-          </Link>
-        </div>
-      </motion.div>
+      </div>
 
       {authIntent ? <AuthModal intent={authIntent} onClose={() => setAuthIntent(null)} /> : null}
     </section>

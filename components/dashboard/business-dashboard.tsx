@@ -88,7 +88,6 @@ const businessMenuSections: Array<{
   {
     title: "Finance",
     items: [
-      ["Business wallet", "Balance, top up, prefund deliveries", CreditCard, null],
       ["Invoices & receipts", "Download records per delivery", FileText, null],
       ["Spend analytics", "Monthly delivery costs and trends", BarChart3, null]
     ]
@@ -158,7 +157,7 @@ export function BusinessDashboard() {
   }, []);
 
   return (
-    <section className="section-wrap py-8 sm:py-12">
+    <section className="section-wrap overflow-x-hidden py-8 sm:py-12">
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <Card className="p-5">
           <div className="flex items-start justify-between gap-4">
@@ -199,10 +198,14 @@ export function BusinessDashboard() {
         <WalletDashboardCard
           userName={profile.contact_name || profile.business_name}
           walletType="customer"
+          accountKind="business"
           balance={Number(wallet.balance_ngn || 0)}
           lockedBalance={Number(wallet.locked_balance_ngn || 0)}
           kycStatus={businessWalletStatus(profile.registration_status)}
           returnTo="/business/dashboard"
+          onWithdraw={() => window.location.assign("/support?topic=business-withdrawal")}
+          withdrawLabel="Withdraw"
+          transactionHref="/business/dashboard#transactions"
         />
       </div>
 
@@ -232,7 +235,6 @@ export function BusinessDashboard() {
             {[
               ["Default pickup", profile.pickup_address || "Add a pickup point", Store],
               ["Team contact", profile.contact_name || profile.phone || "Add operations contact", UsersRound],
-              ["Wallet and receipts", "Paystack top-ups, payments, and invoices", CreditCard],
               ["Bulk dispatch", "Create repeat deliveries from saved addresses", Truck],
               ["Notifications", "Rider accepted, picked up, delivered", Bell],
               ["Documents", "Receipts and monthly reconciliation", FileText]
@@ -248,6 +250,19 @@ export function BusinessDashboard() {
           </div>
         </Card>
       </div>
+
+      <Card id="transactions" className="mt-6 scroll-mt-24 p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Transaction history</span>
+            <h2 className="mt-1 text-2xl font-black text-fleet-night">Business wallet records</h2>
+          </div>
+          <CreditCard className="h-5 w-5 text-fleet-ember" />
+        </div>
+        <div className="mt-4 rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-600">
+          Top-ups, prefunded deliveries, withdrawals, and receipts for this business wallet will appear here.
+        </div>
+      </Card>
 
       <Card className="mt-6 p-5">
         <div className="flex items-center justify-between gap-4">

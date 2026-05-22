@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, ChevronDown, CreditCard, Eye, EyeOff, Loader2, Minus, Plus, RefreshCw, UserRound } from "lucide-react";
+import { Bell, ChevronDown, Clock3, Eye, EyeOff, Loader2, Minus, PackageSearch, Plus, UserRound } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { walletKycLabel, type WalletKycStatus } from "@/lib/kyc";
@@ -13,14 +13,16 @@ type WalletDashboardCardProps = {
   balance: number;
   lockedBalance?: number;
   walletType: Extract<WalletType, "customer" | "rider">;
+  accountKind?: "customer" | "rider" | "business";
   kycStatus?: WalletKycStatus;
   returnTo?: string;
   topUpAmount?: string;
-  onTopUpAmountChange?: (value: string) => void;
   onWithdraw?: () => void;
   withdrawLoading?: boolean;
   withdrawDisabled?: boolean;
   withdrawLabel?: string;
+  trackHref?: string;
+  transactionHref?: string;
   notice?: string | null;
   compact?: boolean;
 };
@@ -30,19 +32,21 @@ export function WalletDashboardCard({
   balance,
   lockedBalance = 0,
   walletType,
+  accountKind = walletType === "rider" ? "rider" : "customer",
   kycStatus = "pending",
   returnTo,
   topUpAmount,
-  onTopUpAmountChange,
   onWithdraw,
   withdrawLoading = false,
   withdrawDisabled = false,
   withdrawLabel = "Withdraw",
+  trackHref = "/track",
+  transactionHref,
   notice,
   compact = false
 }: WalletDashboardCardProps) {
   const [showBalance, setShowBalance] = useState(true);
-  const [localAmount, setLocalAmount] = useState("10000");
+  const [localAmount] = useState("10000");
   const [topUpLoading, setTopUpLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const amount = topUpAmount ?? localAmount;
@@ -52,12 +56,6 @@ export function WalletDashboardCard({
       : kycStatus === "more_info_needed"
         ? "bg-fleet-ember/20 text-fleet-gold"
         : "bg-white/10 text-white/75";
-
-  function setAmount(value: string) {
-    const numeric = value.replace(/[^\d]/g, "");
-    if (onTopUpAmountChange) onTopUpAmountChange(numeric);
-    else setLocalAmount(numeric);
-  }
 
   async function topUp() {
     const amountNgn = Number(amount);
@@ -84,15 +82,22 @@ export function WalletDashboardCard({
     }
   }
 
+  const canWithdraw = accountKind === "rider" || accountKind === "business";
+  const historyHref = transactionHref || (accountKind === "rider" ? "/rider/dashboard/earnings" : accountKind === "business" ? "/business/dashboard#transactions" : "/dashboard#transactions");
+
+  function openHref(href: string) {
+    window.location.assign(href);
+  }
+
   return (
-    <section className={cn("overflow-hidden rounded-fleet bg-fleet-night p-5 text-white shadow-[0_24px_70px_rgba(8,17,31,0.28)]", compact ? "sm:p-5" : "sm:p-7")}>
+    <section className={cn("w-full max-w-full overflow-hidden rounded-fleet bg-fleet-night p-4 text-white shadow-[0_24px_70px_rgba(8,17,31,0.28)] sm:p-6", compact ? "sm:p-5" : "sm:p-7")}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-4 border-white/80 bg-fleet-gold text-fleet-night shadow-[0_14px_30px_rgba(0,0,0,0.16)] sm:h-16 sm:w-16">
-            <UserRound className="h-7 w-7" />
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-4 border-white/85 bg-fleet-gold text-fleet-night shadow-[0_14px_30px_rgba(0,0,0,0.16)] sm:h-16 sm:w-16">
+            <UserRound className="h-7 w-7 sm:h-8 sm:w-8" />
           </span>
           <div className="min-w-0">
-            <h2 className="truncate text-2xl font-black leading-tight sm:text-4xl">
+            <h2 className="break-words text-2xl font-black leading-tight sm:text-4xl">
               Hey <span className="font-semibold">{userName || "there"}</span>,
             </h2>
             <div className="mt-2 flex items-center gap-2">
@@ -112,11 +117,11 @@ export function WalletDashboardCard({
       </div>
 
       <div className="mt-6 rounded-fleet border border-white/5 bg-fleet-navy/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-5">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <span className="text-sm font-black text-white/45">Available Balance</span>
+        <div className="grid gap-5 sm:grid-cols-[1fr_auto] sm:items-start">
+          <div className="min-w-0">
+            <span className="text-sm font-black text-white/45 sm:text-base">Available Balance</span>
             <div className="mt-3 flex items-center gap-3">
-              <strong className="text-3xl font-black sm:text-5xl">{showBalance ? formatMoney(balance) : "NGN •••••"}</strong>
+              <strong className="min-w-0 break-words text-3xl font-black sm:text-5xl">{showBalance ? formatMoney(balance) : "NGN •••••"}</strong>
               <button
                 type="button"
                 onClick={() => setShowBalance((value) => !value)}
@@ -130,7 +135,7 @@ export function WalletDashboardCard({
           </div>
           <button
             type="button"
-            className="inline-flex min-h-14 items-center justify-center gap-3 rounded-fleet bg-fleet-night/75 px-5 text-lg font-black text-white shadow-[0_16px_36px_rgba(0,0,0,0.22)]"
+            className="inline-flex min-h-12 items-center justify-center gap-3 rounded-fleet bg-fleet-night/80 px-4 text-base font-black text-white shadow-[0_16px_36px_rgba(0,0,0,0.22)] sm:min-w-40 sm:text-lg"
             aria-label="Currency NGN"
           >
             <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-fleet-leaf">NG</span>
@@ -139,32 +144,29 @@ export function WalletDashboardCard({
           </button>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <Button type="button" variant="dark" className="min-h-14 bg-fleet-blue/35 text-base hover:bg-fleet-blue/45" onClick={onWithdraw} disabled={withdrawLoading || withdrawDisabled || !onWithdraw}>
-            {withdrawLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Minus className="h-5 w-5" />}
-            {withdrawLabel}
+        <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
+          <Button
+            type="button"
+            variant="dark"
+            className="min-h-12 bg-fleet-blue/35 px-2 text-xs leading-tight hover:bg-fleet-blue/45 sm:min-h-14 sm:text-base"
+            onClick={canWithdraw ? onWithdraw : () => openHref(trackHref)}
+            disabled={canWithdraw ? withdrawLoading || withdrawDisabled || !onWithdraw : false}
+          >
+            {canWithdraw ? (
+              withdrawLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Minus className="h-4 w-4 sm:h-5 sm:w-5" />
+            ) : (
+              <PackageSearch className="h-4 w-4 sm:h-5 sm:w-5" />
+            )}
+            <span className="min-w-0 text-center">{canWithdraw ? withdrawLabel : "Track my order"}</span>
           </Button>
-          <Button type="button" variant="dark" className="min-h-14 bg-fleet-blue/35 text-base hover:bg-fleet-blue/45" onClick={topUp} disabled={topUpLoading || Number(amount) < 500}>
-            {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-5 w-5" />}
-            Top Up
+          <Button type="button" variant="dark" className="min-h-12 bg-fleet-blue/35 px-2 text-xs leading-tight hover:bg-fleet-blue/45 sm:min-h-14 sm:text-base" onClick={topUp} disabled={topUpLoading || Number(amount) < 500}>
+            {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 sm:h-5 sm:w-5" />}
+            <span className="min-w-0 text-center">Top up wallet</span>
           </Button>
-          <Button type="button" variant="dark" className="min-h-14 bg-fleet-blue/35 text-base hover:bg-fleet-blue/45" disabled>
-            <RefreshCw className="h-4 w-4" />
-            Convert
+          <Button type="button" variant="dark" className="min-h-12 bg-fleet-blue/35 px-2 text-xs leading-tight hover:bg-fleet-blue/45 sm:min-h-14 sm:text-base" onClick={() => openHref(historyHref)}>
+            <Clock3 className="h-4 w-4" />
+            <span className="min-w-0 text-center">Transaction history</span>
           </Button>
-        </div>
-
-        <div className="mt-4 max-w-xs">
-          <label className="form-field">
-            <span className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-white/48">Top-up amount</span>
-            <input
-              className="min-h-11 w-full rounded-fleet border border-white/10 bg-white/10 px-3 text-sm font-black text-white outline-none placeholder:text-white/35 focus:border-fleet-gold focus:ring-4 focus:ring-fleet-gold/20"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              inputMode="numeric"
-              placeholder="10000"
-            />
-          </label>
         </div>
 
         {message || notice ? (

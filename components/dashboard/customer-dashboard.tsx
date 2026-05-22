@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
-  CreditCard,
   Flag,
   Headphones,
   Home,
@@ -12,7 +11,6 @@ import {
   PlayCircle,
   Settings,
   ShieldCheck,
-  Wallet
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -112,8 +110,6 @@ function mergeDeliveryRows(rows: DeliveryRow[]) {
 
 const tools: Array<[string, string, LucideIcon]> = [
   ["Saved addresses", "Home, office, warehouse, and vendor pickup points", Home],
-  ["Wallet records", "Funding, refunds, receipts, and delivery charges", Wallet],
-  ["Payment history", "Cards, transfers, invoices, and Paystack references", CreditCard],
   ["Support center", "Ticket updates and delivery escalations", Headphones],
   ["Notifications", "Rider arrived, accepted, delivered, and payout updates", Bell],
   ["Profile settings", "Phone, email, launch state, and account preferences", Settings]
@@ -253,7 +249,7 @@ export function CustomerDashboard() {
   }
 
   return (
-    <section className="section-wrap py-8 sm:py-12">
+    <section className="section-wrap overflow-x-hidden py-8 sm:py-12">
       <div className="grid gap-5">
         <Card className="overflow-hidden border-fleet-gold/40 bg-white/95 shadow-lift">
           <div className="grid gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-center lg:p-5">
@@ -276,8 +272,7 @@ export function CustomerDashboard() {
           </div>
         </Card>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile label="Wallet balance" value={formatMoney(Number(wallet?.balance_ngn || 0))} helper="Tap top up below" />
+        <div className="grid gap-3 sm:grid-cols-3">
           <StatTile label="Orders" value={String(stats.total)} helper="Delivery history" />
           <StatTile label="Active" value={String(stats.active)} helper="Open jobs" />
           <StatTile label="Spend" value={formatMoney(stats.spend)} helper="Delivery fees" />
@@ -288,10 +283,13 @@ export function CustomerDashboard() {
         <WalletDashboardCard
           userName={firstName}
           walletType="customer"
+          accountKind="customer"
           balance={Number(wallet?.balance_ngn || 0)}
           lockedBalance={Number(wallet?.locked_balance_ngn || 0)}
           kycStatus="verified"
           returnTo="/dashboard"
+          trackHref={activeDelivery ? `/track?code=${activeDelivery.delivery_code}` : "/track"}
+          transactionHref="/dashboard#transactions"
         />
       </div>
 
@@ -348,6 +346,29 @@ export function CustomerDashboard() {
           </Card>
         ))}
       </div>
+
+      <Card id="transactions" className="mt-6 scroll-mt-24 p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Transaction history</span>
+            <h2 className="mt-1 text-2xl font-black text-fleet-night">Wallet records</h2>
+          </div>
+          <StatusBadge tone="blue">{transactions.length || 0} records</StatusBadge>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {(transactions.length ? transactions : [
+            { transaction_type: "wallet_funding", amount_ngn: Number(wallet?.balance_ngn || 0), status: "preview", provider: "FastFleet", created_at: new Date().toISOString() }
+          ]).map((transaction, index) => (
+            <div key={transaction.id || `${transaction.transaction_type}-${index}`} className="flex items-center justify-between gap-4 rounded-fleet bg-fleet-paper p-3">
+              <span className="min-w-0">
+                <strong className="block truncate text-sm font-black capitalize text-fleet-night">{transaction.transaction_type.replaceAll("_", " ")}</strong>
+                <span className="text-xs font-bold text-slate-500">{transaction.provider_reference || transaction.provider || transaction.status}</span>
+              </span>
+              <strong className="shrink-0 text-sm font-black text-fleet-night">{formatMoney(Math.abs(Number(transaction.amount_ngn || 0)))}</strong>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <div id="addresses" className="mt-6 grid scroll-mt-24 gap-4 lg:grid-cols-2">
         <Card className="p-5">

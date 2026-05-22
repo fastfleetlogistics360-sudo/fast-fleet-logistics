@@ -85,6 +85,15 @@ export function SiteShell({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
   async function signOut() {
     try {
       const supabase = createClient();
@@ -170,7 +179,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         </div>
 
         {open ? (
-          <div className="fixed inset-x-3 top-[72px] z-50 rounded-fleet border border-fleet-line bg-white p-3 shadow-glow lg:hidden">
+          <div className="fixed inset-x-3 bottom-4 top-[88px] z-[80] overflow-y-auto rounded-fleet border border-fleet-line bg-white p-3 shadow-glow lg:hidden">
             <div className="mb-2 flex items-center justify-between gap-3 rounded-fleet bg-fleet-paper p-2">
               <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Menu</span>
               <div className="flex items-center gap-2">
@@ -301,7 +310,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         </div>
       </footer>
 
-      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/70 bg-white/92 p-1 shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Mobile app">
+      {!open ? <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/70 bg-white/92 p-1 shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Mobile app">
         {bottomItems.map((item) => {
           const Icon = item.icon;
           const active = item.activePaths ? item.activePaths.some((path) => pathname === path) : pathname === item.href;
@@ -319,7 +328,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
             </Link>
           );
         })}
-      </nav>
+      </nav> : null}
 
       <div className="fixed right-4 top-24 z-40 hidden rounded-full border border-fleet-line bg-white/90 p-2 shadow-lift backdrop-blur-xl md:block">
         <Bell className="h-4 w-4 text-fleet-ember" />
@@ -333,7 +342,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
           <ShieldCheck className="h-5 w-5" />
         </Link>
       </div>
-      <SupportWidget />
+      {!open ? <SupportWidget /> : null}
       </>
       )}
       <CookieConsent />

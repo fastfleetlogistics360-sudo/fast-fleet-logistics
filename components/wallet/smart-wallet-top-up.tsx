@@ -78,7 +78,7 @@ export function SmartWalletTopUp({ compact = false, className }: SmartWalletTopU
     <>
       <Button type="button" variant="dark" size={compact ? "md" : "md"} className={cn(compact && "w-full", className)} onClick={openTopUp}>
         <Wallet className="h-4 w-4" />
-        Smart wallet top up
+        Top up wallet
       </Button>
 
       {open ? (
@@ -87,7 +87,7 @@ export function SmartWalletTopUp({ compact = false, className }: SmartWalletTopU
             <div className="flex items-start justify-between gap-4">
               <div>
                 <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Paystack wallet</span>
-                <h2 className="mt-1 text-2xl font-black text-fleet-night">Smart top up</h2>
+                <h2 className="mt-1 text-2xl font-black text-fleet-night">Wallet top up</h2>
                 <p className="mt-2 text-sm font-bold leading-6 text-slate-600">Funds go to your {walletLabel} and are credited after server-side Paystack verification.</p>
               </div>
               <button

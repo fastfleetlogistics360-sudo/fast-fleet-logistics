@@ -5,7 +5,6 @@ import {
   Bell,
   Bike,
   CheckCircle2,
-  FileCheck2,
   Flag,
   Gauge,
   Loader2,
@@ -13,14 +12,12 @@ import {
   Star,
   ToggleLeft,
   ToggleRight,
-  Wallet,
-  X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { riderReviewLabel, walletKycStatus } from "@/lib/kyc";
+import { walletKycStatus } from "@/lib/kyc";
 import { isLaunchState, launchStateLabel, localLiveStates, normalizeState } from "@/lib/launch-states";
 import { sampleRiders } from "@/lib/dispatch";
 import { Card } from "@/components/ui/card";
@@ -66,31 +63,12 @@ const demoJobs: DeliveryJob[] = [
   }
 ];
 
-const transactions = [
-  ["Delivery earning", "FF-240911", 3850],
-  ["Withdrawal pending", "Kuda Bank", -12000],
-  ["Bonus", "Gold streak", 2500]
-];
-
 const highlights: Array<[string, string, LucideIcon]> = [
   ["Completed deliveries", "182", CheckCircle2],
   ["Rider level", "Gold", Star],
   ["Performance", "Excellent", Gauge],
   ["Notifications", "8 unread", Bell]
 ];
-
-const needsKycActionStatuses = new Set(["not_started", "draft", "more_info_required", "rejected"]);
-const reviewKycStatuses = new Set(["submitted", "under_review", "pending", "pending_approval"]);
-
-type WalletTransaction = {
-  id?: string;
-  transaction_type: string;
-  amount_ngn: number;
-  status: string;
-  provider?: string | null;
-  provider_reference?: string | null;
-  created_at?: string;
-};
 
 type WithdrawalRequest = {
   id: string;
@@ -119,20 +97,15 @@ export function RiderDashboard() {
   }>({ id: null, application_status: "submitted" });
   const [walletBalance, setWalletBalance] = useState(145800);
   const [lockedBalance, setLockedBalance] = useState(0);
-  const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([]);
   const [withdrawalAmount, setWithdrawalAmount] = useState("3000");
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [withdrawalLoading, setWithdrawalLoading] = useState(false);
   const [withdrawalMessage, setWithdrawalMessage] = useState<string | null>(null);
   const [liveStates, setLiveStates] = useState<string[]>(localLiveStates());
-  const [showKycPrompt, setShowKycPrompt] = useState(false);
   const currentRider = sampleRiders()[0];
   const activeTrip = availableJobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status));
   const selectedState = normalizeState(profile.default_zone) || "Lagos";
   const kycApproved = riderProfile.application_status === "approved";
-  const kycNeedsAction = !riderProfile.id || needsKycActionStatuses.has(riderProfile.application_status);
-  const kycUnderReview = !kycApproved && !kycNeedsAction && reviewKycStatuses.has(riderProfile.application_status);
-  const kycStatusLabel = riderReviewLabel(riderProfile.application_status);
   const firstName = (profile.full_name || profile.email || profile.phone || "Driver").trim().split(/\s+/)[0] || "Driver";
   const withdrawnLast24Hours = withdrawalRequests
     .filter((request) => new Date(request.created_at).getTime() >= Date.now() - 24 * 60 * 60 * 1000)
@@ -141,7 +114,6 @@ export function RiderDashboard() {
   const metrics = useMemo(
     () => [
       ["Today earnings", formatMoney(28600), "6 completed deliveries"],
-      ["Wallet balance", formatMoney(walletBalance), "Available for withdrawal"],
       ["Rating", currentRider.rating.toFixed(2), "Gold level rider"],
       ["Acceptance", `${currentRider.acceptanceRate}%`, "High dispatch priority"]
     ],
@@ -180,13 +152,6 @@ export function RiderDashboard() {
         if (walletResult.data) {
           setWalletBalance(Number(walletResult.data.balance_ngn || 0));
           setLockedBalance(Number(walletResult.data.locked_balance_ngn || 0));
-          const transactionResult = await supabase
-            .from("transactions")
-            .select("id, transaction_type, amount_ngn, status, provider, provider_reference, created_at")
-            .eq("wallet_id", walletResult.data.id)
-            .order("created_at", { ascending: false })
-            .limit(12);
-          setWalletTransactions(transactionResult.data || []);
         }
         if (riderResult.data?.id) {
           if (online && riderResult.data.application_status === "approved") {
@@ -222,11 +187,6 @@ export function RiderDashboard() {
     }
     return () => cleanup?.();
   }, [online, riderProfile.id]);
-
-  useEffect(() => {
-    if (kycNeedsAction) setShowKycPrompt(true);
-    if (!kycNeedsAction) setShowKycPrompt(false);
-  }, [kycNeedsAction]);
 
   async function refreshJobs(riderId = riderProfile.id) {
     if (!riderId) return;
@@ -407,46 +367,29 @@ export function RiderDashboard() {
   }
 
   return (
-    <section className="section-wrap py-8 sm:py-12">
-      <WalletDashboardCard
-        userName={firstName}
-        walletType="rider"
-        balance={walletBalance}
-        lockedBalance={lockedBalance}
-        kycStatus={walletKycStatus(riderProfile.application_status)}
-        returnTo="/rider/dashboard"
-        onWithdraw={() => {
-          if (!withdrawalAmount) setWithdrawalAmount(String(Math.min(Math.max(walletBalance, 3000), 200000)));
-          void requestWithdrawal();
-        }}
-        withdrawLoading={withdrawalLoading}
-        withdrawDisabled={!kycApproved}
-        withdrawLabel="Withdraw"
-        notice={withdrawalMessage || `24-hour withdrawals: ${formatMoney(withdrawnLast24Hours)} / ${formatMoney(200000)}`}
-      />
-
+    <section className="section-wrap overflow-x-hidden py-8 sm:py-12">
       <div className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]">
         <Card className="p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
+            <div className="min-w-0">
               <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Rider dashboard</span>
               <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-5xl">Driver&apos;s Account Dashboard</h1>
-              <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">
+              <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
                 Manage job requests, earnings, route previews, ratings, withdrawals, and support from one dispatch cockpit.
               </p>
             </div>
             <button
               type="button"
               onClick={toggleAvailability}
-              className={`flex min-w-[190px] items-center justify-between gap-3 rounded-fleet border px-4 py-3 text-left transition ${
-                online ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-fleet-line bg-fleet-paper text-slate-600"
+              className={`inline-flex w-fit shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-left transition ${
+                online ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-fleet-paper text-slate-600"
               }`}
             >
               <span>
-                <strong className="block text-sm font-black">{online ? "Go offline" : "Go online"}</strong>
-                <span className="text-xs font-bold">{online ? "Receiving jobs" : "Paused"}</span>
+                <strong className="block text-xs font-black uppercase tracking-[0.12em]">{online ? "Online" : "Offline"}</strong>
+                <span className="text-[0.68rem] font-bold">{online ? "Receiving jobs" : "Paused"}</span>
               </span>
-              {online ? <ToggleRight className="h-8 w-8" /> : <ToggleLeft className="h-8 w-8" />}
+              {online ? <ToggleRight className="h-6 w-6" /> : <ToggleLeft className="h-6 w-6" />}
             </button>
           </div>
           {toast ? <div className="mt-4 rounded-fleet bg-fleet-night p-3 text-sm font-bold text-white">{toast}</div> : null}
@@ -455,33 +398,26 @@ export function RiderDashboard() {
         <DriverSmartCards metrics={metrics} highlights={highlights} />
       </div>
 
-      {!kycApproved ? (
-        <Card className={`mt-6 p-5 ${kycUnderReview ? "border-blue-200 bg-blue-50" : "border-amber-200 bg-amber-50"}`}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex gap-3">
-              <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-fleet bg-white shadow-lift ${kycUnderReview ? "text-blue-700" : "text-amber-700"}`}>
-                <FileCheck2 className="h-5 w-5" />
-              </span>
-              <div>
-                <span className={`text-xs font-black uppercase tracking-[0.16em] ${kycUnderReview ? "text-blue-700" : "text-amber-700"}`}>{kycStatusLabel}</span>
-                <h2 className="mt-1 text-xl font-black text-fleet-night">
-                  {kycUnderReview ? "Your driver verification is under review." : "Complete driver verification to unlock withdrawals."}
-                </h2>
-                <p className={`mt-1 text-sm font-bold leading-6 ${kycUnderReview ? "text-blue-800" : "text-amber-800"}`}>
-                  {kycUnderReview
-                    ? "Operations will approve you or request more information from the admin panel. You will not see the completion pop-up while review is pending."
-                    : "Upload identity, vehicle papers, selfie, and bank details. Admin approval activates full driver earnings access."}
-                </p>
-              </div>
-            </div>
-            {kycNeedsAction ? (
-              <LinkButton href="/rider/onboarding" className="shrink-0">
-                Open KYC
-              </LinkButton>
-            ) : null}
-          </div>
-        </Card>
-      ) : null}
+      <div id="wallet" className="mt-6 scroll-mt-24">
+        <WalletDashboardCard
+          userName={firstName}
+          walletType="rider"
+          accountKind="rider"
+          balance={walletBalance}
+          lockedBalance={lockedBalance}
+          kycStatus={walletKycStatus(riderProfile.application_status)}
+          returnTo="/rider/dashboard"
+          onWithdraw={() => {
+            if (!withdrawalAmount) setWithdrawalAmount(String(Math.min(Math.max(walletBalance, 3000), 200000)));
+            void requestWithdrawal();
+          }}
+          withdrawLoading={withdrawalLoading}
+          withdrawDisabled={!kycApproved}
+          withdrawLabel="Withdraw"
+          transactionHref="/rider/dashboard/earnings"
+          notice={withdrawalMessage || `24-hour withdrawals: ${formatMoney(withdrawnLast24Hours)} / ${formatMoney(200000)}`}
+        />
+      </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
         <Card className="p-5">
@@ -557,110 +493,6 @@ export function RiderDashboard() {
         </Card>
       </div>
 
-      <div className="mt-6">
-        <Card className="p-5">
-          <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Withdrawal status</span>
-          <div className="mt-4 grid gap-3">
-            {withdrawalRequests.length === 0 ? (
-              <div className="rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-500">No withdrawal requests yet.</div>
-            ) : (
-              withdrawalRequests.map((request) => (
-                <div key={request.id} className="rounded-fleet border border-fleet-line bg-white p-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <span>
-                      <strong className="block text-sm font-black text-fleet-night">{formatMoney(Number(request.amount_ngn || 0))}</strong>
-                      <span className="text-xs font-bold text-slate-500">
-                        {request.bank_name} · {request.account_number}
-                      </span>
-                    </span>
-                    <StatusBadge tone={request.status === "approved" || request.status === "paid" ? "green" : request.status === "rejected" ? "red" : "amber"}>
-                      {request.status}
-                    </StatusBadge>
-                  </div>
-                  {request.status === "approved" ? (
-                    <p className="mt-2 text-xs font-bold leading-5 text-emerald-700">Approved. You will be credited before 24 hours.</p>
-                  ) : null}
-                  {request.rejection_reason ? (
-                    <p className="mt-2 text-xs font-black leading-5 text-rose-700">{request.rejection_reason}</p>
-                  ) : null}
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Card className="p-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Driver earnings</span>
-              <strong className="mt-2 block text-2xl font-black text-fleet-night">Every dashboard includes withdrawals</strong>
-            </div>
-            <Wallet className="h-5 w-5 text-fleet-ember" />
-          </div>
-          <div className="mt-4 grid gap-3 text-sm font-bold text-slate-600">
-            <div className="rounded-fleet bg-fleet-paper p-3">Available: {formatMoney(walletBalance)}</div>
-            <div className="rounded-fleet bg-fleet-paper p-3">Locked for pending withdrawals: {formatMoney(lockedBalance)}</div>
-            <div className="rounded-fleet bg-fleet-paper p-3">KYC status: {riderProfile.application_status.replaceAll("_", " ")}</div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Transaction history</span>
-          <div className="mt-4 grid gap-3">
-            {(walletTransactions.length
-              ? walletTransactions.map((transaction) => [
-                  transaction.transaction_type.replaceAll("_", " "),
-                  transaction.provider_reference || transaction.provider || transaction.status,
-                  transaction.amount_ngn
-                ])
-              : transactions
-            ).map(([label, detail, amount]) => (
-              <div key={`${label}-${detail}`} className="flex items-center justify-between gap-4 rounded-fleet bg-fleet-paper p-3">
-                <span>
-                  <strong className="block text-sm font-black text-fleet-night">{label}</strong>
-                  <span className="text-xs font-bold text-slate-500">{detail}</span>
-                </span>
-                <strong className={Number(amount) < 0 ? "text-rose-600" : "text-emerald-700"}>{formatMoney(Math.abs(Number(amount)))}</strong>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {showKycPrompt && kycNeedsAction ? (
-        <div className="fixed inset-0 z-[80] grid place-items-center bg-fleet-night/70 px-4 py-8 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Driver KYC required">
-          <Card className="relative w-full max-w-xl border-amber-200 bg-white p-5 shadow-[0_28px_90px_rgba(0,0,0,0.35)] sm:p-6">
-            <button
-              type="button"
-              onClick={() => setShowKycPrompt(false)}
-              className="absolute right-4 top-4 inline-grid h-10 w-10 place-items-center rounded-full border border-fleet-line bg-white text-fleet-night shadow-lift"
-              aria-label="Close KYC prompt"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-fleet bg-amber-50 text-amber-700">
-              <FileCheck2 className="h-6 w-6" />
-            </span>
-            <StatusBadge tone="amber" className="mt-5">
-              Driver KYC required
-            </StatusBadge>
-            <h2 className="mt-3 pr-10 text-3xl font-black leading-tight text-fleet-night">Complete your driver verification.</h2>
-            <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">
-              Upload your identity, vehicle papers, selfie, and bank details. You can view the dashboard now, but jobs and withdrawals require KYC review.
-            </p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <LinkButton href="/rider/onboarding">
-                Open driver KYC
-              </LinkButton>
-              <Button type="button" variant="secondary" onClick={() => setShowKycPrompt(false)}>
-                I&apos;ll do it later
-              </Button>
-            </div>
-          </Card>
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -693,15 +525,15 @@ function DriverSmartCards({
   }
 
   return (
-    <div>
-      <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-3 [scrollbar-width:none] xl:grid xl:grid-cols-4 xl:overflow-visible xl:pb-0 [&::-webkit-scrollbar]:hidden" onScroll={handleScroll}>
+    <div className="min-w-0 max-w-full overflow-hidden">
+      <div className="flex max-w-full snap-x gap-3 overflow-x-auto pb-3 [scrollbar-width:none] xl:grid xl:grid-cols-4 xl:overflow-visible xl:pb-0 [&::-webkit-scrollbar]:hidden" onScroll={handleScroll}>
         {cards.map(({ label, value, helper, Icon }, index) => (
           <article
             key={`${label}-${value}`}
             ref={(node) => {
               cardRefs.current[index] = node;
             }}
-            className="relative min-h-[118px] w-[min(48vw,178px)] shrink-0 snap-start overflow-hidden rounded-fleet border border-fleet-line bg-white p-3 shadow-[0_10px_24px_rgba(8,17,31,0.07)] transition hover:-translate-y-1 hover:shadow-lift xl:w-auto"
+            className="relative min-h-[118px] w-[calc((100vw-44px)/2)] max-w-[178px] shrink-0 snap-start overflow-hidden rounded-fleet border border-fleet-line bg-white p-3 shadow-[0_10px_24px_rgba(8,17,31,0.07)] transition hover:-translate-y-1 hover:shadow-lift xl:w-auto xl:max-w-none"
           >
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-fleet-ember via-fleet-gold to-fleet-leaf" />
             <span className="grid h-8 w-8 place-items-center rounded-fleet bg-fleet-night text-white">
