@@ -112,10 +112,10 @@ export function BusinessRegistrationFlow() {
         </Card>
         <PhoneAuthForm
           title="Create business account"
-          description="Create your business account with email verification. After login, your business dashboard opens automatically."
+          description="Create your business account with email verification. After login, you will finish the business dispatch profile on this page."
           defaultRole="business"
           lockedRole="business"
-          returnToOverride="/business/dashboard"
+          returnToOverride="/business/register"
           intent="signup"
         />
       </div>
