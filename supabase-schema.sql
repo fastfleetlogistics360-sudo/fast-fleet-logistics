@@ -435,6 +435,36 @@ create table if not exists public.rider_locations (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.delivery_locations (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.deliveries(id) on delete cascade,
+  rider_id uuid not null references public.rider_profiles(id) on delete cascade,
+  latitude numeric not null,
+  longitude numeric not null,
+  heading numeric,
+  speed numeric,
+  status text not null default 'active',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (order_id)
+);
+
+alter table if exists public.delivery_locations
+  add column if not exists order_id uuid references public.deliveries(id) on delete cascade,
+  add column if not exists rider_id uuid references public.rider_profiles(id) on delete cascade,
+  add column if not exists latitude numeric,
+  add column if not exists longitude numeric,
+  add column if not exists heading numeric,
+  add column if not exists speed numeric,
+  add column if not exists status text not null default 'active',
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+drop trigger if exists delivery_locations_set_updated_at on public.delivery_locations;
+create trigger delivery_locations_set_updated_at
+before update on public.delivery_locations
+for each row execute function public.set_updated_at();
+
 create table if not exists public.wallets (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
@@ -1459,6 +1489,9 @@ create index if not exists withdrawal_requests_status_idx on public.withdrawal_r
 create index if not exists support_tickets_status_idx on public.support_tickets(status, priority);
 create index if not exists support_messages_ticket_idx on public.support_messages(ticket_id, created_at);
 create index if not exists rider_locations_zone_idx on public.rider_locations(zone, updated_at desc);
+create unique index if not exists delivery_locations_order_unique on public.delivery_locations(order_id);
+create index if not exists delivery_locations_order_idx on public.delivery_locations(order_id, updated_at desc);
+create index if not exists delivery_locations_rider_idx on public.delivery_locations(rider_id, updated_at desc);
 create index if not exists business_team_members_business_idx on public.business_team_members(business_profile_id, created_at desc);
 create index if not exists business_team_members_email_idx on public.business_team_members(email);
 
@@ -1474,6 +1507,7 @@ alter table public.saved_addresses enable row level security;
 alter table public.deliveries enable row level security;
 alter table public.delivery_events enable row level security;
 alter table public.rider_locations enable row level security;
+alter table public.delivery_locations enable row level security;
 alter table public.wallets enable row level security;
 alter table public.transactions enable row level security;
 alter table public.company_transaction_logs enable row level security;
@@ -1688,8 +1722,26 @@ create policy "Delivery events follow delivery access"
     )
   );
 
+drop policy if exists "Delivery participants insert timeline events" on public.delivery_events;
+create policy "Delivery participants insert timeline events"
+  on public.delivery_events for insert
+  with check (
+    public.current_user_role() = 'admin'
+    or exists (
+      select 1 from public.deliveries d
+      where d.id = delivery_id
+      and (
+        d.customer_id = auth.uid()
+        or exists (select 1 from public.rider_profiles rp where rp.id = d.rider_id and rp.user_id = auth.uid())
+      )
+    )
+  );
+
 drop policy if exists "Riders update own location and admins read all" on public.rider_locations;
-create policy "Riders update own location and admins read all"
+drop policy if exists "Riders manage own location and admins manage all" on public.rider_locations;
+drop policy if exists "Customers read assigned rider location" on public.rider_locations;
+
+create policy "Riders manage own location and admins manage all"
   on public.rider_locations for all
   using (
     public.current_user_role() = 'admin'
@@ -1698,6 +1750,81 @@ create policy "Riders update own location and admins read all"
   with check (
     public.current_user_role() = 'admin'
     or exists (select 1 from public.rider_profiles rp where rp.id = rider_profile_id and rp.user_id = auth.uid())
+  );
+
+create policy "Customers read assigned rider location"
+  on public.rider_locations for select
+  using (
+    public.current_user_role() = 'admin'
+    or exists (
+      select 1
+      from public.deliveries d
+      where d.rider_id = rider_profile_id
+        and d.customer_id = auth.uid()
+        and d.status not in ('draft', 'quoted', 'delivered', 'cancelled')
+    )
+  );
+
+drop policy if exists "Customers read own delivery live location" on public.delivery_locations;
+drop policy if exists "Assigned riders write delivery live location" on public.delivery_locations;
+drop policy if exists "Assigned riders update delivery live location" on public.delivery_locations;
+drop policy if exists "Admins read all delivery live locations" on public.delivery_locations;
+
+create policy "Customers read own delivery live location"
+  on public.delivery_locations for select
+  using (
+    public.current_user_role() = 'admin'
+    or exists (
+      select 1 from public.deliveries d
+      where d.id = order_id
+        and d.customer_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.rider_profiles rp
+      where rp.id = rider_id
+        and rp.user_id = auth.uid()
+    )
+  );
+
+create policy "Assigned riders write delivery live location"
+  on public.delivery_locations for insert
+  with check (
+    exists (
+      select 1
+      from public.deliveries d
+      join public.rider_profiles rp on rp.id = d.rider_id
+      where d.id = order_id
+        and d.rider_id = rider_id
+        and rp.user_id = auth.uid()
+        and d.status not in ('delivered', 'cancelled')
+    )
+  );
+
+create policy "Assigned riders update delivery live location"
+  on public.delivery_locations for update
+  using (
+    public.current_user_role() = 'admin'
+    or exists (
+      select 1
+      from public.deliveries d
+      join public.rider_profiles rp on rp.id = d.rider_id
+      where d.id = order_id
+        and d.rider_id = rider_id
+        and rp.user_id = auth.uid()
+        and d.status not in ('delivered', 'cancelled')
+    )
+  )
+  with check (
+    public.current_user_role() = 'admin'
+    or exists (
+      select 1
+      from public.deliveries d
+      join public.rider_profiles rp on rp.id = d.rider_id
+      where d.id = order_id
+        and d.rider_id = rider_id
+        and rp.user_id = auth.uid()
+        and d.status not in ('delivered', 'cancelled')
+    )
   );
 
 drop policy if exists "Wallet owners and admins" on public.wallets;
@@ -1923,6 +2050,11 @@ end $$;
 
 do $$ begin
   alter publication supabase_realtime add table public.rider_locations;
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  alter publication supabase_realtime add table public.delivery_locations;
 exception when duplicate_object then null;
 end $$;
 

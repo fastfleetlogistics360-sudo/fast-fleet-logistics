@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, ChevronDown, Clock3, Eye, EyeOff, Loader2, Minus, PackageSearch, Plus, UserRound } from "lucide-react";
+import { Bell, ChevronDown, Eye, EyeOff, Loader2, Minus, PackageSearch, Plus, RefreshCw, UserRound } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { walletKycLabel, type WalletKycStatus } from "@/lib/kyc";
@@ -82,7 +82,7 @@ export function WalletDashboardCard({
     }
   }
 
-  const canWithdraw = accountKind === "rider" || accountKind === "business";
+  const canWithdraw = Boolean(onWithdraw) || accountKind === "rider" || accountKind === "business";
   const historyHref = transactionHref || (accountKind === "rider" ? "/rider/dashboard/earnings" : accountKind === "business" ? "/business/dashboard#transactions" : "/dashboard#transactions");
 
   function openHref(href: string) {
@@ -90,7 +90,7 @@ export function WalletDashboardCard({
   }
 
   return (
-    <section className={cn("w-full max-w-full overflow-hidden rounded-fleet bg-fleet-night p-4 text-white shadow-[0_24px_70px_rgba(8,17,31,0.28)] sm:p-6", compact ? "sm:p-5" : "sm:p-7")}>
+    <section className={cn("w-full max-w-full overflow-hidden rounded-fleet bg-fleet-navy p-4 text-white shadow-[0_24px_70px_rgba(15,52,96,0.32)] sm:p-6", compact ? "sm:p-5" : "sm:p-7")}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
           <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-4 border-white/85 bg-fleet-gold text-fleet-night shadow-[0_14px_30px_rgba(0,0,0,0.16)] sm:h-16 sm:w-16">
@@ -98,7 +98,7 @@ export function WalletDashboardCard({
           </span>
           <div className="min-w-0">
             <h2 className="break-words text-2xl font-black leading-tight sm:text-4xl">
-              Hey <span className="font-semibold">{userName || "there"}</span>,
+              Hey <span className="font-semibold">{userName || "there"}</span>, <span aria-hidden="true">👋</span>
             </h2>
             <div className="mt-2 flex items-center gap-2">
               <span className="text-xl font-black sm:text-2xl">KYC</span>
@@ -116,7 +116,7 @@ export function WalletDashboardCard({
         </button>
       </div>
 
-      <div className="mt-6 rounded-fleet border border-white/5 bg-fleet-navy/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-5">
+      <div className="wallet-card-grid mt-6 rounded-fleet border border-white/5 bg-fleet-night/24 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-5">
         <div className="grid gap-5 sm:grid-cols-[1fr_auto] sm:items-start">
           <div className="min-w-0">
             <span className="text-sm font-black text-white/45 sm:text-base">Available Balance</span>
@@ -161,11 +161,11 @@ export function WalletDashboardCard({
           </Button>
           <Button type="button" variant="dark" className="min-h-12 bg-fleet-blue/35 px-2 text-xs leading-tight hover:bg-fleet-blue/45 sm:min-h-14 sm:text-base" onClick={topUp} disabled={topUpLoading || Number(amount) < 500}>
             {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 sm:h-5 sm:w-5" />}
-            <span className="min-w-0 text-center">Top up wallet</span>
+            <span className="min-w-0 text-center">Top Up</span>
           </Button>
           <Button type="button" variant="dark" className="min-h-12 bg-fleet-blue/35 px-2 text-xs leading-tight hover:bg-fleet-blue/45 sm:min-h-14 sm:text-base" onClick={() => openHref(historyHref)}>
-            <Clock3 className="h-4 w-4" />
-            <span className="min-w-0 text-center">Transaction history</span>
+            <RefreshCw className="h-4 w-4" />
+            <span className="min-w-0 text-center">Convert</span>
           </Button>
         </div>
 

@@ -473,11 +473,23 @@ export function AdminPanel() {
       const siteControlsResult = await siteControlsResponse.json().catch(() => ({}));
       const riskSignalsResult = await riskSignalsResponse.json().catch(() => ({}));
       const restaurantsResult = await restaurantsResponse.json().catch(() => ({}));
+      const failedSections = [
+        ["states", statesResponse, statesResult],
+        ["riders", ridersResponse, ridersResult],
+        ["deliveries", deliveriesResponse, deliveriesResult],
+        ["withdrawals", withdrawalsResponse, withdrawalsResult],
+        ["company logs", companyLogsResponse, companyLogsResult],
+        ["site controls", siteControlsResponse, siteControlsResult],
+        ["risk/support", riskSignalsResponse, riskSignalsResult],
+        ["restaurants", restaurantsResponse, restaurantsResult]
+      ]
+        .filter(([, response]) => !(response as Response).ok)
+        .map(([label, , result]) => `${label}: ${String((result as { error?: string }).error || "request failed")}`);
 
       if (Array.isArray(statesResult.states)) setLaunchStates(statesResult.states);
-      if (Array.isArray(ridersResult.riders) && ridersResult.riders.length > 0) setAdminRiders(ridersResult.riders);
-      if (Array.isArray(deliveriesResult.deliveries) && deliveriesResult.deliveries.length > 0) setAdminDeliveries(deliveriesResult.deliveries);
-      if (Array.isArray(withdrawalsResult.withdrawals) && withdrawalsResult.withdrawals.length > 0) {
+      if (Array.isArray(ridersResult.riders)) setAdminRiders(ridersResult.riders);
+      if (Array.isArray(deliveriesResult.deliveries)) setAdminDeliveries(deliveriesResult.deliveries);
+      if (Array.isArray(withdrawalsResult.withdrawals)) {
         setAdminWithdrawals(withdrawalsResult.withdrawals);
       }
       if (Array.isArray(companyLogsResult.logs)) {
@@ -493,6 +505,8 @@ export function AdminPanel() {
       }
       if (statesResult.demo || ridersResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || riskSignalsResult.demo || restaurantsResult.demo) {
         setAdminMessage("Admin is running in demo mode. Add SUPABASE_SERVICE_ROLE_KEY in Netlify and run the Supabase schema to make launches, rider approvals, delivery timelines, withdrawals, site controls, risk signals, company logs, and restaurant menus write to Supabase.");
+      } else if (failedSections.length > 0) {
+        setAdminMessage(`Some admin sections did not load: ${failedSections.join("; ")}`);
       }
     } catch {
       setAdminMessage("Could not reach the admin API. Showing saved demo data for now.");
@@ -763,8 +777,7 @@ export function AdminPanel() {
         return;
       }
       const fallback = toLocalCompanyLog(payload, companyLogForm.id);
-      applyCompanyLog(fallback);
-      writeDemoCompanyLogs(upsertCompanyLog(companyLogs, fallback));
+      applyCompanyLog(fallback, true);
       setCompanyLogForm(blankCompanyTransactionForm());
       setAdminMessage("Saved in this browser for demo mode. Add SUPABASE_SERVICE_ROLE_KEY and run the schema to save company logs permanently.");
     } finally {
@@ -772,8 +785,12 @@ export function AdminPanel() {
     }
   }
 
-  function applyCompanyLog(log: CompanyTransactionLog) {
-    setCompanyLogs((current) => upsertCompanyLog(current, log));
+  function applyCompanyLog(log: CompanyTransactionLog, persistLocal = false) {
+    setCompanyLogs((current) => {
+      const next = upsertCompanyLog(current, log);
+      if (persistLocal) writeDemoCompanyLogs(next);
+      return next;
+    });
   }
 
   function editCompanyLog(log: CompanyTransactionLog) {

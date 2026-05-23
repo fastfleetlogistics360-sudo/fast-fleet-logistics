@@ -1,5 +1,6 @@
 import { Bike, Building2, Home, MapPin, Navigation2, PackageCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
+import type { LiveRiderLocation } from "@/components/realtime/use-live-delivery-tracking";
 
 const googleMapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -10,7 +11,8 @@ export function RoutePreview({
   status,
   riderName = "Verified rider",
   pickupAddress = "Victoria Island, Lagos",
-  dropoffAddress = "Ikeja GRA, Lagos"
+  dropoffAddress = "Ikeja GRA, Lagos",
+  riderLocation
 }: {
   compact?: boolean;
   className?: string;
@@ -19,9 +21,12 @@ export function RoutePreview({
   riderName?: string;
   pickupAddress?: string;
   dropoffAddress?: string;
+  riderLocation?: LiveRiderLocation | null;
 }) {
   const progress = statusProgress(status);
   const mapUrl = googleMapsKey ? googleDirectionsUrl(pickupAddress, dropoffAddress) : null;
+  const locationLabel = riderLocation ? `${riderLocation.latitude.toFixed(5)}, ${riderLocation.longitude.toFixed(5)}` : null;
+  const updatedLabel = riderLocation?.updated_at ? relativeUpdateLabel(riderLocation.updated_at) : null;
 
   if (mapUrl) {
     return (
@@ -39,6 +44,7 @@ export function RoutePreview({
             <div className="min-w-0">
               <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">{label}</span>
               <strong className="mt-1 block truncate text-lg font-black text-fleet-night">{riderName}</strong>
+              {locationLabel ? <span className="mt-1 block text-xs font-bold text-slate-500">Live driver: {locationLabel}{updatedLabel ? ` · ${updatedLabel}` : ""}</span> : null}
             </div>
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
               <Navigation2 className="h-3.5 w-3.5" />
@@ -86,6 +92,7 @@ export function RoutePreview({
           <div>
             <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">{label}</span>
             <strong className="mt-1 block text-lg font-black text-fleet-night">{riderName}</strong>
+            {locationLabel ? <span className="mt-1 block text-xs font-bold text-slate-500">Live driver: {locationLabel}{updatedLabel ? ` · ${updatedLabel}` : ""}</span> : null}
           </div>
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
             <Navigation2 className="h-3.5 w-3.5" />
@@ -111,6 +118,16 @@ export function RoutePreview({
   );
 }
 
+function relativeUpdateLabel(value: string) {
+  const updatedAt = new Date(value).getTime();
+  if (!Number.isFinite(updatedAt)) return "live";
+  const seconds = Math.max(0, Math.round((Date.now() - updatedAt) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return "recently";
+}
+
 function googleDirectionsUrl(origin: string, destination: string) {
   const params = new URLSearchParams({
     key: googleMapsKey || "",
@@ -128,6 +145,7 @@ function statusProgress(status?: string) {
     case "pending_payment":
     case "searching":
       return 12;
+    case "assigned":
     case "accepted":
     case "rider_arrived":
       return 28;
@@ -148,6 +166,7 @@ function movementLabel(status?: string) {
       return "Awaiting pay";
     case "searching":
       return "Finding rider";
+    case "assigned":
     case "accepted":
       return "To pickup";
     case "rider_arrived":

@@ -83,6 +83,13 @@ svg {
   background-size: 42px 42px;
 }
 
+.wallet-card-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

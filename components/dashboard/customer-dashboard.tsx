@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Bell, Home, MapPin, PackageCheck, Search, Settings, UserRound, WalletCards } from "lucide-react";
+import { Bell, Home, MapPin, PackageCheck, Search, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -10,8 +10,9 @@ import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
-import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
 import { RoutePreview } from "@/components/maps/route-preview";
+import { useLiveDeliveryTracking } from "@/components/realtime/use-live-delivery-tracking";
+import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +29,7 @@ type ProfileRow = {
   avatar_url?: string | null;
   lga?: string | null;
   default_zone?: string | null;
+  kyc_status?: string | null;
 };
 
 type WalletRow = {
@@ -43,6 +45,7 @@ type RiderInfo = {
 
 type OrderRow = {
   id: string;
+  rider_id?: string | null;
   delivery_code: string;
   pickup_address: string;
   dropoff_address: string;
@@ -153,11 +156,11 @@ export function CustomerDashboard() {
         if (!user) return;
 
         const [profileResult, walletResult, orderResult, promotionResult, addressResult] = await Promise.all([
-          supabase.from("profiles").select("id, full_name, email, phone, avatar_url, lga").eq("user_id", user.id).maybeSingle(),
+          supabase.from("profiles").select("id, full_name, email, phone, avatar_url, lga, kyc_status").eq("user_id", user.id).maybeSingle(),
           supabase.from("wallets").select("balance_ngn, locked_balance_ngn, balance").eq("user_id", user.id).maybeSingle(),
           supabase
             .from("deliveries")
-            .select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles(plate_number, vehicle_type, vehicle_color, users(full_name, phone))")
+            .select("id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles(plate_number, vehicle_type, vehicle_color, users(full_name, phone))")
             .eq("customer_id", user.id)
             .order("created_at", { ascending: false })
             .limit(50),
@@ -242,6 +245,29 @@ export function CustomerDashboard() {
     }
   }
 
+  const handleLiveDeliveryChange = useCallback((delivery: { id?: string; rider_id?: string | null; status?: string | null; eta_minutes?: number | null }) => {
+    if (!delivery.id) return;
+    setOrders((current) =>
+      current.map((order) =>
+        order.id === delivery.id
+          ? {
+              ...order,
+              rider_id: delivery.rider_id === undefined ? order.rider_id : delivery.rider_id,
+              status: delivery.status || order.status
+            }
+          : order
+      )
+    );
+    setSelectedOrder((current) => {
+      if (!current || current.id !== delivery.id) return current;
+      return {
+        ...current,
+        rider_id: delivery.rider_id === undefined ? current.rider_id : delivery.rider_id,
+        status: delivery.status || current.status
+      };
+    });
+  }, []);
+
   return (
     <section className="min-h-screen bg-fleet-paper pb-24 lg:pb-0">
       <div className="mx-auto grid max-w-7xl gap-0 lg:grid-cols-[260px_1fr]">
@@ -249,12 +275,12 @@ export function CustomerDashboard() {
         <main className="min-w-0 px-4 py-5 sm:px-6 lg:py-8">
           <DashboardHeader title={`${greetingText}, ${firstName}`} subtitle={`${symbol} Your FastFleet mobile workspace is ready.`} />
           {activeTab === "home" ? (
-            <HomeTab loading={loading} profile={profile} balance={balance} activeOrder={activeOrder} orders={orders} addresses={addresses} promotions={promotions} loadError={loadError} onSelectOrder={setSelectedOrder} />
+            <HomeTab loading={loading} profile={profile} balance={balance} lockedBalance={Number(wallet.locked_balance_ngn || 0)} activeOrder={activeOrder} orders={orders} addresses={addresses} promotions={promotions} loadError={loadError} onSelectOrder={setSelectedOrder} onLiveDeliveryChange={handleLiveDeliveryChange} />
           ) : null}
           {activeTab === "orders" ? (
             <OrdersTab loading={loading} orders={filteredOrders} filter={orderFilter} onFilter={setOrderFilter} onSelectOrder={setSelectedOrder} />
           ) : null}
-          {activeTab === "track" ? <TrackTab order={trackedOrder} searchCode={searchCode} onSearchCode={setSearchCode} /> : null}
+          {activeTab === "track" ? <TrackTab order={trackedOrder} searchCode={searchCode} onSearchCode={setSearchCode} onLiveDeliveryChange={handleLiveDeliveryChange} /> : null}
           {activeTab === "account" ? (
             <AccountTab
               profile={profile}
@@ -275,7 +301,7 @@ export function CustomerDashboard() {
         </main>
       </div>
       <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
-      {selectedOrder ? <OrderSheet order={selectedOrder} onClose={() => setSelectedOrder(null)} /> : null}
+      {selectedOrder ? <OrderSheet order={selectedOrder} onClose={() => setSelectedOrder(null)} onLiveDeliveryChange={handleLiveDeliveryChange} /> : null}
     </section>
   );
 }
@@ -334,22 +360,26 @@ function HomeTab({
   loading,
   profile,
   balance,
+  lockedBalance,
   activeOrder,
   orders,
   addresses,
   promotions,
   loadError,
-  onSelectOrder
+  onSelectOrder,
+  onLiveDeliveryChange
 }: {
   loading: boolean;
   profile: ProfileRow;
   balance: number;
+  lockedBalance: number;
   activeOrder: OrderRow | null;
   orders: OrderRow[];
   addresses: SavedAddress[];
   promotions: PromotionRow[];
   loadError: string | null;
   onSelectOrder: (order: OrderRow) => void;
+  onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null }) => void;
 }) {
   if (loading) return <DashboardSkeleton />;
   const completedOrders = orders.filter((order) => order.status === "delivered");
@@ -365,19 +395,19 @@ function HomeTab({
   return (
     <div className="grid gap-5">
       {loadError ? <div className="rounded-fleet bg-red-50 p-3 text-sm font-bold text-red-700">{loadError}</div> : null}
-      <Card id="wallet" className="overflow-hidden border-0 bg-fleet-night p-5 text-white shadow-[0_22px_58px_rgba(8,17,31,0.24)]">
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">Wallet balance</p>
-        <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-4xl font-black">{formatMoney(balance)}</h2>
-            <p className="mt-2 text-sm font-semibold text-white/70">{profile.lga || profile.default_zone || "Lagos"} delivery wallet</p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <SmartWalletTopUp className="bg-white text-fleet-night hover:bg-white" />
-            <LinkButton href="/support?topic=wallet-withdrawal" variant="secondary" className="border-white/20 bg-white/10 text-white hover:bg-white hover:text-fleet-night">Withdraw</LinkButton>
-          </div>
-        </div>
-      </Card>
+      <div id="wallet">
+        <WalletDashboardCard
+          userName={profile.full_name?.trim().split(/\s+/)[0] || "there"}
+          balance={balance}
+          lockedBalance={lockedBalance}
+          walletType="customer"
+          accountKind="customer"
+          kycStatus={profile.kyc_status === "approved" ? "verified" : profile.kyc_status === "rejected" ? "more_info_needed" : "pending"}
+          returnTo="/dashboard"
+          onWithdraw={() => window.location.assign("/support?topic=wallet-withdrawal")}
+          transactionHref="/dashboard#transactions"
+        />
+      </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryTile label="This month" value={formatMoney(monthlySpend)} />
@@ -406,14 +436,12 @@ function HomeTab({
           <h2 className="text-xl font-black text-fleet-night">Live delivery map</h2>
           <p className="mt-1 text-sm font-semibold text-slate-600">{activeOrder ? activeOrder.delivery_code : "Your next route preview appears here."}</p>
         </div>
-        <RoutePreview
+        <DeliveryRouteMap
           compact
           className="rounded-none border-x-0 border-b-0"
           label="Customer live map"
-          status={activeOrder?.status}
-          riderName={activeOrder?.rider_profiles?.users?.full_name || "FastFleet rider"}
-          pickupAddress={activeOrder?.pickup_address || "Victoria Island, Lagos"}
-          dropoffAddress={activeOrder?.dropoff_address || "Ikeja GRA, Lagos"}
+          order={activeOrder}
+          onLiveDeliveryChange={onLiveDeliveryChange}
         />
       </Card>
 
@@ -488,7 +516,10 @@ function ActiveDeliveryCard({ order, onSelect }: { order: OrderRow; onSelect: ()
         <StatusBadge tone={statusTone(order.status)}>{order.status.replaceAll("_", " ")}</StatusBadge>
       </div>
       <p className="mt-4 text-sm font-semibold leading-6 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p>
-      <Button type="button" className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night" onClick={onSelect}>Track</Button>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <LinkButton href={`/account/orders/${order.id}/track`} className="w-full bg-fleet-navy hover:bg-fleet-night">Live track</LinkButton>
+        <Button type="button" variant="secondary" className="w-full" onClick={onSelect}>Details</Button>
+      </div>
     </Card>
   );
 }
@@ -526,6 +557,7 @@ function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?:
         <strong className="text-sm font-black text-fleet-night">{formatMoney(order.price_ngn)}</strong>
         <div className="flex gap-2">
           {!compact ? <Button type="button" size="sm" variant="secondary" onClick={onSelect}>View details</Button> : null}
+          <LinkButton href={`/account/orders/${order.id}/track`} size="sm" variant="secondary">Live track</LinkButton>
           <LinkButton href={`/book?reorder=${order.delivery_code}`} size="sm">Re-order</LinkButton>
         </div>
       </div>
@@ -533,9 +565,9 @@ function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?:
   );
 }
 
-function TrackTab({ order, searchCode, onSearchCode }: { order: OrderRow | null; searchCode: string; onSearchCode: (value: string) => void }) {
+function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange }: { order: OrderRow | null; searchCode: string; onSearchCode: (value: string) => void; onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null }) => void }) {
   const steps = ["Booked", "Rider assigned", "Picked up", "In transit", "Delivered"];
-  const currentStep = order ? Math.max(0, ["pending", "assigned", "picked_up", "in_transit", "delivered"].findIndex((status) => status === order.status)) : 0;
+  const currentStep = order ? customerStepIndex(order.status) : 0;
   return (
     <div className="grid gap-5">
       <label className="form-field">
@@ -558,12 +590,10 @@ function TrackTab({ order, searchCode, onSearchCode }: { order: OrderRow | null;
               ))}
             </div>
           </Card>
-          <RoutePreview
+          <DeliveryRouteMap
             label="Live delivery map"
-            status={order.status}
-            riderName={order.rider_profiles?.users?.full_name || "Rider pending"}
-            pickupAddress={order.pickup_address}
-            dropoffAddress={order.dropoff_address}
+            order={order}
+            onLiveDeliveryChange={onLiveDeliveryChange}
           />
           <Card className="p-4">
             <h3 className="text-lg font-black text-fleet-night">Rider info</h3>
@@ -576,6 +606,14 @@ function TrackTab({ order, searchCode, onSearchCode }: { order: OrderRow | null;
       )}
     </div>
   );
+}
+
+function customerStepIndex(status: string) {
+  if (["delivered"].includes(status)) return 4;
+  if (["in_transit"].includes(status)) return 3;
+  if (["picked_up"].includes(status)) return 2;
+  if (["assigned", "accepted", "rider_arrived"].includes(status)) return 1;
+  return 0;
 }
 
 function AccountTab({
@@ -672,7 +710,7 @@ function Field({ label, value, onChange, readOnly }: { label: string; value: str
   );
 }
 
-function OrderSheet({ order, onClose }: { order: OrderRow; onClose: () => void }) {
+function OrderSheet({ order, onClose, onLiveDeliveryChange }: { order: OrderRow; onClose: () => void; onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null }) => void }) {
   return (
     <div className="fixed inset-0 z-[120] grid place-items-end bg-fleet-night/35 p-3 sm:place-items-center">
       <Card className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto p-5">
@@ -694,14 +732,15 @@ function OrderSheet({ order, onClose }: { order: OrderRow; onClose: () => void }
         <div className="mt-5 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">
           Rider: {order.rider_profiles?.users?.full_name || "Pending"} · Plate: {order.rider_profiles?.plate_number || "Pending"}
         </div>
-        <RoutePreview
+        <LinkButton href={`/account/orders/${order.id}/track`} className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night">
+          Open live tracking
+        </LinkButton>
+        <DeliveryRouteMap
           compact
           className="mt-4"
           label="Order live map"
-          status={order.status}
-          riderName={order.rider_profiles?.users?.full_name || "Rider pending"}
-          pickupAddress={order.pickup_address}
-          dropoffAddress={order.dropoff_address}
+          order={order}
+          onLiveDeliveryChange={onLiveDeliveryChange}
         />
         {order.proof_url ? (
           <Image src={order.proof_url} alt="Proof of delivery" width={720} height={360} unoptimized className="mt-4 max-h-64 w-full rounded-fleet object-cover" />
@@ -709,6 +748,39 @@ function OrderSheet({ order, onClose }: { order: OrderRow; onClose: () => void }
         <Button type="button" className="mt-5 w-full bg-fleet-navy hover:bg-fleet-night">Download receipt</Button>
       </Card>
     </div>
+  );
+}
+
+function DeliveryRouteMap({
+  order,
+  compact,
+  className,
+  label,
+  onLiveDeliveryChange
+}: {
+  order: OrderRow | null;
+  compact?: boolean;
+  className?: string;
+  label: string;
+  onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null }) => void;
+}) {
+  const { delivery, riderLocation } = useLiveDeliveryTracking({
+    deliveryId: order?.id,
+    riderId: order?.rider_id,
+    onDeliveryChange: onLiveDeliveryChange
+  });
+
+  return (
+    <RoutePreview
+      compact={compact}
+      className={className}
+      label={label}
+      status={delivery?.status || order?.status}
+      riderName={order?.rider_profiles?.users?.full_name || "FastFleet rider"}
+      pickupAddress={order?.pickup_address || "Victoria Island, Lagos"}
+      dropoffAddress={order?.dropoff_address || "Ikeja GRA, Lagos"}
+      riderLocation={riderLocation}
+    />
   );
 }
 
@@ -730,6 +802,7 @@ function readLocalDeliveries(): OrderRow[] {
       .filter((item) => item.delivery_code)
       .map((item, index) => ({
         id: item.id || `local-${item.delivery_code || index}`,
+        rider_id: item.rider_id || null,
         delivery_code: String(item.delivery_code).toUpperCase(),
         pickup_address: item.pickup_address || item.pickup || (item.source?.includes("restaurant") ? "Restaurant pickup" : "Marketplace pickup"),
         dropoff_address: item.dropoff_address || item.dropoff || "Customer delivery address",

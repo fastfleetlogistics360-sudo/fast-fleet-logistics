@@ -1,17 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Bike, Building2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, MailCheck, Phone, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { normalizeRole, roleHome } from "@/lib/auth/roles";
+import { normalizeRole, parseUserRole, roleHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
 import type { UserRole } from "@/types/domain";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { GoogleIcon } from "@/components/icons/social-icons";
+import { AppleIcon, GoogleIcon } from "@/components/icons/social-icons";
 
 const roleOptions: Array<{
   role: Exclude<UserRole, "admin">;
@@ -59,11 +59,7 @@ type ProfileRecord = {
 };
 
 function roleFromRequest(value: string | null): UserRole | undefined {
-  if (value === "driver" || value === "rider") return "rider";
-  if (value === "business") return "business";
-  if (value === "admin") return "admin";
-  if (value === "customer") return "customer";
-  return undefined;
+  return parseUserRole(value) || undefined;
 }
 
 function formatNigerianPhone(value: string) {
@@ -108,6 +104,7 @@ export function PhoneAuthForm({
   const [fullName, setFullName] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<"google" | "apple" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -132,8 +129,13 @@ export function PhoneAuthForm({
     });
   }
 
+  useEffect(() => {
+    const error = searchParams.get("error_description") || searchParams.get("error");
+    if (error && !message) setMessage(error);
+  }, [message, searchParams]);
+
   function redirectForRole(userRole: UserRole) {
-    router.replace(returnToOverride || returnTo || roleHome[userRole]);
+    router.replace(safeDashboardRedirectForRole(returnToOverride || returnTo, userRole));
     router.refresh();
   }
 
@@ -288,26 +290,27 @@ export function PhoneAuthForm({
     }
   }
 
-  async function continueWithGoogle() {
-    setLoading(true);
+  async function continueWithOAuth(provider: "google" | "apple") {
+    setOauthLoading(provider);
     setMessage(null);
     try {
       const supabase = createClient();
+      const roleParam = mode === "signup" || effectiveLockedRole ? `&role=${encodeURIComponent(role)}` : "";
       const redirectTo =
         typeof window === "undefined"
           ? undefined
-          : `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(safeDestination)}&role=${encodeURIComponent(role)}`;
+          : `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(safeDestination)}${roleParam}`;
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
+        provider,
         options: {
           redirectTo,
-          queryParams: { access_type: "offline", prompt: "consent" }
+          queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : undefined
         }
       });
       if (error) throw error;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not continue with Google.");
-      setLoading(false);
+      setMessage(error instanceof Error ? error.message : `Could not continue with ${provider === "google" ? "Google" : "Apple"}.`);
+      setOauthLoading(null);
     }
   }
 
@@ -535,9 +538,13 @@ export function PhoneAuthForm({
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : method === "phone" ? <Phone className="h-4 w-4" /> : <KeyRound className="h-4 w-4" />}
           {method === "phone" ? (otpSent ? "Verify OTP" : "Send OTP") : mode === "signup" ? "Create account" : "Sign in"}
         </Button>
-        <Button type="button" variant="secondary" onClick={continueWithGoogle} disabled={loading} className="w-full">
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon className="h-4 w-4" />}
+        <Button type="button" variant="secondary" onClick={() => continueWithOAuth("google")} disabled={loading || Boolean(oauthLoading)} className="w-full">
+          {oauthLoading === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon className="h-4 w-4" />}
           Continue with Google
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => continueWithOAuth("apple")} disabled={loading || Boolean(oauthLoading)} className="w-full">
+          {oauthLoading === "apple" ? <Loader2 className="h-4 w-4 animate-spin" /> : <AppleIcon className="h-4 w-4" />}
+          Continue with Apple
         </Button>
         {mode === "login" && method === "email" ? (
           <button type="button" onClick={resetPassword} disabled={loading} className="inline-flex items-center justify-center gap-2 text-sm font-black text-fleet-navy hover:text-fleet-ember disabled:opacity-50">

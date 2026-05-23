@@ -77,6 +77,7 @@ export async function PATCH(request: Request) {
     title: status.replaceAll("_", " "),
     body: "Admin updated this customer delivery timeline."
   });
+  await supabase.from("delivery_locations").update({ status, updated_at: timestamp }).eq("order_id", id);
 
   const riderProfiles = data.rider_profiles as { user_id?: string | null } | null;
   await Promise.allSettled([

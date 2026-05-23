@@ -108,8 +108,12 @@ export interface Database {
           rider_id: string | null;
           pickup_address: string;
           pickup_contact: string | null;
+          pickup_latitude: number | null;
+          pickup_longitude: number | null;
           dropoff_address: string;
           dropoff_contact: string | null;
+          dropoff_latitude: number | null;
+          dropoff_longitude: number | null;
           parcel_type: string;
           vehicle_type: VehicleType;
           delivery_speed: DeliverySpeed;
@@ -122,6 +126,7 @@ export interface Database {
           accepted_at: string | null;
           picked_up_at: string | null;
           delivered_at: string | null;
+          proof_url: string | null;
           metadata: Json;
           created_at: string;
           updated_at: string;
@@ -389,6 +394,27 @@ export interface Database {
           longitude: number;
         };
         Update: Partial<Database["public"]["Tables"]["rider_locations"]["Row"]>;
+      };
+      delivery_locations: {
+        Row: {
+          id: string;
+          order_id: string;
+          rider_id: string;
+          latitude: number;
+          longitude: number;
+          heading: number | null;
+          speed: number | null;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["delivery_locations"]["Row"]> & {
+          order_id: string;
+          rider_id: string;
+          latitude: number;
+          longitude: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["delivery_locations"]["Row"]>;
       };
       platform_settings: {
         Row: {

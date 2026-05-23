@@ -5,7 +5,7 @@ import type { DeliveryStatus } from "@/types/domain";
 const statusFlow: Record<string, DeliveryStatus> = {
   accepted: "rider_arrived",
   rider_arrived: "picked_up",
-  picked_up: "delivered",
+  picked_up: "in_transit",
   in_transit: "delivered"
 };
 
@@ -64,6 +64,7 @@ export async function POST(request: Request) {
       title: nextStatus.replaceAll("_", " "),
       body: "Rider updated this delivery."
     });
+    await supabase.from("delivery_locations").update({ status: nextStatus, updated_at: timestamp }).eq("order_id", id);
 
     return updateResponse(supabase, id);
   } catch (error) {

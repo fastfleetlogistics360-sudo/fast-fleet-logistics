@@ -1,12 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { UserRole } from "@/types/domain";
+import { legacyRoleHome, parseUserRole, roleHome } from "@/lib/auth/roles";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/book", "/rider/dashboard", "/business/dashboard"];
+const PROTECTED_PREFIXES = ["/dashboard", "/customer/dashboard", "/book", "/account/orders", "/choose-account-type", "/rider/dashboard", "/business/dashboard", "/admin/dashboard"];
 
 const ROLE_PREFIXES: Array<{ prefix: string; roles: UserRole[] }> = [
-  { prefix: "/rider/dashboard", roles: ["rider", "admin"] },
-  { prefix: "/business/dashboard", roles: ["business", "admin"] }
+  { prefix: "/customer/dashboard", roles: ["customer"] },
+  { prefix: "/dashboard", roles: ["customer"] },
+  { prefix: "/rider/dashboard", roles: ["rider"] },
+  { prefix: "/business/dashboard", roles: ["business"] },
+  { prefix: "/admin/dashboard", roles: ["admin"] }
 ];
 
 export async function middleware(request: NextRequest) {
@@ -48,11 +52,14 @@ export async function middleware(request: NextRequest) {
 
   const roleRule = ROLE_PREFIXES.find((rule) => pathname.startsWith(rule.prefix));
   if (roleRule && user) {
-    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).maybeSingle();
-    const role = (profile?.role || user.user_metadata?.role || user.user_metadata?.account_type || "customer") as UserRole;
+    const [{ data: appUser }, { data: profile }] = await Promise.all([
+      supabase.from("users").select("role").eq("id", user.id).maybeSingle<{ role?: string | null }>(),
+      supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>()
+    ]);
+    const role = parseUserRole(profile?.account_type || appUser?.role || user.user_metadata?.account_type || user.user_metadata?.role) || "customer";
     if (!roleRule.roles.includes(role)) {
       const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = "/dashboard";
+      redirectUrl.pathname = roleHome[role] || legacyRoleHome[role];
       redirectUrl.searchParams.set("access", "restricted");
       return NextResponse.redirect(redirectUrl);
     }
