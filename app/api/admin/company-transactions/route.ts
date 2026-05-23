@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import type { Database } from "@/lib/supabase/types";
 
 type CompanyTransactionInsert = Database["public"]["Tables"]["company_transaction_logs"]["Insert"];
@@ -69,7 +70,8 @@ export async function GET() {
 
   const supabase = createAdminClient();
   if (!supabase) {
-    return NextResponse.json({ logs: demoLogs, demo: true });
+    if (canUseDemoFallback()) return NextResponse.json({ logs: demoLogs, demo: true });
+    return NextResponse.json(missingServiceResponse("company transaction logs"), { status: 503 });
   }
 
   const { data, error } = await supabase

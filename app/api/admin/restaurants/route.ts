@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import type { Json } from "@/lib/supabase/types";
 import {
   defaultRestaurantKitchens,
@@ -15,7 +16,8 @@ export async function GET() {
 
   const supabase = createAdminClient();
   if (!supabase) {
-    return NextResponse.json({ restaurants: defaultRestaurantKitchens, demo: true });
+    if (canUseDemoFallback()) return NextResponse.json({ restaurants: defaultRestaurantKitchens, demo: true });
+    return NextResponse.json(missingServiceResponse("restaurant menus"), { status: 503 });
   }
 
   const { data, error } = await supabase.from("platform_settings").select("value").eq("key", restaurantMenuSettingsKey).maybeSingle();

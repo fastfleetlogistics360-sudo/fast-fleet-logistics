@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 
 const demoRiskSignals = [
   {
@@ -45,7 +46,8 @@ export async function GET() {
 
   const supabase = createAdminClient();
   if (!supabase) {
-    return NextResponse.json({ riskSignals: demoRiskSignals, supportTickets: demoSupportTickets, demo: true });
+    if (canUseDemoFallback()) return NextResponse.json({ riskSignals: demoRiskSignals, supportTickets: demoSupportTickets, demo: true });
+    return NextResponse.json(missingServiceResponse("risk and support queues"), { status: 503 });
   }
 
   const [riskResult, supportResult] = await Promise.all([

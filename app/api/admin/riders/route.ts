@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import type { RiderApplicationStatus } from "@/types/domain";
 
 const riderStatuses = new Set(["pending_review", "submitted", "under_review", "approved", "rejected", "more_info_required"]);
@@ -30,7 +31,8 @@ export async function GET() {
 
   const supabase = createAdminClient();
   if (!supabase) {
-    return NextResponse.json({ riders: demoRiders, demo: true });
+    if (canUseDemoFallback()) return NextResponse.json({ riders: demoRiders, demo: true });
+    return NextResponse.json(missingServiceResponse("admin riders"), { status: 503 });
   }
 
   await supabase

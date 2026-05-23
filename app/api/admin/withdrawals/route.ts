@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 
 export async function GET() {
   if (!(await requireAdminSession())) {
@@ -9,7 +10,8 @@ export async function GET() {
 
   const supabase = createAdminClient();
   if (!supabase) {
-    return NextResponse.json({ withdrawals: [], demo: true });
+    if (canUseDemoFallback()) return NextResponse.json({ withdrawals: [], demo: true });
+    return NextResponse.json(missingServiceResponse("withdrawals"), { status: 503 });
   }
 
   const { data, error } = await supabase

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { defaultLaunchStateRecords, normalizeState } from "@/lib/launch-states";
+import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 
 export async function GET() {
   if (!(await requireAdminSession())) {
@@ -11,7 +12,8 @@ export async function GET() {
   const supabase = createAdminClient();
   const fallback = defaultLaunchStateRecords();
   if (!supabase) {
-    return NextResponse.json({ states: fallback, demo: true });
+    if (canUseDemoFallback()) return NextResponse.json({ states: fallback, demo: true });
+    return NextResponse.json(missingServiceResponse("launch states"), { status: 503 });
   }
 
   const [launchResult, waitlistResult] = await Promise.all([

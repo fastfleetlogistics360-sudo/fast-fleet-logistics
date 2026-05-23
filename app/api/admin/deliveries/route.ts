@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import type { DeliveryStatus } from "@/types/domain";
 
 const deliveryStatuses = new Set(["pending_payment", "searching", "accepted", "rider_arrived", "picked_up", "in_transit", "delivered", "cancelled"]);
@@ -26,7 +27,10 @@ export async function GET() {
   }
 
   const supabase = createAdminClient();
-  if (!supabase) return NextResponse.json({ deliveries: demoDeliveries, demo: true });
+  if (!supabase) {
+    if (canUseDemoFallback()) return NextResponse.json({ deliveries: demoDeliveries, demo: true });
+    return NextResponse.json(missingServiceResponse("admin deliveries"), { status: 503 });
+  }
 
   const { data, error } = await supabase
     .from("deliveries")
