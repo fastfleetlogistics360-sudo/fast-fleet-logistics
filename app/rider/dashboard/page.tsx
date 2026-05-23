@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { RiderAccessState, RiderDashboard } from "@/components/rider/rider-dashboard";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeRole, roleHome } from "@/lib/auth/roles";
+import { parseUserRole, roleHome } from "@/lib/auth/roles";
 
 export const metadata: Metadata = {
   title: "Rider Dashboard"
@@ -26,7 +26,8 @@ export default async function RiderDashboardPage() {
   if (!user) redirect("/auth?returnTo=/rider/dashboard&account=rider");
 
   const { data: profile } = await supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>();
-  const role = normalizeRole(profile?.account_type || user.user_metadata?.account_type || user.user_metadata?.role);
+  const role = parseUserRole(profile?.account_type);
+  if (!role) redirect("/choose-account-type?returnTo=/rider/dashboard");
   if (role !== "rider") redirect(roleHome[role]);
 
   const [applicationResult, riderProfileResult] = await Promise.all([

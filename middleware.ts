@@ -56,7 +56,13 @@ export async function middleware(request: NextRequest) {
       supabase.from("users").select("role").eq("id", user.id).maybeSingle<{ role?: string | null }>(),
       supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>()
     ]);
-    const role = parseUserRole(profile?.account_type || appUser?.role || user.user_metadata?.account_type || user.user_metadata?.role) || "customer";
+    const role = roleRule.roles.includes("admin") ? parseUserRole(profile?.account_type || appUser?.role) : parseUserRole(profile?.account_type);
+    if (!role) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/choose-account-type";
+      redirectUrl.searchParams.set("returnTo", pathname);
+      return NextResponse.redirect(redirectUrl);
+    }
     if (!roleRule.roles.includes(role)) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = roleHome[role] || legacyRoleHome[role];

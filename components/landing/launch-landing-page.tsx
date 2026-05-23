@@ -2,36 +2,36 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Bike, Building2, ChevronRight, LogIn, UserPlus, X } from "lucide-react";
+import { Bike, Building2, ChevronRight, LogIn, Play, Smartphone, UserPlus, X } from "lucide-react";
 import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
 import { Button } from "@/components/ui/button";
 
 const landingSlides = [
   {
-    image: "/hero/customer-control.svg",
+    image: "https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?auto=format&fit=crop&w=1600&q=82",
     eyebrow: "FastFleet Logistics",
     title: "Same-day dispatch for customers, riders, and businesses.",
     body: "Book deliveries, track riders, fund wallets, and manage operations from one clean FastFleet workspace."
   },
   {
-    image: "/hero/same-day-dispatch.svg",
+    image: "https://images.unsplash.com/photo-1580674285054-bed31e145f59?auto=format&fit=crop&w=1600&q=82",
     eyebrow: "Live movement",
     title: "Every parcel gets a clear route and visible status.",
     body: "FastFleet keeps pickup, transit, delivery, support, and wallet actions close to the people who need them."
   },
   {
-    image: "/hero/vehicle-income.svg",
-    eyebrow: "Driver income",
-    title: "Turn your vehicle into verified delivery work.",
-    body: "Drivers can register, complete review, go online, receive jobs, and manage earnings from the dashboard."
+    image: "https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=1600&q=82",
+    eyebrow: "Food delivery",
+    title: "Restaurant orders move with the same FastFleet care.",
+    body: "Food vendors and customers can keep meals, riders, and delivery updates in one reliable flow."
   },
   {
-    image: "/hero/business-logistics.svg",
-    eyebrow: "Business logistics",
-    title: "A sharper dispatch layer for vendors and teams.",
+    image: "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=1600&q=82",
+    eyebrow: "Shopping delivery",
+    title: "Shopping, parcels, and business deliveries stay organized.",
     body: "Businesses get saved pickup points, route tracking, wallet controls, receipts, and support."
   }
 ];
@@ -54,48 +54,40 @@ export function LaunchLandingPage() {
   }, [reduceMotion]);
 
   return (
-    <section className="relative isolate grid min-h-screen overflow-hidden bg-fleet-night px-4 py-8 text-white sm:px-6">
-      <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={slide.image}
-            className="absolute inset-0"
-            initial={reduceMotion ? false : { opacity: 0, scale: 1.04 }}
-            animate={reduceMotion ? undefined : { opacity: 1, scale: 1 }}
-            exit={reduceMotion ? undefined : { opacity: 0, scale: 1.02 }}
-            transition={{ duration: 1.1, ease: "easeOut" }}
-          >
-            <Image src={slide.image} alt={slide.title} fill className="object-cover object-center" sizes="100vw" priority />
-          </motion.div>
-        </AnimatePresence>
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,17,31,0.96),rgba(8,17,31,0.74)_48%,rgba(8,17,31,0.34)),linear-gradient(180deg,rgba(8,17,31,0.22),rgba(8,17,31,0.88))]" />
-      </div>
+    <section className="relative isolate min-h-screen overflow-hidden bg-[#071426] px-4 py-6 text-white sm:px-6 sm:py-8">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-white/[0.03]" aria-hidden="true" />
+      <div className="section-wrap relative z-10 grid min-h-[calc(100vh-48px)] content-center gap-8 py-4 sm:py-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(440px,1fr)] lg:items-center">
+        <div className="max-w-2xl">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/fastfleet-logo.png"
+              alt="FastFleet Logistics"
+              width={64}
+              height={64}
+              className="h-14 w-14 rounded-fleet border border-white/15 bg-white object-cover p-1 shadow-[0_18px_40px_rgba(0,0,0,0.22)]"
+              priority
+            />
+            <span className="grid">
+              <strong className="text-base font-black">FastFleet Logistics</strong>
+              <span className="text-[0.66rem] font-black uppercase tracking-[0.26em] text-fleet-gold">Premium dispatch app</span>
+            </span>
+          </div>
 
-      <div className="section-wrap relative z-10 grid min-h-[calc(100vh-64px)] content-center">
-        <div className="max-w-3xl">
-          <Image
-            src="/fastfleet-logo.png"
-            alt="FastFleet Logistics"
-            width={86}
-            height={86}
-            className="h-20 w-20 rounded-fleet border border-white/20 bg-white object-cover p-1 shadow-[0_20px_60px_rgba(0,0,0,0.24)]"
-            priority
-          />
           <AnimatePresence mode="wait">
             <motion.div
               key={slide.title}
-              initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+              initial={reduceMotion ? false : { opacity: 0, y: 14 }}
               animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-              exit={reduceMotion ? undefined : { opacity: 0, y: -12 }}
-              transition={{ duration: 0.56, ease: "easeOut" }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -10 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
             >
-              <span className="mt-8 inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-fleet-gold backdrop-blur-xl">
+              <span className="mt-7 inline-flex rounded-full border border-white/10 bg-white/[0.07] px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-fleet-gold shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
                 {slide.eyebrow}
               </span>
-              <h1 className="mt-5 max-w-4xl text-4xl font-black leading-[0.95] text-white drop-shadow-[0_8px_28px_rgba(0,0,0,0.42)] sm:text-6xl lg:text-7xl">
+              <h1 className="mt-5 max-w-3xl text-4xl font-black leading-[0.98] text-white sm:text-6xl">
                 {slide.title}
               </h1>
-              <p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-white/85 sm:text-lg">
+              <p className="mt-5 max-w-xl text-base font-semibold leading-7 text-white/78 sm:text-lg">
                 {slide.body}
               </p>
             </motion.div>
@@ -133,13 +125,39 @@ export function LaunchLandingPage() {
             </Link>
           </div>
 
-          <div className="mt-10 flex gap-2">
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            <StoreBadge icon={<Smartphone className="h-4 w-4" />} label="App Store" />
+            <StoreBadge icon={<Play className="h-4 w-4" />} label="Play Store" />
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-white/62">Mobile apps coming soon</span>
+          </div>
+        </div>
+
+        <div className="relative min-h-[280px] sm:min-h-[420px] lg:min-h-[560px]">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={slide.image}
+              className="absolute inset-0 overflow-hidden rounded-[28px] border border-white/10 bg-white shadow-[0_30px_90px_rgba(0,0,0,0.36)]"
+              initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.985 }}
+              animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -12, scale: 0.99 }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <Image src={slide.image} alt={slide.title} fill className="object-cover object-center" sizes="(min-width: 1024px) 50vw, 100vw" priority />
+              <div className="absolute inset-x-4 bottom-4 rounded-[20px] border border-white/65 bg-white/92 p-4 text-fleet-night shadow-[0_18px_45px_rgba(8,17,31,0.16)] backdrop-blur-md sm:inset-x-5 sm:bottom-5 sm:p-5">
+                <span className="text-[0.66rem] font-black uppercase tracking-[0.16em] text-fleet-ember">Live app preview</span>
+                <strong className="mt-1 block text-lg font-black leading-tight sm:text-2xl">{slide.eyebrow}</strong>
+                <p className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-slate-600 sm:text-sm">{slide.body}</p>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+
+          <div className="absolute -bottom-4 left-4 right-4 flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-3 shadow-[0_18px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:left-10 sm:right-auto">
             {landingSlides.map((item, index) => (
               <button
                 key={item.title}
                 type="button"
                 onClick={() => setActive(index)}
-                className={`h-1.5 rounded-full transition-all ${active === index ? "w-12 bg-fleet-gold" : "w-5 bg-white/45 hover:bg-white/75"}`}
+                className={`h-2 rounded-full transition-all ${active === index ? "w-10 bg-fleet-gold" : "w-2 bg-white/55 hover:bg-white"}`}
                 aria-label={`Show landing slide ${index + 1}`}
               />
             ))}
@@ -149,6 +167,15 @@ export function LaunchLandingPage() {
 
       {authIntent ? <AuthModal intent={authIntent} onClose={() => setAuthIntent(null)} /> : null}
     </section>
+  );
+}
+
+function StoreBadge({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <span className="inline-flex min-h-10 items-center gap-2 rounded-fleet border border-white/12 bg-white/[0.08] px-3 text-xs font-black text-white shadow-[0_14px_30px_rgba(0,0,0,0.16)]">
+      {icon}
+      <span>{label}</span>
+    </span>
   );
 }
 

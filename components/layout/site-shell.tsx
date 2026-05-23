@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ComponentPropsWithoutRef, ReactElement, ReactNode } from "react";
 import {
@@ -18,7 +18,10 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { dashboardMenuForPath } from "@/lib/dashboard-menus";
+import { dashboardMenuForRole, flattenDashboardMenu } from "@/lib/dashboard-menus";
+import type { DashboardMenuItem } from "@/lib/dashboard-menus";
+import { parseUserRole, roleHome } from "@/lib/auth/roles";
+import type { UserRole } from "@/types/domain";
 import { LinkButton } from "@/components/ui/button";
 import { FacebookIcon, InstagramIcon, LinkedinIcon, XIcon } from "@/components/icons/social-icons";
 import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
@@ -56,13 +59,22 @@ const socialItems: Array<{ href: string; label: string; icon: (props: ComponentP
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const isLaunchLanding = pathname === "/";
   const isAdminEnvironment = pathname.startsWith("/admin");
-  const isDashboardEnvironment = pathname === "/dashboard" || pathname.startsWith("/rider/dashboard") || pathname.startsWith("/business/dashboard");
+  const isDashboardEnvironment =
+    pathname === "/dashboard" ||
+    pathname.startsWith("/customer/dashboard") ||
+    pathname.startsWith("/account/orders") ||
+    pathname.startsWith("/rider/dashboard") ||
+    pathname.startsWith("/business/dashboard");
   const hasSiteChrome = !isLaunchLanding && !isAdminEnvironment;
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState<string | null>(null);
-  const dashboardMenu = dashboardMenuForPath(pathname);
+  const [accountRole, setAccountRole] = useState<UserRole | null>(null);
+  const dashboardMenu = isDashboardEnvironment ? dashboardMenuForRole(accountRole) : null;
+  const dashboardBottomItems = dashboardMenu ? flattenDashboardMenu(dashboardMenu).filter((item) => item.href !== "__logout").slice(0, 5) : [];
+  const dashboardHomeHref = accountRole ? roleHome[accountRole] : "/choose-account-type";
 
   useEffect(() => {
     try {
@@ -70,19 +82,28 @@ export function SiteShell({ children }: { children: ReactNode }) {
       supabase.auth.getUser().then(async ({ data }) => {
         if (!data.user) {
           setAccountName(null);
+          setAccountRole(null);
           return;
         }
-        const { data: profile } = await supabase.from("users").select("full_name, email").eq("id", data.user.id).maybeSingle();
-        setAccountName(profile?.full_name || profile?.email || data.user.email || data.user.phone || "Account");
+        const [{ data: profile }, { data: appUser }] = await Promise.all([
+          supabase.from("profiles").select("account_type").eq("user_id", data.user.id).maybeSingle<{ account_type?: string | null }>(),
+          supabase.from("users").select("full_name, email").eq("id", data.user.id).maybeSingle<{ full_name?: string | null; email?: string | null }>()
+        ]);
+        const role = parseUserRole(profile?.account_type);
+        setAccountRole(role);
+        setAccountName(appUser?.full_name || appUser?.email || data.user.email || data.user.phone || "Account");
+        if (isDashboardEnvironment && !role) router.replace("/choose-account-type");
       });
       const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
         setAccountName(session?.user?.user_metadata?.full_name || session?.user?.email || session?.user?.phone || null);
+        if (!session?.user) setAccountRole(null);
       });
       return () => listener.subscription.unsubscribe();
     } catch {
       setAccountName(null);
+      setAccountRole(null);
     }
-  }, []);
+  }, [isDashboardEnvironment, router]);
 
   useEffect(() => {
     if (!open) return;
@@ -153,7 +174,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <SmartWalletTopUp />
             {accountName ? (
               <>
-                <LinkButton href="/dashboard" variant="secondary" size="md">
+                <LinkButton href={dashboardHomeHref} variant="secondary" size="md">
                   {accountName.split(" ")[0]}
                 </LinkButton>
                 <button type="button" className="rounded-fleet px-3 py-2 text-sm font-extrabold text-fleet-night" onClick={signOut}>
@@ -233,28 +254,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
                     <div className="border-b border-fleet-line px-3 py-2 text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500">{section.title}</div>
                     <div className="grid gap-1 p-1.5">
                       {section.items.map((item) => {
-                        const Icon = item.icon;
-                        const active = pathname === item.href;
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            className={cn(
-                              "flex items-center gap-3 rounded-fleet px-3 py-3 text-left transition",
-                              active ? "bg-fleet-night text-white" : "text-slate-700 hover:bg-fleet-paper"
-                            )}
-                            onClick={() => setOpen(false)}
-                          >
-                            <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-fleet", active ? "bg-white/10 text-white" : "bg-fleet-paper text-fleet-ember")}>
-                              <Icon className="h-4 w-4" />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <strong className="block text-sm font-black">{item.title}</strong>
-                              <span className={cn("block text-xs font-bold leading-5", active ? "text-white/70" : "text-slate-500")}>{item.body}</span>
-                            </span>
-                            {item.tag ? <span className="rounded-full bg-fleet-gold/20 px-2 py-1 text-[0.65rem] font-black text-fleet-ember">{item.tag}</span> : null}
-                          </Link>
-                        );
+                        return <DashboardMenuLink key={item.href} item={item} pathname={pathname} onNavigate={() => setOpen(false)} onLogout={signOut} />;
                       })}
                     </div>
                   </div>
@@ -282,7 +282,25 @@ export function SiteShell({ children }: { children: ReactNode }) {
         </div>
       ) : null}
 
-      <main className={isLaunchLanding || isAdminEnvironment ? "" : "pb-20 lg:pb-0"}>{children}</main>
+      {dashboardMenu ? (
+        <aside className="fixed bottom-6 left-4 top-24 z-30 hidden w-72 overflow-y-auto rounded-fleet border border-fleet-line bg-white/95 p-3 shadow-lift backdrop-blur-xl lg:block" aria-label="Dashboard sidebar">
+          <div className="mb-3 rounded-fleet bg-fleet-paper p-3">
+            <span className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500">Account menu</span>
+            <strong className="mt-1 block text-lg font-black capitalize text-fleet-night">{accountRole || "Account"}</strong>
+          </div>
+          <div className="grid gap-3">
+            {dashboardMenu.map((section) => (
+              <nav key={section.title} className="grid gap-1" aria-label={section.title}>
+                {section.items.map((item) => (
+                  <DashboardMenuLink key={item.href} item={item} pathname={pathname} onLogout={signOut} />
+                ))}
+              </nav>
+            ))}
+          </div>
+        </aside>
+      ) : null}
+
+      <main className={cn(isLaunchLanding || isAdminEnvironment ? "" : "pb-20 lg:pb-0", dashboardMenu && "lg:pl-80")}>{children}</main>
 
       {isLaunchLanding || isAdminEnvironment ? null : (
       <>
@@ -347,6 +365,28 @@ export function SiteShell({ children }: { children: ReactNode }) {
         })}
       </nav> : null}
 
+      {!open && isDashboardEnvironment && dashboardBottomItems.length ? (
+        <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/70 bg-white/92 p-1 shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Dashboard mobile menu">
+          {dashboardBottomItems.map((item) => {
+            const Icon = item.icon;
+            const active = isMenuItemActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "grid min-h-14 place-items-center rounded-fleet px-1 text-center text-[0.62rem] font-black text-slate-500 transition",
+                  active && "bg-fleet-night text-white"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="leading-tight">{shortMenuLabel(item.title)}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
+
       <div className="fixed right-4 top-24 z-40 hidden rounded-full border border-fleet-line bg-white/90 p-2 shadow-lift backdrop-blur-xl md:block">
         <Bell className="h-4 w-4 text-fleet-ember" />
       </div>
@@ -356,6 +396,75 @@ export function SiteShell({ children }: { children: ReactNode }) {
       <CookieConsent />
     </div>
   );
+}
+
+function DashboardMenuLink({
+  item,
+  pathname,
+  onNavigate,
+  onLogout
+}: {
+  item: DashboardMenuItem;
+  pathname: string;
+  onNavigate?: () => void;
+  onLogout: () => void;
+}) {
+  const Icon = item.icon;
+  const active = isMenuItemActive(pathname, item.href);
+  const className = cn(
+    "flex w-full items-center gap-3 rounded-fleet px-3 py-3 text-left transition",
+    active ? "bg-fleet-night text-white" : "text-slate-700 hover:bg-fleet-paper"
+  );
+  const content = (
+    <>
+      <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-fleet", active ? "bg-white/10 text-white" : "bg-fleet-paper text-fleet-ember")}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <strong className="block text-sm font-black">{item.title}</strong>
+        <span className={cn("block text-xs font-bold leading-5", active ? "text-white/70" : "text-slate-500")}>{item.body}</span>
+      </span>
+      {item.tag ? <span className="rounded-full bg-fleet-gold/20 px-2 py-1 text-[0.65rem] font-black text-fleet-ember">{item.tag}</span> : null}
+    </>
+  );
+
+  if (item.href === "__logout") {
+    return (
+      <button
+        type="button"
+        className={className}
+        onClick={() => {
+          onNavigate?.();
+          onLogout();
+        }}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Link href={item.href} className={className} onClick={onNavigate}>
+      {content}
+    </Link>
+  );
+}
+
+function isMenuItemActive(pathname: string, href: string) {
+  if (href === "__logout" || href.includes("#")) return false;
+  return pathname === href;
+}
+
+function shortMenuLabel(label: string) {
+  if (label === "Rider Dashboard") return "Dashboard";
+  if (label === "Business Dashboard") return "Dashboard";
+  if (label === "Book Delivery") return "Book";
+  if (label === "Track Delivery") return "Track";
+  if (label === "Create Delivery") return "Create";
+  if (label === "Active Deliveries") return "Active";
+  if (label === "Available Jobs") return "Jobs";
+  if (label === "Active Delivery") return "Active";
+  return label.replace(" / ", "\n");
 }
 
 function FooterGroup({ title, links }: { title: string; links: Array<[string, string]> }) {

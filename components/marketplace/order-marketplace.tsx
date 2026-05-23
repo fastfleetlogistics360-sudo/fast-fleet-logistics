@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Loader2, MapPin, Minus, Plus, ShoppingCart } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ChevronDown, Loader2, MapPin, Minus, Plus, ShoppingCart, Utensils } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { normalizeRestaurantKitchens, restaurantMenuStorageKey } from "@/lib/restaurant-menu";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -39,6 +41,9 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const [address, setAddress] = useState("Lekki Phase 1, Lagos");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activeStore, setActiveStore] = useState(0);
+  const storeRefs = useRef<Array<HTMLElement | null>>([]);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     setLiveStores(stores);
@@ -90,6 +95,19 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
 
   function changeQuantity(key: string, delta: number) {
     setQuantities((current) => ({ ...current, [key]: Math.max(0, (current[key] || 0) + delta) }));
+  }
+
+  function handleStoreScroll(event: UIEvent<HTMLDivElement>) {
+    const firstCard = storeRefs.current[0];
+    if (!firstCard) return;
+    const gap = 12;
+    const nextIndex = Math.round(event.currentTarget.scrollLeft / (firstCard.offsetWidth + gap));
+    setActiveStore(Math.max(0, Math.min(liveStores.length - 1, nextIndex)));
+  }
+
+  function goToStore(index: number) {
+    storeRefs.current[index]?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", inline: "start", block: "nearest" });
+    setActiveStore(index);
   }
 
   async function checkout() {
@@ -152,84 +170,46 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   }
 
   return (
-    <section className="section-wrap py-8 sm:py-12">
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px] lg:items-start">
-        <div>
+    <section className="section-wrap pb-28 pt-8 sm:py-12">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+        <div className="min-w-0">
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">{eyebrow}</span>
-          <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-6xl">{title}</h1>
+          <h1 className="mt-3 break-words text-4xl font-black leading-tight text-fleet-night sm:text-6xl">{title}</h1>
           <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
             Open a store, pick items with the plus button, then checkout through Paystack. FastFleet adds {formatMoney(PLATFORM_CHECKOUT_FEE_NGN)} platform fee and {formatMoney(deliveryFee)} delivery fee automatically.
           </p>
 
-          <div className="mt-8 grid gap-4">
-            {liveStores.map((store) => (
-              <details key={store.id || store.name} className="group overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_18px_48px_rgba(8,17,31,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_58px_rgba(8,17,31,0.12)]">
-                <summary className="grid cursor-pointer gap-3 p-3 transition group-open:bg-fleet-paper/45 sm:grid-cols-[96px_1fr_auto] sm:items-center">
-                  {store.imageUrl ? (
-                    <img
-                      src={store.imageUrl}
-                      alt={store.name}
-                      className="h-24 w-full rounded-fleet object-cover transition duration-300 group-hover:scale-[1.02] sm:h-20 sm:w-24"
-                    />
-                  ) : null}
-                  <span className="min-w-0">
-                    <strong className="block text-lg font-black text-fleet-night">{store.name}</strong>
-                    <span className="mt-1 line-clamp-2 block text-xs font-bold leading-5 text-slate-500">{store.area} · {store.description}</span>
-                    {store.address ? (
-                      <span className="mt-1 flex items-start gap-1 text-xs font-bold leading-5 text-slate-500">
-                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
-                        {store.address}
-                      </span>
-                    ) : null}
-                    {store.mealTypes?.length ? (
-                      <span className="mt-2 flex flex-wrap gap-1.5">
-                        {store.mealTypes.map((mealType) => (
-                          <span key={mealType} className="rounded-full bg-fleet-paper px-2 py-0.5 text-[0.62rem] font-black uppercase tracking-[0.1em] text-slate-500">
-                            {mealType}
-                          </span>
-                        ))}
-                      </span>
-                    ) : null}
-                  </span>
-                  <ChevronDown className="h-5 w-5 shrink-0 text-fleet-ember transition group-open:rotate-180" />
-                </summary>
-                <div className="grid gap-3 border-t border-fleet-line p-4 md:grid-cols-2">
-                  {store.items.map((item) => {
-                    const key = itemKey(store.name, item.name);
-                    const quantity = quantities[key] || 0;
-                    return (
-                      <article key={key} className="rounded-fleet border border-fleet-line bg-fleet-paper p-3">
-                        <div className="grid grid-cols-[56px_1fr_auto] items-start gap-3">
-                          {item.imageUrl ? (
-                            <img src={item.imageUrl} alt={item.name} className="h-14 w-14 rounded-fleet object-cover" />
-                          ) : (
-                            <span className="h-14 w-14 rounded-fleet bg-white" />
-                          )}
-                          <span className="min-w-0">
-                            <strong className="block text-sm font-black text-fleet-night">{item.name}</strong>
-                            <span className="mt-1 block text-xs font-bold text-slate-500">{item.type} · {item.portion || "1 portion"}</span>
-                          </span>
-                          <strong className="text-sm font-black text-fleet-night">{formatMoney(item.price)}</strong>
-                        </div>
-                        <div className="mt-4 flex items-center justify-between gap-3">
-                          <div className="inline-flex items-center gap-2 rounded-fleet bg-white p-1">
-                            <button type="button" onClick={() => changeQuantity(key, -1)} className="grid h-9 w-9 place-items-center rounded-fleet text-fleet-night" aria-label={`Remove ${item.name}`}>
-                              <Minus className="h-4 w-4" />
-                            </button>
-                            <span className="min-w-8 text-center text-sm font-black text-fleet-night">{quantity}</span>
-                            <button type="button" onClick={() => changeQuantity(key, 1)} className="grid h-9 w-9 place-items-center rounded-fleet bg-fleet-night text-white" aria-label={`Add ${item.name}`}>
-                              <Plus className="h-4 w-4" />
-                            </button>
-                          </div>
-                          <span className="text-sm font-black text-fleet-ember">{formatMoney(quantity * item.price)}</span>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </details>
+          <div
+            className="mt-8 flex w-full snap-x gap-3 overflow-x-auto pb-5 pr-4 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:gap-4 lg:overflow-visible lg:pr-0 xl:grid-cols-3 [&::-webkit-scrollbar]:hidden"
+            onScroll={handleStoreScroll}
+          >
+            {liveStores.map((store, index) => (
+              <RestaurantStoreCard
+                key={store.id || store.name}
+                store={store}
+                index={index}
+                quantities={quantities}
+                reduceMotion={Boolean(reduceMotion)}
+                onQuantity={changeQuantity}
+                refCallback={(node) => {
+                  storeRefs.current[index] = node;
+                }}
+              />
             ))}
           </div>
+          {liveStores.length > 1 ? (
+            <div className="mt-1 flex justify-center gap-2 lg:hidden" aria-label={`${kind} pages`}>
+              {liveStores.map((store, index) => (
+                <button
+                  key={store.id || store.name}
+                  type="button"
+                  aria-label={`Show ${store.name}`}
+                  onClick={() => goToStore(index)}
+                  className={cn("h-2 rounded-full transition-all", activeStore === index ? "w-6 bg-fleet-ember" : "w-2 bg-slate-300")}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <Card className="sticky top-24 p-5">
@@ -273,6 +253,111 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
         </Card>
       </div>
     </section>
+  );
+}
+
+function RestaurantStoreCard({
+  store,
+  index,
+  quantities,
+  reduceMotion,
+  onQuantity,
+  refCallback
+}: {
+  store: Store;
+  index: number;
+  quantities: Record<string, number>;
+  reduceMotion: boolean;
+  onQuantity: (key: string, delta: number) => void;
+  refCallback: (node: HTMLElement | null) => void;
+}) {
+  return (
+    <motion.details
+      ref={refCallback}
+      className="group w-[260px] max-w-[72vw] shrink-0 snap-start overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_12px_26px_rgba(8,17,31,0.08)] transition duration-300 lg:w-auto lg:max-w-none"
+      initial={reduceMotion ? false : { opacity: 0, y: 26 }}
+      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+      whileHover={reduceMotion ? undefined : { y: -5, scale: 1.01 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.99 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.5, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <summary className="block cursor-pointer list-none marker:hidden [&::-webkit-details-marker]:hidden">
+        <div className="relative aspect-[4/3] overflow-hidden bg-fleet-paper">
+          {store.imageUrl ? (
+            <img src={store.imageUrl} alt={store.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          ) : (
+            <div className="grid h-full w-full place-items-center bg-fleet-paper text-fleet-ember">
+              <Utensils className="h-8 w-8" />
+            </div>
+          )}
+          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-fleet-ember shadow-[0_10px_24px_rgba(8,17,31,0.12)]">
+            {store.area}
+          </span>
+        </div>
+        <div className="p-3 sm:p-4">
+          <div className="flex items-start justify-between gap-3">
+            <span className="min-w-0">
+              <strong className="line-clamp-1 block text-base font-black leading-tight text-fleet-night">{store.name}</strong>
+              <span className="mt-1 line-clamp-2 block text-xs font-bold leading-5 text-slate-500">{store.description}</span>
+            </span>
+            <ChevronDown className="mt-0.5 h-5 w-5 shrink-0 text-fleet-ember transition group-open:rotate-180" />
+          </div>
+          {store.address ? (
+            <span className="mt-3 flex items-start gap-1.5 text-xs font-bold leading-5 text-slate-500">
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
+              <span className="line-clamp-2">{store.address}</span>
+            </span>
+          ) : null}
+          {store.mealTypes?.length ? (
+            <span className="mt-3 flex flex-wrap gap-1.5">
+              {store.mealTypes.slice(0, 3).map((mealType) => (
+                <span key={mealType} className="rounded-full bg-fleet-paper px-2 py-1 text-[0.6rem] font-black uppercase tracking-[0.08em] text-slate-500">
+                  {mealType}
+                </span>
+              ))}
+            </span>
+          ) : null}
+          <span className="mt-4 inline-flex min-h-9 w-full items-center justify-center rounded-fleet bg-fleet-night px-3 text-xs font-black text-white transition group-hover:bg-fleet-ember">
+            View menu
+          </span>
+        </div>
+      </summary>
+      <div className="grid max-h-[360px] gap-2 overflow-y-auto border-t border-fleet-line bg-fleet-paper/55 p-3">
+        {store.items.map((item) => {
+          const key = itemKey(store.name, item.name);
+          const quantity = quantities[key] || 0;
+          return (
+            <article key={key} className="rounded-fleet border border-fleet-line bg-white p-2.5">
+              <div className="grid grid-cols-[48px_1fr] items-start gap-2">
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.name} className="h-12 w-12 rounded-fleet object-cover" />
+                ) : (
+                  <span className="h-12 w-12 rounded-fleet bg-fleet-paper" />
+                )}
+                <span className="min-w-0">
+                  <strong className="line-clamp-1 block text-xs font-black text-fleet-night">{item.name}</strong>
+                  <span className="mt-0.5 block text-[0.68rem] font-bold text-slate-500">{item.type} · {item.portion || "1 portion"}</span>
+                  <strong className="mt-1 block text-xs font-black text-fleet-ember">{formatMoney(item.price)}</strong>
+                </span>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <div className="inline-flex items-center gap-1 rounded-fleet bg-fleet-paper p-1">
+                  <button type="button" onClick={() => onQuantity(key, -1)} className="grid h-8 w-8 place-items-center rounded-fleet text-fleet-night" aria-label={`Remove ${item.name}`}>
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="min-w-7 text-center text-xs font-black text-fleet-night">{quantity}</span>
+                  <button type="button" onClick={() => onQuantity(key, 1)} className="grid h-8 w-8 place-items-center rounded-fleet bg-fleet-night text-white" aria-label={`Add ${item.name}`}>
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <span className="text-xs font-black text-fleet-night">{formatMoney(quantity * item.price)}</span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </motion.details>
   );
 }
 
