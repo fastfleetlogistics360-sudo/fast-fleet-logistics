@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bike, Building2, KeyRound, Loader2, LockKeyhole, MailCheck, Phone, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
+import { Bike, Building2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, MailCheck, Phone, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { normalizeRole, roleHome } from "@/lib/auth/roles";
@@ -104,6 +104,7 @@ export function PhoneAuthForm({
   const [phone, setPhone] = useState("+234");
   const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [fullName, setFullName] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -467,18 +468,28 @@ export function PhoneAuthForm({
             </label>
             <label className="form-field">
               <span className="form-label">Password</span>
-              <input
-                className="form-input"
-                value={password}
-                onBlur={() => setError("password", passwordValid ? null : "Use at least 6 characters.")}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                  if (fieldErrors.password) setError("password", null);
-                }}
-                placeholder="Minimum 6 characters"
-                autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                type="password"
-              />
+              <span className="relative">
+                <input
+                  className="form-input pr-12"
+                  value={password}
+                  onBlur={() => setError("password", passwordValid ? null : "Use at least 6 characters.")}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    if (fieldErrors.password) setError("password", null);
+                  }}
+                  placeholder="Minimum 6 characters"
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  type={passwordVisible ? "text" : "password"}
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-fleet text-slate-500 transition hover:bg-fleet-paper hover:text-fleet-night"
+                  onClick={() => setPasswordVisible((value) => !value)}
+                  aria-label={passwordVisible ? "Hide password" : "Show password"}
+                >
+                  {passwordVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </span>
               {fieldErrors.password ? <span className="text-xs font-bold text-red-600">{fieldErrors.password}</span> : null}
             </label>
           </>

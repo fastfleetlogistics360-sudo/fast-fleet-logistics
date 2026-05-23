@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, KeyRound, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Building2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -11,6 +11,7 @@ export function AdminLogin() {
   const router = useRouter();
   const [username, setUsername] = useState("FastFleetAdmin");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -88,15 +89,23 @@ export function AdminLogin() {
               <span className="relative">
                 <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
-                  className="form-input pl-10"
+                  className="form-input px-10"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  type="password"
+                  type={passwordVisible ? "text" : "password"}
                   autoComplete="current-password"
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && username.trim() && password.trim() && !loading) void signIn();
                   }}
                 />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-fleet text-slate-500 transition hover:bg-fleet-paper hover:text-fleet-night"
+                  onClick={() => setPasswordVisible((value) => !value)}
+                  aria-label={passwordVisible ? "Hide password" : "Show password"}
+                >
+                  {passwordVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </span>
             </label>
           </div>

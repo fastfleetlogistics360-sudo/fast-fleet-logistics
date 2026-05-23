@@ -14,8 +14,6 @@ import {
   Menu,
   PackageCheck,
   Route,
-  ShieldCheck,
-  UserRound,
   X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -38,7 +36,6 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/rider/onboarding", label: "Riders" },
   { href: "/business/register", label: "Business" },
-  { href: "/admin", label: "Admin" },
   { href: "/support", label: "Support" }
 ];
 
@@ -61,6 +58,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isLaunchLanding = pathname === "/";
   const isAdminEnvironment = pathname.startsWith("/admin");
+  const isDashboardEnvironment = pathname === "/dashboard" || pathname.startsWith("/rider/dashboard") || pathname.startsWith("/business/dashboard");
   const hasSiteChrome = !isLaunchLanding && !isAdminEnvironment;
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState<string | null>(null);
@@ -211,21 +209,23 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 </button>
               </div>
             </div>
-            <nav className="grid gap-1" aria-label="Mobile primary">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "rounded-fleet px-3 py-3 text-sm font-extrabold text-slate-700",
-                    pathname === item.href && "bg-fleet-paper text-fleet-night"
-                  )}
-                  onClick={() => setOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
+            {!dashboardMenu ? (
+              <nav className="grid gap-1" aria-label="Mobile primary">
+                {navItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "rounded-fleet px-3 py-3 text-sm font-extrabold text-slate-700",
+                      pathname === item.href && "bg-fleet-paper text-fleet-night"
+                    )}
+                    onClick={() => setOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            ) : null}
             {dashboardMenu ? (
               <div className="mt-3 grid gap-3">
                 {dashboardMenu.map((section) => (
@@ -272,9 +272,11 @@ export function SiteShell({ children }: { children: ReactNode }) {
                   Sign in
                 </LinkButton>
               )}
-              <LinkButton href="/book" className="w-full" onClick={() => setOpen(false)}>
-                Book
-              </LinkButton>
+              {!dashboardMenu ? (
+                <LinkButton href="/book" className="w-full" onClick={() => setOpen(false)}>
+                  Book
+                </LinkButton>
+              ) : null}
             </div>
           </div>
         </div>
@@ -321,11 +323,11 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </div>
           <FooterGroup title="Customers" links={[["Book delivery", "/book"], ["Track package", "/track"], ["Dashboard", "/dashboard"]]} />
           <FooterGroup title="Partners" links={[["Register driver", "/rider/onboarding"], ["Driver dashboard", "/rider/dashboard"], ["Register business", "/business/register"], ["Business dashboard", "/business/dashboard"]]} />
-          <FooterGroup title="Platform" links={[["Privacy", "/privacy"], ["Terms", "/terms"], ["Cookies", "/cookies"], ["NDPR", "/ndpr"], ["Admin", "/admin"], ["PWA ready", "/offline"]]} />
+          <FooterGroup title="Platform" links={[["Privacy", "/privacy"], ["Terms", "/terms"], ["Cookies", "/cookies"], ["NDPR", "/ndpr"], ["PWA ready", "/offline"]]} />
         </div>
       </footer>
 
-      {!open ? <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/70 bg-white/92 p-1 shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Mobile app">
+      {!open && !isDashboardEnvironment ? <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/70 bg-white/92 p-1 shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Mobile app">
         {bottomItems.map((item) => {
           const Icon = item.icon;
           const active = item.activePaths ? item.activePaths.some((path) => pathname === path) : pathname === item.href;
@@ -347,15 +349,6 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
       <div className="fixed right-4 top-24 z-40 hidden rounded-full border border-fleet-line bg-white/90 p-2 shadow-lift backdrop-blur-xl md:block">
         <Bell className="h-4 w-4 text-fleet-ember" />
-      </div>
-      <div className="fixed bottom-24 right-5 z-40 hidden md:block">
-        <Link
-          href="/admin"
-          className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-fleet-night text-white shadow-glow transition hover:-translate-y-0.5"
-          aria-label="Open admin controls"
-        >
-          <ShieldCheck className="h-5 w-5" />
-        </Link>
       </div>
       {!open ? <SupportWidget /> : null}
       </>

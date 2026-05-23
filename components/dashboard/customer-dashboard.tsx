@@ -10,6 +10,7 @@ import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
+import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -118,7 +119,7 @@ export function CustomerDashboard() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [prefs, setPrefs] = useState({ sms: true, email: true, push: true });
 
-  const firstName = (profile.full_name || profile.email || "there").trim().split(/\s+/)[0] || "there";
+  const firstName = profile.full_name?.trim().split(/\s+/)[0] || "there";
   const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || null;
   const trackedOrder = orders.find((order) => order.delivery_code.toLowerCase() === searchCode.trim().toLowerCase()) || activeOrder;
   const { text: greetingText, symbol } = greeting();
@@ -354,7 +355,7 @@ function HomeTab({
   return (
     <div className="grid gap-5">
       {loadError ? <div className="rounded-fleet bg-red-50 p-3 text-sm font-bold text-red-700">{loadError}</div> : null}
-      <Card id="wallet" className="overflow-hidden bg-fleet-navy p-5 text-white">
+      <Card id="wallet" className="overflow-hidden border-0 bg-fleet-night p-5 text-white shadow-[0_22px_58px_rgba(8,17,31,0.24)]">
         <p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">Wallet balance</p>
         <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -362,8 +363,8 @@ function HomeTab({
             <p className="mt-2 text-sm font-semibold text-white/70">{profile.lga || profile.default_zone || "Lagos"} delivery wallet</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            <LinkButton href="/wallet/callback" className="bg-white text-fleet-navy hover:bg-white">Top up</LinkButton>
-            <LinkButton href="/support?topic=wallet-withdrawal" variant="secondary">Withdraw</LinkButton>
+            <SmartWalletTopUp className="bg-white text-fleet-night hover:bg-white" />
+            <LinkButton href="/support?topic=wallet-withdrawal" variant="secondary" className="border-white/20 bg-white/10 text-white hover:bg-white hover:text-fleet-night">Withdraw</LinkButton>
           </div>
         </div>
       </Card>
