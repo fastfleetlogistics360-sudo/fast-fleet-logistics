@@ -7,6 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
+import { geolocationErrorMessage, getLocationPermissionState, requestCurrentPosition } from "@/lib/location/geolocation";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -149,11 +150,6 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 
   useEffect(() => {
     if (!trackingActive || !online || !profile.id || !activeJob) return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setTrackingActive(false);
-      setTrackingMessage("Location is not available on this device.");
-      return;
-    }
     if (["delivered", "cancelled"].includes(activeJob.status)) {
       setTrackingActive(false);
       setTrackingMessage("Delivery tracking stopped.");
@@ -165,52 +161,49 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
     const trackingJob = activeJob;
     let stopped = false;
 
-    function publishLocation() {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          if (stopped) return;
-          const nextLocation: LiveRiderLocation = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            heading: position.coords.heading,
-            speed: position.coords.speed,
-            updated_at: new Date().toISOString()
-          };
-          setLiveLocation(nextLocation);
-          setTrackingMessage("Live delivery tracking is on.");
-          void Promise.allSettled([
-            supabase.from("rider_locations").upsert(
-              {
-                rider_profile_id: riderProfileId,
-                zone: profile.lga || "Lagos",
-                latitude: nextLocation.latitude,
-                longitude: nextLocation.longitude,
-                heading: nextLocation.heading,
-                speed: nextLocation.speed,
-                updated_at: nextLocation.updated_at
-              },
-              { onConflict: "rider_profile_id" }
-            ),
-            supabase.from("delivery_locations").upsert(
-              {
-                order_id: trackingJob.id,
-                rider_id: riderProfileId,
-                latitude: nextLocation.latitude,
-                longitude: nextLocation.longitude,
-                heading: nextLocation.heading,
-                speed: nextLocation.speed,
-                status: trackingJob.status,
-                updated_at: nextLocation.updated_at
-              },
-              { onConflict: "order_id" }
-            )
-          ]);
-        },
-        (error) => {
-          setTrackingMessage(error.code === error.PERMISSION_DENIED ? "Location permission was denied. Enable location to share live movement." : "Could not read your location. Retrying shortly.");
-        },
-        { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-      );
+    async function publishLocation() {
+      try {
+        const position = await requestCurrentPosition();
+        if (stopped) return;
+        const nextLocation: LiveRiderLocation = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          heading: position.coords.heading,
+          speed: position.coords.speed,
+          updated_at: new Date().toISOString()
+        };
+        setLiveLocation(nextLocation);
+        setTrackingMessage("Live delivery tracking is on.");
+        void Promise.allSettled([
+          supabase.from("rider_locations").upsert(
+            {
+              rider_profile_id: riderProfileId,
+              zone: profile.lga || "Lagos",
+              latitude: nextLocation.latitude,
+              longitude: nextLocation.longitude,
+              heading: nextLocation.heading,
+              speed: nextLocation.speed,
+              updated_at: nextLocation.updated_at
+            },
+            { onConflict: "rider_profile_id" }
+          ),
+          supabase.from("delivery_locations").upsert(
+            {
+              order_id: trackingJob.id,
+              rider_id: riderProfileId,
+              latitude: nextLocation.latitude,
+              longitude: nextLocation.longitude,
+              heading: nextLocation.heading,
+              speed: nextLocation.speed,
+              status: trackingJob.status,
+              updated_at: nextLocation.updated_at
+            },
+            { onConflict: "order_id" }
+          )
+        ]);
+      } catch (error) {
+        if (!stopped) setTrackingMessage(geolocationErrorMessage(error));
+      }
     }
 
     publishLocation();
@@ -229,7 +222,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
     }
   }, [activeJob, trackingActive]);
 
-  function startDeliveryTracking() {
+  async function startDeliveryTracking() {
     if (!activeJob) {
       setTrackingMessage("Accept an active delivery before starting tracking.");
       return;
@@ -238,7 +231,8 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       setTrackingMessage("Go online before starting delivery tracking.");
       return;
     }
-    setTrackingMessage("Requesting location permission...");
+    const permission = await getLocationPermissionState();
+    setTrackingMessage(permission === "denied" ? "Location permission is blocked. Enable it in your browser or phone settings." : "Requesting location permission...");
     setTrackingActive(true);
   }
 

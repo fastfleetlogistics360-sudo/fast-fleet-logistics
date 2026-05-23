@@ -34,3 +34,23 @@ The repo now includes `capacitor.config.ts` with:
 - Add production privacy strings for location, notifications, camera/photo uploads, and document uploads.
 - Confirm Paystack wording is declared as payment for real-world logistics services, not digital goods.
 - Test account deletion inside customer, rider, and business account settings before review submission.
+
+## Live Location Permissions
+
+FastFleet currently requests rider location through the browser Geolocation API in the PWA and Capacitor WebView. Before producing Android/iOS binaries, add these native permissions after running `npm run native:add:ios` and `npm run native:add:android`.
+
+Android `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+```
+
+iOS `ios/App/App/Info.plist`:
+
+```xml
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>FastFleet uses your location during active deliveries so customers can track rider movement from pickup to drop-off.</string>
+```
+
+If background delivery tracking is added later, add the platform-specific background location permissions and App Store/Play Store background location disclosures before release. The current implementation is foreground tracking only.
