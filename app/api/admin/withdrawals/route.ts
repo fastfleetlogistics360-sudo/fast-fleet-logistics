@@ -15,7 +15,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("withdrawal_requests")
     .select(
-      "id, amount_ngn, bank_name, account_number, account_name, status, rejection_reason, created_at, reviewed_at, rider_profiles(id, application_status, vehicle_type, operating_zone, users(full_name, phone, email))"
+      "id, amount_ngn, bank_name, account_number, account_name, status, rejection_reason, created_at, reviewed_at, rider_profiles:rider_profiles!withdrawal_requests_rider_profile_id_fkey(id, application_status, vehicle_type, operating_zone, users:users!rider_profiles_user_id_fkey(full_name, phone, email))"
     )
     .order("created_at", { ascending: false })
     .limit(50);

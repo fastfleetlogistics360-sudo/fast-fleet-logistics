@@ -42,7 +42,7 @@ export async function GET() {
   const { data: profileRows, error } = await supabase
     .from("rider_profiles")
     .select(
-      "id, user_id, application_status, vehicle_type, plate_number, vehicle_color, operating_zone, bank_name, account_number, account_name, online, created_at, updated_at, users(full_name, phone, email), rider_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)"
+      "id, user_id, application_status, vehicle_type, plate_number, vehicle_color, operating_zone, bank_name, account_number, account_name, online, created_at, updated_at, users:users!rider_profiles_user_id_fkey(full_name, phone, email), rider_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)"
     )
     .order("created_at", { ascending: false })
     .limit(75);

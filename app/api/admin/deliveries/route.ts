@@ -30,7 +30,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("deliveries")
-    .select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, eta_minutes, created_at, users(full_name, phone, email), rider_profiles(users(full_name, phone, email))")
+    .select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, eta_minutes, created_at, users:users!deliveries_customer_id_fkey(full_name, phone, email), rider_profiles:rider_profiles!deliveries_rider_id_fkey(users:users!rider_profiles_user_id_fkey(full_name, phone, email))")
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -66,7 +66,7 @@ export async function PATCH(request: Request) {
     .from("deliveries")
     .update(patch)
     .eq("id", id)
-    .select("id, customer_id, rider_profiles(user_id), delivery_code, status, accepted_at, picked_up_at, delivered_at")
+    .select("id, customer_id, rider_profiles:rider_profiles!deliveries_rider_id_fkey(user_id), delivery_code, status, accepted_at, picked_up_at, delivered_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

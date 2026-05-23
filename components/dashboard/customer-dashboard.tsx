@@ -160,7 +160,7 @@ export function CustomerDashboard() {
           supabase.from("wallets").select("balance_ngn, locked_balance_ngn, balance").eq("user_id", user.id).maybeSingle(),
           supabase
             .from("deliveries")
-            .select("id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles(plate_number, vehicle_type, vehicle_color, users(full_name, phone))")
+            .select("id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone))")
             .eq("customer_id", user.id)
             .order("created_at", { ascending: false })
             .limit(50),

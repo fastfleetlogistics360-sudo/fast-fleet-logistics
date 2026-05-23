@@ -49,7 +49,7 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
   const query = supabase
     .from("deliveries")
     .select(
-      "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, dropoff_latitude, dropoff_longitude, status, price_ngn, distance_km, eta_minutes, created_at, updated_at, rider_id, rider_profiles(plate_number, vehicle_type, vehicle_color, users(full_name, phone, email))"
+      "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, dropoff_latitude, dropoff_longitude, status, price_ngn, distance_km, eta_minutes, created_at, updated_at, rider_id, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, email))"
     )
     .eq("customer_id", user.id);
 
@@ -99,4 +99,3 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
-
