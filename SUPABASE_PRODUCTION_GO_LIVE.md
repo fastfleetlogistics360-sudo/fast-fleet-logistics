@@ -1,4 +1,4 @@
-# FastFleet Supabase Production Go-Live Checklist
+# FastFleet Production Go-Live Checklist
 
 Use this before switching the public site from preview/demo storage to live Supabase data.
 
@@ -12,17 +12,39 @@ Use this before switching the public site from preview/demo storage to live Supa
 
 - Open Supabase SQL Editor.
 - Run `supabase-schema.sql`.
-- Confirm these tables exist: `users`, `deliveries`, `rider_profiles`, `rider_documents`, `wallets`, `wallet_transactions`, `withdrawal_requests`, `support_tickets`, `platform_launch_states`, `platform_settings`, `risk_signals`, `company_transactions`.
+- Confirm these tables exist: `users`, `profiles`, `deliveries`, `delivery_events`, `delivery_locations`, `rider_profiles`, `rider_applications`, `rider_documents`, `wallets`, `wallet_transactions`, `withdrawal_requests`, `support_tickets`, `platform_launch_states`, `platform_settings`, `fraud_signals`, `company_transaction_logs`, `state_waitlist`, and `notifications`.
+- Confirm the private `rider-documents` storage bucket exists.
+- Confirm Realtime is enabled for delivery/tracking tables used by the app.
 
 ## 3. Configure auth
 
 - Enable Email auth.
+- Enable Confirm email if customers must verify before dashboard access.
 - Add production redirect URLs:
-  - `https://your-domain.com/auth`
-  - `https://your-domain.com/dashboard`
-- If using Google or Apple login, add their provider client IDs/secrets in Supabase Auth Providers.
+  - `https://fastfleet.com.ng/auth/callback`
+  - `https://www.fastfleet.com.ng/auth/callback`
+  - `http://localhost:3000/auth/callback`
+- Set Site URL to `https://fastfleet.com.ng`.
+- If using Google login, add the Google provider client ID and secret in Supabase Auth Providers.
+- For iOS App Store submission, if the native iOS app keeps Google login, add an equivalent Apple-approved login option or remove Google login from the iOS build.
 
-## 4. Configure frontend environment
+## 4. Configure Resend for Supabase confirmation emails
+
+Confirmation emails are triggered by Supabase Auth, not by this Next.js app.
+
+- In Resend, verify the sending domain, ideally `fastfleet.com.ng`.
+- In Supabase, open Authentication -> Emails -> SMTP settings.
+- Enable custom SMTP.
+- Use Resend SMTP credentials:
+  - Host: `smtp.resend.com`
+  - Port: `465` or `587`
+  - Username: `resend`
+  - Password: your Resend API key
+- Set Sender email to a verified address such as `no-reply@fastfleet.com.ng`.
+- Save, then create a new test account with a fresh email address.
+- If the email sends but the link fails, check the Auth URL Configuration and the confirmation email template contains Supabase's confirmation link variable.
+
+## 5. Configure frontend environment
 
 For the Next app, set these in your host environment:
 
@@ -34,14 +56,29 @@ FASTFLEET_ADMIN_USERNAME=FastFleetAdmin
 FASTFLEET_ADMIN_PASSWORD=change-this-before-launch
 FASTFLEET_ADMIN_SECRET=long-random-secret
 PAYSTACK_SECRET_KEY=your-live-or-test-paystack-secret
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-google-maps-browser-key
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
+NEXT_PUBLIC_ALLOW_DEMO_DATA=false
+NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false
 ```
 
 Do not put service role keys, admin passwords, or Paystack secret keys in client-side code.
 
-## 5. Test live workflows
+## 6. Run the production readiness endpoint
+
+After deployment, open:
+
+```txt
+https://fastfleet.com.ng/api/health/readiness
+```
+
+The endpoint returns `200` only when the required production environment variables, Supabase admin access, critical tables, storage bucket, and Paystack API check pass. Add this endpoint to your uptime monitor.
+
+## 7. Test live workflows
 
 - Create a customer account.
+- Confirm the customer receives the Supabase/Resend confirmation email.
+- Confirm the verification link lands on `/auth/callback` and then the correct dashboard.
 - Place a delivery order.
 - Confirm the order appears in Supabase.
 - Open `/admin`, update delivery status, and confirm the tracking timeline changes.
@@ -49,6 +86,12 @@ Do not put service role keys, admin passwords, or Paystack secret keys in client
 - Approve or reject rider KYC from admin.
 - Submit support ticket and confirm it appears in Supabase.
 - Test Paystack wallet top-up in test mode before switching to live keys.
+- Confirm receipts, wallet transactions, admin logs, and company transaction logs reconcile.
+
+## 8. Store release readiness
+
+- Android: generate and sign the native `.aab`, add native location permissions, complete Google Play Data Safety, run internal testing, then promote to production.
+- iOS: generate and sign the native `.ipa`, add iOS location usage strings, complete App Privacy labels, test through TestFlight, and address the Google-login/Apple-login App Store rule.
 
 ## What to share with Codex
 
