@@ -1,37 +1,37 @@
 "use client";
 
-import { MapPin, PackageCheck, Route, UserCheck } from "lucide-react";
+import { ClipboardCheck, MapPin, PackageCheck, Route } from "lucide-react";
 import { AnimatedDescriptionCards } from "@/components/landing/animated-description-cards";
 import type { DescriptionCard } from "@/components/landing/animated-description-cards";
 
 const steps: DescriptionCard[] = [
   {
     label: "Pickup",
-    title: "Set pickup and drop-off",
-    body: "Add clear addresses for city movement, vendor dispatch, and scheduled delivery routes.",
-    image: "/hero/customer-control.svg",
+    title: "Set pickup location",
+    body: "Use your live location or enter a pickup address so a FastFleet rider knows exactly where to start.",
+    image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1200&q=80",
     icon: MapPin
   },
   {
-    label: "Mode",
-    title: "Choose bike, car, or van",
-    body: "Match the delivery mode to urgency, route, package size, and customer expectations.",
-    image: "/hero/same-day-dispatch.svg",
+    label: "Type",
+    title: "Choose delivery type",
+    body: "Send food, documents, parcels, shopping items, or business dispatch orders with the right service flow.",
+    image: "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=1200&q=80",
     icon: PackageCheck
   },
   {
-    label: "Rider",
-    title: "Match a verified partner",
-    body: "Nearby approved riders receive delivery context with route, distance, and earning details.",
-    image: "/hero/trusted-network.svg",
-    icon: UserCheck
+    label: "Track",
+    title: "Track rider live",
+    body: "Stay close to the route with delivery status, rider movement, ETA, and handoff progress.",
+    image: "https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1200&q=80",
+    icon: Route
   },
   {
-    label: "Track",
-    title: "Follow it to completion",
-    body: "Watch status, ETA, rider movement, and delivery proof until the job is closed.",
-    image: "/hero/business-logistics.svg",
-    icon: Route
+    label: "Proof",
+    title: "Receive package safely",
+    body: "FastFleet keeps the delivery visible until the package reaches the right person.",
+    image: "https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?auto=format&fit=crop&w=1200&q=80",
+    icon: ClipboardCheck
   }
 ];
 
@@ -39,8 +39,8 @@ export function HowItWorks() {
   return (
     <AnimatedDescriptionCards
       eyebrow="How it works"
-      title="Request, match, track, deliver."
-      body="Swipe the FastFleet delivery flow on mobile, or scan the full card set from any laptop screen."
+      title="From pickup to proof, FastFleet keeps it clear."
+      body="A clean delivery flow for customers, vendors, businesses, and riders moving across the city."
       cards={steps}
     />
   );

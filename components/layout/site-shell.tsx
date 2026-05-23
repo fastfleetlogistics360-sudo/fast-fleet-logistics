@@ -131,7 +131,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-fleet-paper text-fleet-ink">
-      {isLaunchLanding || isAdminEnvironment ? (
+      {isAdminEnvironment ? (
         <div className="fixed right-4 top-4 z-[90]">
           <ThemeToggle />
         </div>

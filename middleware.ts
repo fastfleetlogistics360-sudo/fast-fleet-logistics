@@ -46,7 +46,8 @@ export async function middleware(request: NextRequest) {
   if (protectedRoute && !user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/auth";
-    redirectUrl.searchParams.set("returnTo", pathname);
+    redirectUrl.search = "";
+    redirectUrl.searchParams.set("returnTo", `${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(redirectUrl);
   }
 
@@ -60,7 +61,8 @@ export async function middleware(request: NextRequest) {
     if (!role) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/choose-account-type";
-      redirectUrl.searchParams.set("returnTo", pathname);
+      redirectUrl.search = "";
+      redirectUrl.searchParams.set("returnTo", `${pathname}${request.nextUrl.search}`);
       return NextResponse.redirect(redirectUrl);
     }
     if (!roleRule.roles.includes(role)) {

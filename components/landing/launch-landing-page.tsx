@@ -2,180 +2,307 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useState, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Bike, Building2, ChevronRight, LogIn, Play, Smartphone, UserPlus, X } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { Bike, ChevronLeft, ChevronRight, CircleUserRound, LogIn, Play, Store, UserPlus, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
-import { Button } from "@/components/ui/button";
+import { AppleIcon, FacebookIcon, GoogleIcon, InstagramIcon, LinkedinIcon, XIcon } from "@/components/icons/social-icons";
 
-const landingSlides = [
+type AuthIntent = "signup" | "login";
+type ActionItemConfig =
+  | {
+      title: string;
+      body: string;
+      icon: LucideIcon;
+      action: AuthIntent;
+      href?: never;
+    }
+  | {
+      title: string;
+      body: string;
+      icon: LucideIcon;
+      href: string;
+      action?: never;
+    };
+
+const actionItems: ActionItemConfig[] = [
   {
-    image: "https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?auto=format&fit=crop&w=1600&q=82",
-    eyebrow: "FastFleet Logistics",
-    title: "Same-day dispatch for customers, riders, and businesses.",
-    body: "Book deliveries, track riders, fund wallets, and manage operations from one clean FastFleet workspace."
+    title: "Sign Up",
+    body: "Create an account in minutes",
+    icon: UserPlus,
+    action: "signup" as const
   },
   {
-    image: "https://images.unsplash.com/photo-1580674285054-bed31e145f59?auto=format&fit=crop&w=1600&q=82",
-    eyebrow: "Live movement",
-    title: "Every parcel gets a clear route and visible status.",
-    body: "FastFleet keeps pickup, transit, delivery, support, and wallet actions close to the people who need them."
+    title: "Sign In",
+    body: "Access your account seamlessly",
+    icon: LogIn,
+    action: "login" as const
   },
   {
-    image: "https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=1600&q=82",
-    eyebrow: "Food delivery",
-    title: "Restaurant orders move with the same FastFleet care.",
-    body: "Food vendors and customers can keep meals, riders, and delivery updates in one reliable flow."
+    title: "Register as a Driver",
+    body: "Join our network and start earning",
+    icon: Bike,
+    href: "/auth?account=driver"
   },
   {
-    image: "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=1600&q=82",
-    eyebrow: "Shopping delivery",
-    title: "Shopping, parcels, and business deliveries stay organized.",
-    body: "Businesses get saved pickup points, route tracking, wallet controls, receipts, and support."
+    title: "Register Your Business",
+    body: "Grow your business with FastFleet",
+    icon: Store,
+    href: "/auth?account=business"
   }
 ];
 
-type AuthIntent = "signup" | "login";
+const socialItems = [
+  { label: "Facebook", href: "https://www.facebook.com/fastfleetlogistics", icon: FacebookIcon },
+  { label: "Instagram", href: "https://www.instagram.com/fastfleetlogistics", icon: InstagramIcon },
+  { label: "X", href: "https://x.com/fastfleetng", icon: XIcon },
+  { label: "LinkedIn", href: "https://www.linkedin.com/company/fastfleet-logistics", icon: LinkedinIcon },
+  { label: "TikTok", href: "#", icon: TikTokIcon }
+];
+
+const partners = ["FreshMart", "SwiftFoods", "MediLink", "City Bites", "ParcelPro", "MarketHub", "Shop Lagos", "QuickSend"];
 
 export function LaunchLandingPage() {
   const [authIntent, setAuthIntent] = useState<AuthIntent | null>(null);
-  const [active, setActive] = useState(0);
+  const [partnerOffset, setPartnerOffset] = useState(0);
   const reduceMotion = useReducedMotion();
-  const slide = landingSlides[active];
+  const visiblePartners = useMemo(() => {
+    return [...partners, ...partners].slice(partnerOffset, partnerOffset + 6);
+  }, [partnerOffset]);
 
-  useEffect(() => {
-    if (reduceMotion) return;
-    const timer = window.setInterval(() => {
-      setActive((value) => (value + 1) % landingSlides.length);
-    }, 5800);
-
-    return () => window.clearInterval(timer);
-  }, [reduceMotion]);
+  function movePartners(direction: number) {
+    setPartnerOffset((value) => (value + direction + partners.length) % partners.length);
+  }
 
   return (
-    <section className="relative isolate min-h-screen overflow-hidden bg-[#071426] px-4 py-6 text-white sm:px-6 sm:py-8">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-white/[0.03]" aria-hidden="true" />
-      <div className="section-wrap relative z-10 grid min-h-[calc(100vh-48px)] content-center gap-8 py-4 sm:py-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(440px,1fr)] lg:items-center">
-        <div className="max-w-2xl">
-          <div className="flex items-center gap-3">
+    <main className="relative isolate min-h-screen overflow-hidden bg-[#020608] text-white">
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage:
+            "url('https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=2200&q=88')"
+        }}
+        aria-hidden="true"
+      />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_34%,rgba(94,214,16,0.12),transparent_30%),linear-gradient(90deg,rgba(2,6,8,0.94),rgba(2,6,8,0.70)_45%,rgba(2,6,8,0.35)),linear-gradient(180deg,rgba(2,6,8,0.22),rgba(2,6,8,0.98)_74%,#020608)]" />
+
+      <section className="section-wrap relative z-10 flex min-h-screen flex-col px-4 pb-8 pt-6 sm:px-6 lg:pb-10 lg:pt-7">
+        <header className="flex items-center justify-between gap-4">
+          <Link href="/" className="group flex min-w-0 items-center gap-3" aria-label="FastFleet landing home">
             <Image
               src="/fastfleet-logo.png"
               alt="FastFleet Logistics"
-              width={64}
-              height={64}
-              className="h-14 w-14 rounded-fleet border border-white/15 bg-white object-cover p-1 shadow-[0_18px_40px_rgba(0,0,0,0.22)]"
+              width={56}
+              height={56}
+              className="h-11 w-11 rounded-full border border-white/20 bg-white object-cover p-1 shadow-[0_16px_34px_rgba(0,0,0,0.28)] transition group-hover:-translate-y-0.5"
               priority
             />
-            <span className="grid">
-              <strong className="text-base font-black">FastFleet Logistics</strong>
-              <span className="text-[0.66rem] font-black uppercase tracking-[0.26em] text-fleet-gold">Premium dispatch app</span>
+            <span className="grid leading-none">
+              <strong className="text-lg font-black italic tracking-[0.02em] text-white sm:text-2xl">FASTFLEET</strong>
+              <span className="mt-1 text-[0.58rem] font-black uppercase tracking-[0.42em] text-[#7EE817] sm:text-[0.64rem]">Logistics</span>
             </span>
-          </div>
+          </Link>
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={slide.title}
-              initial={reduceMotion ? false : { opacity: 0, y: 14 }}
-              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-              exit={reduceMotion ? undefined : { opacity: 0, y: -10 }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
+          <nav className="flex items-center gap-2 sm:gap-4" aria-label="Landing account actions">
+            <button
+              type="button"
+              onClick={() => setAuthIntent("login")}
+              className="inline-flex min-h-11 items-center justify-center rounded-[10px] border border-white/70 bg-white/5 px-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-fleet-night focus:outline-none focus:ring-4 focus:ring-white/20 sm:min-h-14 sm:px-8 sm:text-base"
             >
-              <span className="mt-7 inline-flex rounded-full border border-white/10 bg-white/[0.07] px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-fleet-gold shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
-                {slide.eyebrow}
-              </span>
-              <h1 className="mt-5 max-w-3xl text-4xl font-black leading-[0.98] text-white sm:text-6xl">
-                {slide.title}
-              </h1>
-              <p className="mt-5 max-w-xl text-base font-semibold leading-7 text-white/78 sm:text-lg">
-                {slide.body}
-              </p>
-            </motion.div>
-          </AnimatePresence>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Button type="button" size="lg" onClick={() => setAuthIntent("signup")} className="min-w-36 uppercase">
-              <UserPlus className="h-4 w-4" />
-              Sign Up
-            </Button>
-            <Button type="button" size="lg" variant="secondary" onClick={() => setAuthIntent("login")} className="min-w-36 uppercase">
-              <LogIn className="h-4 w-4" />
               Sign In
-            </Button>
-            <Link
-              href="/main"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-white/15 bg-white px-5 text-base font-extrabold uppercase text-fleet-night shadow-[0_14px_32px_rgba(8,17,31,0.08)] transition duration-200 hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthIntent("signup")}
+              className="inline-flex min-h-11 items-center justify-center rounded-[10px] border border-[#6FE514] bg-[#6FE514] px-4 text-sm font-black text-fleet-night shadow-[0_0_32px_rgba(111,229,20,0.34)] transition hover:-translate-y-0.5 hover:bg-[#85f52d] focus:outline-none focus:ring-4 focus:ring-[#6FE514]/25 sm:min-h-14 sm:px-8 sm:text-base"
             >
-              Proceed to Main Page
-              <ChevronRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/auth?account=driver"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-white/15 bg-fleet-night/88 px-5 text-base font-extrabold uppercase text-white shadow-[0_14px_32px_rgba(8,17,31,0.14)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#10233a] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
-            >
-              <Bike className="h-4 w-4" />
-              Register as a driver
-            </Link>
-            <Link
-              href="/auth?account=business"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-white/15 bg-white/92 px-5 text-base font-extrabold uppercase text-fleet-night shadow-[0_14px_32px_rgba(8,17,31,0.08)] transition duration-200 hover:-translate-y-0.5 hover:bg-white focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
-            >
-              <Building2 className="h-4 w-4" />
-              Register a business
-            </Link>
-          </div>
+              Sign Up
+            </button>
+          </nav>
+        </header>
 
-          <div className="mt-7 flex flex-wrap items-center gap-3">
-            <StoreBadge icon={<Smartphone className="h-4 w-4" />} label="App Store" />
-            <StoreBadge icon={<Play className="h-4 w-4" />} label="Play Store" />
-            <span className="text-xs font-black uppercase tracking-[0.16em] text-white/62">Mobile apps coming soon</span>
-          </div>
+        <div className="grid flex-1 content-center py-14 sm:py-16 lg:py-20">
+          <motion.div
+            className="max-w-3xl"
+            initial={reduceMotion ? false : { opacity: 0, y: 28 }}
+            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <p className="text-base font-extrabold text-[#7EE817] sm:text-xl">Fast. Reliable. Always.</p>
+            <h1 className="mt-5 max-w-3xl text-5xl font-black leading-[0.98] tracking-normal text-white sm:text-7xl lg:text-8xl">
+              Delivering More, Everyday.
+            </h1>
+            <p className="mt-6 max-w-2xl text-base font-semibold leading-8 text-white/86 sm:text-xl">
+              FastFleet connects people, businesses and communities through fast, safe and reliable delivery.
+            </p>
+            <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:items-center">
+              <Link
+                href="/main"
+                className="inline-flex min-h-14 items-center justify-center gap-3 rounded-fleet bg-[#6FE514] px-7 text-base font-black text-fleet-night shadow-[0_0_38px_rgba(111,229,20,0.35)] transition hover:-translate-y-0.5 hover:bg-[#85f52d] focus:outline-none focus:ring-4 focus:ring-[#6FE514]/25"
+              >
+                <CircleUserRound className="h-5 w-5" />
+                Get Started
+              </Link>
+              <Link
+                href="#launch-actions"
+                className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full text-base font-black text-white transition hover:-translate-y-0.5 hover:text-[#7EE817] focus:outline-none focus:ring-4 focus:ring-white/15"
+              >
+                <span className="grid h-14 w-14 place-items-center rounded-full border border-white/80 bg-white/5 backdrop-blur">
+                  <Play className="h-5 w-5 fill-white text-white" />
+                </span>
+                How It Works
+              </Link>
+            </div>
+          </motion.div>
         </div>
 
-        <div className="relative min-h-[280px] sm:min-h-[420px] lg:min-h-[560px]">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={slide.image}
-              className="absolute inset-0 overflow-hidden rounded-[28px] border border-white/10 bg-white shadow-[0_30px_90px_rgba(0,0,0,0.36)]"
-              initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.985 }}
-              animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
-              exit={reduceMotion ? undefined : { opacity: 0, y: -12, scale: 0.99 }}
-              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <Image src={slide.image} alt={slide.title} fill className="object-cover object-center" sizes="(min-width: 1024px) 50vw, 100vw" priority />
-              <div className="absolute inset-x-4 bottom-4 rounded-[20px] border border-white/65 bg-white/92 p-4 text-fleet-night shadow-[0_18px_45px_rgba(8,17,31,0.16)] backdrop-blur-md sm:inset-x-5 sm:bottom-5 sm:p-5">
-                <span className="text-[0.66rem] font-black uppercase tracking-[0.16em] text-fleet-ember">Live app preview</span>
-                <strong className="mt-1 block text-lg font-black leading-tight sm:text-2xl">{slide.eyebrow}</strong>
-                <p className="mt-1 line-clamp-2 text-xs font-bold leading-5 text-slate-600 sm:text-sm">{slide.body}</p>
-              </div>
-            </motion.div>
-          </AnimatePresence>
-
-          <div className="absolute -bottom-4 left-4 right-4 flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-3 shadow-[0_18px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:left-10 sm:right-auto">
-            {landingSlides.map((item, index) => (
-              <button
-                key={item.title}
-                type="button"
-                onClick={() => setActive(index)}
-                className={`h-2 rounded-full transition-all ${active === index ? "w-10 bg-fleet-gold" : "w-2 bg-white/55 hover:bg-white"}`}
-                aria-label={`Show landing slide ${index + 1}`}
-              />
+        <motion.div
+          id="launch-actions"
+          className="rounded-[22px] border border-white/14 bg-black/34 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:p-6"
+          initial={reduceMotion ? false : { opacity: 0, y: 34 }}
+          whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <div className="grid gap-2 md:grid-cols-4 md:gap-0">
+            {actionItems.map((item, index) => (
+              <ActionItem key={item.title} item={item} index={index} onAuth={setAuthIntent} />
             ))}
           </div>
+        </motion.div>
+
+        <div className="mx-auto mt-9 grid justify-items-center gap-7">
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <StoreBadge icon={<AppleIcon className="h-8 w-8" />} eyebrow="Download on the" label="App Store" />
+            <StoreBadge icon={<GoogleIcon className="h-8 w-8" />} eyebrow="GET IT ON" label="Google Play" />
+          </div>
+          <p className="text-sm font-semibold text-white/70">FastFleet mobile app coming soon.</p>
+          <div className="grid justify-items-center gap-4">
+            <span className="text-xl font-semibold text-white">Follow us</span>
+            <div className="flex flex-wrap justify-center gap-4">
+              {socialItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    aria-label={item.label}
+                    className="grid h-14 w-14 place-items-center rounded-full border border-white/80 bg-white/[0.03] text-white transition hover:-translate-y-1 hover:border-[#7EE817] hover:bg-[#7EE817] hover:text-fleet-night"
+                  >
+                    <Icon className="h-6 w-6" />
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
+
+      <section className="relative z-10 bg-black/84 px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-7xl">
+          <h2 className="text-center text-sm font-black uppercase tracking-normal text-[#7EE817]">OUR BRAND PARTNERS</h2>
+          <div className="mt-6 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:gap-5">
+            <CarouselButton label="Previous partner logos" onClick={() => movePartners(-1)}>
+              <ChevronLeft className="h-8 w-8" />
+            </CarouselButton>
+            <div className="grid grid-cols-2 gap-3 overflow-hidden sm:grid-cols-3 lg:grid-cols-6">
+              {visiblePartners.map((partner, index) => (
+                <motion.div
+                  key={`${partner}-${index}`}
+                  className="grid min-h-28 place-items-center rounded-[10px] bg-white px-4 text-center shadow-[0_16px_34px_rgba(0,0,0,0.28)] sm:min-h-36"
+                  initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+                  whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.42, delay: index * 0.04 }}
+                >
+                  <span className="text-xl font-black tracking-tight text-fleet-night sm:text-2xl">
+                    {partner}
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+            <CarouselButton label="Next partner logos" onClick={() => movePartners(1)}>
+              <ChevronRight className="h-8 w-8" />
+            </CarouselButton>
+          </div>
+          <footer className="pt-14 text-center text-sm font-semibold text-white/46">© 2025 FastFleet. All rights reserved.</footer>
+        </div>
+      </section>
 
       {authIntent ? <AuthModal intent={authIntent} onClose={() => setAuthIntent(null)} /> : null}
-    </section>
+    </main>
   );
 }
 
-function StoreBadge({ icon, label }: { icon: ReactNode; label: string }) {
+function ActionItem({
+  item,
+  index,
+  onAuth
+}: {
+  item: ActionItemConfig;
+  index: number;
+  onAuth: (intent: AuthIntent) => void;
+}) {
+  const Icon = item.icon;
+  const content = (
+    <>
+      <span className="grid h-16 w-16 place-items-center rounded-full bg-[#6FE514]/18 text-[#7EE817] shadow-[0_0_28px_rgba(111,229,20,0.16)]">
+        <Icon className="h-8 w-8" />
+      </span>
+      <strong className="mt-5 block text-lg font-black text-white">{item.title}</strong>
+      <span className="mt-3 block max-w-40 text-sm font-semibold leading-6 text-white/78">{item.body}</span>
+    </>
+  );
+  const classes =
+    "group relative block rounded-[18px] p-5 text-left transition hover:-translate-y-1 hover:bg-white/[0.06] focus:outline-none focus:ring-4 focus:ring-[#6FE514]/20 md:rounded-none md:px-7";
+
+  if (item.href) {
+    return (
+      <Link href={item.href} className={classes}>
+        {index > 0 ? <span className="absolute bottom-6 left-0 top-6 hidden w-px bg-white/16 md:block" /> : null}
+        {content}
+      </Link>
+    );
+  }
+
+  const authAction = item.action;
+  if (!authAction) return null;
+
   return (
-    <span className="inline-flex min-h-10 items-center gap-2 rounded-fleet border border-white/12 bg-white/[0.08] px-3 text-xs font-black text-white shadow-[0_14px_30px_rgba(0,0,0,0.16)]">
+    <button type="button" onClick={() => onAuth(authAction)} className={classes}>
+      {index > 0 ? <span className="absolute bottom-6 left-0 top-6 hidden w-px bg-white/16 md:block" /> : null}
+      {content}
+    </button>
+  );
+}
+
+function StoreBadge({ icon, eyebrow, label }: { icon: ReactNode; eyebrow: string; label: string }) {
+  return (
+    <span className="inline-flex min-h-16 min-w-[230px] items-center justify-center gap-3 rounded-[10px] border border-white/70 bg-black px-5 text-white shadow-[0_16px_40px_rgba(0,0,0,0.26)]">
       {icon}
-      <span>{label}</span>
+      <span className="grid text-left leading-none">
+        <span className="text-[0.68rem] font-black uppercase tracking-normal text-white/82">{eyebrow}</span>
+        <strong className="mt-1 text-2xl font-black">{label}</strong>
+      </span>
     </span>
+  );
+}
+
+function CarouselButton({ children, label, onClick }: { children: ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={label} className="grid h-12 w-8 place-items-center text-[#7EE817] transition hover:-translate-y-0.5 hover:text-white sm:h-16 sm:w-12">
+      {children}
+    </button>
+  );
+}
+
+function TikTokIcon(props: ComponentPropsWithoutRef<"svg">) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+      <path d="M16.4 3c.38 2.24 1.7 3.58 3.9 3.73v3.18a7.1 7.1 0 0 1-3.78-1.12v6.1c0 3.08-2.1 5.11-5.14 5.11-2.72 0-4.88-1.83-4.88-4.45 0-2.89 2.43-4.85 5.64-4.29v3.28c-1.34-.43-2.38.15-2.38 1.08 0 .8.68 1.3 1.58 1.3 1.03 0 1.8-.59 1.8-2.09V3h3.26Z" />
+    </svg>
   );
 }
 

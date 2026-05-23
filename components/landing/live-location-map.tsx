@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Loader2, LocateFixed, MapPin, Navigation } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ArrowRight, Loader2, LocateFixed, MapPin, Navigation, Route, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { formatMoney } from "@/lib/format";
 
 type LocationState = {
   latitude: number;
@@ -11,16 +13,79 @@ type LocationState = {
   accuracy?: number;
 };
 
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
+
+const BASE_DELIVERY_FEE = 1500;
+const EXTRA_KM_FEE = 300;
+const PLATFORM_FEE = 500;
+
 export function LiveLocationMap() {
   const [location, setLocation] = useState<LocationState | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("Enable location to load your live Google Map.");
+  const [pickup, setPickup] = useState("Your Location");
+  const [dropoff, setDropoff] = useState("Ikeja GRA, Lagos");
+  const [pickupUsesCurrentLocation, setPickupUsesCurrentLocation] = useState(true);
+  const [loadingLocation, setLoadingLocation] = useState(false);
+  const [distanceKm, setDistanceKm] = useState(1);
+  const [distanceSource, setDistanceSource] = useState("Waiting for route details");
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [locationMessage, setLocationMessage] = useState("Your Location");
+  const [showDeniedModal, setShowDeniedModal] = useState(false);
+  const requestedOnEntry = useRef(false);
+
+  const pickupCoordinates = pickupUsesCurrentLocation && location ? location : parseCoordinates(pickup);
+  const dropoffCoordinates = parseCoordinates(dropoff);
+
+  const pricing = useMemo(() => calculateDeliveryPrice(distanceKm), [distanceKm]);
 
   const mapUrl = useMemo(() => {
-    if (!location) return null;
-    const query = `${location.latitude},${location.longitude}`;
-    return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`;
-  }, [location]);
+    if (pickupCoordinates && dropoffCoordinates) {
+      const origin = `${pickupCoordinates.latitude},${pickupCoordinates.longitude}`;
+      const destination = `${dropoffCoordinates.latitude},${dropoffCoordinates.longitude}`;
+      return `https://maps.google.com/maps?saddr=${encodeURIComponent(origin)}&daddr=${encodeURIComponent(destination)}&output=embed`;
+    }
+
+    if (pickupCoordinates) {
+      const query = `${pickupCoordinates.latitude},${pickupCoordinates.longitude}`;
+      return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`;
+    }
+
+    if (dropoff.trim().length > 3) {
+      return `https://maps.google.com/maps?q=${encodeURIComponent(dropoff)}&z=13&output=embed`;
+    }
+
+    return null;
+  }, [dropoff, dropoffCoordinates, pickupCoordinates]);
+
+  useEffect(() => {
+    if (requestedOnEntry.current) return;
+    requestedOnEntry.current = true;
+
+    if (!("geolocation" in navigator)) {
+      setLocationMessage("Your browser does not support live location.");
+      return;
+    }
+
+    const permissions = navigator.permissions;
+    if (permissions?.query) {
+      permissions
+        .query({ name: "geolocation" as PermissionName })
+        .then((status) => {
+          if (status.state === "denied") {
+            setShowDeniedModal(true);
+            setLocationMessage("Location permission is blocked.");
+            return;
+          }
+          requestLocation(true);
+        })
+        .catch(() => requestLocation(true));
+      return;
+    }
+
+    requestLocation(true);
+  }, []);
 
   useEffect(() => {
     if (!location || !navigator.geolocation) return;
@@ -33,90 +98,300 @@ export function LiveLocationMap() {
         });
       },
       () => undefined,
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+      { enableHighAccuracy: true, maximumAge: 8000, timeout: 15000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, [location]);
 
-  function enableLocation() {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      updateDistance();
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [dropoff, pickup, pickupUsesCurrentLocation, location?.latitude, location?.longitude]);
+
+  function requestLocation(automatic = false) {
     if (!navigator.geolocation) {
-      setMessage("Your browser does not support location permission.");
+      setLocationMessage("Your browser does not support live location.");
       return;
     }
 
-    setLoading(true);
-    setMessage("Waiting for location permission...");
+    setLoadingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setLocation({
+        const nextLocation = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy
-        });
-        setMessage("Live location enabled.");
-        setLoading(false);
+        };
+        setLocation(nextLocation);
+        setPickup("Your Location");
+        setPickupUsesCurrentLocation(true);
+        setLocationMessage("Your Location");
+        setShowDeniedModal(false);
+        setLoadingLocation(false);
       },
       (error) => {
-        setMessage(error.code === error.PERMISSION_DENIED ? "Location permission was blocked. Allow it in your browser to load the live map." : "Could not read your location. Try again.");
-        setLoading(false);
+        setLoadingLocation(false);
+        if (error.code === error.PERMISSION_DENIED) {
+          setShowDeniedModal(true);
+          setLocationMessage("Location permission is blocked.");
+          return;
+        }
+        setLocationMessage(automatic ? "We could not read your location yet." : "Could not read your location. Try again.");
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
   }
 
-  return (
-    <section className="section-wrap py-8 sm:py-12">
-      <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr] lg:items-stretch">
-        <Card className="flex flex-col justify-between p-5">
-          <div>
-            <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Live location</span>
-            <h2 className="mt-3 text-3xl font-black leading-tight text-fleet-night sm:text-4xl">Enable location and see yourself on Google Maps.</h2>
-            <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
-              This helps customers, drivers, and business dispatchers confirm pickup areas before tracking a delivery.
-            </p>
-          </div>
-          <div className="mt-5 grid gap-3">
-            <Button type="button" onClick={enableLocation} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-              Enable location
-            </Button>
-            <div className="rounded-fleet bg-fleet-paper p-3 text-sm font-bold leading-6 text-slate-600">
-              {message}
-              {location ? (
-                <span className="mt-1 block text-xs text-slate-500">
-                  {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
-                  {location.accuracy ? `, accuracy ${Math.round(location.accuracy)}m` : ""}
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </Card>
+  async function updateDistance() {
+    const origin = pickupCoordinates ? formatCoordinates(pickupCoordinates) : pickup.trim();
+    const destination = dropoffCoordinates ? formatCoordinates(dropoffCoordinates) : dropoff.trim();
 
-        <div className="relative min-h-[340px] overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_18px_48px_rgba(8,17,31,0.08)]">
-          {mapUrl ? (
-            <iframe
-              title="Your live Google Map"
-              src={mapUrl}
-              className="absolute inset-0 h-full w-full border-0"
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              allowFullScreen
-            />
-          ) : (
-            <div className="map-grid absolute inset-0">
-              <div className="absolute left-1/2 top-1/2 grid h-20 w-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white text-fleet-ember shadow-lift">
-                <MapPin className="h-9 w-9" />
+    if (!origin || !destination || destination.length < 3) {
+      setDistanceKm(1);
+      setDistanceSource("Add a pickup and drop-off to estimate distance");
+      return;
+    }
+
+    if (pickupCoordinates && dropoffCoordinates) {
+      const directDistance = roundDistance(haversineDistanceKm(pickupCoordinates, dropoffCoordinates));
+      setDistanceKm(Math.max(1, directDistance));
+      setDistanceSource("Calculated from map coordinates");
+      return;
+    }
+
+    setRouteLoading(true);
+    try {
+      const params = new URLSearchParams({ origin, destination });
+      const response = await fetch(`/api/maps/distance?${params.toString()}`);
+      if (!response.ok) throw new Error("Distance Matrix unavailable");
+      const payload = (await response.json()) as { distanceKm?: number; source?: string };
+      if (typeof payload.distanceKm !== "number") throw new Error("Distance unavailable");
+      setDistanceKm(Math.max(1, roundDistance(payload.distanceKm)));
+      setDistanceSource("Calculated with route distance");
+    } catch {
+      setDistanceKm(fallbackDistance(origin, destination));
+      setDistanceSource("Estimated while route service is unavailable");
+    } finally {
+      setRouteLoading(false);
+    }
+  }
+
+  const bookingHref = `/book?pickup=${encodeURIComponent(pickupUsesCurrentLocation && location ? formatCoordinates(location) : pickup)}&dropoff=${encodeURIComponent(dropoff)}`;
+
+  return (
+    <section className="bg-white py-10 sm:py-14">
+      <div className="section-wrap">
+        <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-stretch">
+          <Card className="overflow-hidden p-5 sm:p-6">
+            <div>
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Your Location</span>
+              <h2 className="mt-3 text-3xl font-black leading-tight text-fleet-night sm:text-5xl">Where should we pick up from?</h2>
+              <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-slate-600">
+                Start with your live location, add a drop-off, and see the delivery distance and fee before booking.
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-4">
+              <label className="form-field">
+                <span className="form-label">Pickup location</span>
+                <input
+                  className="form-input"
+                  value={pickup}
+                  onChange={(event) => {
+                    setPickup(event.target.value);
+                    setPickupUsesCurrentLocation(false);
+                  }}
+                  placeholder="Pickup address or 6.5244, 3.3792"
+                />
+              </label>
+
+              <label className="form-field">
+                <span className="form-label">Dropoff location</span>
+                <input
+                  className="form-input"
+                  value={dropoff}
+                  onChange={(event) => setDropoff(event.target.value)}
+                  placeholder="Drop-off address or coordinates"
+                />
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button type="button" variant="secondary" onClick={() => requestLocation()} disabled={loadingLocation}>
+                  {loadingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+                  Use My Location
+                </Button>
+                <Link href={bookingHref} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-fleet border border-transparent bg-fleet-ember px-4 text-sm font-extrabold text-white shadow-[0_16px_32px_rgba(239,108,0,0.2)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#f47e18] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20">
+                  Book Delivery
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
               </div>
             </div>
-          )}
-          <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-fleet border border-white/80 bg-white/92 p-3 shadow-lift backdrop-blur-xl">
-            <span className="inline-flex items-center gap-2 text-sm font-black text-fleet-night">
-              <Navigation className="h-4 w-4 text-fleet-ember" />
-              {location ? "Google Map loaded from your live location" : "Map loads immediately after permission"}
-            </span>
+
+            <div className="mt-5 rounded-fleet border border-fleet-line bg-fleet-paper p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-2 text-sm font-black text-fleet-night">
+                  <Navigation className="h-4 w-4 text-fleet-ember" />
+                  {locationMessage}
+                </span>
+                {location ? (
+                  <span className="text-xs font-bold text-slate-500">
+                    {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
+                    {location.accuracy ? ` · ${Math.round(location.accuracy)}m accuracy` : ""}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </Card>
+
+          <div className="grid gap-4">
+            <div className="relative min-h-[360px] overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_18px_48px_rgba(8,17,31,0.08)] sm:min-h-[460px]">
+              {mapUrl ? (
+                <iframe
+                  title="Your Location live map"
+                  src={mapUrl}
+                  className="absolute inset-0 h-full w-full border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  allowFullScreen
+                />
+              ) : (
+                <div className="map-grid absolute inset-0">
+                  <div className="absolute left-1/2 top-1/2 grid h-20 w-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white text-fleet-ember shadow-lift">
+                    <MapPin className="h-9 w-9" />
+                  </div>
+                </div>
+              )}
+              <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-fleet border border-white/80 bg-white/92 p-4 shadow-lift backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="inline-flex items-center gap-2 text-sm font-black text-fleet-night">
+                    <Route className="h-4 w-4 text-fleet-ember" />
+                    Live interactive map
+                  </span>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">Mobile ready</span>
+                </div>
+              </div>
+            </div>
+
+            <Card className="p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Auto price estimate</span>
+                  <strong className="mt-1 block text-4xl font-black text-fleet-night">{formatMoney(pricing.total)}</strong>
+                </div>
+                <span className="inline-flex items-center gap-2 rounded-full bg-fleet-night px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-white">
+                  {routeLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 text-fleet-gold" />}
+                  {distanceKm.toFixed(1)} km
+                </span>
+              </div>
+              <div className="mt-4 grid gap-3">
+                <PriceRow label="Estimated distance" value={`${distanceKm.toFixed(1)} km`} />
+                <PriceRow label="Delivery fee" value={formatMoney(pricing.deliveryFee)} />
+                <PriceRow label="Platform fee" value={formatMoney(pricing.platformFee)} />
+                <PriceRow label="Total fee" value={formatMoney(pricing.total)} strong />
+              </div>
+              <p className="mt-3 text-xs font-bold leading-5 text-slate-500">{distanceSource}. Base fee covers the first 1 km, then adds {formatMoney(EXTRA_KM_FEE)} per extra km.</p>
+            </Card>
           </div>
         </div>
       </div>
+
+      {showDeniedModal ? (
+        <div className="fixed inset-0 z-[120] grid place-items-center bg-fleet-night/70 px-4 py-8 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Location permission warning">
+          <div className="w-full max-w-md rounded-fleet border border-white/20 bg-white p-5 shadow-[0_28px_90px_rgba(0,0,0,0.35)]">
+            <div className="flex items-start justify-between gap-4">
+              <span className="grid h-12 w-12 place-items-center rounded-fleet bg-amber-50 text-amber-700">
+                <AlertTriangle className="h-6 w-6" />
+              </span>
+              <button type="button" onClick={() => setShowDeniedModal(false)} className="grid h-10 w-10 place-items-center rounded-fleet border border-fleet-line text-fleet-night" aria-label="Close location warning">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <h3 className="mt-4 text-2xl font-black text-fleet-night">Enable location for accurate delivery booking.</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+              FastFleet uses your location to improve pickup accuracy, live tracking, and delivery fee estimates. Please enable location permission in your browser or app settings.
+            </p>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <Button type="button" onClick={() => requestLocation()} className="flex-1">
+                <LocateFixed className="h-4 w-4" />
+                Try Again
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setShowDeniedModal(false)} className="flex-1">
+                Continue manually
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function PriceRow({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-fleet bg-fleet-paper px-3 py-2 text-sm">
+      <span className="font-bold text-slate-500">{label}</span>
+      <strong className={`text-right font-black ${strong ? "text-fleet-ember" : "text-fleet-night"}`}>{value}</strong>
+    </div>
+  );
+}
+
+function calculateDeliveryPrice(distanceKm: number) {
+  const billableExtraKm = Math.max(0, Math.ceil(distanceKm) - 1);
+  const deliveryFee = BASE_DELIVERY_FEE + billableExtraKm * EXTRA_KM_FEE;
+
+  return {
+    deliveryFee,
+    platformFee: PLATFORM_FEE,
+    total: deliveryFee + PLATFORM_FEE
+  };
+}
+
+function parseCoordinates(value: string): Coordinates | null {
+  const match = value.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+  const latitude = Number(match[1]);
+  const longitude = Number(match[2]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+  return { latitude, longitude };
+}
+
+function formatCoordinates(coordinates: Coordinates) {
+  return `${coordinates.latitude},${coordinates.longitude}`;
+}
+
+function haversineDistanceKm(origin: Coordinates, destination: Coordinates) {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(destination.latitude - origin.latitude);
+  const dLon = toRadians(destination.longitude - origin.longitude);
+  const lat1 = toRadians(origin.latitude);
+  const lat2 = toRadians(destination.latitude);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function roundDistance(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function fallbackDistance(origin: string, destination: string) {
+  const seed = stableHash(`${origin}|${destination}`);
+  return Math.max(1, roundDistance(1 + (seed % 90) / 10));
+}
+
+function stableHash(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+  return Math.abs(hash);
 }

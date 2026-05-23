@@ -300,14 +300,31 @@ export function PhoneAuthForm({
         typeof window === "undefined"
           ? undefined
           : `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(safeDestination)}${roleParam}`;
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo,
-          queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : undefined
+          queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : undefined,
+          skipBrowserRedirect: true
         }
       });
       if (error) throw error;
+      if (!data.url) throw new Error(`Could not start ${provider === "google" ? "Google" : "Apple"} sign-in.`);
+
+      const check = await fetch("/api/auth/oauth-provider-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: data.url, provider })
+      });
+      const providerStatus = (await check.json().catch(() => null)) as { ok?: boolean; reason?: string | null } | null;
+      if (!providerStatus?.ok) {
+        throw new Error(
+          providerStatus?.reason ||
+            `${provider === "google" ? "Google" : "Apple"} sign-in is not enabled in Supabase yet. Enable the provider in Supabase Auth before using this button.`
+        );
+      }
+
+      window.location.assign(data.url);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : `Could not continue with ${provider === "google" ? "Google" : "Apple"}.`);
       setOauthLoading(null);

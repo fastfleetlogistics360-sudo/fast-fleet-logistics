@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { AdvertDealsRail } from "@/components/landing/advert-deals-rail";
 import { AdvertHeroSlider } from "@/components/landing/advert-hero-slider";
 import { HowItWorks } from "@/components/landing/how-it-works";
 import { LiveLocationMap } from "@/components/landing/live-location-map";
+import { MainPageSections } from "@/components/landing/main-page-sections";
 
 export const metadata: Metadata = {
   title: "Book Same-Day Delivery",
@@ -14,8 +14,8 @@ export default function MainPage() {
     <>
       <AdvertHeroSlider />
       <LiveLocationMap />
-      <AdvertDealsRail />
       <HowItWorks />
+      <MainPageSections />
     </>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, CreditCard, Loader2, MapPin, Package, Truck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { estimateFare, speedLabel, vehicleLabel } from "@/lib/fare";
@@ -41,14 +41,15 @@ const speeds: Array<{ value: DeliverySpeed; label: string; body: string }> = [
 
 export function BookingFlow() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(false);
   const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
-    pickup: "Victoria Island, Lagos",
+    pickup: searchParams.get("pickup") || "Victoria Island, Lagos",
     pickupContact: "",
-    dropoff: "Ikeja GRA, Lagos",
+    dropoff: searchParams.get("dropoff") || "Ikeja GRA, Lagos",
     dropoffContact: "",
     parcel: "Retail parcel",
     vehicle: "bike" as VehicleType,
