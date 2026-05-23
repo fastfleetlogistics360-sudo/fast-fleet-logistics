@@ -9,6 +9,8 @@ import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
+import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
+import { RoutePreview } from "@/components/maps/route-preview";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,6 +37,13 @@ type DeliveryRow = {
   price_ngn: number;
   created_at: string;
   proof_url?: string | null;
+};
+
+type LocalDelivery = Partial<DeliveryRow> & {
+  pickup?: string;
+  dropoff?: string;
+  estimate?: { total?: number };
+  source?: string;
 };
 
 type SavedAddress = {
@@ -142,7 +151,7 @@ export function BusinessDashboard() {
         setProfile(nextProfile);
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
         if (ordersResult.error) throw ordersResult.error;
-        setOrders((ordersResult.data || []) as DeliveryRow[]);
+        setOrders(mergeLocalDeliveries((ordersResult.data || []) as DeliveryRow[]));
         setAddresses((addressResult.data || []) as SavedAddress[]);
         setTeam((teamResult.members || []) as TeamMember[]);
         setDispatch((current) => ({
@@ -351,11 +360,27 @@ function MobileTabs({ activeTab, onChange }: { activeTab: BusinessTab; onChange:
 
 function OverviewTab({ loading, profile, walletBalance, stats, orders }: { loading: boolean; profile: BusinessProfile; walletBalance: number; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[] }) {
   if (loading) return <DashboardSkeleton />;
+  const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || orders[0] || null;
   return (
     <div className="grid gap-5">
       <Card className="p-5"><div className="flex items-center gap-4"><span className="grid h-16 w-16 place-items-center rounded-fleet bg-fleet-navy text-lg font-black text-white">{initials(profile.business_name || "Business")}</span><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">Logo and business name editable in Account</p></div></div></Card>
-      <Card className="bg-fleet-navy p-5 text-white"><p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">Wallet balance</p><h2 className="mt-3 text-4xl font-black">{formatMoney(walletBalance)}</h2><LinkButton href="/wallet/callback" className="mt-5 bg-white text-fleet-navy hover:bg-white">Top up</LinkButton></Card>
+      <Card className="border-0 bg-fleet-night p-5 text-white shadow-[0_22px_58px_rgba(8,17,31,0.24)]"><p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">Wallet balance</p><h2 className="mt-3 text-4xl font-black">{formatMoney(walletBalance)}</h2><SmartWalletTopUp className="mt-5 bg-white text-fleet-night hover:bg-white" /></Card>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat label="Orders today" value={String(stats.today)} /><Stat label="Spent this month" value={formatMoney(stats.monthSpend)} /><Stat label="Active" value={String(stats.active)} /><Stat label="Saved addresses" value={String(stats.addresses)} /></div>
+      <Card className="overflow-hidden p-0">
+        <div className="p-4">
+          <h2 className="text-xl font-black text-fleet-night">Live delivery map</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-600">{activeOrder ? activeOrder.delivery_code : "Dispatch routes appear here as they move."}</p>
+        </div>
+        <RoutePreview
+          compact
+          className="rounded-none border-x-0 border-b-0"
+          label="Business live map"
+          status={activeOrder?.status}
+          riderName="Assigned courier"
+          pickupAddress={activeOrder?.pickup_address || profile.pickup_address || "Victoria Island, Lagos"}
+          dropoffAddress={activeOrder?.dropoff_address || "Ikeja GRA, Lagos"}
+        />
+      </Card>
       <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Recent orders</h2><div className="mt-4 grid gap-3">{orders.slice(0, 5).map((order) => <OrderCard key={order.id} order={order} />)}</div></Card>
     </div>
   );
@@ -454,4 +479,35 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function DashboardSkeleton() {
   return <div className="grid gap-4"><Skeleton className="h-36" /><div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Skeleton className="h-24" /><Skeleton className="h-24" /><Skeleton className="h-24" /><Skeleton className="h-24" /></div><Skeleton className="h-64" /></div>;
+}
+
+function mergeLocalDeliveries(serverOrders: DeliveryRow[]) {
+  if (typeof window === "undefined") return serverOrders;
+  const localOrders = readLocalDeliveries();
+  if (!localOrders.length) return serverOrders;
+  const seen = new Set(serverOrders.map((order) => order.delivery_code?.toUpperCase()));
+  return [
+    ...serverOrders,
+    ...localOrders.filter((order) => !seen.has(order.delivery_code.toUpperCase()))
+  ].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+}
+
+function readLocalDeliveries(): DeliveryRow[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]") as LocalDelivery[];
+    return stored
+      .filter((item) => item.delivery_code)
+      .map((item, index) => ({
+        id: item.id || `local-${item.delivery_code || index}`,
+        delivery_code: String(item.delivery_code).toUpperCase(),
+        pickup_address: item.pickup_address || item.pickup || (item.source?.includes("restaurant") ? "Restaurant pickup" : "Marketplace pickup"),
+        dropoff_address: item.dropoff_address || item.dropoff || "Customer delivery address",
+        status: item.status || "searching",
+        price_ngn: Number(item.price_ngn || item.estimate?.total || 0),
+        created_at: item.created_at || new Date().toISOString(),
+        proof_url: item.proof_url || null
+      }));
+  } catch {
+    return [];
+  }
 }

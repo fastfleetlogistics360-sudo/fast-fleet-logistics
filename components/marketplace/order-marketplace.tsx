@@ -123,7 +123,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       });
       const payload = await response.json();
       if (!response.ok || !payload.authorizationUrl) throw new Error(payload.error || "Paystack checkout failed.");
-      const deliveryCode = String(payload.reference || `FFM-${Date.now()}`);
+      const deliveryCode = String(payload.reference || `FFM-${Date.now()}`).toUpperCase();
       const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]");
       localStorage.setItem(
         "fastfleet.next.deliveries",
@@ -133,6 +133,8 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             pickup_address: selectedItems.map((item) => item.store).filter(Boolean).join(", ") || (kind === "restaurant" ? "Restaurant pickup" : "Shopping pickup"),
             dropoff_address: address,
             status: "searching",
+            vehicle_type: "bike",
+            delivery_speed: "same_day",
             price_ngn: total,
             eta_minutes: 35,
             source: `${kind}_checkout`,
@@ -161,28 +163,28 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
 
           <div className="mt-8 grid gap-4">
             {liveStores.map((store) => (
-              <details key={store.id || store.name} className="group overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_18px_48px_rgba(8,17,31,0.08)]">
-                <summary className="grid cursor-pointer gap-4 p-4 sm:grid-cols-[128px_1fr_auto] sm:items-center">
+              <details key={store.id || store.name} className="group overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_18px_48px_rgba(8,17,31,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_58px_rgba(8,17,31,0.12)]">
+                <summary className="grid cursor-pointer gap-3 p-3 transition group-open:bg-fleet-paper/45 sm:grid-cols-[96px_1fr_auto] sm:items-center">
                   {store.imageUrl ? (
                     <img
                       src={store.imageUrl}
                       alt={store.name}
-                      className="h-28 w-full rounded-fleet object-cover sm:h-24 sm:w-32"
+                      className="h-24 w-full rounded-fleet object-cover transition duration-300 group-hover:scale-[1.02] sm:h-20 sm:w-24"
                     />
                   ) : null}
                   <span className="min-w-0">
-                    <strong className="block text-xl font-black text-fleet-night">{store.name}</strong>
-                    <span className="mt-1 block text-sm font-bold leading-6 text-slate-500">{store.area} · {store.description}</span>
+                    <strong className="block text-lg font-black text-fleet-night">{store.name}</strong>
+                    <span className="mt-1 line-clamp-2 block text-xs font-bold leading-5 text-slate-500">{store.area} · {store.description}</span>
                     {store.address ? (
-                      <span className="mt-2 flex items-start gap-1 text-xs font-bold leading-5 text-slate-500">
+                      <span className="mt-1 flex items-start gap-1 text-xs font-bold leading-5 text-slate-500">
                         <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
                         {store.address}
                       </span>
                     ) : null}
                     {store.mealTypes?.length ? (
-                      <span className="mt-3 flex flex-wrap gap-2">
+                      <span className="mt-2 flex flex-wrap gap-1.5">
                         {store.mealTypes.map((mealType) => (
-                          <span key={mealType} className="rounded-full bg-fleet-paper px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.1em] text-slate-500">
+                          <span key={mealType} className="rounded-full bg-fleet-paper px-2 py-0.5 text-[0.62rem] font-black uppercase tracking-[0.1em] text-slate-500">
                             {mealType}
                           </span>
                         ))}

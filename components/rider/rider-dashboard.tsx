@@ -10,6 +10,7 @@ import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
+import { RoutePreview } from "@/components/maps/route-preview";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -187,6 +188,11 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
   }, []);
 
   async function toggleOnline() {
+    if ((profile.application_status || initialKycStatus) !== "approved") {
+      setOnline(false);
+      setOnlineSince(null);
+      return;
+    }
     const nextOnline = !online;
     setOnline(nextOnline);
     setOnlineSince(nextOnline ? new Date() : null);
@@ -354,6 +360,21 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, prof
       </div>
       {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
       {activeJob ? <ActiveJob job={activeJob} proofFile={proofFile} onProofFile={onProofFile} onAdvance={onAdvance} /> : null}
+      <Card className="overflow-hidden p-0">
+        <div className="p-4">
+          <h2 className="text-xl font-black text-fleet-night">Live delivery map</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-600">{activeJob ? activeJob.delivery_code : "Your active route appears here when assigned."}</p>
+        </div>
+        <RoutePreview
+          compact
+          className="rounded-none border-x-0 border-b-0"
+          label="Rider live map"
+          status={activeJob?.status}
+          riderName={profile.full_name || "FastFleet rider"}
+          pickupAddress={activeJob?.pickup_address || "Victoria Island, Lagos"}
+          dropoffAddress={activeJob?.dropoff_address || "Ikeja GRA, Lagos"}
+        />
+      </Card>
       <section>
         <h2 className="mb-3 text-xl font-black text-fleet-night">Recent trips</h2>
         <div className="grid gap-3">{recentTrips.length ? recentTrips.map((job) => <TripCard key={job.id} job={job} />) : <DashboardEmptyState title="No completed trips" body="Accepted jobs will move here after delivery." ctaLabel="Go online" ctaHref="/rider/dashboard" />}</div>
@@ -388,6 +409,15 @@ function ActiveJob({ job, proofFile, onProofFile, onAdvance }: { job: JobRow; pr
       <StatusBadge tone="blue">Active delivery</StatusBadge>
       <h2 className="mt-3 text-xl font-black text-fleet-night">{job.delivery_code}</h2>
       <p className="mt-2 text-sm font-semibold text-slate-600">{job.pickup_address} to {job.dropoff_address}</p>
+      <RoutePreview
+        compact
+        className="mt-4"
+        label="Active route"
+        status={job.status}
+        riderName="Your route"
+        pickupAddress={job.pickup_address}
+        dropoffAddress={job.dropoff_address}
+      />
       {job.status === "picked_up" ? (
         <label className="form-field mt-4">
           <span className="form-label">Proof of delivery photo</span>
@@ -422,7 +452,7 @@ function EarningsTab({ walletBalance, withdrawals, onOpenWithdrawal }: { walletB
   const max = Math.max(...chartValues, 1);
   return (
     <div className="grid gap-5">
-      <Card className="bg-fleet-navy p-5 text-white">
+      <Card className="border-0 bg-fleet-night p-5 text-white shadow-[0_22px_58px_rgba(8,17,31,0.24)]">
         <p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">FastFleet owes you</p>
         <h2 className="mt-3 text-4xl font-black">{formatMoney(walletBalance)}</h2>
         <Button type="button" className="mt-5 bg-white text-fleet-navy hover:bg-white" onClick={onOpenWithdrawal}>Withdraw</Button>

@@ -45,9 +45,10 @@ export async function POST(request: Request) {
 
     const reference = `FFM-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, "");
-    const callbackUrl = new URL(`${siteUrl}/${payload.kind === "shopping" ? "shopping-mall" : "restaurants"}`);
+    const callbackUrl = new URL(`${siteUrl}/track`);
     callbackUrl.searchParams.set("paid", "1");
     callbackUrl.searchParams.set("reference", reference);
+    callbackUrl.searchParams.set("code", reference);
     const pickupAddress = Array.from(new Set(items.map((item) => item.store).filter(Boolean))).join(", ") || (payload.kind === "shopping" ? "Shopping pickup" : "Restaurant pickup");
 
     try {

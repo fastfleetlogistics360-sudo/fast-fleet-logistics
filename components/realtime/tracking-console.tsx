@@ -67,19 +67,19 @@ export function TrackingConsole() {
       if (result.data?.rider_id) await loadLastRiderLocation(result.data.rider_id);
     } catch {
       const local = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]").find(
-        (item: { delivery_code?: string }) => item.delivery_code === nextCode.trim().toUpperCase()
+        (item: { delivery_code?: string }) => item.delivery_code?.toUpperCase() === nextCode.trim().toUpperCase()
       );
       setDelivery(
         local
           ? {
               delivery_code: local.delivery_code,
-              pickup_address: local.pickup,
-              dropoff_address: local.dropoff,
+              pickup_address: local.pickup_address || local.pickup,
+              dropoff_address: local.dropoff_address || local.dropoff,
               status: local.status,
-              vehicle_type: local.vehicle,
-              delivery_speed: local.speed,
-              price_ngn: local.estimate?.total || 0,
-              eta_minutes: local.estimate?.etaMinutes || 22
+              vehicle_type: local.vehicle_type || local.vehicle || "bike",
+              delivery_speed: local.delivery_speed || local.speed || "same_day",
+              price_ngn: local.price_ngn || local.estimate?.total || 0,
+              eta_minutes: local.eta_minutes || local.estimate?.etaMinutes || 35
             }
           : sample
       );

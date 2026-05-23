@@ -11,6 +11,7 @@ import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
+import { RoutePreview } from "@/components/maps/route-preview";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -56,6 +57,15 @@ type OrderRow = {
     vehicle_color?: string | null;
     users?: RiderInfo | null;
   } | null;
+};
+
+type LocalDelivery = Partial<OrderRow> & {
+  pickup?: string;
+  dropoff?: string;
+  vehicle?: string;
+  speed?: string;
+  estimate?: { total?: number; etaMinutes?: number };
+  source?: string;
 };
 
 type PromotionRow = {
@@ -160,7 +170,7 @@ export function CustomerDashboard() {
         setWallet((walletResult.data as WalletRow | null) || { balance_ngn: 0, locked_balance_ngn: 0 });
         if (orderResult.error) throw orderResult.error;
         if (promotionResult.error) throw promotionResult.error;
-        setOrders((orderResult.data || []) as OrderRow[]);
+        setOrders(mergeLocalDeliveries((orderResult.data || []) as OrderRow[]));
         setPromotions((promotionResult.data || []) as PromotionRow[]);
         setAddresses((addressResult.data || []) as SavedAddress[]);
       } catch (error) {
@@ -391,6 +401,22 @@ function HomeTab({
 
       {activeOrder ? <ActiveDeliveryCard order={activeOrder} onSelect={() => onSelectOrder(activeOrder)} /> : <DashboardEmptyState title="No active delivery" body="Book your first delivery and live rider updates will appear here." ctaLabel="Book delivery" ctaHref="/book" />}
 
+      <Card className="overflow-hidden p-0">
+        <div className="p-4">
+          <h2 className="text-xl font-black text-fleet-night">Live delivery map</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-600">{activeOrder ? activeOrder.delivery_code : "Your next route preview appears here."}</p>
+        </div>
+        <RoutePreview
+          compact
+          className="rounded-none border-x-0 border-b-0"
+          label="Customer live map"
+          status={activeOrder?.status}
+          riderName={activeOrder?.rider_profiles?.users?.full_name || "FastFleet rider"}
+          pickupAddress={activeOrder?.pickup_address || "Victoria Island, Lagos"}
+          dropoffAddress={activeOrder?.dropoff_address || "Ikeja GRA, Lagos"}
+        />
+      </Card>
+
       {lastCompletedOrder ? (
         <Card className="p-4">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
@@ -532,14 +558,13 @@ function TrackTab({ order, searchCode, onSearchCode }: { order: OrderRow | null;
               ))}
             </div>
           </Card>
-          <div className="relative min-h-72 overflow-hidden rounded-fleet border border-fleet-line bg-white p-5">
-            <div className="absolute inset-0 map-grid opacity-80" />
-            <div className="relative flex h-56 items-center justify-between">
-              <span className="grid h-12 w-12 place-items-center rounded-full bg-fleet-navy font-black text-white">P</span>
-              <span className="h-1 flex-1 border-t-4 border-dashed border-fleet-gold" />
-              <span className="grid h-12 w-12 place-items-center rounded-full bg-fleet-leaf font-black text-white">D</span>
-            </div>
-          </div>
+          <RoutePreview
+            label="Live delivery map"
+            status={order.status}
+            riderName={order.rider_profiles?.users?.full_name || "Rider pending"}
+            pickupAddress={order.pickup_address}
+            dropoffAddress={order.dropoff_address}
+          />
           <Card className="p-4">
             <h3 className="text-lg font-black text-fleet-night">Rider info</h3>
             <p className="mt-2 text-sm font-semibold text-slate-600">{order.rider_profiles?.users?.full_name || "Rider pending"} · Rating 4.9 · {order.rider_profiles?.vehicle_type || "bike"}</p>
@@ -669,6 +694,15 @@ function OrderSheet({ order, onClose }: { order: OrderRow; onClose: () => void }
         <div className="mt-5 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">
           Rider: {order.rider_profiles?.users?.full_name || "Pending"} · Plate: {order.rider_profiles?.plate_number || "Pending"}
         </div>
+        <RoutePreview
+          compact
+          className="mt-4"
+          label="Order live map"
+          status={order.status}
+          riderName={order.rider_profiles?.users?.full_name || "Rider pending"}
+          pickupAddress={order.pickup_address}
+          dropoffAddress={order.dropoff_address}
+        />
         {order.proof_url ? (
           <Image src={order.proof_url} alt="Proof of delivery" width={720} height={360} unoptimized className="mt-4 max-h-64 w-full rounded-fleet object-cover" />
         ) : null}
@@ -676,6 +710,39 @@ function OrderSheet({ order, onClose }: { order: OrderRow; onClose: () => void }
       </Card>
     </div>
   );
+}
+
+function mergeLocalDeliveries(serverOrders: OrderRow[]) {
+  if (typeof window === "undefined") return serverOrders;
+  const localOrders = readLocalDeliveries();
+  if (!localOrders.length) return serverOrders;
+  const seen = new Set(serverOrders.map((order) => order.delivery_code?.toUpperCase()));
+  return [
+    ...serverOrders,
+    ...localOrders.filter((order) => !seen.has(order.delivery_code.toUpperCase()))
+  ].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+}
+
+function readLocalDeliveries(): OrderRow[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]") as LocalDelivery[];
+    return stored
+      .filter((item) => item.delivery_code)
+      .map((item, index) => ({
+        id: item.id || `local-${item.delivery_code || index}`,
+        delivery_code: String(item.delivery_code).toUpperCase(),
+        pickup_address: item.pickup_address || item.pickup || (item.source?.includes("restaurant") ? "Restaurant pickup" : "Marketplace pickup"),
+        dropoff_address: item.dropoff_address || item.dropoff || "Customer delivery address",
+        status: item.status || "searching",
+        price_ngn: Number(item.price_ngn || item.estimate?.total || 0),
+        created_at: item.created_at || new Date().toISOString(),
+        delivered_at: item.delivered_at || null,
+        proof_url: item.proof_url || null,
+        rider_profiles: item.rider_profiles || null
+      }));
+  } catch {
+    return [];
+  }
 }
 
 function DashboardSkeleton() {

@@ -99,7 +99,7 @@ type AdminRiderDocument = {
 
 type AdminRider = {
   id: string;
-  application_status: "submitted" | "under_review" | "approved" | "rejected" | "more_info_required";
+  application_status: "pending_review" | "submitted" | "under_review" | "approved" | "rejected" | "more_info_required";
   vehicle_type: string | null;
   plate_number: string | null;
   vehicle_color: string | null;

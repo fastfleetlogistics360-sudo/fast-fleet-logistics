@@ -17,6 +17,7 @@ export type DeliveryStatus =
   | "cancelled";
 
 export type RiderApplicationStatus =
+  | "pending_review"
   | "submitted"
   | "under_review"
   | "approved"

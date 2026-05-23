@@ -3,7 +3,7 @@ import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { RiderApplicationStatus } from "@/types/domain";
 
-const riderStatuses = new Set(["submitted", "under_review", "approved", "rejected", "more_info_required"]);
+const riderStatuses = new Set(["pending_review", "submitted", "under_review", "approved", "rejected", "more_info_required"]);
 
 const demoRiders = [
   {
@@ -33,7 +33,13 @@ export async function GET() {
     return NextResponse.json({ riders: demoRiders, demo: true });
   }
 
-  const { data, error } = await supabase
+  await supabase
+    .from("rider_profiles")
+    .update({ online: false })
+    .neq("application_status", "approved")
+    .eq("online", true);
+
+  const { data: profileRows, error } = await supabase
     .from("rider_profiles")
     .select(
       "id, user_id, application_status, vehicle_type, plate_number, vehicle_color, operating_zone, bank_name, account_number, account_name, online, created_at, updated_at, users(full_name, phone, email), rider_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)"
@@ -45,7 +51,40 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ riders: data || [] });
+  const { data: applicationRows } = await supabase
+    .from("rider_applications")
+    .select("id, user_id, status, full_name, phone, email, lga, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, created_at, updated_at, documents")
+    .order("created_at", { ascending: false })
+    .limit(75);
+
+  const profilesByUser = new Map((profileRows || []).map((profile) => [profile.user_id, profile]));
+  const mergedApplications =
+    applicationRows?.map((application) => {
+      const profile = profilesByUser.get(application.user_id);
+      return {
+        ...(profile || {}),
+        id: profile?.id || application.id,
+        application_id: application.id,
+        user_id: application.user_id,
+        application_status: application.status || profile?.application_status || "pending_review",
+        vehicle_type: application.vehicle_type || profile?.vehicle_type || null,
+        plate_number: application.plate_number || profile?.plate_number || null,
+        vehicle_color: application.vehicle_color || profile?.vehicle_color || null,
+        operating_zone: application.lga || profile?.operating_zone || null,
+        bank_name: application.bank_name || profile?.bank_name || null,
+        account_number: application.account_number || profile?.account_number || null,
+        account_name: application.account_name || profile?.account_name || null,
+        created_at: application.created_at || profile?.created_at,
+        updated_at: application.updated_at || profile?.updated_at,
+        users: profile?.users || { full_name: application.full_name, phone: application.phone, email: application.email },
+        rider_documents: profile?.rider_documents || documentsFromApplication(application.documents)
+      };
+    }) || [];
+
+  const applicationUsers = new Set(mergedApplications.map((rider) => rider.user_id));
+  const profileOnlyRows = (profileRows || []).filter((profile) => !applicationUsers.has(profile.user_id));
+
+  return NextResponse.json({ riders: [...mergedApplications, ...profileOnlyRows].sort(sortRidersForReview).slice(0, 75) });
 }
 
 export async function PATCH(request: Request) {
@@ -88,10 +127,48 @@ export async function PATCH(request: Request) {
     .update(patch)
     .eq("id", id)
     .select("id, user_id, application_status, operating_zone, suspension_reason, reviewed_at")
-    .single();
+    .maybeSingle();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  if (!data) {
+    const applicationPatch = {
+      status,
+      rejection_reason: status === "rejected" || status === "more_info_required" ? reason : null,
+      reviewed_at: new Date().toISOString()
+    };
+    const { data: application, error: applicationError } = await supabase
+      .from("rider_applications")
+      .update(applicationPatch)
+      .eq("id", id)
+      .select("id, user_id, status")
+      .maybeSingle();
+
+    if (applicationError) {
+      return NextResponse.json({ error: applicationError.message }, { status: 400 });
+    }
+    if (!application) {
+      return NextResponse.json({ error: "Rider application was not found." }, { status: 404 });
+    }
+
+    await Promise.allSettled([
+      supabase
+        .from("profiles")
+        .update({ kyc_status: status === "approved" ? "approved" : status === "rejected" ? "rejected" : "pending_review", updated_at: new Date().toISOString() })
+        .eq("user_id", application.user_id),
+      supabase.from("notifications").insert({
+        user_id: application.user_id,
+        title: status === "approved" ? "Rider KYC approved" : status === "rejected" ? "Rider KYC rejected" : "Rider KYC updated",
+        body: status === "approved" ? "Your rider account is approved. You can now go online." : reason || "Your rider application status changed.",
+        type: "rider_application",
+        channel: "in_app",
+        metadata: { rider_application_id: application.id, status }
+      })
+    ]);
+
+    return NextResponse.json({ rider: { id: application.id, user_id: application.user_id, application_status: application.status } });
   }
 
   await Promise.allSettled([
@@ -114,4 +191,31 @@ export async function PATCH(request: Request) {
   ]);
 
   return NextResponse.json({ rider: data });
+}
+
+function documentsFromApplication(documents: unknown) {
+  if (!Array.isArray(documents)) return [];
+  return documents.map((document, index) => {
+    const item = document as { key?: string; url?: string; path?: string };
+    return {
+      id: `application-doc-${index}`,
+      document_type: item.key || "document",
+      status: "submitted",
+      file_url: item.url || null,
+      storage_path: item.path || null,
+      rejection_reason: null
+    };
+  });
+}
+
+function sortRidersForReview(a: { application_status?: string | null; updated_at?: string | null; created_at?: string | null }, b: { application_status?: string | null; updated_at?: string | null; created_at?: string | null }) {
+  const priority = (status?: string | null) => {
+    if (status === "pending_review" || status === "submitted" || status === "under_review" || status === "more_info_required") return 0;
+    if (status === "approved") return 1;
+    if (status === "rejected") return 2;
+    return 3;
+  };
+  const statusDiff = priority(a.application_status) - priority(b.application_status);
+  if (statusDiff) return statusDiff;
+  return new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime();
 }
