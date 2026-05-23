@@ -97,6 +97,8 @@ const partners = [
   }
 ];
 
+const heroBackgroundImage = "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1800&q=72";
+
 export function LaunchLandingPage() {
   const [authIntent, setAuthIntent] = useState<AuthIntent | null>(null);
   const [storePopup, setStorePopup] = useState(false);
@@ -105,12 +107,14 @@ export function LaunchLandingPage() {
 
   return (
     <main className="relative isolate min-h-screen overflow-hidden bg-[#020608] text-white">
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=2200&q=88')"
-        }}
+      <Image
+        src={heroBackgroundImage}
+        alt=""
+        fill
+        priority
+        quality={72}
+        sizes="100vw"
+        className="absolute inset-0 object-cover object-center"
         aria-hidden="true"
       />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_34%,rgba(244,126,24,0.16),transparent_30%),linear-gradient(90deg,rgba(2,6,8,0.94),rgba(2,6,8,0.70)_45%,rgba(2,6,8,0.35)),linear-gradient(180deg,rgba(2,6,8,0.22),rgba(2,6,8,0.98)_74%,#020608)]" />
@@ -233,7 +237,7 @@ export function LaunchLandingPage() {
             <div className="partner-marquee flex w-max gap-3">
               {partnerLoop.map((partner, index) => (
                 <div key={`${partner.name}-${index}`} className="relative h-24 w-40 shrink-0 overflow-hidden rounded-[10px] bg-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] sm:h-28 sm:w-48">
-                  <Image src={partner.image} alt="" fill className="object-cover" sizes="192px" />
+                  <Image src={partner.image} alt="" fill className="object-cover" sizes="(min-width: 640px) 192px, 160px" quality={64} />
                   <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/78 via-fleet-night/10 to-white/10" />
                   <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/92 px-2 py-1 text-center text-sm font-black text-fleet-night shadow-[0_8px_18px_rgba(0,0,0,0.16)]">
                     {partner.name}
@@ -259,11 +263,19 @@ export function LaunchLandingPage() {
         }
 
         .partner-marquee {
+          will-change: transform;
           animation: fastfleet-partner-marquee 28s linear infinite;
         }
 
         .partner-marquee:hover {
           animation-play-state: paused;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .partner-marquee {
+            animation: none;
+            transform: translateX(0);
+          }
         }
       `}</style>
     </main>

@@ -37,7 +37,7 @@ export default function AuthPage() {
               <div className="absolute bottom-3 right-4 h-5 w-5 rounded-full bg-fleet-night" />
             </div>
             <div className="absolute bottom-5 left-5 right-5 grid gap-3 sm:grid-cols-3">
-              {["Email auth", "Phone OTP", "Google / Apple"].map((item) => (
+              {["Email auth", "Phone OTP", "Google sign-in"].map((item) => (
                 <div key={item} className="rounded-fleet border border-white/15 bg-white/10 p-3 text-xs font-black uppercase tracking-[0.12em] text-white/85">
                   {item}
                 </div>

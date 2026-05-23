@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     if (response.status === 400 && text.toLowerCase().includes("provider is not enabled")) {
       return NextResponse.json({
         ok: false,
-        reason: `${provider === "apple" ? "Apple" : "Google"} sign-in is not enabled in Supabase yet.`
+        reason: "Google sign-in is not enabled in Supabase yet."
       });
     }
 

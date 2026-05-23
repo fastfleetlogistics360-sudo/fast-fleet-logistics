@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { AppleIcon, GoogleIcon } from "@/components/icons/social-icons";
+import { GoogleIcon } from "@/components/icons/social-icons";
 
 const roleOptions: Array<{
   role: Exclude<UserRole, "admin">;
@@ -104,7 +104,7 @@ export function PhoneAuthForm({
   const [fullName, setFullName] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<"google" | "apple" | null>(null);
+  const [oauthLoading, setOauthLoading] = useState<"google" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -290,8 +290,8 @@ export function PhoneAuthForm({
     }
   }
 
-  async function continueWithOAuth(provider: "google" | "apple") {
-    setOauthLoading(provider);
+  async function continueWithGoogle() {
+    setOauthLoading("google");
     setMessage(null);
     try {
       const supabase = createClient();
@@ -301,32 +301,32 @@ export function PhoneAuthForm({
           ? undefined
           : `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(safeDestination)}${roleParam}`;
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
+        provider: "google",
         options: {
           redirectTo,
-          queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : undefined,
+          queryParams: { access_type: "offline", prompt: "consent" },
           skipBrowserRedirect: true
         }
       });
       if (error) throw error;
-      if (!data.url) throw new Error(`Could not start ${provider === "google" ? "Google" : "Apple"} sign-in.`);
+      if (!data.url) throw new Error("Could not start Google sign-in.");
 
       const check = await fetch("/api/auth/oauth-provider-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: data.url, provider })
+        body: JSON.stringify({ url: data.url, provider: "google" })
       });
       const providerStatus = (await check.json().catch(() => null)) as { ok?: boolean; reason?: string | null } | null;
       if (!providerStatus?.ok) {
         throw new Error(
           providerStatus?.reason ||
-            `${provider === "google" ? "Google" : "Apple"} sign-in is not enabled in Supabase yet. Enable the provider in Supabase Auth before using this button.`
+            "Google sign-in is not enabled in Supabase yet. Enable the provider in Supabase Auth before using this button."
         );
       }
 
       window.location.assign(data.url);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : `Could not continue with ${provider === "google" ? "Google" : "Apple"}.`);
+      setMessage(error instanceof Error ? error.message : "Could not continue with Google.");
       setOauthLoading(null);
     }
   }
@@ -555,13 +555,9 @@ export function PhoneAuthForm({
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : method === "phone" ? <Phone className="h-4 w-4" /> : <KeyRound className="h-4 w-4" />}
           {method === "phone" ? (otpSent ? "Verify OTP" : "Send OTP") : mode === "signup" ? "Create account" : "Sign in"}
         </Button>
-        <Button type="button" variant="secondary" onClick={() => continueWithOAuth("google")} disabled={loading || Boolean(oauthLoading)} className="w-full">
+        <Button type="button" variant="secondary" onClick={continueWithGoogle} disabled={loading || Boolean(oauthLoading)} className="w-full">
           {oauthLoading === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon className="h-4 w-4" />}
           Continue with Google
-        </Button>
-        <Button type="button" variant="secondary" onClick={() => continueWithOAuth("apple")} disabled={loading || Boolean(oauthLoading)} className="w-full">
-          {oauthLoading === "apple" ? <Loader2 className="h-4 w-4 animate-spin" /> : <AppleIcon className="h-4 w-4" />}
-          Continue with Apple
         </Button>
         {mode === "login" && method === "email" ? (
           <button type="button" onClick={resetPassword} disabled={loading} className="inline-flex items-center justify-center gap-2 text-sm font-black text-fleet-navy hover:text-fleet-ember disabled:opacity-50">
