@@ -1065,7 +1065,7 @@ for each row execute function public.set_updated_at();
 create table if not exists public.platform_launch_states (
   id uuid primary key default gen_random_uuid(),
   state text not null unique,
-  status text not null default 'waitlist' check (status in ('live', 'waitlist')),
+  status text not null default 'waitlist' check (status in ('active', 'live', 'beta', 'waitlist', 'paused')),
   launched_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -1966,8 +1966,8 @@ on conflict (vehicle_type, zone) do nothing;
 
 insert into public.platform_launch_states (state, status, launched_at)
 values
-  ('Lagos', 'live', now()),
-  ('Ogun', 'live', now())
+  ('Lagos', 'active', now()),
+  ('Ogun', 'active', now())
 on conflict (state) do update set
   status = excluded.status,
   launched_at = coalesce(public.platform_launch_states.launched_at, excluded.launched_at),

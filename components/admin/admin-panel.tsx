@@ -35,7 +35,7 @@ import {
   WalletCards
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { defaultLaunchStateRecords, rememberLiveState } from "@/lib/launch-states";
+import { defaultLaunchStateRecords, launchStatusLabel, rememberLiveState } from "@/lib/launch-states";
 import type { LaunchStateRecord } from "@/lib/launch-states";
 import { formatMoney } from "@/lib/format";
 import { riderReviewLabel } from "@/lib/kyc";
@@ -302,14 +302,14 @@ const demoRiders: AdminRider[] = [
 const demoDeliveries: AdminDelivery[] = [
   {
     id: "DLV-1001",
-    delivery_code: "FF-DEMO-1001",
+    delivery_code: "FF-240911-01",
     pickup_address: "Victoria Island, Lagos",
     dropoff_address: "Ikeja GRA, Lagos",
     status: "in_transit",
     price_ngn: 10850,
     eta_minutes: 22,
     created_at: new Date().toISOString(),
-    users: { full_name: "Demo Customer", phone: "+2348000000000", email: "customer@example.com" },
+    users: { full_name: "FastFleet Customer", phone: "+2348000000000", email: "customer@example.com" },
     rider_profiles: { users: { full_name: "Tunde Adebayo", phone: "+2348012204410" } }
   }
 ];
@@ -338,8 +338,8 @@ const demoRiskSignals: RiskSignal[] = [
     details: { reason: "Wallet debit did not match delivery amount" },
     resolved_at: null,
     created_at: new Date().toISOString(),
-    users: { full_name: "Demo Customer", email: "customer@example.com", phone: "+2348000000000" },
-    deliveries: { delivery_code: "FF-DEMO", status: "pending_payment", price_ngn: 12500 }
+    users: { full_name: "FastFleet Customer", email: "customer@example.com", phone: "+2348000000000" },
+    deliveries: { delivery_code: "FF-240911-02", status: "pending_payment", price_ngn: 12500 }
   }
 ];
 
@@ -351,7 +351,7 @@ const demoSupportTickets: SupportTicket[] = [
     message: "Customer says Paystack debited them but wallet has not updated.",
     priority: "urgent",
     status: "open",
-    contact_name: "Demo Customer",
+    contact_name: "FastFleet Customer",
     contact_email: "customer@example.com",
     contact_phone: "+2348000000000",
     created_at: new Date().toISOString(),
@@ -432,7 +432,7 @@ export function AdminPanel() {
   const [adminMessage, setAdminMessage] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [pricing, setPricing] = useState({ surge: "1.15", commission: "18", bikeBase: "1800" });
-  const liveStates = useMemo(() => launchStates.filter((state) => state.status === "live").length, [launchStates]);
+  const liveStates = useMemo(() => launchStates.filter((state) => state.status === "active" || state.status === "live").length, [launchStates]);
   const pendingRiderCount = useMemo(() => adminRiders.filter((rider) => !["approved", "rejected"].includes(rider.application_status)).length, [adminRiders]);
   const activeDeliveryCount = useMemo(() => adminDeliveries.filter((delivery) => !["delivered", "cancelled"].includes(delivery.status)).length, [adminDeliveries]);
   const pendingWithdrawalCount = useMemo(() => adminWithdrawals.filter((withdrawal) => withdrawal.status === "pending").length, [adminWithdrawals]);
@@ -504,35 +504,35 @@ export function AdminPanel() {
         setRestaurantMenus(restaurantsResult.demo && savedMenus.length > 0 ? savedMenus : normalizeRestaurantKitchens(restaurantsResult.restaurants));
       }
       if (statesResult.demo || ridersResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || riskSignalsResult.demo || restaurantsResult.demo) {
-        setAdminMessage("Admin is running in demo mode. Add SUPABASE_SERVICE_ROLE_KEY in Netlify and run the Supabase schema to make launches, rider approvals, delivery timelines, withdrawals, site controls, risk signals, company logs, and restaurant menus write to Supabase.");
+        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, delivery timelines, withdrawals, site controls, risk signals, company logs, and restaurant menus write to Supabase.");
       } else if (failedSections.length > 0) {
         setAdminMessage(`Some admin sections did not load: ${failedSections.join("; ")}`);
       }
     } catch {
-      setAdminMessage("Could not reach the admin API. Showing saved demo data for now.");
+      setAdminMessage("Could not reach the admin API. Showing saved operational fallback data for now.");
     } finally {
       setBusyAction(null);
     }
   }
 
-  async function goLive(state: string) {
-    setBusyAction(`state:${state}`);
+  async function updateLaunchState(state: string, status: LaunchStateRecord["status"]) {
+    setBusyAction(`state:${state}:${status}`);
     setAdminMessage(null);
     try {
       const response = await fetch("/api/admin/states", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state })
+        body: JSON.stringify({ state, status })
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "Could not launch this state.");
-      rememberLiveState(state);
+      if (!response.ok) throw new Error(result.error || "Could not update this state.");
+      if (status === "active" || status === "live") rememberLiveState(state);
       setLaunchStates((current) =>
-        current.map((item) => (item.state === state ? { ...item, status: "live", launched_at: result.launched_at || new Date().toISOString() } : item))
+        current.map((item) => (item.state === state ? { ...item, status, launched_at: result.launched_at || item.launched_at } : item))
       );
-      setAdminMessage(`${state} is now live. Users in that state will see the full dashboard automatically.`);
+      setAdminMessage(`${state} is now ${launchStatusLabel(status).toLowerCase()}. Customer dashboards will adapt automatically.`);
     } catch (error) {
-      setAdminMessage(error instanceof Error ? error.message : "Could not launch this state.");
+      setAdminMessage(error instanceof Error ? error.message : "Could not update this state.");
     } finally {
       setBusyAction(null);
     }
@@ -779,7 +779,7 @@ export function AdminPanel() {
       const fallback = toLocalCompanyLog(payload, companyLogForm.id);
       applyCompanyLog(fallback, true);
       setCompanyLogForm(blankCompanyTransactionForm());
-      setAdminMessage("Saved in this browser for demo mode. Add SUPABASE_SERVICE_ROLE_KEY and run the schema to save company logs permanently.");
+      setAdminMessage("Saved in this browser using operational fallback storage. Add SUPABASE_SERVICE_ROLE_KEY and run the schema to save company logs permanently.");
     } finally {
       setBusyAction(null);
     }
@@ -884,7 +884,7 @@ export function AdminPanel() {
       }
       setRestaurantMenus(restaurants);
       writeDemoRestaurantMenus(restaurants);
-      setAdminMessage("Saved restaurant menus in this browser for demo mode. Add SUPABASE_SERVICE_ROLE_KEY in Vercel for live site-wide menu updates.");
+      setAdminMessage("Saved restaurant menus in this browser using operational fallback storage. Add SUPABASE_SERVICE_ROLE_KEY in Vercel for live site-wide menu updates.");
     } finally {
       setBusyAction(null);
     }
@@ -1050,14 +1050,17 @@ export function AdminPanel() {
                   <strong className="block text-sm font-black text-fleet-night">{state}</strong>
                   <span className="text-xs font-bold text-slate-500">{waitlist_count || 0} waiting</span>
                 </span>
-                {status === "live" ? (
-                  <StatusBadge tone="green">Open</StatusBadge>
-                ) : (
-                  <Button type="button" size="sm" onClick={() => goLive(state)} disabled={busyAction === `state:${state}`}>
-                    <Power className="h-4 w-4" />
-                    Go live
-                  </Button>
-                )}
+                <div className="flex flex-wrap justify-end gap-2">
+                  <StatusBadge tone={status === "active" || status === "live" ? "green" : status === "beta" ? "blue" : status === "paused" ? "red" : "amber"}>
+                    {launchStatusLabel(status)}
+                  </StatusBadge>
+                  {(["active", "beta", "waitlist", "paused"] as const).map((nextStatus) => (
+                    <Button key={nextStatus} type="button" size="sm" variant={nextStatus === "active" ? "primary" : "secondary"} onClick={() => updateLaunchState(state, nextStatus)} disabled={busyAction === `state:${state}:${nextStatus}` || status === nextStatus}>
+                      {nextStatus === "active" ? <Power className="h-4 w-4" /> : null}
+                      {nextStatus}
+                    </Button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

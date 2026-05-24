@@ -166,14 +166,14 @@ export function LiveLocationMap() {
     try {
       const params = new URLSearchParams({ origin, destination });
       const response = await fetch(`/api/maps/distance?${params.toString()}`);
-      if (!response.ok) throw new Error("Distance Matrix unavailable");
+      if (!response.ok) throw new Error("Route distance service could not complete this estimate");
       const payload = (await response.json()) as { distanceKm?: number; source?: string };
-      if (typeof payload.distanceKm !== "number") throw new Error("Distance unavailable");
+      if (typeof payload.distanceKm !== "number") throw new Error("Route distance estimate could not be completed");
       setDistanceKm(Math.max(1, roundDistance(payload.distanceKm)));
       setDistanceSource("Calculated with route distance");
     } catch {
       setDistanceKm(fallbackDistance(origin, destination));
-      setDistanceSource("Estimated while route service is unavailable");
+      setDistanceSource("Estimated with FastFleet fallback routing");
     } finally {
       setRouteLoading(false);
     }
@@ -182,19 +182,19 @@ export function LiveLocationMap() {
   const bookingHref = `/book?pickup=${encodeURIComponent(pickupUsesCurrentLocation && location ? formatCoordinates(location) : pickup)}&dropoff=${encodeURIComponent(dropoff)}`;
 
   return (
-    <section className="bg-white py-10 sm:py-14">
+    <section className="bg-white py-7 sm:py-10">
       <div className="section-wrap">
-        <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-stretch">
-          <Card className="overflow-hidden p-5 sm:p-6">
+        <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr] lg:items-stretch">
+          <Card className="overflow-hidden p-4">
             <div>
               <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Your Location</span>
-              <h2 className="mt-3 text-3xl font-black leading-tight text-fleet-night sm:text-5xl">Where should we pick up from?</h2>
-              <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-slate-600">
+              <h2 className="mt-2 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Where should we pick up from?</h2>
+              <p className="mt-2 max-w-xl text-xs font-semibold leading-5 text-slate-600 sm:text-sm">
                 Start with your live location, add a drop-off, and see the delivery distance and fee before booking.
               </p>
             </div>
 
-            <div className="mt-6 grid gap-4">
+            <div className="mt-4 grid gap-3">
               <label className="form-field">
                 <span className="form-label">Pickup location</span>
                 <input
@@ -218,7 +218,7 @@ export function LiveLocationMap() {
                 />
               </label>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 <Button type="button" variant="secondary" onClick={() => requestLocation()} disabled={loadingLocation}>
                   {loadingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
                   Use My Location
@@ -230,7 +230,7 @@ export function LiveLocationMap() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-fleet border border-fleet-line bg-fleet-paper p-4">
+            <div className="mt-3 rounded-fleet border border-white/70 bg-white/60 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-xl">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="inline-flex items-center gap-2 text-sm font-black text-fleet-night">
                   <Navigation className="h-4 w-4 text-fleet-ember" />
@@ -247,7 +247,7 @@ export function LiveLocationMap() {
           </Card>
 
           <div className="grid gap-4">
-            <div className="relative min-h-[360px] overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_18px_48px_rgba(8,17,31,0.08)] sm:min-h-[460px]">
+            <div className="relative min-h-[300px] overflow-hidden rounded-fleet border border-white/70 bg-white/70 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-xl sm:min-h-[390px]">
               {mapUrl ? (
                 <iframe
                   title="Your Location live map"
@@ -264,7 +264,7 @@ export function LiveLocationMap() {
                   </div>
                 </div>
               )}
-              <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-fleet border border-white/80 bg-white/92 p-4 shadow-lift backdrop-blur-xl">
+              <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-fleet border border-white/80 bg-white/80 p-3 shadow-lift backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-3">
                   <span className="inline-flex items-center gap-2 text-sm font-black text-fleet-night">
                     <Route className="h-4 w-4 text-fleet-ember" />
@@ -275,24 +275,24 @@ export function LiveLocationMap() {
               </div>
             </div>
 
-            <Card className="p-5">
+            <Card className="p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Auto price estimate</span>
-                  <strong className="mt-1 block text-4xl font-black text-fleet-night">{formatMoney(pricing.total)}</strong>
+                  <strong className="mt-1 block text-3xl font-black text-fleet-night">{formatMoney(pricing.total)}</strong>
                 </div>
                 <span className="inline-flex items-center gap-2 rounded-full bg-fleet-night px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-white">
                   {routeLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 text-fleet-gold" />}
                   {distanceKm.toFixed(1)} km
                 </span>
               </div>
-              <div className="mt-4 grid gap-3">
+              <div className="mt-3 grid gap-2">
                 <PriceRow label="Estimated distance" value={`${distanceKm.toFixed(1)} km`} />
                 <PriceRow label="Delivery fee" value={formatMoney(pricing.deliveryFee)} />
                 <PriceRow label="Platform fee" value={formatMoney(pricing.platformFee)} />
                 <PriceRow label="Total fee" value={formatMoney(pricing.total)} strong />
               </div>
-              <p className="mt-3 text-xs font-bold leading-5 text-slate-500">{distanceSource}. Base fee covers the first 1 km, then adds {formatMoney(EXTRA_KM_FEE)} per extra km.</p>
+              <p className="mt-3 text-[0.72rem] font-bold leading-5 text-slate-500">{distanceSource}. Base fee covers the first 1 km, then adds {formatMoney(EXTRA_KM_FEE)} per extra km.</p>
             </Card>
           </div>
         </div>
@@ -331,7 +331,7 @@ export function LiveLocationMap() {
 
 function PriceRow({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-fleet bg-fleet-paper px-3 py-2 text-sm">
+    <div className="flex items-center justify-between gap-4 rounded-fleet border border-white/65 bg-white/65 px-3 py-2 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-xl">
       <span className="font-bold text-slate-500">{label}</span>
       <strong className={`text-right font-black ${strong ? "text-fleet-ember" : "text-fleet-night"}`}>{value}</strong>
     </div>

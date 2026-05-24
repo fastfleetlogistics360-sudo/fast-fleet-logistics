@@ -42,7 +42,7 @@ export const NIGERIAN_STATES = [
 ] as const;
 
 export type NigerianState = (typeof NIGERIAN_STATES)[number];
-export type LaunchStateStatus = "live" | "waitlist";
+export type LaunchStateStatus = "active" | "live" | "beta" | "waitlist" | "paused";
 
 export type LaunchStateRecord = {
   state: NigerianState;
@@ -57,6 +57,35 @@ export function normalizeState(value: string | null | undefined) {
   return NIGERIAN_STATES.find((state) => state.toLowerCase() === normalized) || "";
 }
 
+export function normalizeLaunchStatus(value: string | null | undefined): LaunchStateStatus {
+  if (value === "active" || value === "live" || value === "beta" || value === "paused") return value;
+  return "waitlist";
+}
+
+export function isOperationalLaunchStatus(status: string | null | undefined) {
+  const normalized = normalizeLaunchStatus(status);
+  return normalized === "active" || normalized === "live";
+}
+
+export function launchStatusLabel(status: string | null | undefined) {
+  const normalized = normalizeLaunchStatus(status);
+  if (normalized === "active" || normalized === "live") return "Active";
+  if (normalized === "beta") return "Beta access";
+  if (normalized === "paused") return "Paused";
+  return "Launching soon";
+}
+
+export function rolloutWaveForState(state: string | null | undefined, status: string | null | undefined = "waitlist") {
+  const normalizedState = normalizeState(state);
+  const normalizedStatus = normalizeLaunchStatus(status);
+  if (isOperationalLaunchStatus(normalizedStatus)) return "Live operations";
+  if (normalizedStatus === "beta") return "Pilot partner wave";
+  if (normalizedStatus === "paused") return "Operations paused";
+  const index = NIGERIAN_STATES.findIndex((item) => item === normalizedState);
+  if (index < 0) return "Expansion queue";
+  return `Expansion wave ${Math.floor(index / 6) + 1}`;
+}
+
 export function isLaunchState(value: string | null | undefined, liveStates: readonly string[] = DEFAULT_LIVE_STATES) {
   const state = normalizeState(value);
   return liveStates.some((supported) => supported.toLowerCase() === state.toLowerCase());
@@ -69,7 +98,7 @@ export function launchStateLabel(liveStates: readonly string[] = DEFAULT_LIVE_ST
 export function defaultLaunchStateRecords(): LaunchStateRecord[] {
   return NIGERIAN_STATES.map((state) => ({
     state,
-    status: DEFAULT_LIVE_STATES.includes(state as (typeof DEFAULT_LIVE_STATES)[number]) ? "live" : "waitlist",
+    status: DEFAULT_LIVE_STATES.includes(state as (typeof DEFAULT_LIVE_STATES)[number]) ? "active" : "waitlist",
     waitlist_count: 0,
     launched_at: DEFAULT_LIVE_STATES.includes(state as (typeof DEFAULT_LIVE_STATES)[number]) ? new Date(0).toISOString() : null
   }));

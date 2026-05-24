@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ChevronDown, Loader2, MapPin, Minus, Plus, ShoppingCart, Utensils } from "lucide-react";
@@ -9,6 +10,7 @@ import { normalizeRestaurantKitchens, restaurantMenuStorageKey } from "@/lib/res
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 const deliveryFee = 1000;
@@ -57,7 +59,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
         const stored = window.localStorage.getItem(restaurantMenuStorageKey);
         if (stored) setLiveStores(normalizeRestaurantKitchens(JSON.parse(stored)));
       } catch {
-        // Keep the server-rendered menu when saved demo data is malformed.
+        // Keep the server-rendered menu when locally saved menu data is malformed.
       }
     }
 
@@ -170,14 +172,23 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   }
 
   return (
-    <section className="section-wrap pb-28 pt-8 sm:py-12">
+    <>
+    <CinematicPageHero
+      eyebrow={eyebrow}
+      title={title}
+      body={`Choose items, confirm the delivery address, and checkout through FastFleet with transparent fees and Paystack payment flow.`}
+      image={kind === "restaurant" ? "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=2200&q=84" : "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=2200&q=84"}
+    />
+    <section className="section-wrap -mt-8 pb-28 sm:-mt-10 sm:pb-12">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="min-w-0">
-          <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">{eyebrow}</span>
-          <h1 className="mt-3 break-words text-4xl font-black leading-tight text-fleet-night sm:text-6xl">{title}</h1>
-          <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
+          <div className="rounded-fleet border border-white/70 bg-white/80 p-4 shadow-lift backdrop-blur-xl sm:p-5">
+          <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Marketplace lane</span>
+          <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Pick, pack, and dispatch.</h2>
+          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
             Open a store, pick items with the plus button, then checkout through Paystack. FastFleet adds {formatMoney(PLATFORM_CHECKOUT_FEE_NGN)} platform fee and {formatMoney(deliveryFee)} delivery fee automatically.
           </p>
+          </div>
 
           <div
             className="mt-8 flex w-full snap-x gap-3 overflow-x-auto pb-5 pr-4 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:gap-4 lg:overflow-visible lg:pr-0 xl:grid-cols-3 [&::-webkit-scrollbar]:hidden"
@@ -253,6 +264,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
         </Card>
       </div>
     </section>
+    </>
   );
 }
 
@@ -285,7 +297,7 @@ function RestaurantStoreCard({
       <summary className="block cursor-pointer list-none marker:hidden [&::-webkit-details-marker]:hidden">
         <div className="relative aspect-[4/3] overflow-hidden bg-fleet-paper">
           {store.imageUrl ? (
-            <img src={store.imageUrl} alt={store.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+            <Image src={store.imageUrl} alt={store.name} fill sizes="(min-width: 1024px) 33vw, 82vw" quality={64} loading="lazy" className="object-cover transition duration-500 group-hover:scale-105" />
           ) : (
             <div className="grid h-full w-full place-items-center bg-fleet-paper text-fleet-ember">
               <Utensils className="h-8 w-8" />
@@ -331,7 +343,7 @@ function RestaurantStoreCard({
             <article key={key} className="rounded-fleet border border-fleet-line bg-white p-2.5">
               <div className="grid grid-cols-[48px_1fr] items-start gap-2">
                 {item.imageUrl ? (
-                  <img src={item.imageUrl} alt={item.name} className="h-12 w-12 rounded-fleet object-cover" />
+                  <Image src={item.imageUrl} alt={item.name} width={48} height={48} sizes="48px" quality={60} loading="lazy" className="h-12 w-12 rounded-fleet object-cover" />
                 ) : (
                   <span className="h-12 w-12 rounded-fleet bg-fleet-paper" />
                 )}

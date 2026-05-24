@@ -7,6 +7,9 @@ import { ArrowRight, Bike, PackageCheck, ShoppingBag, Utensils } from "lucide-re
 import { LinkButton } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
+const dealBlurDataURL =
+  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyNmNmY4ZmInLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yMicvPjwvc3ZnPg==";
+
 const deals = [
   {
     title: "25% off your first 2 deliveries",
@@ -62,7 +65,7 @@ export function AdvertDealsRail() {
   }
 
   return (
-    <section className="overflow-hidden bg-white py-8 sm:py-12">
+    <section className="defer-render overflow-hidden bg-white py-8 sm:py-12">
       <div className="section-wrap">
         <div className="flex items-end justify-between gap-4">
           <div>
@@ -95,7 +98,7 @@ export function AdvertDealsRail() {
                 transition={{ duration: 0.55, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
               >
                 <div className="relative aspect-[16/9] bg-fleet-paper">
-                  <Image src={deal.image} alt="" fill className="object-cover object-center" sizes="(min-width: 1024px) 25vw, 45vw" />
+                  <Image src={deal.image} alt="" fill className="object-cover object-center" sizes="(min-width: 1024px) 25vw, 45vw" quality={62} loading="lazy" placeholder="blur" blurDataURL={dealBlurDataURL} />
                   <span className="absolute left-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-fleet bg-white text-fleet-night shadow-[0_10px_20px_rgba(8,17,31,0.12)]">
                     <Icon className="h-4 w-4" />
                   </span>

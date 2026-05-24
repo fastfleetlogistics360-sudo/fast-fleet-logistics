@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 import { TrackingConsole } from "@/components/realtime/tracking-console";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,9 +11,19 @@ export const metadata: Metadata = {
 
 export default function TrackPage() {
   return (
-    <Suspense fallback={<TrackingSkeleton />}>
-      <TrackingConsole />
-    </Suspense>
+    <>
+      <CinematicPageHero
+        eyebrow="Live movement"
+        title="Track every handoff from route to arrival."
+        body="Follow delivery status, ETA, rider heartbeat, and package movement in one cinematic FastFleet control view."
+        image="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=2200&q=84"
+      />
+      <div className="-mt-8 sm:-mt-10">
+        <Suspense fallback={<TrackingSkeleton />}>
+          <TrackingConsole />
+        </Suspense>
+      </div>
+    </>
   );
 }
 

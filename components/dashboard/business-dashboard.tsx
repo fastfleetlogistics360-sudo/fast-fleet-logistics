@@ -275,7 +275,7 @@ export function BusinessDashboard() {
       const supabase = createClient();
       await supabase.from("saved_addresses").delete().eq("id", id);
     } catch {
-      // Keep the local UI responsive even if a demo database is unavailable.
+      // Keep the local UI responsive when remote business data is delayed.
     }
   }
 

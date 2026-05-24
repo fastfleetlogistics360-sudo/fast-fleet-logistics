@@ -56,7 +56,7 @@ export function AdminLogin() {
             ].map(([label, helper]) => (
               <div key={label} className="rounded-fleet border border-white/10 bg-white/10 p-4">
                 <strong className="block text-sm font-black">{label}</strong>
-                <span className="mt-1 block text-xs font-bold leading-5 text-white/55">{helper}</span>
+                <span className="mt-1 block text-xs font-bold leading-5 text-white/76">{helper}</span>
               </div>
             ))}
           </div>

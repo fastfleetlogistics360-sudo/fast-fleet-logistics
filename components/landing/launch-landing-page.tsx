@@ -2,13 +2,18 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Suspense, useEffect, useState, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Bike, CircleUserRound, LogIn, Play, Store, UserPlus, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
 import { AppleIcon, FacebookIcon, GoogleIcon, InstagramIcon, LinkedinIcon, XIcon } from "@/components/icons/social-icons";
+
+const PhoneAuthForm = dynamic(() => import("@/components/auth/phone-auth-form").then((mod) => mod.PhoneAuthForm), {
+  ssr: false,
+  loading: () => <div className="min-h-64 animate-pulse rounded-fleet bg-white/75" />
+});
 
 type AuthIntent = "signup" | "login";
 type ActionItemConfig =
@@ -97,7 +102,9 @@ const partners = [
   }
 ];
 
-const heroBackgroundImage = "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1800&q=72";
+const heroBackgroundImage = "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1500&q=70";
+const heroBlurDataURL =
+  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwMjA2MDgnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yOCcvPjxjaXJjbGUgY3g9JzQnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNDgnLz48L3N2Zz4=";
 
 export function LaunchLandingPage() {
   const [authIntent, setAuthIntent] = useState<AuthIntent | null>(null);
@@ -112,7 +119,9 @@ export function LaunchLandingPage() {
         alt=""
         fill
         priority
-        quality={72}
+        quality={70}
+        placeholder="blur"
+        blurDataURL={heroBlurDataURL}
         sizes="100vw"
         className="absolute inset-0 object-cover object-center"
         aria-hidden="true"
@@ -129,6 +138,7 @@ export function LaunchLandingPage() {
               height={56}
               className="h-11 w-11 rounded-full border border-white/20 bg-white object-cover p-1 shadow-[0_16px_34px_rgba(0,0,0,0.28)] transition group-hover:-translate-y-0.5"
               priority
+              sizes="56px"
             />
             <span className="grid leading-none">
               <strong className="text-lg font-black italic tracking-[0.02em] text-white sm:text-2xl">FASTFLEET</strong>
@@ -165,7 +175,7 @@ export function LaunchLandingPage() {
             <h1 className="mt-5 max-w-3xl text-5xl font-black leading-[0.98] tracking-normal text-white sm:text-7xl lg:text-8xl">
               Delivering More, Everyday.
             </h1>
-            <p className="mt-6 max-w-2xl text-base font-semibold leading-8 text-white/86 sm:text-xl">
+            <p className="mt-6 max-w-2xl text-base font-semibold leading-8 text-white/85 sm:text-xl">
               FastFleet connects people, businesses and communities through fast, safe and reliable delivery.
             </p>
             <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -191,13 +201,13 @@ export function LaunchLandingPage() {
 
         <motion.div
           id="launch-actions"
-          className="rounded-[22px] border border-white/14 bg-black/34 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.36)] backdrop-blur-2xl sm:p-6"
+          className="rounded-[18px] border border-white/15 bg-black/40 p-2.5 shadow-[0_18px_52px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:p-3"
           initial={reduceMotion ? false : { opacity: 0, y: 34 }}
           whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="grid gap-2 md:grid-cols-4 md:gap-0">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {actionItems.map((item, index) => (
               <ActionItem key={item.title} item={item} index={index} onAuth={setAuthIntent} />
             ))}
@@ -237,8 +247,8 @@ export function LaunchLandingPage() {
             <div className="partner-marquee flex w-max gap-3">
               {partnerLoop.map((partner, index) => (
                 <div key={`${partner.name}-${index}`} className="relative h-24 w-40 shrink-0 overflow-hidden rounded-[10px] bg-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] sm:h-28 sm:w-48">
-                  <Image src={partner.image} alt="" fill className="object-cover" sizes="(min-width: 640px) 192px, 160px" quality={64} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/78 via-fleet-night/10 to-white/10" />
+                  <Image src={partner.image} alt="" fill className="object-cover" sizes="(min-width: 640px) 192px, 160px" quality={58} loading="lazy" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/80 via-fleet-night/10 to-white/10" />
                   <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/92 px-2 py-1 text-center text-sm font-black text-fleet-night shadow-[0_8px_18px_rgba(0,0,0,0.16)]">
                     {partner.name}
                   </span>
@@ -246,7 +256,7 @@ export function LaunchLandingPage() {
               ))}
             </div>
           </div>
-          <footer className="pt-14 text-center text-sm font-semibold text-white/46">© 2025 FastFleet. All rights reserved.</footer>
+          <footer className="pt-14 text-center text-sm font-semibold text-white/[0.72]">© 2025 FastFleet. All rights reserved.</footer>
         </div>
       </section>
 
@@ -294,15 +304,17 @@ function ActionItem({
   const Icon = item.icon;
   const content = (
     <>
-      <span className="grid h-16 w-16 place-items-center rounded-full bg-fleet-ember/18 text-fleet-gold shadow-[0_0_28px_rgba(239,108,0,0.16)]">
-        <Icon className="h-8 w-8" />
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-fleet-ember/20 text-fleet-gold shadow-[0_0_22px_rgba(239,108,0,0.16)] sm:h-11 sm:w-11">
+        <Icon className="h-5 w-5" />
       </span>
-      <strong className="mt-5 block text-lg font-black text-white">{item.title}</strong>
-      <span className="mt-3 block max-w-40 text-sm font-semibold leading-6 text-white/78">{item.body}</span>
+      <span className="min-w-0">
+        <strong className="block text-sm font-black leading-tight text-white sm:text-base">{item.title}</strong>
+        <span className="mt-1 block text-[0.72rem] font-semibold leading-5 text-white/[0.72] sm:text-xs">{item.body}</span>
+      </span>
     </>
   );
   const classes =
-    "group relative block rounded-[18px] p-5 text-left transition hover:-translate-y-1 hover:bg-white/[0.06] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20 md:rounded-none md:px-7";
+    "group relative flex min-h-[96px] items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.035] p-3 text-left transition hover:-translate-y-0.5 hover:border-fleet-gold/30 hover:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20 sm:min-h-[104px] md:border-0 md:bg-transparent";
 
   if (item.href) {
     return (
@@ -333,7 +345,7 @@ function StoreBadge({ icon, eyebrow, label, onClick }: { icon: ReactNode; eyebro
     >
       {icon}
       <span className="grid text-left leading-none">
-        <span className="text-[0.68rem] font-black uppercase tracking-normal text-white/82">{eyebrow}</span>
+        <span className="text-[0.68rem] font-black uppercase tracking-normal text-white/80">{eyebrow}</span>
         <strong className="mt-1 text-2xl font-black">{label}</strong>
       </span>
     </button>
@@ -350,15 +362,15 @@ function TikTokIcon(props: ComponentPropsWithoutRef<"svg">) {
 
 function ComingSoonModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-[170] grid place-items-center bg-black/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="FastFleet app coming soon">
+    <div className="fixed inset-0 z-[170] grid place-items-center bg-black/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="FastFleet app release access">
       <motion.div
         className="w-full max-w-sm rounded-[18px] border border-white/15 bg-white p-6 text-center text-fleet-night shadow-[0_28px_90px_rgba(0,0,0,0.35)]"
         initial={{ opacity: 0, y: 18, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
       >
-        <strong className="block text-2xl font-black">Coming soon</strong>
-        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">The FastFleet mobile app is almost ready.</p>
+        <strong className="block text-2xl font-black">Release access underway</strong>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">FastFleet mobile app access is being rolled out in controlled phases.</p>
         <button
           type="button"
           onClick={onClose}

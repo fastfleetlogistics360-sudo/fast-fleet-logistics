@@ -350,7 +350,7 @@ export interface Database {
         Row: {
           id: string;
           state: string;
-          status: "live" | "waitlist";
+          status: "active" | "live" | "beta" | "waitlist" | "paused";
           launched_at: string | null;
           created_at: string;
           updated_at: string;

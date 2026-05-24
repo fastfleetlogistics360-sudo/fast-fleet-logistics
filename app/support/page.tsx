@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Headphones, Mail, MessageCircle, Phone, TicketCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 import { LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SupportTicketForm } from "@/components/support/support-ticket-form";
@@ -17,20 +18,28 @@ const cards: Array<[string, string, LucideIcon]> = [
 
 export default function SupportPage() {
   return (
-    <section className="section-wrap py-8 sm:py-12">
-      <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
-        <div>
-          <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Support center</span>
-          <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-6xl">Dispatch help that keeps moving.</h1>
-          <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">
-            Ticket infrastructure for customers, riders, vendors, business dispatchers, and operations teams.
-          </p>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+    <>
+      <CinematicPageHero
+        eyebrow="Operations support"
+        title="Dispatch help that keeps movement visible."
+        body="Ticket infrastructure for customers, riders, vendors, business dispatchers, and operations teams."
+        image="https://images.unsplash.com/photo-1556761175-4b46a572b786?auto=format&fit=crop&w=2200&q=84"
+      >
+          <div className="flex flex-col gap-3 sm:flex-row">
             <LinkButton href="/track">Track order</LinkButton>
             <LinkButton href="/book" variant="secondary">
               New delivery
             </LinkButton>
           </div>
+      </CinematicPageHero>
+    <section className="section-wrap -mt-8 pb-10 sm:-mt-10 sm:pb-12">
+      <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+        <div className="rounded-fleet border border-white/70 bg-white/80 p-5 shadow-lift backdrop-blur-xl">
+          <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Support center</span>
+          <h2 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Commercial-grade support lanes.</h2>
+          <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">
+            Keep route issues, wallet questions, rider applications, delivery proof, and business dispatch requests in one FastFleet support flow.
+          </p>
         </div>
         <Card>
           <SupportTicketForm />
@@ -64,5 +73,6 @@ export default function SupportPage() {
         </Card>
       </div>
     </section>
+    </>
   );
 }

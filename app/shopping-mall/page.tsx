@@ -54,7 +54,7 @@ export default function ShoppingMallPage() {
                 <span className="grid h-12 w-12 place-items-center rounded-fleet bg-fleet-paper text-fleet-navy">
                   <Icon className="h-6 w-6" />
                 </span>
-                <span className="rounded-full bg-fleet-mint px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-fleet-night">Coming soon</span>
+                <span className="rounded-full bg-fleet-mint px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-fleet-night">Expansion phase</span>
               </div>
               <h2 className="mt-5 text-2xl font-black text-fleet-night">{category.title}</h2>
               <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{category.note}</p>

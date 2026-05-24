@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
+import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
@@ -9,13 +10,21 @@ export const metadata: Metadata = {
 
 export default function AuthPage() {
   return (
-    <section className="section-wrap grid gap-6 py-6 sm:py-10 lg:min-h-[calc(100vh-7rem)] lg:grid-cols-[0.92fr_1.08fr] lg:items-stretch">
+    <>
+    <CinematicPageHero
+      eyebrow="Secure access"
+      title="One account for customers, riders, and business dispatch."
+      body="Sign in with the same premium FastFleet identity system that powers bookings, payouts, onboarding, and tracking."
+      image="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=2200&q=84"
+      className="min-h-0"
+    />
+    <section className="section-wrap -mt-8 grid gap-6 pb-10 sm:-mt-10 sm:pb-12 lg:min-h-[calc(100vh-18rem)] lg:grid-cols-[0.92fr_1.08fr] lg:items-stretch">
       <div className="flex items-center">
         <Suspense fallback={<AuthFormSkeleton />}>
           <PhoneAuthForm className="w-full" />
         </Suspense>
       </div>
-      <aside className="overflow-hidden rounded-fleet bg-fleet-navy text-white shadow-glow">
+      <aside className="overflow-hidden rounded-fleet border border-white/15 bg-fleet-night text-white shadow-glow">
         <div className="grid min-h-[360px] gap-6 p-5 sm:p-8 lg:min-h-full lg:content-between">
           <div>
             <div className="inline-flex items-center gap-3">
@@ -47,6 +56,7 @@ export default function AuthPage() {
         </div>
       </aside>
     </section>
+    </>
   );
 }
 

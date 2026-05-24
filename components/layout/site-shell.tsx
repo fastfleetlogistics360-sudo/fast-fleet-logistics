@@ -130,14 +130,14 @@ export function SiteShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-fleet-paper text-fleet-ink">
+    <div className={cn("min-h-screen text-fleet-ink", hasSiteChrome ? "site-canvas" : "bg-fleet-paper")}>
       {isAdminEnvironment ? (
         <div className="fixed right-4 top-4 z-[90]">
           <ThemeToggle />
         </div>
       ) : null}
       {hasSiteChrome ? (
-      <header className="sticky top-0 z-50 border-b border-white/60 bg-white/80 shadow-[0_10px_30px_rgba(8,17,31,0.06)] backdrop-blur-2xl">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-fleet-night/90 text-white shadow-[0_18px_50px_rgba(8,17,31,0.22)] backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/" className="flex min-w-0 items-center gap-3" aria-label="FastFleet home">
             <Image
@@ -145,11 +145,11 @@ export function SiteShell({ children }: { children: ReactNode }) {
               alt="FastFleet Logistics"
               width={46}
               height={46}
-              className="h-11 w-11 rounded-fleet border border-fleet-line object-cover"
+              className="h-11 w-11 rounded-fleet border border-white/15 object-cover shadow-[0_12px_28px_rgba(0,0,0,0.28)]"
               priority
             />
             <span className="grid leading-none">
-              <strong className="text-base font-black text-fleet-night sm:text-lg">FastFleet</strong>
+              <strong className="text-base font-black text-white sm:text-lg">FastFleet</strong>
               <span className="text-[0.66rem] font-black uppercase tracking-[0.28em] text-fleet-ember">Logistics</span>
             </span>
           </Link>
@@ -160,8 +160,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "rounded-fleet px-3 py-2 text-sm font-extrabold text-slate-600 transition hover:bg-fleet-paper hover:text-fleet-night",
-                  pathname === item.href && "bg-fleet-night text-white hover:bg-fleet-night hover:text-white"
+                  "rounded-fleet px-3 py-2 text-sm font-extrabold text-white/70 transition hover:bg-white/10 hover:text-white",
+                  pathname === item.href && "bg-white/15 text-white ring-1 ring-white/10"
                 )}
               >
                 {item.label}
@@ -177,7 +177,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 <LinkButton href={dashboardHomeHref} variant="secondary" size="md">
                   {accountName.split(" ")[0]}
                 </LinkButton>
-                <button type="button" className="rounded-fleet px-3 py-2 text-sm font-extrabold text-fleet-night" onClick={signOut}>
+                <button type="button" className="rounded-fleet px-3 py-2 text-sm font-extrabold text-white/80 transition hover:bg-white/10 hover:text-white" onClick={signOut}>
                   Sign out
                 </button>
               </>
@@ -193,7 +193,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </div>
 
           <button
-            className="inline-grid h-11 w-11 place-items-center rounded-fleet border border-fleet-line bg-white text-fleet-night lg:hidden"
+            className="inline-grid h-11 w-11 place-items-center rounded-fleet border border-white/15 bg-white/10 text-white lg:hidden"
             type="button"
             aria-controls="mobile-site-menu"
             aria-expanded={open}
@@ -210,20 +210,20 @@ export function SiteShell({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-[80] bg-fleet-night/20 backdrop-blur-sm lg:hidden" role="presentation" onClick={() => setOpen(false)}>
           <div
             id="mobile-site-menu"
-            className="absolute inset-x-3 bottom-4 top-[76px] overflow-y-auto rounded-fleet border border-fleet-line bg-white p-3 shadow-glow"
+            className="absolute inset-x-3 bottom-4 top-[76px] overflow-y-auto rounded-fleet border border-white/10 bg-fleet-night/95 p-3 text-white shadow-glow backdrop-blur-2xl"
             role="dialog"
             aria-modal="true"
             aria-label="Site menu"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="sticky top-0 z-10 mb-2 flex items-center justify-between gap-3 rounded-fleet bg-fleet-paper p-2">
-              <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Menu</span>
+            <div className="sticky top-0 z-10 mb-2 flex items-center justify-between gap-3 rounded-fleet border border-white/10 bg-white/10 p-2">
+              <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-gold">Menu</span>
               <div className="flex items-center gap-2">
                 <ThemeToggle />
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-grid h-10 w-10 place-items-center rounded-fleet border border-fleet-line bg-white text-fleet-night"
+                  className="inline-grid h-10 w-10 place-items-center rounded-fleet border border-white/15 bg-white/10 text-white"
                   aria-label="Close menu"
                 >
                   <X className="h-5 w-5" />
@@ -237,8 +237,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "rounded-fleet px-3 py-3 text-sm font-extrabold text-slate-700",
-                      pathname === item.href && "bg-fleet-paper text-fleet-night"
+                      "rounded-fleet px-3 py-3 text-sm font-extrabold text-white/75",
+                      pathname === item.href && "bg-white/15 text-white"
                     )}
                     onClick={() => setOpen(false)}
                   >
@@ -250,8 +250,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
             {dashboardMenu ? (
               <div className="mt-3 grid gap-3">
                 {dashboardMenu.map((section) => (
-                  <div key={section.title} className="rounded-fleet border border-fleet-line bg-white">
-                    <div className="border-b border-fleet-line px-3 py-2 text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500">{section.title}</div>
+                  <div key={section.title} className="rounded-fleet border border-white/10 bg-white/10">
+                    <div className="border-b border-white/10 px-3 py-2 text-[0.68rem] font-black uppercase tracking-[0.16em] text-fleet-gold">{section.title}</div>
                     <div className="grid gap-1 p-1.5">
                       {section.items.map((item) => {
                         return <DashboardMenuLink key={item.href} item={item} pathname={pathname} onNavigate={() => setOpen(false)} onLogout={signOut} />;
@@ -264,7 +264,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <div className="mt-3 grid grid-cols-2 gap-2">
               <SmartWalletTopUp compact className="col-span-2" />
               {accountName ? (
-                <button type="button" className="col-span-2 min-h-11 rounded-fleet border border-fleet-line bg-white/90 px-4 text-sm font-extrabold text-fleet-night" onClick={signOut}>
+                <button type="button" className="col-span-2 min-h-11 rounded-fleet border border-white/15 bg-white/10 px-4 text-sm font-extrabold text-white" onClick={signOut}>
                   Sign out
                 </button>
               ) : (
@@ -283,10 +283,10 @@ export function SiteShell({ children }: { children: ReactNode }) {
       ) : null}
 
       {dashboardMenu ? (
-        <aside className="fixed bottom-6 left-4 top-24 z-30 hidden w-72 overflow-y-auto rounded-fleet border border-fleet-line bg-white/95 p-3 shadow-lift backdrop-blur-xl lg:block" aria-label="Dashboard sidebar">
-          <div className="mb-3 rounded-fleet bg-fleet-paper p-3">
-            <span className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500">Account menu</span>
-            <strong className="mt-1 block text-lg font-black capitalize text-fleet-night">{accountRole || "Account"}</strong>
+        <aside className="fixed bottom-6 left-4 top-24 z-30 hidden w-72 overflow-y-auto rounded-fleet border border-white/10 bg-fleet-night/90 p-3 text-white shadow-glow backdrop-blur-2xl lg:block" aria-label="Dashboard sidebar">
+          <div className="mb-3 rounded-fleet border border-white/10 bg-white/10 p-3">
+            <span className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-fleet-gold">Account menu</span>
+            <strong className="mt-1 block text-lg font-black capitalize text-white">{accountRole || "Account"}</strong>
           </div>
           <div className="grid gap-3">
             {dashboardMenu.map((section) => (
@@ -304,7 +304,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
       {isLaunchLanding || isAdminEnvironment ? null : (
       <>
-      <footer className="bg-fleet-night px-4 py-10 text-white sm:px-6">
+      <footer className="commercial-strip px-4 py-10 text-white sm:px-6">
         <div className="mx-auto grid max-w-7xl gap-8 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
           <div>
             <div className="flex items-center gap-3">
@@ -345,7 +345,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         </div>
       </footer>
 
-      {!open && !isDashboardEnvironment ? <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/70 bg-white/92 p-1 shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Mobile app">
+      {!open && !isDashboardEnvironment ? <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/15 bg-fleet-night/92 p-1 text-white shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Mobile app">
         {bottomItems.map((item) => {
           const Icon = item.icon;
           const active = item.activePaths ? item.activePaths.some((path) => pathname === path) : pathname === item.href;
@@ -354,8 +354,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
               key={item.href}
               href={item.href}
               className={cn(
-                "grid min-h-14 place-items-center rounded-fleet px-1 text-[0.68rem] font-black text-slate-500 transition",
-                active && "bg-fleet-night text-white"
+                "grid min-h-14 place-items-center rounded-fleet px-1 text-[0.68rem] font-black text-white/60 transition",
+                active && "bg-white/15 text-white"
               )}
             >
               <Icon className="h-4 w-4" />
@@ -366,7 +366,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
       </nav> : null}
 
       {!open && isDashboardEnvironment && dashboardBottomItems.length ? (
-        <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/70 bg-white/92 p-1 shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Dashboard mobile menu">
+        <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/15 bg-fleet-night/92 p-1 text-white shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Dashboard mobile menu">
           {dashboardBottomItems.map((item) => {
             const Icon = item.icon;
             const active = isMenuItemActive(pathname, item.href);
@@ -375,8 +375,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "grid min-h-14 place-items-center rounded-fleet px-1 text-center text-[0.62rem] font-black text-slate-500 transition",
-                  active && "bg-fleet-night text-white"
+                  "grid min-h-14 place-items-center rounded-fleet px-1 text-center text-[0.62rem] font-black text-white/60 transition",
+                  active && "bg-white/15 text-white"
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -387,7 +387,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         </nav>
       ) : null}
 
-      <div className="fixed right-4 top-24 z-40 hidden rounded-full border border-fleet-line bg-white/90 p-2 shadow-lift backdrop-blur-xl md:block">
+      <div className="fixed right-4 top-24 z-40 hidden rounded-full border border-white/15 bg-fleet-night/90 p-2 shadow-lift backdrop-blur-xl md:block">
         <Bell className="h-4 w-4 text-fleet-ember" />
       </div>
       {!open ? <SupportWidget /> : null}
@@ -413,16 +413,16 @@ function DashboardMenuLink({
   const active = isMenuItemActive(pathname, item.href);
   const className = cn(
     "flex w-full items-center gap-3 rounded-fleet px-3 py-3 text-left transition",
-    active ? "bg-fleet-night text-white" : "text-slate-700 hover:bg-fleet-paper"
+    active ? "bg-white/15 text-white ring-1 ring-white/10" : "text-white/70 hover:bg-white/10 hover:text-white"
   );
   const content = (
     <>
-      <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-fleet", active ? "bg-white/10 text-white" : "bg-fleet-paper text-fleet-ember")}>
+      <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-fleet", active ? "bg-fleet-ember text-white" : "bg-white/10 text-fleet-gold")}>
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
         <strong className="block text-sm font-black">{item.title}</strong>
-        <span className={cn("block text-xs font-bold leading-5", active ? "text-white/70" : "text-slate-500")}>{item.body}</span>
+        <span className={cn("block text-xs font-bold leading-5", active ? "text-white/[0.82]" : "text-white/[0.72]")}>{item.body}</span>
       </span>
       {item.tag ? <span className="rounded-full bg-fleet-gold/20 px-2 py-1 text-[0.65rem] font-black text-fleet-ember">{item.tag}</span> : null}
     </>

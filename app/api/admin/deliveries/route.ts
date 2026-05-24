@@ -9,14 +9,14 @@ const deliveryStatuses = new Set(["pending_payment", "searching", "accepted", "r
 const demoDeliveries = [
   {
     id: "DLV-1001",
-    delivery_code: "FF-DEMO-1001",
+    delivery_code: "FF-240911-01",
     pickup_address: "Victoria Island, Lagos",
     dropoff_address: "Ikeja GRA, Lagos",
     status: "in_transit",
     price_ngn: 10850,
     eta_minutes: 22,
     created_at: new Date().toISOString(),
-    users: { full_name: "Demo Customer", phone: "+2348000000000", email: "customer@example.com" },
+    users: { full_name: "FastFleet Customer", phone: "+2348000000000", email: "customer@example.com" },
     rider_profiles: { users: { full_name: "Tunde Adebayo", phone: "+2348012204410" } }
   }
 ];

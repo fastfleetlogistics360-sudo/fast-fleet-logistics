@@ -726,8 +726,8 @@ function EmptyBanks({ onRetry }: { onRetry: () => void }) {
           <FileText className="h-5 w-5" />
         </span>
         <div>
-          <strong className="block text-sm font-black text-fleet-night">Bank list unavailable</strong>
-          <span className="text-xs font-semibold text-slate-500">Try again or check Paystack settings.</span>
+          <strong className="block text-sm font-black text-fleet-night">Bank network sync pending</strong>
+          <span className="text-xs font-semibold text-slate-500">Try again while we reconnect to the payment network.</span>
         </div>
       </div>
       <Button type="button" variant="secondary" size="sm" className="mt-3 w-full" onClick={onRetry}>

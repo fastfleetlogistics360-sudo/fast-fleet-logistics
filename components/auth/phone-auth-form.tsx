@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bike, Building2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, MailCheck, Phone, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
+import { Bike, Building2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, MailCheck, MapPinned, Phone, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { normalizeRole, parseUserRole, roleHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { GoogleIcon } from "@/components/icons/social-icons";
+import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
 
 const roleOptions: Array<{
   role: Exclude<UserRole, "admin">;
@@ -102,6 +103,7 @@ export function PhoneAuthForm({
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [fullName, setFullName] = useState("");
+  const [customerState, setCustomerState] = useState("Lagos");
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<"google" | null>(null);
@@ -115,10 +117,11 @@ export function PhoneAuthForm({
   const phoneValid = isValidNigerianPhone(phone);
   const passwordValid = password.trim().length >= 6;
   const nameValid = mode === "login" || fullName.trim().length >= 2;
+  const customerStateValid = mode === "login" || role !== "customer" || Boolean(normalizeState(customerState));
   const canSubmit = useMemo(() => {
-    if (method === "phone") return phoneValid && (otpSent ? /^\d{6}$/.test(otp.trim()) : true) && nameValid;
-    return emailValid && passwordValid && nameValid;
-  }, [emailValid, method, nameValid, otp, otpSent, passwordValid, phoneValid]);
+    if (method === "phone") return phoneValid && (otpSent ? /^\d{6}$/.test(otp.trim()) : true) && nameValid && customerStateValid;
+    return emailValid && passwordValid && nameValid && customerStateValid;
+  }, [customerStateValid, emailValid, method, nameValid, otp, otpSent, passwordValid, phoneValid]);
 
   function setError(key: string, error: string | null) {
     setFieldErrors((previous) => {
@@ -142,6 +145,7 @@ export function PhoneAuthForm({
   async function saveProfiles(userId: string, userRole: UserRole, fallbackEmail?: string | null, fallbackPhone?: string | null) {
     const now = new Date().toISOString();
     const supabase = createClient();
+    const selectedState = userRole === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos";
     const profilePayload = {
       id: userId,
       user_id: userId,
@@ -149,6 +153,7 @@ export function PhoneAuthForm({
       email: email.trim() || fallbackEmail || null,
       phone: phoneValid ? phone.trim() : fallbackPhone || null,
       account_type: userRole,
+      lga: selectedState,
       updated_at: now
     };
 
@@ -159,7 +164,7 @@ export function PhoneAuthForm({
         phone: profilePayload.phone,
         email: profilePayload.email,
         role: userRole,
-        default_zone: "Lagos",
+        default_zone: selectedState,
         updated_at: now
       }),
       supabase.from("profiles").upsert(profilePayload)
@@ -194,7 +199,8 @@ export function PhoneAuthForm({
             account_type: role,
             full_name: fullName.trim(),
             phone: phoneValid ? phone.trim() : undefined,
-            default_zone: "Lagos"
+            default_zone: role === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos",
+            state: role === "customer" ? normalizeState(customerState) || "Lagos" : undefined
           }
         }
       });
@@ -252,7 +258,8 @@ export function PhoneAuthForm({
             role,
             account_type: role,
             full_name: fullName.trim(),
-            default_zone: "Lagos"
+            default_zone: role === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos",
+            state: role === "customer" ? normalizeState(customerState) || "Lagos" : undefined
           },
           channel: "sms",
           emailRedirectTo: redirectTo
@@ -465,6 +472,33 @@ export function PhoneAuthForm({
               autoComplete="name"
             />
             {fieldErrors.fullName ? <span className="text-xs font-bold text-red-600">{fieldErrors.fullName}</span> : null}
+          </label>
+        ) : null}
+
+        {mode === "signup" && role === "customer" ? (
+          <label className="form-field">
+            <span className="form-label">Select Your State</span>
+            <span className="relative">
+              <MapPinned className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fleet-ember" />
+              <select
+                className="form-input pl-10"
+                value={customerState}
+                onBlur={() => setError("customerState", customerStateValid ? null : "Select your state.")}
+                onChange={(event) => {
+                  setCustomerState(event.target.value);
+                  if (fieldErrors.customerState) setError("customerState", null);
+                }}
+                required
+              >
+                {NIGERIAN_STATES.map((state) => (
+                  <option key={state} value={state}>{state}</option>
+                ))}
+              </select>
+            </span>
+            <span className="text-xs font-bold leading-5 text-slate-500">
+              Lagos and Ogun are active now. Other states receive early-access dashboard access while rollout expands.
+            </span>
+            {fieldErrors.customerState ? <span className="text-xs font-bold text-red-600">{fieldErrors.customerState}</span> : null}
           </label>
         ) : null}
 

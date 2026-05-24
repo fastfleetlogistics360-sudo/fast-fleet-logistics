@@ -33,8 +33,8 @@ type TrackedDelivery = {
   rider?: { full_name?: string; phone?: string };
 };
 
-const sample: TrackedDelivery = {
-  delivery_code: "FF-DEMO-1001",
+const operationalPreview: TrackedDelivery = {
+  delivery_code: "FF-240911-01",
   pickup_address: "Victoria Island, Lagos",
   dropoff_address: "Ikeja GRA, Lagos",
   status: "in_transit",
@@ -47,8 +47,8 @@ const sample: TrackedDelivery = {
 
 export function TrackingConsole() {
   const searchParams = useSearchParams();
-  const [code, setCode] = useState(searchParams.get("code") || "FF-DEMO-1001");
-  const [delivery, setDelivery] = useState<TrackedDelivery | null>(sample);
+  const [code, setCode] = useState(searchParams.get("code") || "FF-240911-01");
+  const [delivery, setDelivery] = useState<TrackedDelivery | null>(operationalPreview);
   const [lastLocation, setLastLocation] = useState<string>("Live rider heartbeat ready");
   const [loading, setLoading] = useState(false);
   const currentIndex = useMemo(() => timelineIndex(delivery?.status), [delivery?.status]);
@@ -63,7 +63,7 @@ export function TrackingConsole() {
         .eq("delivery_code", nextCode.trim().toUpperCase())
         .maybeSingle();
 
-      setDelivery(result.data || sample);
+      setDelivery(result.data || operationalPreview);
       if (result.data?.rider_id) await loadLastRiderLocation(result.data.rider_id);
     } catch {
       const local = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]").find(
@@ -81,7 +81,7 @@ export function TrackingConsole() {
               price_ngn: local.price_ngn || local.estimate?.total || 0,
               eta_minutes: local.eta_minutes || local.estimate?.etaMinutes || 35
             }
-          : sample
+          : operationalPreview
       );
     } finally {
       setLoading(false);
@@ -104,7 +104,7 @@ export function TrackingConsole() {
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "deliveries", filter: `delivery_code=eq.${delivery.delivery_code}` },
-          (payload) => setDelivery((payload.new as TrackedDelivery) || sample)
+          (payload) => setDelivery((payload.new as TrackedDelivery) || operationalPreview)
         )
         .subscribe();
 
@@ -184,8 +184,8 @@ export function TrackingConsole() {
           label="Realtime rider route"
           status={delivery?.status}
           riderName={delivery?.rider?.full_name || "Verified rider en route"}
-          pickupAddress={delivery?.pickup_address || sample.pickup_address}
-          dropoffAddress={delivery?.dropoff_address || sample.dropoff_address}
+          pickupAddress={delivery?.pickup_address || operationalPreview.pickup_address}
+          dropoffAddress={delivery?.dropoff_address || operationalPreview.dropoff_address}
         />
       </div>
 

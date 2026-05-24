@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 import { parseUserRole, roleHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import { normalizeState } from "@/lib/launch-states";
 import type { UserRole } from "@/types/domain";
 
 export async function GET(request: NextRequest) {
@@ -78,16 +79,17 @@ function redirectToAuth(request: NextRequest, returnTo: string | null, error: st
 async function upsertRoleProfile(supabase: ReturnType<typeof createServerClient>, user: { id: string; email?: string | null; phone?: string | null; user_metadata?: Record<string, any> }, role: UserRole) {
   const now = new Date().toISOString();
   const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "FastFleet user";
+  const selectedState = role === "customer" ? normalizeState(user.user_metadata?.state || user.user_metadata?.default_zone) || "Lagos" : "Lagos";
 
   await Promise.allSettled([
-    supabase.auth.updateUser({ data: { account_type: role, role } }),
+    supabase.auth.updateUser({ data: { account_type: role, role, default_zone: selectedState, state: role === "customer" ? selectedState : undefined } }),
     supabase.from("users").upsert({
       id: user.id,
       email: user.email || null,
       phone: user.phone || null,
       full_name: fullName,
       role,
-      default_zone: "Lagos",
+      default_zone: selectedState,
       updated_at: now
     }),
     supabase.from("profiles").upsert({
@@ -97,6 +99,7 @@ async function upsertRoleProfile(supabase: ReturnType<typeof createServerClient>
       phone: user.phone || null,
       full_name: fullName,
       account_type: role,
+      lga: selectedState,
       updated_at: now
     })
   ]);

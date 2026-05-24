@@ -45,7 +45,7 @@ export function AppWorkflowCards() {
         </LinkButton>
         <span className="inline-flex min-h-12 items-center justify-center gap-2 rounded-fleet border border-fleet-line bg-white px-5 text-sm font-black text-fleet-night shadow-[0_12px_28px_rgba(8,17,31,0.06)]">
           <Smartphone className="h-4 w-4 text-fleet-ember" />
-          App Store and Google Play coming soon
+          App Store and Google Play release access
         </span>
       </div>
     </AnimatedDescriptionCards>

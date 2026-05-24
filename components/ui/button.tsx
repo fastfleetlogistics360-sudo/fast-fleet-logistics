@@ -14,10 +14,10 @@ type LinkButtonProps = ComponentPropsWithoutRef<typeof Link> & {
 };
 
 const variants = {
-  primary: "border-transparent bg-fleet-ember text-white shadow-[0_16px_32px_rgba(239,108,0,0.2)] hover:bg-[#f47e18]",
-  secondary: "border-fleet-line bg-white/90 text-fleet-night hover:border-fleet-gold hover:bg-white",
+  primary: "border-transparent bg-[linear-gradient(135deg,#f8bd56,#f47e18)] text-fleet-night shadow-[0_16px_34px_rgba(239,108,0,0.26)] hover:shadow-[0_20px_44px_rgba(239,108,0,0.34)]",
+  secondary: "border-white/70 bg-white/90 text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)] backdrop-blur-xl hover:border-fleet-gold hover:bg-white",
   ghost: "border-transparent bg-transparent text-fleet-night hover:bg-fleet-paper",
-  dark: "border-white/10 bg-fleet-night text-white hover:bg-[#10233a]",
+  dark: "border-white/10 bg-[linear-gradient(135deg,#08111f,#0f3460)] text-white shadow-[0_14px_34px_rgba(8,17,31,0.22)] hover:bg-[#10233a]",
   destructive: "border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100"
 };
 

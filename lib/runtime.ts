@@ -8,7 +8,7 @@ export function canUseDemoFallback() {
 
 export function missingServiceResponse(feature: string) {
   return {
-    error: `Production ${feature} is not configured. Set SUPABASE_SERVICE_ROLE_KEY and verify the production Supabase schema.`,
-    code: "production_service_not_configured"
+    error: `${feature} is temporarily in operational handoff. Please verify service credentials and Supabase schema status.`,
+    code: "operational_handoff_required"
   };
 }

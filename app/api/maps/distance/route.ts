@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     });
 
     if (!response.ok) {
-      return NextResponse.json({ error: "Distance service unavailable." }, { status: response.status });
+      return NextResponse.json({ error: "Route distance estimate could not be completed." }, { status: response.status });
     }
 
     const payload = await response.json();

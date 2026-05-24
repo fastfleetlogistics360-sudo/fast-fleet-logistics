@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json({ ok: response.ok, reason: response.ok ? null : "OAuth provider is unavailable." });
+    return NextResponse.json({ ok: response.ok, reason: response.ok ? null : "OAuth provider is not enabled for this environment." });
   } catch {
     return NextResponse.json({ ok: false, reason: "Could not verify OAuth provider status." }, { status: 502 });
   }

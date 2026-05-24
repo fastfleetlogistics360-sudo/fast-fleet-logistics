@@ -119,7 +119,7 @@ export function WalletDashboardCard({
       <div className="wallet-card-grid mt-6 rounded-fleet border border-white/5 bg-fleet-night/24 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-5">
         <div className="grid gap-5 sm:grid-cols-[1fr_auto] sm:items-start">
           <div className="min-w-0">
-            <span className="text-sm font-black text-white/45 sm:text-base">Available Balance</span>
+            <span className="text-sm font-black text-white/80 sm:text-base">Available Balance</span>
             <div className="mt-3 flex items-center gap-3">
               <strong className="min-w-0 break-words text-3xl font-black sm:text-5xl">{showBalance ? formatMoney(balance) : "NGN •••••"}</strong>
               <button
@@ -131,7 +131,7 @@ export function WalletDashboardCard({
                 {showBalance ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
-            {lockedBalance > 0 ? <p className="mt-2 text-xs font-bold text-white/55">{showBalance ? formatMoney(lockedBalance) : "NGN •••"} locked</p> : null}
+            {lockedBalance > 0 ? <p className="mt-2 text-xs font-bold text-white/75">{showBalance ? formatMoney(lockedBalance) : "NGN •••"} locked</p> : null}
           </div>
           <button
             type="button"

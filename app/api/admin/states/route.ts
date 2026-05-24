@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { defaultLaunchStateRecords, normalizeState } from "@/lib/launch-states";
+import { defaultLaunchStateRecords, normalizeLaunchStatus, normalizeState } from "@/lib/launch-states";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 
 export async function GET() {
@@ -33,7 +33,7 @@ export async function GET() {
     const stored = launchRows.get(record.state);
     return {
       ...record,
-      status: stored?.status === "live" ? "live" : stored?.status === "waitlist" ? "waitlist" : record.status,
+      status: stored?.status ? normalizeLaunchStatus(stored.status) : record.status,
       waitlist_count: waitlistCounts.get(record.state) || 0,
       launched_at: stored?.launched_at || record.launched_at
     };
@@ -49,6 +49,7 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const state = normalizeState(String(body.state || ""));
+  const status = normalizeLaunchStatus(String(body.status || "active"));
   if (!state) {
     return NextResponse.json({ error: "Choose a valid Nigerian state." }, { status: 400 });
   }
@@ -58,11 +59,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to make state launches live." }, { status: 503 });
   }
 
-  const launchedAt = new Date().toISOString();
+  const launchedAt = status === "active" || status === "live" ? new Date().toISOString() : null;
   const { error } = await supabase.from("platform_launch_states").upsert(
     {
       state,
-      status: "live",
+      status,
       launched_at: launchedAt
     },
     { onConflict: "state" }
@@ -72,7 +73,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  await supabase.from("state_waitlist").update({ status: "launched", updated_at: launchedAt }).eq("state", state);
+  if (status === "active" || status === "live") {
+    await supabase.from("state_waitlist").update({ status: "launched", updated_at: launchedAt || new Date().toISOString() }).eq("state", state);
+  }
 
-  return NextResponse.json({ state, status: "live", launched_at: launchedAt });
+  return NextResponse.json({ state, status, launched_at: launchedAt });
 }

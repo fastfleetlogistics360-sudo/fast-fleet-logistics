@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bike, Building2, Loader2, UserRound } from "lucide-react";
+import { Bike, Building2, Loader2, MapPinned, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { roleHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/cn";
 import type { UserRole } from "@/types/domain";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
 
 const options: Array<{ role: Exclude<UserRole, "admin">; title: string; body: string; icon: LucideIcon }> = [
   {
@@ -37,6 +38,7 @@ export function ChooseAccountTypeForm() {
   const searchParams = useSearchParams();
   const returnTo = searchParams.get("returnTo");
   const [selected, setSelected] = useState<Exclude<UserRole, "admin">>("customer");
+  const [customerState, setCustomerState] = useState("Lagos");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -52,15 +54,16 @@ export function ChooseAccountTypeForm() {
 
       const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "FastFleet user";
       const now = new Date().toISOString();
+      const selectedState = selected === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos";
       const [metadataResult, usersResult, profilesResult] = await Promise.allSettled([
-        supabase.auth.updateUser({ data: { account_type: selected, role: selected } }),
+        supabase.auth.updateUser({ data: { account_type: selected, role: selected, default_zone: selectedState, state: selected === "customer" ? selectedState : undefined } }),
         supabase.from("users").upsert({
           id: user.id,
           email: user.email || null,
           phone: user.phone || null,
           full_name: fullName,
           role: selected,
-          default_zone: "Lagos",
+          default_zone: selectedState,
           updated_at: now
         }),
         supabase.from("profiles").upsert({
@@ -70,6 +73,7 @@ export function ChooseAccountTypeForm() {
           phone: user.phone || null,
           full_name: fullName,
           account_type: selected,
+          lga: selectedState,
           updated_at: now
         })
       ]);
@@ -107,11 +111,28 @@ export function ChooseAccountTypeForm() {
             >
               <Icon className="h-6 w-6" />
               <strong className="mt-4 block text-lg font-black">{option.title}</strong>
-              <span className={cn("mt-2 block text-sm font-semibold leading-6", active ? "text-white/78" : "text-slate-600")}>{option.body}</span>
+              <span className={cn("mt-2 block text-sm font-semibold leading-6", active ? "text-white/80" : "text-slate-600")}>{option.body}</span>
             </button>
           );
         })}
       </div>
+
+      {selected === "customer" ? (
+        <label className="form-field mt-5">
+          <span className="form-label">Select Your State</span>
+          <span className="relative">
+            <MapPinned className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fleet-ember" />
+            <select className="form-input pl-10" value={customerState} onChange={(event) => setCustomerState(event.target.value)} required>
+              {NIGERIAN_STATES.map((state) => (
+                <option key={state} value={state}>{state}</option>
+              ))}
+            </select>
+          </span>
+          <span className="text-xs font-bold leading-5 text-slate-500">
+            Lagos and Ogun are active now. Other states receive early-access dashboard access while rollout expands.
+          </span>
+        </label>
+      ) : null}
 
       {message ? <div className="mt-5 rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">{message}</div> : null}
 
@@ -122,4 +143,3 @@ export function ChooseAccountTypeForm() {
     </Card>
   );
 }
-

@@ -17,7 +17,7 @@ export function assertGeolocationReady() {
     throw new Error("Location requires HTTPS or localhost. Open FastFleet from the secure app URL.");
   }
   if (typeof navigator === "undefined" || !navigator.geolocation) {
-    throw new Error("Location is not available on this device.");
+    throw new Error("Location access is not enabled on this device.");
   }
 }
 

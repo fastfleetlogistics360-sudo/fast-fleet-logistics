@@ -24,6 +24,9 @@ type AnimatedDescriptionCardsProps = {
   surface?: "dark" | "light";
 };
 
+const cardBlurDataURL =
+  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyNmNmY4ZmInLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNmNGE2MmEnIG9wYWNpdHk9Jy4yMicvPjxjaXJjbGUgY3g9JzMnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuMTgnLz48L3N2Zz4=";
+
 export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children, surface = "dark" }: AnimatedDescriptionCardsProps) {
   const reduceMotion = useReducedMotion();
   const dark = surface === "dark";
@@ -45,7 +48,7 @@ export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children
   }
 
   return (
-    <section className={dark ? "overflow-hidden bg-fleet-night py-12 text-white sm:py-16" : "overflow-hidden bg-white py-12 text-fleet-night sm:py-16"}>
+    <section className={dark ? "defer-render overflow-hidden bg-fleet-night py-9 text-white sm:py-12" : "defer-render overflow-hidden bg-white py-9 text-fleet-night sm:py-12"}>
       <div className="section-wrap">
         <motion.div
           className="max-w-3xl"
@@ -56,7 +59,7 @@ export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children
         >
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-gold">{eyebrow}</span>
           <h2 className={`mt-3 text-2xl font-black leading-tight sm:text-5xl ${dark ? "text-white" : "text-fleet-night"}`}>{title}</h2>
-          <p className={`mt-4 max-w-2xl text-sm font-semibold leading-7 sm:text-base ${dark ? "text-white/70" : "text-slate-600"}`}>{body}</p>
+          <p className={`mt-4 max-w-2xl text-sm font-semibold leading-7 sm:text-base ${dark ? "text-white/[0.86]" : "text-slate-600"}`}>{body}</p>
         </motion.div>
 
         <div
@@ -72,7 +75,7 @@ export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children
                 ref={(node) => {
                   cardRefs.current[index] = node;
                 }}
-                className="group relative w-[min(68vw,260px)] shrink-0 snap-start overflow-hidden rounded-fleet border border-white/70 bg-white text-fleet-night shadow-[0_14px_34px_rgba(0,0,0,0.16)] outline-none lg:w-auto"
+                className="group relative w-[min(68vw,240px)] shrink-0 snap-start overflow-hidden rounded-fleet border border-white/70 bg-white/76 text-fleet-night shadow-[0_12px_28px_rgba(0,0,0,0.14)] outline-none backdrop-blur-2xl lg:w-auto"
                 initial={reduceMotion ? false : { opacity: 0, y: 28, scale: 0.97 }}
                 whileInView={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
                 whileHover={reduceMotion ? undefined : { y: -5 }}
@@ -88,6 +91,10 @@ export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children
                     fill
                     className="object-cover object-center transition duration-700 group-hover:scale-[1.04]"
                     sizes="(min-width: 1024px) 33vw, 68vw"
+                    quality={62}
+                    loading="lazy"
+                    placeholder="blur"
+                    blurDataURL={cardBlurDataURL}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/18 via-transparent to-white/5" />
                   <motion.span
@@ -100,8 +107,8 @@ export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children
                   </motion.span>
                 </div>
 
-                <div className="p-3 sm:p-4">
-                  <h3 className="text-base font-black leading-tight text-fleet-night sm:text-xl">{card.title}</h3>
+                <div className="p-3">
+                  <h3 className="text-base font-black leading-tight text-fleet-night sm:text-lg">{card.title}</h3>
                   <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 sm:text-sm sm:leading-6">{card.body}</p>
                 </div>
 

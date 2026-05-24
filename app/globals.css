@@ -38,13 +38,18 @@ html[data-theme="dark"] {
 
 html {
   scroll-behavior: smooth;
+  text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: rgb(var(--fleet-paper));
+  background:
+    radial-gradient(circle at 18% -8%, rgba(244, 166, 42, 0.18), transparent 28rem),
+    radial-gradient(circle at 92% 12%, rgba(15, 52, 96, 0.16), transparent 30rem),
+    rgb(var(--fleet-paper));
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -69,7 +74,7 @@ svg {
 
 .hero-surface {
   background:
-    linear-gradient(115deg, rgba(8, 17, 31, 0.98), rgba(15, 52, 96, 0.94) 58%, rgba(21, 163, 107, 0.88)),
+    linear-gradient(115deg, rgba(8, 17, 31, 0.98), rgba(15, 52, 96, 0.94) 58%, rgba(239, 108, 0, 0.82)),
     linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
     linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
   background-size: auto, 38px 38px, 38px 38px;
@@ -104,19 +109,107 @@ svg {
 }
 
 .form-label {
-  @apply text-xs font-black uppercase tracking-[0.14em] text-slate-500;
+  @apply text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-600;
 }
 
 .form-input {
-  @apply min-h-12 w-full rounded-fleet border border-fleet-line bg-white px-3 text-sm font-bold text-fleet-night outline-none transition placeholder:text-slate-400 focus:border-fleet-gold focus:ring-4 focus:ring-fleet-gold/20;
+  @apply min-h-11 w-full rounded-fleet border border-fleet-line/90 bg-white/95 px-3 text-sm font-bold text-fleet-night outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition placeholder:text-slate-400 focus:border-fleet-gold focus:ring-4 focus:ring-fleet-gold/20;
 }
 
 .form-textarea {
-  @apply min-h-28 w-full rounded-fleet border border-fleet-line bg-white px-3 py-3 text-sm font-bold text-fleet-night outline-none transition placeholder:text-slate-400 focus:border-fleet-gold focus:ring-4 focus:ring-fleet-gold/20;
+  @apply min-h-24 w-full rounded-fleet border border-fleet-line/90 bg-white/95 px-3 py-3 text-sm font-bold text-fleet-night outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition placeholder:text-slate-400 focus:border-fleet-gold focus:ring-4 focus:ring-fleet-gold/20;
 }
 
 .section-wrap {
   @apply mx-auto max-w-7xl px-4 sm:px-6;
+}
+
+.site-canvas {
+  background:
+    linear-gradient(180deg, rgba(8, 17, 31, 0.08), transparent 18rem),
+    radial-gradient(circle at 12% 7rem, rgba(244, 166, 42, 0.18), transparent 24rem),
+    radial-gradient(circle at 93% 18rem, rgba(15, 52, 96, 0.18), transparent 26rem),
+    linear-gradient(90deg, rgba(15, 52, 96, 0.045) 1px, transparent 1px),
+    linear-gradient(rgba(15, 52, 96, 0.035) 1px, transparent 1px),
+    rgb(var(--fleet-paper));
+  background-size: auto, auto, auto, 56px 56px, 56px 56px, auto;
+}
+
+.cinematic-hero {
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.transport-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.transport-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(244, 166, 42, 0.11), transparent 32%),
+    linear-gradient(90deg, rgba(15, 52, 96, 0.055) 1px, transparent 1px),
+    linear-gradient(rgba(15, 52, 96, 0.04) 1px, transparent 1px);
+  background-size: auto, 38px 38px, 38px 38px;
+  opacity: 0.9;
+}
+
+.transport-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.commercial-strip {
+  background:
+    linear-gradient(90deg, rgba(8, 17, 31, 0.96), rgba(15, 52, 96, 0.92), rgba(239, 108, 0, 0.86)),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: auto, 48px 48px;
+}
+
+.smart-card-grid {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.76)),
+    linear-gradient(90deg, rgba(15, 52, 96, 0.055) 1px, transparent 1px),
+    linear-gradient(rgba(15, 52, 96, 0.04) 1px, transparent 1px);
+  background-size: auto, 34px 34px, 34px 34px;
+}
+
+.contrast-on-image {
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.58);
+}
+
+.defer-render {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 720px;
+}
+
+.transport-panel.p-5,
+.transport-panel.p-6,
+.transport-panel.sm\:p-6,
+.transport-panel.sm\:p-7,
+.transport-panel.sm\:p-8 {
+  padding: 1rem;
+}
+
+.transport-panel .form-input {
+  min-height: 2.65rem;
+}
+
+.transport-panel .form-textarea {
+  min-height: 5rem;
+}
+
+@media (min-width: 640px) {
+  .transport-panel.p-5,
+  .transport-panel.p-6,
+  .transport-panel.sm\:p-6,
+  .transport-panel.sm\:p-7,
+  .transport-panel.sm\:p-8 {
+    padding: 1.1rem;
+  }
 }
 
 @layer base {
@@ -171,5 +264,17 @@ svg {
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.001ms !important;
+  }
+}
+
+@media (update: slow), (prefers-reduced-motion: reduce) {
+  .partner-marquee {
+    animation-duration: 60s !important;
+  }
+
+  .transport-panel,
+  .transport-panel::before,
+  .smart-card-grid {
+    backdrop-filter: none;
   }
 }
