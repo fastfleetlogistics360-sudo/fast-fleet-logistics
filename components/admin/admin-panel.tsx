@@ -16,6 +16,7 @@ import {
   LogOut,
   Loader2,
   Map,
+  Menu,
   PackageCheck,
   PauseCircle,
   Pencil,
@@ -33,7 +34,8 @@ import {
   Trash2,
   Utensils,
   UsersRound,
-  WalletCards
+  WalletCards,
+  X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { defaultLaunchStateRecords, launchStatusLabel, rememberLiveState } from "@/lib/launch-states";
@@ -75,6 +77,84 @@ const metrics: Array<[string, string, string]> = [
   ["Success rate", "98.2%", "2.1% cancellations"],
   ["Open tickets", "23", "7 urgent"]
 ];
+
+type AdminSectionId =
+  | "overview"
+  | "rider-approvals"
+  | "business-kyc"
+  | "delivery-timelines"
+  | "withdrawal-review"
+  | "company-transaction-logs"
+  | "restaurant-menus"
+  | "mall-menus"
+  | "ops-control"
+  | "field-insights"
+  | "risk-signals";
+
+const adminSectionIds = new Set<string>([
+  "overview",
+  "rider-approvals",
+  "business-kyc",
+  "delivery-timelines",
+  "withdrawal-review",
+  "company-transaction-logs",
+  "restaurant-menus",
+  "mall-menus",
+  "ops-control",
+  "field-insights",
+  "risk-signals"
+]);
+
+const adminNavGroups: Array<{
+  title: string;
+  items: Array<{ id: AdminSectionId; label: string; icon: LucideIcon; count?: (stats: AdminNavStats) => string }>;
+}> = [
+  {
+    title: "Command",
+    items: [
+      { id: "overview", label: "Overview", icon: Globe2 },
+      { id: "delivery-timelines", label: "Deliveries", icon: PackageCheck, count: (stats) => String(stats.activeDeliveries) }
+    ]
+  },
+  {
+    title: "Approvals",
+    items: [
+      { id: "rider-approvals", label: "Driver KYC", icon: ClipboardCheck, count: (stats) => String(stats.pendingRiders) },
+      { id: "business-kyc", label: "Business KYC", icon: Building2, count: (stats) => String(stats.pendingBusinesses) }
+    ]
+  },
+  {
+    title: "Money",
+    items: [
+      { id: "withdrawal-review", label: "Withdrawals", icon: CircleDollarSign, count: (stats) => String(stats.pendingWithdrawals) },
+      { id: "company-transaction-logs", label: "Company books", icon: ReceiptText }
+    ]
+  },
+  {
+    title: "Catalog",
+    items: [
+      { id: "restaurant-menus", label: "Kitchens", icon: Utensils },
+      { id: "mall-menus", label: "Mall stores", icon: StoreIcon }
+    ]
+  },
+  {
+    title: "Controls",
+    items: [
+      { id: "ops-control", label: "Launch & pricing", icon: SlidersHorizontal },
+      { id: "field-insights", label: "Field insights", icon: Map },
+      { id: "risk-signals", label: "Risk & support", icon: AlertTriangle, count: (stats) => String(stats.openRisk + stats.openSupport) }
+    ]
+  }
+];
+
+type AdminNavStats = {
+  pendingRiders: number;
+  pendingBusinesses: number;
+  activeDeliveries: number;
+  pendingWithdrawals: number;
+  openRisk: number;
+  openSupport: number;
+};
 
 type AdminWithdrawal = {
   id: string;
@@ -493,6 +573,8 @@ export function AdminPanel() {
   const [supportReplyDrafts, setSupportReplyDrafts] = useState<Record<string, string>>({});
   const [adminMessage, setAdminMessage] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const [activeAdminSection, setActiveAdminSection] = useState<AdminSectionId>("overview");
   const [pricing, setPricing] = useState({ surge: "1.15", commission: "18", bikeBase: "1800" });
   const liveStates = useMemo(() => launchStates.filter((state) => state.status === "active" || state.status === "live").length, [launchStates]);
   const pendingRiderCount = useMemo(() => adminRiders.filter((rider) => !["approved", "rejected"].includes(rider.application_status)).length, [adminRiders]);
@@ -501,6 +583,17 @@ export function AdminPanel() {
   const pendingWithdrawalCount = useMemo(() => adminWithdrawals.filter((withdrawal) => withdrawal.status === "pending").length, [adminWithdrawals]);
   const openRiskCount = useMemo(() => riskSignals.filter((signal) => !signal.resolved_at).length, [riskSignals]);
   const openSupportCount = useMemo(() => supportTickets.filter((ticket) => !["resolved", "closed"].includes(ticket.status)).length, [supportTickets]);
+  const navStats = useMemo<AdminNavStats>(
+    () => ({
+      pendingRiders: pendingRiderCount,
+      pendingBusinesses: pendingBusinessCount,
+      activeDeliveries: activeDeliveryCount,
+      pendingWithdrawals: pendingWithdrawalCount,
+      openRisk: openRiskCount,
+      openSupport: openSupportCount
+    }),
+    [activeDeliveryCount, openRiskCount, openSupportCount, pendingBusinessCount, pendingRiderCount, pendingWithdrawalCount]
+  );
   const companyLogSummary = useMemo(() => summarizeCompanyLogs(companyLogs), [companyLogs]);
   const filteredCompanyLogs = useMemo(() => {
     const query = companyLogSearch.trim().toLowerCase();
@@ -513,6 +606,11 @@ export function AdminPanel() {
 
   useEffect(() => {
     loadAdminData();
+  }, []);
+
+  useEffect(() => {
+    const hash = window.location.hash.replace("#", "");
+    if (adminSectionIds.has(hash)) setActiveAdminSection(hash as AdminSectionId);
   }, []);
 
   async function loadAdminData() {
@@ -613,6 +711,8 @@ export function AdminPanel() {
   }
 
   function openAdminSection(id: string) {
+    if (adminSectionIds.has(id)) setActiveAdminSection(id as AdminSectionId);
+    setAdminMenuOpen(false);
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
     window.history.replaceState(null, "", `#${id}`);
   }
@@ -1091,10 +1191,16 @@ export function AdminPanel() {
   }, []);
 
   return (
-    <section className="section-wrap py-8 sm:py-12">
+    <section id="overview" className="section-wrap scroll-mt-24 py-8 sm:py-12">
       <div className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]">
         <div>
-          <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Admin panel</span>
+          <div className="flex items-center gap-3">
+            <Button type="button" size="sm" variant="secondary" onClick={() => setAdminMenuOpen(true)} aria-label="Open admin menu">
+              <Menu className="h-4 w-4" />
+              Menu
+            </Button>
+            <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Admin panel</span>
+          </div>
           <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-6xl">Operate FastFleet with confidence.</h1>
           <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">
             Monitor riders, deliveries, payouts, pricing, support, fraud signals, zones, and growth metrics from one premium command center.
@@ -1121,6 +1227,15 @@ export function AdminPanel() {
       </div>
 
       {adminMessage ? <div className="mt-5 rounded-fleet bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-800">{adminMessage}</div> : null}
+
+      <AdminCommandMenu
+        active={activeAdminSection}
+        open={adminMenuOpen}
+        stats={navStats}
+        onOpen={() => setAdminMenuOpen(true)}
+        onClose={() => setAdminMenuOpen(false)}
+        onNavigate={openAdminSection}
+      />
 
       <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <ActionCard
@@ -1222,7 +1337,7 @@ export function AdminPanel() {
         onSave={saveMallMenus}
       />
 
-      <div className="mt-6 grid gap-4 xl:grid-cols-3">
+      <div id="ops-control" className="mt-6 grid scroll-mt-24 gap-4 xl:grid-cols-3">
         <Card className="p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -1294,7 +1409,7 @@ export function AdminPanel() {
         </Card>
       </div>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <div id="field-insights" className="mt-8 grid scroll-mt-24 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="p-5">
           <div className="flex items-center justify-between">
             <div>
@@ -1424,6 +1539,104 @@ export function AdminPanel() {
         onSendSupportReply={sendSupportReply}
       />
     </section>
+  );
+}
+
+function AdminCommandMenu({
+  active,
+  open,
+  stats,
+  onOpen,
+  onClose,
+  onNavigate
+}: {
+  active: AdminSectionId;
+  open: boolean;
+  stats: AdminNavStats;
+  onOpen: () => void;
+  onClose: () => void;
+  onNavigate: (id: AdminSectionId) => void;
+}) {
+  return (
+    <>
+      <div className="sticky top-3 z-30 mt-6 rounded-fleet border border-fleet-line bg-white/95 p-2 shadow-lift backdrop-blur">
+        <div className="flex items-center gap-2">
+          <Button type="button" size="sm" variant="dark" onClick={onOpen} aria-label="Open admin menu">
+            <Menu className="h-4 w-4" />
+          </Button>
+          <div className="no-scrollbar flex flex-1 gap-2 overflow-x-auto">
+            {adminNavGroups.flatMap((group) => group.items).map((item) => {
+              const Icon = item.icon;
+              const selected = active === item.id;
+              const count = item.count?.(stats);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onNavigate(item.id)}
+                  className={`flex shrink-0 items-center gap-2 rounded-fleet px-3 py-2 text-sm font-black transition ${
+                    selected ? "bg-fleet-navy text-white" : "bg-fleet-paper text-slate-600 hover:bg-white hover:text-fleet-night"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                  {count ? <span className={selected ? "text-white/75" : "text-fleet-ember"}>{count}</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {open ? (
+        <div className="fixed inset-0 z-50 bg-fleet-night/45 backdrop-blur-sm" onClick={onClose}>
+          <aside
+            className="h-full w-full max-w-sm overflow-y-auto bg-white p-4 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-fleet-line pb-4">
+              <div>
+                <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Admin menu</span>
+                <h2 className="mt-1 text-2xl font-black text-fleet-night">Workspace</h2>
+              </div>
+              <Button type="button" size="sm" variant="secondary" onClick={onClose} aria-label="Close admin menu">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="mt-4 grid gap-5">
+              {adminNavGroups.map((group) => (
+                <div key={group.title}>
+                  <h3 className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{group.title}</h3>
+                  <div className="mt-2 grid gap-2">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const selected = active === item.id;
+                      const count = item.count?.(stats);
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => onNavigate(item.id)}
+                          className={`flex items-center justify-between rounded-fleet px-3 py-3 text-left text-sm font-black transition ${
+                            selected ? "bg-fleet-navy text-white" : "bg-fleet-paper text-fleet-night hover:bg-white"
+                          }`}
+                        >
+                          <span className="flex items-center gap-3">
+                            <Icon className="h-4 w-4" />
+                            {item.label}
+                          </span>
+                          {count ? <span className={selected ? "text-white/75" : "text-fleet-ember"}>{count}</span> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
+      ) : null}
+    </>
   );
 }
 
