@@ -108,7 +108,6 @@ export function RiderAccessState({ status, rejectionReason }: { status: KycStatu
 }
 
 async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId: string | null, vehicleType: string | null | undefined, includeAvailable: boolean) {
-  if (!riderId) return [] as JobRow[];
   try {
     const response = await fetch(`/api/rider/jobs?includeAvailable=${includeAvailable ? "1" : "0"}`, { cache: "no-store" });
     const payload = (await response.json().catch(() => ({}))) as { jobs?: JobRow[] };
@@ -116,6 +115,7 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
   } catch {
     // Fall back to the browser Supabase client below when the API is unavailable in local preview.
   }
+  if (!riderId) return [] as JobRow[];
   const [assignedResult, availableResult] = await Promise.all([
     supabase.from("deliveries").select(jobFields).eq("rider_id", riderId).order("created_at", { ascending: false }).limit(40),
     includeAvailable && vehicleType
@@ -316,19 +316,33 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
           supabase.from("rider_profiles").select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status").eq("user_id", user.id).maybeSingle(),
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle()
         ]);
-	        const riderData = (riderResult.data as RiderProfile | null) || {};
+	        let riderData = (riderResult.data as RiderProfile | null) || {};
 	        const dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || "bike";
-	        const riderId = riderData.id || null;
+	        let riderId = riderData.id || null;
+	        const approved = riderData.application_status === "approved" || initialKycStatus === "approved";
+	        const effectiveOnline = approved ? true : Boolean(riderData.online);
+	        if (riderId && approved && (!riderData.online || riderData.vehicle_type !== dispatchVehicle || riderData.application_status !== "approved")) {
+	          await supabase.from("rider_profiles").update({ application_status: "approved", online: true, vehicle_type: dispatchVehicle }).eq("id", riderId);
+	        }
 	        const [jobsResult, withdrawalsResult] = await Promise.all([
-	          riderId
-	            ? loadRiderJobs(supabase, riderId, dispatchVehicle, Boolean(riderData.online))
+	          riderId || approved
+	            ? loadRiderJobs(supabase, riderId, dispatchVehicle, effectiveOnline)
 	            : Promise.resolve({ data: [] }),
 	          riderId
 	            ? supabase.from("withdrawal_requests").select("id, amount_ngn, bank_name, account_number, status, created_at").eq("rider_profile_id", riderId).order("created_at", { ascending: false }).limit(12)
 	            : Promise.resolve({ data: [] })
 	        ]);
+	        if (!riderId && approved) {
+	          const repaired = await supabase
+	            .from("rider_profiles")
+	            .select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status")
+	            .eq("user_id", user.id)
+	            .maybeSingle();
+	          riderData = ((repaired.data as RiderProfile | null) || riderData);
+	          riderId = riderData.id || null;
+	        }
         if (!mounted) return;
-        const nextProfile = { ...((profileResult.data || {}) as RiderProfile), ...((riderResult.data || {}) as RiderProfile), vehicle_type: dispatchVehicle };
+        const nextProfile = { ...((profileResult.data || {}) as RiderProfile), ...riderData, application_status: approved ? "approved" : riderData.application_status, vehicle_type: dispatchVehicle, online: effectiveOnline };
         setProfile(nextProfile);
         setOnline(Boolean(nextProfile.online));
         setOnlineSince(nextProfile.online ? new Date() : null);
@@ -382,7 +396,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	  }, [online, profile.id, profile.vehicle_type]);
 	
 	  async function toggleOnline() {
-    if ((profile.application_status || initialKycStatus) !== "approved") {
+    if (profile.application_status !== "approved" && initialKycStatus !== "approved") {
       setOnline(false);
       setOnlineSince(null);
       return;

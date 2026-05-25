@@ -30,15 +30,22 @@ export async function GET(request: Request) {
 
     const admin = createAdminClient();
     const db = admin || supabase;
-    const { data: rider, error: riderError } = await db
+    let { data: rider, error: riderError } = await db
       .from("rider_profiles")
       .select("id, vehicle_type, online, application_status")
       .eq("user_id", user.id)
       .maybeSingle<{ id: string; vehicle_type?: string | null; online?: boolean | null; application_status?: string | null }>();
     if (riderError) throw riderError;
+    if (!rider?.id && admin) {
+      rider = await ensureApprovedRiderProfile(admin, user.id);
+    }
     if (!rider?.id) return NextResponse.json({ jobs: [] });
 
     const dispatchVehicle = normalizeDispatchVehicle(rider.vehicle_type) || "bike";
+    if (rider.application_status === "approved" && (!rider.online || rider.vehicle_type !== dispatchVehicle)) {
+      await db.from("rider_profiles").update({ online: true, vehicle_type: dispatchVehicle }).eq("id", rider.id);
+      rider = { ...rider, online: true, vehicle_type: dispatchVehicle };
+    }
     const [assignedResult, availableResult] = await Promise.all([
       db.from("deliveries").select(jobSelect).eq("rider_id", rider.id).order("created_at", { ascending: false }).limit(40),
       includeAvailable && rider.online && rider.application_status === "approved"
@@ -142,6 +149,61 @@ function normalizeDispatchVehicle(vehicleType: string | null | undefined) {
   if (vehicleType === "car" || vehicleType === "van" || vehicleType === "bike") return vehicleType;
   if (vehicleType === "motorcycle" || vehicleType === "tricycle") return "bike";
   return null;
+}
+
+async function ensureApprovedRiderProfile(admin: NonNullable<ReturnType<typeof createAdminClient>>, userId: string) {
+  const { data: application } = await admin
+    .from("rider_applications")
+    .select("user_id, status, lga, vehicle_type, vehicle_make, vehicle_model, vehicle_year, plate_number, vehicle_color, bank_name, bank_code, account_number, account_name")
+    .eq("user_id", userId)
+    .eq("status", "approved")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{
+      user_id: string;
+      status: string;
+      lga?: string | null;
+      vehicle_type?: string | null;
+      vehicle_make?: string | null;
+      vehicle_model?: string | null;
+      vehicle_year?: number | null;
+      plate_number?: string | null;
+      vehicle_color?: string | null;
+      bank_name?: string | null;
+      bank_code?: string | null;
+      account_number?: string | null;
+      account_name?: string | null;
+    }>();
+
+  if (!application) return null;
+  const vehicleType = normalizeDispatchVehicle(application.vehicle_type) || "bike";
+  const { data } = await admin
+    .from("rider_profiles")
+    .upsert(
+      {
+        user_id: application.user_id,
+        application_status: "approved",
+        address: application.lga || null,
+        operating_zone: application.lga || null,
+        vehicle_type: vehicleType,
+        vehicle_make: application.vehicle_make || null,
+        vehicle_model: application.vehicle_model || null,
+        vehicle_year: application.vehicle_year || null,
+        plate_number: application.plate_number || null,
+        vehicle_color: application.vehicle_color || null,
+        bank_name: application.bank_name || null,
+        bank_code: application.bank_code || null,
+        account_number: application.account_number || null,
+        account_name: application.account_name || null,
+        online: true,
+        reviewed_at: new Date().toISOString()
+      },
+      { onConflict: "user_id" }
+    )
+    .select("id, vehicle_type, online, application_status")
+    .maybeSingle<{ id: string; vehicle_type?: string | null; online?: boolean | null; application_status?: string | null }>();
+
+  return data || null;
 }
 
 function isRejectedByRider(job: JobRow, riderId: string | null | undefined) {

@@ -117,12 +117,14 @@ export async function PATCH(request: Request) {
     reviewed_at: string;
     suspension_reason: string | null;
     operating_zone?: string;
+    online?: boolean;
   } = {
     application_status: status as RiderApplicationStatus,
     reviewed_at: new Date().toISOString(),
     suspension_reason: status === "rejected" || status === "more_info_required" ? reason : null
   };
   if (operatingZone) patch.operating_zone = operatingZone;
+  if (status === "approved") patch.online = true;
 
   const { data, error } = await supabase
     .from("rider_profiles")
@@ -145,7 +147,7 @@ export async function PATCH(request: Request) {
       .from("rider_applications")
       .update(applicationPatch)
       .eq("id", id)
-      .select("id, user_id, status")
+      .select("id, user_id, status, full_name, phone, email, lga, vehicle_type, vehicle_make, vehicle_model, vehicle_year, plate_number, vehicle_color, bank_name, bank_code, account_number, account_name")
       .maybeSingle();
 
     if (applicationError) {
@@ -154,6 +156,8 @@ export async function PATCH(request: Request) {
     if (!application) {
       return NextResponse.json({ error: "Rider application was not found." }, { status: 404 });
     }
+
+    const riderProfile = await ensureRiderProfileFromApplication(supabase, application, status as RiderApplicationStatus, operatingZone);
 
     await Promise.allSettled([
       supabase
@@ -170,7 +174,7 @@ export async function PATCH(request: Request) {
       })
     ]);
 
-    return NextResponse.json({ rider: { id: application.id, user_id: application.user_id, application_status: application.status } });
+    return NextResponse.json({ rider: { id: riderProfile?.id || application.id, user_id: application.user_id, application_status: application.status } });
   }
 
   await Promise.allSettled([
@@ -193,6 +197,61 @@ export async function PATCH(request: Request) {
   ]);
 
   return NextResponse.json({ rider: data });
+}
+
+async function ensureRiderProfileFromApplication(
+  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
+  application: {
+    user_id: string;
+    status: string;
+    lga?: string | null;
+    vehicle_type?: string | null;
+    vehicle_make?: string | null;
+    vehicle_model?: string | null;
+    vehicle_year?: number | null;
+    plate_number?: string | null;
+    vehicle_color?: string | null;
+    bank_name?: string | null;
+    bank_code?: string | null;
+    account_number?: string | null;
+    account_name?: string | null;
+  },
+  status: RiderApplicationStatus,
+  operatingZone: string
+) {
+  const { data } = await supabase
+    .from("rider_profiles")
+    .upsert(
+      {
+        user_id: application.user_id,
+        application_status: status,
+        address: application.lga || operatingZone || null,
+        operating_zone: operatingZone || application.lga || null,
+        vehicle_type: normalizeDispatchVehicle(application.vehicle_type),
+        vehicle_make: application.vehicle_make || null,
+        vehicle_model: application.vehicle_model || null,
+        vehicle_year: application.vehicle_year || null,
+        plate_number: application.plate_number || null,
+        vehicle_color: application.vehicle_color || null,
+        bank_name: application.bank_name || null,
+        bank_code: application.bank_code || null,
+        account_number: application.account_number || null,
+        account_name: application.account_name || null,
+        online: status === "approved",
+        reviewed_at: new Date().toISOString()
+      },
+      { onConflict: "user_id" }
+    )
+    .select("id")
+    .maybeSingle();
+
+  return data;
+}
+
+function normalizeDispatchVehicle(vehicleType: string | null | undefined) {
+  if (vehicleType === "car" || vehicleType === "van" || vehicleType === "bike") return vehicleType;
+  if (vehicleType === "motorcycle" || vehicleType === "tricycle") return "bike";
+  return "bike";
 }
 
 function documentsFromApplication(documents: unknown) {
