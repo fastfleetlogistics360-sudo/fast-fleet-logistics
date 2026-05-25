@@ -6,7 +6,6 @@ import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, CreditCard, Loader2
 import type { LucideIcon } from "lucide-react";
 import { estimateFare, speedLabel, vehicleLabel } from "@/lib/fare";
 import { formatMoney } from "@/lib/format";
-import { createClient } from "@/lib/supabase/client";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -87,76 +86,31 @@ export function BookingFlow() {
   async function confirmDelivery() {
     setLoading(true);
     setErrorMessage(null);
-    const code = `FF-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
 
     try {
-      const supabase = createClient();
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-
-      if (!user) {
+      const response = await fetch("/api/deliveries/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          total: estimate.total
+        })
+      });
+      const payload = await response.json();
+      if (response.status === 401) {
         router.push("/auth?returnTo=/book");
         return;
       }
+      if (!response.ok) throw new Error(payload.error || "Could not create delivery checkout.");
 
-      const result = await supabase.from("deliveries").insert({
-        delivery_code: code,
-        customer_id: user.id,
-        pickup_address: form.pickup,
-        dropoff_address: form.dropoff,
-        pickup_contact: form.pickupContact,
-        dropoff_contact: form.dropoffContact,
-        parcel_type: form.parcel,
-        vehicle_type: form.vehicle,
-        delivery_speed: form.speed,
-        payment_method: form.payment,
-        status: "pending_payment",
-        price_ngn: estimate.total,
-        distance_km: estimate.distanceKm,
-        eta_minutes: estimate.etaMinutes,
-        metadata: {
-          note: form.note,
-          scheduled_at: form.scheduledAt || null
-        }
-      }).select("id").single();
-
-      if (result.error) throw result.error;
-
-      if (form.payment === "wallet") {
-        const { error: paymentError } = await supabase.rpc("pay_delivery_from_wallet", {
-          target_delivery_id: result.data.id,
-          next_metadata: {
-            source: "booking_checkout",
-            delivery_code: code
-          }
-        });
-        if (paymentError) throw paymentError;
-      }
-
-      setDeliveryCode(code);
-    } catch (error) {
-      if (form.payment === "wallet") {
-        setErrorMessage(error instanceof Error ? error.message : "Wallet checkout payment failed.");
-        setLoading(false);
+      if (payload.authorizationUrl) {
+        window.location.assign(payload.authorizationUrl);
         return;
       }
 
-      const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]");
-      localStorage.setItem(
-        "fastfleet.next.deliveries",
-        JSON.stringify([
-          {
-            delivery_code: code,
-            ...form,
-            estimate,
-            status: "pending_payment",
-            created_at: new Date().toISOString()
-          },
-          ...stored
-        ])
-      );
-      setDeliveryCode(code);
+      setDeliveryCode(payload.deliveryCode);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Delivery checkout failed.");
     } finally {
       setLoading(false);
     }
@@ -174,8 +128,8 @@ export function BookingFlow() {
           <p className="mt-2 text-sm font-semibold text-slate-600">
             Tracking code <strong className="text-fleet-night">{deliveryCode}</strong> has been created.
             {form.payment === "wallet"
-              ? " Wallet checkout payment was recorded successfully, and dispatch search can begin."
-              : " Realtime assignment will update after payment is confirmed."}
+              ? " Wallet checkout payment was recorded successfully, and online drivers are being notified."
+              : " Realtime assignment will update after Paystack confirms payment."}
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -280,9 +234,9 @@ export function BookingFlow() {
               title="Payment"
               value={form.payment}
               options={[
-                { value: "card", label: "Card", body: "Charge through your payment provider integration." },
+                { value: "card", label: "Card", body: "Pay securely on Paystack with your debit or credit card." },
                 { value: "wallet", label: "Wallet", body: "Pay from funded FastFleet customer balance." },
-                { value: "transfer", label: "Transfer", body: "Confirm bank transfer before dispatch." }
+                { value: "transfer", label: "Transfer", body: "Use Paystack bank transfer and dispatch after confirmation." }
               ]}
               onChange={(value) => update("payment", value as "card" | "wallet" | "transfer")}
             />
@@ -298,7 +252,18 @@ export function BookingFlow() {
           ) : null}
         </div>
 
-        {errorMessage ? <div className="mt-4 rounded-fleet border border-rose-200 bg-rose-50 p-3 text-sm font-bold leading-6 text-rose-700">{errorMessage}</div> : null}
+        {errorMessage ? (
+          <div className="mt-4 rounded-fleet border border-rose-200 bg-rose-50 p-3 text-sm font-bold leading-6 text-rose-700">
+            {errorMessage}
+            {form.payment === "wallet" ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <LinkButton href="/dashboard#wallet" size="sm" variant="secondary">Top up wallet</LinkButton>
+                <Button type="button" size="sm" variant="secondary" onClick={() => update("payment", "card")}>Use card</Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => update("payment", "transfer")}>Use transfer</Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
           <Button type="button" variant="secondary" onClick={back} disabled={current === 0 || loading}>

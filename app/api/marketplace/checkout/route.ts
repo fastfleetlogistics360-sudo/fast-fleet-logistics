@@ -3,7 +3,9 @@ import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { createClient } from "@/lib/supabase/server";
 
 const PAYSTACK_INITIALIZE_URL = "https://api.paystack.co/transaction/initialize";
-const DELIVERY_FEE_NGN = 1000;
+const RESTAURANT_DELIVERY_FEE_NGN = 1000;
+const MALL_DELIVERY_FEE_NGN = 1500;
+const MALL_PLATFORM_FEE_NGN = 500;
 
 type CheckoutItem = {
   name: string;
@@ -11,6 +13,13 @@ type CheckoutItem = {
   quantity: number;
   price: number;
   subtotal: number;
+  productId?: string;
+  productName?: string;
+  mallId?: string;
+  mallName?: string;
+  vendorId?: string;
+  vendorName?: string;
+  category?: string;
 };
 
 export async function POST(request: Request) {
@@ -22,11 +31,18 @@ export async function POST(request: Request) {
       address?: string;
       amount?: number;
       items?: CheckoutItem[];
+      fees?: {
+        platformFee?: number;
+        deliveryFee?: number;
+      };
     };
 
     const items = Array.isArray(payload.items) ? payload.items : [];
     const itemsTotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
-    const expectedAmount = itemsTotal + PLATFORM_CHECKOUT_FEE_NGN + DELIVERY_FEE_NGN;
+    const isShopping = payload.kind === "shopping";
+    const platformFee = isShopping ? MALL_PLATFORM_FEE_NGN : PLATFORM_CHECKOUT_FEE_NGN;
+    const deliveryFee = isShopping ? MALL_DELIVERY_FEE_NGN : RESTAURANT_DELIVERY_FEE_NGN;
+    const expectedAmount = itemsTotal + platformFee + deliveryFee;
 
     if (!payload.email || !payload.email.includes("@")) {
       return NextResponse.json({ error: "Enter a valid email address for Paystack checkout." }, { status: 400 });
@@ -101,8 +117,8 @@ export async function POST(request: Request) {
           kind: payload.kind,
           phone: payload.phone || null,
           delivery_address: payload.address || null,
-          platform_fee_ngn: PLATFORM_CHECKOUT_FEE_NGN,
-          delivery_fee_ngn: DELIVERY_FEE_NGN,
+          platform_fee_ngn: platformFee,
+          delivery_fee_ngn: deliveryFee,
           items
         }
       })

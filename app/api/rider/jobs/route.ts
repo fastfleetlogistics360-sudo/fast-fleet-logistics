@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
     const { data: current, error: currentError } = await supabase
       .from("deliveries")
-      .select("id, status, rider_profiles(user_id)")
+	    .select("id, status, rider_profiles(user_id)")
       .eq("id", id)
       .single();
     if (currentError) throw currentError;
@@ -67,15 +67,16 @@ export async function POST(request: Request) {
     await supabase.from("delivery_locations").update({ status: nextStatus, updated_at: timestamp }).eq("order_id", id);
 
     return updateResponse(supabase, id);
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not update rider job." }, { status: 500 });
-  }
-}
+	  } catch (error) {
+	    const message = error instanceof Error ? error.message : "Could not update rider job.";
+	    return NextResponse.json({ error: message }, { status: message.includes("accepted by another rider") ? 409 : 500 });
+	  }
+	}
 
 async function updateResponse(supabase: Awaited<ReturnType<typeof createClient>>, id: string) {
   const { data, error } = await supabase
     .from("deliveries")
-    .select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, distance_km, eta_minutes, created_at, proof_url")
+    .select("id, delivery_code, pickup_address, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)")
     .eq("id", id)
     .single();
   if (error) throw error;

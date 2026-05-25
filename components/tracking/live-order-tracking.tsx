@@ -134,9 +134,43 @@ export function LiveOrderTracking({
     };
   }, [initialOrder.id]);
 
-  useEffect(() => {
-    if (isComplete(order.status)) setConnectionState("complete");
-  }, [order.status]);
+	  useEffect(() => {
+	    if (isComplete(order.status)) setConnectionState("complete");
+	  }, [order.status]);
+
+	  useEffect(() => {
+	    if (!order.rider_id || order.rider?.full_name) return;
+	    const supabase = createClient();
+	    let mounted = true;
+	    async function loadRiderDetails() {
+	      const { data } = await supabase
+	        .from("rider_profiles")
+	        .select("plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, email)")
+	        .eq("id", order.rider_id)
+	        .maybeSingle<{
+	          plate_number?: string | null;
+	          vehicle_type?: string | null;
+	          vehicle_color?: string | null;
+	          users?: { full_name?: string | null; phone?: string | null; email?: string | null } | null;
+	        }>();
+	      if (!mounted || !data) return;
+	      setOrder((current) => ({
+	        ...current,
+	        rider: {
+	          full_name: data.users?.full_name || null,
+	          phone: data.users?.phone || null,
+	          email: data.users?.email || null,
+	          vehicle_type: data.vehicle_type || null,
+	          plate_number: data.plate_number || null,
+	          vehicle_color: data.vehicle_color || null
+	        }
+	      }));
+	    }
+	    void loadRiderDetails();
+	    return () => {
+	      mounted = false;
+	    };
+	  }, [order.rider?.full_name, order.rider_id]);
 
   const pickup = toPoint(order.pickup_latitude, order.pickup_longitude);
   const dropoff = toPoint(order.dropoff_latitude, order.dropoff_longitude);

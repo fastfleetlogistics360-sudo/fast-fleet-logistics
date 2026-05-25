@@ -49,13 +49,21 @@ type JobRow = {
   id: string;
   delivery_code: string;
   pickup_address: string;
+  pickup_contact?: string | null;
   dropoff_address: string;
+  dropoff_contact?: string | null;
   status: string;
   price_ngn: number;
   distance_km?: number | null;
   eta_minutes?: number | null;
   created_at?: string | null;
   proof_url?: string | null;
+  metadata?: Record<string, unknown> | null;
+  users?: {
+    full_name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  } | null;
 };
 
 type WithdrawalRow = {
@@ -73,6 +81,9 @@ const tabs: Array<{ id: RiderTab; label: string; icon: LucideIcon }> = [
   { id: "earnings", label: "Earnings", icon: WalletCards },
   { id: "account", label: "Account", icon: UserRound }
 ];
+
+const jobFields =
+  "id, delivery_code, pickup_address, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)";
 
 export function RiderAccessState({ status, rejectionReason }: { status: KycStatus; rejectionReason?: string | null }) {
   const rejected = status === "rejected";
@@ -96,6 +107,40 @@ export function RiderAccessState({ status, rejectionReason }: { status: KycStatu
   );
 }
 
+async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId: string | null, vehicleType: string | null | undefined, includeAvailable: boolean) {
+  if (!riderId) return [] as JobRow[];
+  const [assignedResult, availableResult] = await Promise.all([
+    supabase.from("deliveries").select(jobFields).eq("rider_id", riderId).order("created_at", { ascending: false }).limit(40),
+    includeAvailable && vehicleType
+      ? supabase
+          .from("deliveries")
+          .select(jobFields)
+          .eq("status", "searching")
+          .is("rider_id", null)
+          .eq("vehicle_type", vehicleType)
+          .order("created_at", { ascending: true })
+          .limit(20)
+      : Promise.resolve({ data: [] })
+  ]);
+  const assigned = ((assignedResult.data || []) as JobRow[]).filter(Boolean);
+  const available = ((availableResult.data || []) as JobRow[]).filter((job) => !isRejectedByRider(job, riderId));
+  return mergeJobs([...available, ...assigned]);
+}
+
+function mergeJobs(jobs: JobRow[]) {
+  const seen = new Set<string>();
+  return jobs.filter((job) => {
+    if (seen.has(job.id)) return false;
+    seen.add(job.id);
+    return true;
+  });
+}
+
+function isRejectedByRider(job: JobRow, riderId: string | null | undefined) {
+  const rejectedIds = job.metadata?.rejected_rider_ids;
+  return Boolean(riderId && Array.isArray(rejectedIds) && rejectedIds.includes(riderId));
+}
+
 export function RiderDashboard({ initialKycStatus = "approved", rejectionReason }: RiderDashboardProps) {
   const [activeTab, setActiveTab] = useState<RiderTab>("home");
   const [loading, setLoading] = useState(true);
@@ -116,6 +161,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
   const [liveLocation, setLiveLocation] = useState<LiveRiderLocation | null>(null);
   const [trackingActive, setTrackingActive] = useState(false);
   const [trackingMessage, setTrackingMessage] = useState<string | null>(null);
+  const [offerNotice, setOfferNotice] = useState<string | null>(null);
 
   const incomingJob = jobs.find((job) => job.status === "searching") || null;
   const activeJob = jobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status)) || null;
@@ -241,8 +287,8 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
     setTrackingMessage("Delivery tracking paused.");
   }
 
-  useEffect(() => {
-    let mounted = true;
+	  useEffect(() => {
+	    let mounted = true;
     async function load() {
       setLoading(true);
       try {
@@ -257,22 +303,23 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
           supabase.from("rider_profiles").select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status").eq("user_id", user.id).maybeSingle(),
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle()
         ]);
-        const riderId = (riderResult.data as RiderProfile | null)?.id || null;
-        const [jobsResult, withdrawalsResult] = await Promise.all([
-          riderId
-            ? supabase.from("deliveries").select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, distance_km, eta_minutes, created_at, proof_url").eq("rider_id", riderId).order("created_at", { ascending: false }).limit(40)
-            : Promise.resolve({ data: [] }),
-          riderId
-            ? supabase.from("withdrawal_requests").select("id, amount_ngn, bank_name, account_number, status, created_at").eq("rider_profile_id", riderId).order("created_at", { ascending: false }).limit(12)
-            : Promise.resolve({ data: [] })
-        ]);
+	        const riderData = (riderResult.data as RiderProfile | null) || {};
+	        const riderId = riderData.id || null;
+	        const [jobsResult, withdrawalsResult] = await Promise.all([
+	          riderId
+	            ? loadRiderJobs(supabase, riderId, riderData.vehicle_type, Boolean(riderData.online))
+	            : Promise.resolve({ data: [] }),
+	          riderId
+	            ? supabase.from("withdrawal_requests").select("id, amount_ngn, bank_name, account_number, status, created_at").eq("rider_profile_id", riderId).order("created_at", { ascending: false }).limit(12)
+	            : Promise.resolve({ data: [] })
+	        ]);
         if (!mounted) return;
         const nextProfile = { ...((profileResult.data || {}) as RiderProfile), ...((riderResult.data || {}) as RiderProfile) };
         setProfile(nextProfile);
         setOnline(Boolean(nextProfile.online));
         setOnlineSince(nextProfile.online ? new Date() : null);
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
-        setJobs((jobsResult.data || []) as JobRow[]);
+	        setJobs(Array.isArray(jobsResult) ? jobsResult : ((jobsResult.data || []) as JobRow[]));
         setWithdrawals((withdrawalsResult.data || []) as WithdrawalRow[]);
       } catch {
         if (mounted) setJobs([]);
@@ -281,12 +328,45 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       }
     }
     void load();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+	    return () => {
+	      mounted = false;
+	    };
+	  }, []);
 
-  async function toggleOnline() {
+	  useEffect(() => {
+	    if (!online || !profile.id || !profile.vehicle_type) return;
+	    const supabase = createClient();
+	    let mounted = true;
+
+	    async function refreshAvailableJobs() {
+	      const nextJobs = await loadRiderJobs(supabase, profile.id || null, profile.vehicle_type, true);
+	      if (!mounted) return;
+	      setJobs((current) => {
+	        const nextIds = new Set(nextJobs.map((job) => job.id));
+	        const removedIncoming = current.find((job) => job.status === "searching" && !nextIds.has(job.id) && !isRejectedByRider(job, profile.id));
+	        if (removedIncoming) setOfferNotice(`${removedIncoming.delivery_code} has been accepted by another rider.`);
+	        return nextJobs;
+	      });
+	    }
+
+	    const channel = supabase
+	      .channel(`rider-available-jobs:${profile.id}`)
+	      .on("postgres_changes", { event: "*", schema: "public", table: "deliveries" }, (payload) => {
+	        const next = payload.new as Partial<JobRow> & { rider_id?: string | null; vehicle_type?: string | null };
+	        if (next?.vehicle_type === profile.vehicle_type || next?.rider_id === profile.id) void refreshAvailableJobs();
+	      })
+	      .subscribe();
+	    void refreshAvailableJobs();
+	    const timer = window.setInterval(refreshAvailableJobs, 8000);
+
+	    return () => {
+	      mounted = false;
+	      window.clearInterval(timer);
+	      supabase.removeChannel(channel);
+	    };
+	  }, [online, profile.id, profile.vehicle_type]);
+	
+	  async function toggleOnline() {
     if ((profile.application_status || initialKycStatus) !== "approved") {
       setOnline(false);
       setOnlineSince(null);
@@ -301,43 +381,40 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
         data: { user }
       } = await supabase.auth.getUser();
       if (!user) return;
-      const { error } = await supabase.from("rider_profiles").update({ online: nextOnline }).eq("user_id", user.id);
-      if (error) throw error;
-      if (nextOnline && profile.id) {
-        const { data } = await supabase.rpc("assign_next_delivery_to_rider", { target_rider_profile_id: profile.id });
-        if (data) {
-          const { data: offeredJob } = await supabase
-            .from("deliveries")
-            .select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, distance_km, eta_minutes, created_at, proof_url")
-            .eq("id", data)
-            .single();
-          if (offeredJob) setJobs((current) => [offeredJob as JobRow, ...current.filter((job) => job.id !== offeredJob.id)]);
-        }
-      }
-    } catch (error) {
+	      const { error } = await supabase.from("rider_profiles").update({ online: nextOnline }).eq("user_id", user.id);
+	      if (error) throw error;
+	      if (nextOnline && profile.id) {
+	        const nextJobs = await loadRiderJobs(supabase, profile.id, profile.vehicle_type, true);
+	        setJobs(nextJobs);
+	        setOfferNotice(nextJobs.some((job) => job.status === "searching") ? "New dispatch orders are available." : null);
+	      }
+	    } catch (error) {
       setOnline(!nextOnline);
       setOnlineSince(!nextOnline ? new Date() : null);
     }
   }
 
-  async function respondToJob(job: JobRow, accepted: boolean) {
-    try {
-      const response = await fetch("/api/rider/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: job.id, action: accepted ? "accept" : "decline" })
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not update job.");
-      setJobs((current) => accepted ? current.map((item) => item.id === job.id ? (payload.job as JobRow) : item) : current.filter((item) => item.id !== job.id));
-      if (accepted) {
-        setTrackingMessage("Job accepted. Requesting location permission for live delivery tracking...");
-        setTrackingActive(true);
-      }
-    } catch {
-      // Keep the current server state visible when the action fails.
-    }
-  }
+	  async function respondToJob(job: JobRow, accepted: boolean) {
+	    try {
+	      setOfferNotice(null);
+	      const response = await fetch("/api/rider/jobs", {
+	        method: "POST",
+	        headers: { "Content-Type": "application/json" },
+	        body: JSON.stringify({ id: job.id, action: accepted ? "accept" : "decline" })
+	      });
+	      const payload = await response.json();
+	      if (!response.ok) throw new Error(payload.error || "Could not update job.");
+	      setJobs((current) => accepted ? [payload.job as JobRow, ...current.filter((item) => item.id !== job.id && item.status !== "searching")] : current.filter((item) => item.id !== job.id));
+	      if (accepted) {
+	        setTrackingMessage("Job accepted. Requesting location permission for live delivery tracking...");
+	        setTrackingActive(true);
+	      }
+	    } catch (error) {
+	      const message = error instanceof Error ? error.message : "Could not update job.";
+	      setOfferNotice(message.includes("accepted by another rider") ? `${job.delivery_code} has been accepted by another rider.` : message);
+	      setJobs((current) => current.filter((item) => item.id !== job.id || !message.includes("accepted by another rider")));
+	    }
+	  }
 
   async function advanceJob(job: JobRow) {
     try {
@@ -410,14 +487,15 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
             </div>
             <NotificationBell />
           </header>
-          {activeTab === "home" ? <HomeTab loading={loading} online={online} elapsed={elapsed} onToggleOnline={toggleOnline} todayEarnings={todayEarnings} profile={profile} incomingJob={incomingJob} incomingExpires={incomingExpires} activeJob={activeJob} recentTrips={recentTrips} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} onStartTracking={startDeliveryTracking} onStopTracking={stopDeliveryTracking} onProofFile={setProofFile} onRespond={respondToJob} onAdvance={advanceJob} /> : null}
+	          {activeTab === "home" ? <HomeTab loading={loading} online={online} elapsed={elapsed} onToggleOnline={toggleOnline} todayEarnings={todayEarnings} profile={profile} incomingJob={incomingJob} incomingExpires={incomingExpires} activeJob={activeJob} recentTrips={recentTrips} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} offerNotice={offerNotice} onStartTracking={startDeliveryTracking} onStopTracking={stopDeliveryTracking} onProofFile={setProofFile} onRespond={respondToJob} onAdvance={advanceJob} /> : null}
           {activeTab === "jobs" ? <JobsTab loading={loading} jobs={jobs} /> : null}
           {activeTab === "earnings" ? <EarningsTab walletBalance={walletBalance} profile={profile} withdrawals={withdrawals} onOpenWithdrawal={() => setWithdrawalOpen(true)} /> : null}
           {activeTab === "account" ? <AccountTab profile={profile} kycStatus={profile.application_status || initialKycStatus} prefs={prefs} onPrefs={setPrefs} /> : null}
         </main>
       </div>
-      <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
-      {withdrawalOpen ? <WithdrawalModal amount={withdrawalAmount} onAmount={setWithdrawalAmount} profile={profile} loading={withdrawalLoading} message={withdrawalMessage} onClose={() => setWithdrawalOpen(false)} onSubmit={requestWithdrawal} /> : null}
+	      <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
+	      {online && incomingJob ? <IncomingJobModal job={incomingJob} expires={incomingExpires} onRespond={respondToJob} /> : null}
+	      {withdrawalOpen ? <WithdrawalModal amount={withdrawalAmount} onAmount={setWithdrawalAmount} profile={profile} loading={withdrawalLoading} message={withdrawalMessage} onClose={() => setWithdrawalOpen(false)} onSubmit={requestWithdrawal} /> : null}
     </section>
   );
 }
@@ -450,7 +528,7 @@ function MobileTabs({ activeTab, onChange }: { activeTab: RiderTab; onChange: (t
   );
 }
 
-function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, profile, incomingJob, incomingExpires, activeJob, recentTrips, proofFile, liveLocation, trackingActive, trackingMessage, onStartTracking, onStopTracking, onProofFile, onRespond, onAdvance }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; todayEarnings: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; activeJob: JobRow | null; recentTrips: JobRow[]; proofFile: File | null; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; onStartTracking: () => void; onStopTracking: () => void; onProofFile: (file: File | null) => void; onRespond: (job: JobRow, accepted: boolean) => void; onAdvance: (job: JobRow) => void }) {
+function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, profile, incomingJob, incomingExpires, activeJob, recentTrips, proofFile, liveLocation, trackingActive, trackingMessage, offerNotice, onStartTracking, onStopTracking, onProofFile, onRespond, onAdvance }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; todayEarnings: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; activeJob: JobRow | null; recentTrips: JobRow[]; proofFile: File | null; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onStartTracking: () => void; onStopTracking: () => void; onProofFile: (file: File | null) => void; onRespond: (job: JobRow, accepted: boolean) => void; onAdvance: (job: JobRow) => void }) {
   if (loading) return <DashboardSkeleton />;
   return (
     <div className="grid gap-5">
@@ -460,12 +538,13 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, prof
           {online ? <ToggleRight className="h-12 w-12" /> : <ToggleLeft className="h-12 w-12" />}
         </button>
       </Card>
-      <div className="grid grid-cols-3 gap-3">
-        <Stat label="Trips" value={String(profile.completed_deliveries || recentTrips.length)} />
-        <Stat label="Today" value={formatMoney(todayEarnings)} />
-        <Stat label="Rating" value={(profile.rating || 4.9).toFixed(1)} />
-      </div>
-      {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
+	      <div className="grid grid-cols-3 gap-3">
+	        <Stat label="Trips" value={String(profile.completed_deliveries || recentTrips.length)} />
+	        <Stat label="Today" value={formatMoney(todayEarnings)} />
+	        <Stat label="Rating" value={(profile.rating || 4.9).toFixed(1)} />
+	      </div>
+	      {offerNotice ? <div className="rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-800">{offerNotice}</div> : null}
+	      {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
       {activeJob ? <ActiveJob job={activeJob} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} onStartTracking={onStartTracking} onStopTracking={onStopTracking} onProofFile={onProofFile} onAdvance={onAdvance} /> : null}
       <Card className="overflow-hidden p-0">
         <RoutePreview
@@ -492,17 +571,28 @@ function IncomingJob({ job, expires, onRespond }: { job: JobRow; expires: number
     <Card className="border-fleet-gold p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <StatusBadge tone="amber">Incoming job</StatusBadge>
-          <h2 className="mt-3 text-2xl font-black text-fleet-night">{job.pickup_address} to {job.dropoff_address}</h2>
-          <p className="mt-2 text-sm font-semibold text-slate-600">{job.distance_km || 6} km · {formatMoney(job.price_ngn)} estimated earning</p>
-        </div>
-        <span className="grid h-14 w-14 place-items-center rounded-full border-4 border-fleet-navy text-lg font-black text-fleet-navy">{expires}</span>
+	          <StatusBadge tone="amber">Incoming job</StatusBadge>
+	          <h2 className="mt-3 text-2xl font-black text-fleet-night">{job.pickup_address} to {job.dropoff_address}</h2>
+	          <p className="mt-2 text-sm font-semibold text-slate-600">{job.distance_km || 6} km · {formatMoney(job.price_ngn)} estimated earning</p>
+	          <p className="mt-2 text-sm font-bold text-slate-600">Customer: {job.users?.full_name || "Customer"} · {job.dropoff_contact || job.pickup_contact || job.users?.phone || "Phone pending"}</p>
+	        </div>
+	        <span className="grid h-14 w-14 place-items-center rounded-full border-4 border-fleet-navy text-lg font-black text-fleet-navy">{expires}</span>
       </div>
       <div className="mt-5 grid grid-cols-2 gap-3">
         <Button type="button" onClick={() => onRespond(job, true)} className="bg-emerald-600 hover:bg-emerald-700">Accept</Button>
         <Button type="button" variant="secondary" onClick={() => onRespond(job, false)}>Decline</Button>
       </div>
     </Card>
+	  );
+	}
+
+function IncomingJobModal({ job, expires, onRespond }: { job: JobRow; expires: number; onRespond: (job: JobRow, accepted: boolean) => void }) {
+  return (
+    <div className="fixed inset-0 z-[110] grid place-items-end bg-fleet-night/35 p-3 sm:place-items-center">
+      <div className="w-full max-w-lg">
+        <IncomingJob job={job} expires={expires} onRespond={onRespond} />
+      </div>
+    </div>
   );
 }
 
@@ -510,10 +600,14 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
   const label = job.status === "accepted" ? "I've arrived at pickup" : job.status === "rider_arrived" ? "Package collected" : job.status === "picked_up" ? "Start trip" : job.status === "in_transit" ? "Delivered" : "Complete delivery";
   return (
     <Card className="p-5">
-      <StatusBadge tone="blue">Active delivery</StatusBadge>
-      <h2 className="mt-3 text-xl font-black text-fleet-night">{job.delivery_code}</h2>
-      <p className="mt-2 text-sm font-semibold text-slate-600">{job.pickup_address} to {job.dropoff_address}</p>
-      <RoutePreview
+	      <StatusBadge tone="blue">Active delivery</StatusBadge>
+	      <h2 className="mt-3 text-xl font-black text-fleet-night">{job.delivery_code}</h2>
+	      <p className="mt-2 text-sm font-semibold text-slate-600">{job.pickup_address} to {job.dropoff_address}</p>
+	      <div className="mt-3 grid gap-2 rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-600">
+	        <span>Customer: {job.users?.full_name || "Customer"}</span>
+	        <span>Phone: {job.dropoff_contact || job.pickup_contact || job.users?.phone || "Not provided"}</span>
+	      </div>
+	      <RoutePreview
         compact
         className="mt-4"
         label="Active route"
@@ -530,9 +624,14 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
           {proofFile ? <span className="text-xs font-bold text-slate-500">{proofFile.name}</span> : null}
         </label>
       ) : null}
-      <div className="mt-4 grid gap-2">
-        <Button type="button" variant={trackingActive ? "secondary" : "primary"} onClick={trackingActive ? onStopTracking : onStartTracking}>
-          {trackingActive ? "Stop Delivery Tracking" : "Start Delivery Tracking"}
+	      <div className="mt-4 grid gap-2">
+	        {(job.dropoff_contact || job.pickup_contact || job.users?.phone) ? (
+	          <LinkButton href={`tel:${job.dropoff_contact || job.pickup_contact || job.users?.phone}`} variant="secondary" className="w-full">
+	            Call customer
+	          </LinkButton>
+	        ) : null}
+	        <Button type="button" variant={trackingActive ? "secondary" : "primary"} onClick={trackingActive ? onStopTracking : onStartTracking}>
+	          {trackingActive ? "Stop Delivery Tracking" : "Start Delivery Tracking"}
         </Button>
       </div>
       {trackingMessage ? <div className="mt-3 rounded-fleet bg-fleet-paper p-3 text-xs font-bold leading-5 text-slate-600">{trackingMessage}</div> : null}

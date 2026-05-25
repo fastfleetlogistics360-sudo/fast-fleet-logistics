@@ -29,7 +29,14 @@ type TrackedDelivery = {
   delivery_speed: string;
   price_ngn: number;
   eta_minutes: number;
-  rider?: { full_name?: string | null };
+  rider?: {
+    full_name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    vehicle_type?: string | null;
+    plate_number?: string | null;
+    vehicle_color?: string | null;
+  };
   last_location?: { latitude: number; longitude: number; updated_at?: string | null } | null;
 };
 
@@ -135,7 +142,8 @@ export function TrackingConsole() {
           <div className="mt-5 grid gap-3">
             <InfoRow icon={MapPinned} label="Pickup" value={delivery.pickup_address} />
             <InfoRow icon={PackageCheck} label="Drop-off" value={delivery.dropoff_address} />
-            <InfoRow icon={Bike} label="Rider" value={delivery.rider?.full_name || "Verified rider assigned"} />
+	            <InfoRow icon={Bike} label="Rider" value={riderLabel(delivery)} />
+	            <InfoRow icon={Bike} label="Vehicle" value={`${delivery.rider?.vehicle_color || "Vehicle"} ${delivery.rider?.vehicle_type || delivery.vehicle_type} · ${delivery.rider?.plate_number || "Plate pending"}`} />
             <InfoRow icon={Clock3} label="ETA" value={delivery.eta_minutes ? `${delivery.eta_minutes} minutes` : "Updating"} />
             <InfoRow icon={MapPinned} label="Live movement" value={locationLabel || "Waiting for rider heartbeat"} />
           </div>
@@ -190,6 +198,12 @@ function formatLocation(location?: TrackedDelivery["last_location"]) {
   if (!location?.latitude || !location.longitude) return "";
   const updated = location.updated_at ? ` · ${relativeUpdateLabel(location.updated_at)}` : "";
   return `${Number(location.latitude).toFixed(5)}, ${Number(location.longitude).toFixed(5)}${updated}`;
+}
+
+function riderLabel(delivery: TrackedDelivery) {
+  const name = delivery.rider?.full_name || "Verified rider assigned";
+  const phone = delivery.rider?.phone ? ` · ${delivery.rider.phone}` : "";
+  return `${name}${phone}`;
 }
 
 function relativeUpdateLabel(value: string) {

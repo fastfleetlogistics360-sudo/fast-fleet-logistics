@@ -960,8 +960,7 @@ begin
   end if;
 
   update public.deliveries
-  set rider_id = target_rider.id,
-      metadata = metadata || jsonb_build_object('offered_at', now(), 'offer_status', 'pending'),
+  set metadata = metadata || jsonb_build_object('broadcast_at', now(), 'offer_status', 'broadcast'),
       updated_at = now()
   where id = target_delivery.id;
 
@@ -986,6 +985,23 @@ begin
     raise exception 'Authentication required';
   end if;
 
+  select * into target_rider
+  from public.rider_profiles
+  where user_id = auth.uid()
+  for update;
+
+  if target_rider.id is null then
+    raise exception 'Rider profile not found';
+  end if;
+
+  if target_rider.application_status <> 'approved' then
+    raise exception 'Your rider account must be approved before accepting dispatch orders';
+  end if;
+
+  if target_rider.online is not true then
+    raise exception 'Go online before accepting dispatch orders';
+  end if;
+
   select * into target_delivery
   from public.deliveries
   where id = target_delivery_id
@@ -995,20 +1011,34 @@ begin
     raise exception 'Delivery not found';
   end if;
 
-  select * into target_rider
-  from public.rider_profiles
-  where id = target_delivery.rider_id;
+  if target_delivery.status <> 'searching' or target_delivery.rider_id is not null then
+    raise exception 'This dispatch order has been accepted by another rider';
+  end if;
 
-  if target_rider.user_id <> auth.uid() and public.current_user_role() <> 'admin' then
-    raise exception 'Only the assigned driver can accept this delivery';
+  if target_delivery.vehicle_type <> target_rider.vehicle_type then
+    raise exception 'This dispatch order needs a different vehicle type';
   end if;
 
   update public.deliveries
   set status = 'accepted',
+      rider_id = target_rider.id,
       accepted_at = coalesce(accepted_at, now()),
-      metadata = metadata || jsonb_build_object('offer_status', 'accepted', 'accepted_at', now()),
+      metadata = metadata || jsonb_build_object('offer_status', 'accepted', 'accepted_at', now(), 'accepted_rider_id', target_rider.id),
       updated_at = now()
   where id = target_delivery.id;
+
+  insert into public.delivery_locations (order_id, rider_id, latitude, longitude, heading, speed, status, updated_at)
+  select target_delivery.id, target_rider.id, rl.latitude, rl.longitude, rl.heading, rl.speed, 'accepted', now()
+  from public.rider_locations rl
+  where rl.rider_profile_id = target_rider.id
+  on conflict (order_id) do update set
+    rider_id = excluded.rider_id,
+    latitude = excluded.latitude,
+    longitude = excluded.longitude,
+    heading = excluded.heading,
+    speed = excluded.speed,
+    status = excluded.status,
+    updated_at = excluded.updated_at;
 
   insert into public.delivery_events (delivery_id, actor_id, status, title, body)
   values (target_delivery.id, target_rider.user_id, 'accepted', 'Courier assigned', 'A verified courier accepted the order.');
@@ -1031,6 +1061,14 @@ begin
     raise exception 'Authentication required';
   end if;
 
+  select * into target_rider
+  from public.rider_profiles
+  where user_id = auth.uid();
+
+  if target_rider.id is null then
+    raise exception 'Rider profile not found';
+  end if;
+
   select * into target_delivery
   from public.deliveries
   where id = target_delivery_id
@@ -1040,18 +1078,18 @@ begin
     raise exception 'Delivery not found';
   end if;
 
-  select * into target_rider
-  from public.rider_profiles
-  where id = target_delivery.rider_id;
-
-  if target_rider.user_id <> auth.uid() and public.current_user_role() <> 'admin' then
-    raise exception 'Only the assigned driver can reject this delivery';
+  if target_delivery.status <> 'searching' and target_delivery.rider_id is distinct from target_rider.id then
+    raise exception 'This dispatch order has been accepted by another rider';
   end if;
 
   update public.deliveries
-  set rider_id = null,
-      status = 'searching',
-      metadata = metadata || jsonb_build_object('offer_status', 'rejected', 'last_rejected_rider_id', target_rider.id, 'rejected_at', now()),
+  set metadata = metadata
+      || jsonb_build_object(
+        'offer_status', 'rejected',
+        'last_rejected_rider_id', target_rider.id,
+        'rejected_at', now(),
+        'rejected_rider_ids', coalesce(metadata->'rejected_rider_ids', '[]'::jsonb) || to_jsonb(target_rider.id::text)
+      ),
       updated_at = now()
   where id = target_delivery.id;
 
@@ -1101,6 +1139,13 @@ create table if not exists public.platform_launch_states (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.platform_launch_states
+  drop constraint if exists platform_launch_states_status_check;
+
+alter table public.platform_launch_states
+  add constraint platform_launch_states_status_check
+  check (status in ('active', 'live', 'beta', 'waitlist', 'paused'));
 
 drop trigger if exists platform_launch_states_set_updated_at on public.platform_launch_states;
 create trigger platform_launch_states_set_updated_at
