@@ -147,7 +147,7 @@ export async function PATCH(request: Request) {
       .from("rider_applications")
       .update(applicationPatch)
       .eq("id", id)
-      .select("id, user_id, status, full_name, phone, email, lga, vehicle_type, vehicle_make, vehicle_model, vehicle_year, plate_number, vehicle_color, bank_name, bank_code, account_number, account_name")
+      .select("id, user_id, status, full_name, phone, email, lga, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name")
       .maybeSingle();
 
     if (applicationError) {
@@ -206,13 +206,9 @@ async function ensureRiderProfileFromApplication(
     status: string;
     lga?: string | null;
     vehicle_type?: string | null;
-    vehicle_make?: string | null;
-    vehicle_model?: string | null;
-    vehicle_year?: number | null;
     plate_number?: string | null;
     vehicle_color?: string | null;
     bank_name?: string | null;
-    bank_code?: string | null;
     account_number?: string | null;
     account_name?: string | null;
   },
@@ -228,13 +224,9 @@ async function ensureRiderProfileFromApplication(
         address: application.lga || operatingZone || null,
         operating_zone: operatingZone || application.lga || null,
         vehicle_type: normalizeDispatchVehicle(application.vehicle_type),
-        vehicle_make: application.vehicle_make || null,
-        vehicle_model: application.vehicle_model || null,
-        vehicle_year: application.vehicle_year || null,
         plate_number: application.plate_number || null,
         vehicle_color: application.vehicle_color || null,
         bank_name: application.bank_name || null,
-        bank_code: application.bank_code || null,
         account_number: application.account_number || null,
         account_name: application.account_name || null,
         online: status === "approved",

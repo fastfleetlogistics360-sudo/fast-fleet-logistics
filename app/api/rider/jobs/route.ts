@@ -154,7 +154,7 @@ function normalizeDispatchVehicle(vehicleType: string | null | undefined) {
 async function ensureApprovedRiderProfile(admin: NonNullable<ReturnType<typeof createAdminClient>>, userId: string) {
   const { data: application } = await admin
     .from("rider_applications")
-    .select("user_id, status, lga, vehicle_type, vehicle_make, vehicle_model, vehicle_year, plate_number, vehicle_color, bank_name, bank_code, account_number, account_name")
+    .select("user_id, status, lga, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name")
     .eq("user_id", userId)
     .eq("status", "approved")
     .order("created_at", { ascending: false })
@@ -164,13 +164,9 @@ async function ensureApprovedRiderProfile(admin: NonNullable<ReturnType<typeof c
       status: string;
       lga?: string | null;
       vehicle_type?: string | null;
-      vehicle_make?: string | null;
-      vehicle_model?: string | null;
-      vehicle_year?: number | null;
       plate_number?: string | null;
       vehicle_color?: string | null;
       bank_name?: string | null;
-      bank_code?: string | null;
       account_number?: string | null;
       account_name?: string | null;
     }>();
@@ -186,13 +182,9 @@ async function ensureApprovedRiderProfile(admin: NonNullable<ReturnType<typeof c
         address: application.lga || null,
         operating_zone: application.lga || null,
         vehicle_type: vehicleType,
-        vehicle_make: application.vehicle_make || null,
-        vehicle_model: application.vehicle_model || null,
-        vehicle_year: application.vehicle_year || null,
         plate_number: application.plate_number || null,
         vehicle_color: application.vehicle_color || null,
         bank_name: application.bank_name || null,
-        bank_code: application.bank_code || null,
         account_number: application.account_number || null,
         account_name: application.account_name || null,
         online: true,

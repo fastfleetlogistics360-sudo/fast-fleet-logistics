@@ -108,7 +108,6 @@ export interface Database {
           vehicle_color: string | null;
           operating_zone: string | null;
           bank_name: string | null;
-          bank_code: string | null;
           account_number: string | null;
           account_name: string | null;
           rating: number;

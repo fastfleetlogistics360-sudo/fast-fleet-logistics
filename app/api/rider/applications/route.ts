@@ -192,7 +192,6 @@ export async function POST(request: NextRequest) {
         vehicle_color: form.color,
         operating_zone: form.lga,
         bank_name: form.bankName,
-        bank_code: form.bankCode,
         account_number: form.accountNumber,
         account_name: form.accountName,
         online: false,

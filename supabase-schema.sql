@@ -221,6 +221,12 @@ create trigger rider_profiles_set_updated_at
 before update on public.rider_profiles
 for each row execute function public.set_updated_at();
 
+alter table if exists public.rider_profiles
+  add column if not exists vehicle_make text,
+  add column if not exists vehicle_model text,
+  add column if not exists vehicle_year integer,
+  add column if not exists bank_code text;
+
 create table if not exists public.rider_documents (
   id uuid primary key default gen_random_uuid(),
   rider_profile_id uuid not null references public.rider_profiles(id) on delete cascade,
@@ -293,6 +299,62 @@ alter table if exists public.rider_applications
 alter table if exists public.rider_applications
   drop column if exists bvn_encrypted,
   drop column if exists bvn_hash;
+
+insert into public.rider_profiles (
+  user_id,
+  application_status,
+  address,
+  operating_zone,
+  vehicle_type,
+  vehicle_make,
+  vehicle_model,
+  vehicle_year,
+  plate_number,
+  vehicle_color,
+  bank_name,
+  account_number,
+  account_name,
+  online,
+  reviewed_at
+)
+select distinct on (application.user_id)
+  application.user_id,
+  'approved'::public.rider_application_status,
+  application.lga,
+  application.lga,
+  case
+    when application.vehicle_type in ('car', 'van') then application.vehicle_type::public.vehicle_type
+    else 'bike'::public.vehicle_type
+  end,
+  application.vehicle_make,
+  application.vehicle_model,
+  application.vehicle_year,
+  application.plate_number,
+  application.vehicle_color,
+  application.bank_name,
+  application.account_number,
+  application.account_name,
+  true,
+  coalesce(application.reviewed_at, now())
+from public.rider_applications application
+where application.status = 'approved'
+order by application.user_id, application.updated_at desc, application.created_at desc
+on conflict (user_id) do update
+set application_status = 'approved'::public.rider_application_status,
+    address = coalesce(excluded.address, public.rider_profiles.address),
+    operating_zone = coalesce(excluded.operating_zone, public.rider_profiles.operating_zone),
+    vehicle_type = excluded.vehicle_type,
+    vehicle_make = coalesce(excluded.vehicle_make, public.rider_profiles.vehicle_make),
+    vehicle_model = coalesce(excluded.vehicle_model, public.rider_profiles.vehicle_model),
+    vehicle_year = coalesce(excluded.vehicle_year, public.rider_profiles.vehicle_year),
+    plate_number = coalesce(excluded.plate_number, public.rider_profiles.plate_number),
+    vehicle_color = coalesce(excluded.vehicle_color, public.rider_profiles.vehicle_color),
+    bank_name = coalesce(excluded.bank_name, public.rider_profiles.bank_name),
+    account_number = coalesce(excluded.account_number, public.rider_profiles.account_number),
+    account_name = coalesce(excluded.account_name, public.rider_profiles.account_name),
+    online = true,
+    reviewed_at = coalesce(public.rider_profiles.reviewed_at, excluded.reviewed_at),
+    updated_at = now();
 
 drop trigger if exists rider_applications_set_updated_at on public.rider_applications;
 create trigger rider_applications_set_updated_at
