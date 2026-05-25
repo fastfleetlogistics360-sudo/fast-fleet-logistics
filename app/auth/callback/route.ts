@@ -1,9 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
-import { parseUserRole, roleHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
-import { normalizeState } from "@/lib/launch-states";
-import type { UserRole } from "@/types/domain";
+import { parseUserRole, safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import { upsertRoleProfile } from "@/lib/auth/profile-completion";
+
+type CookieToSet = {
+  name: string;
+  value: string;
+  options?: Parameters<NextResponse["cookies"]["set"]>[2];
+};
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -21,22 +26,22 @@ export async function GET(request: NextRequest) {
     return redirectToAuth(request, requestedReturnTo, "OAuth sign-in could not be completed. Please try again.");
   }
 
-  let response = NextResponse.redirect(new URL("/choose-account-type", request.url));
+  const cookiesToSet: CookieToSet[] = [];
   const supabase = createServerClient(url, anonKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet: Array<{ name: string; value: string; options?: Parameters<typeof response.cookies.set>[2] }>) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+      setAll(nextCookies: CookieToSet[]) {
+        nextCookies.forEach(({ name, value }) => request.cookies.set(name, value));
+        cookiesToSet.push(...nextCookies);
       }
     }
   });
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
-    return redirectToAuth(request, requestedReturnTo, error.message);
+    return redirectToAuth(request, requestedReturnTo, friendlyAuthError(error.message));
   }
 
   const {
@@ -60,13 +65,11 @@ export async function GET(request: NextRequest) {
   if (!accountRole) {
     const chooseUrl = new URL("/choose-account-type", request.url);
     if (requestedReturnTo) chooseUrl.searchParams.set("returnTo", requestedReturnTo);
-    response = NextResponse.redirect(chooseUrl);
-    return response;
+    return redirectWithCookies(chooseUrl, cookiesToSet);
   }
 
   await upsertRoleProfile(supabase, user, accountRole);
-  response = NextResponse.redirect(new URL(safeDashboardRedirectForRole(requestedReturnTo, accountRole), request.url));
-  return response;
+  return redirectWithCookies(new URL(safeDashboardRedirectForRole(requestedReturnTo, accountRole), request.url), cookiesToSet);
 }
 
 function redirectToAuth(request: NextRequest, returnTo: string | null, error: string) {
@@ -76,31 +79,15 @@ function redirectToAuth(request: NextRequest, returnTo: string | null, error: st
   return NextResponse.redirect(authUrl);
 }
 
-async function upsertRoleProfile(supabase: ReturnType<typeof createServerClient>, user: { id: string; email?: string | null; phone?: string | null; user_metadata?: Record<string, any> }, role: UserRole) {
-  const now = new Date().toISOString();
-  const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "FastFleet user";
-  const selectedState = role === "customer" ? normalizeState(user.user_metadata?.state || user.user_metadata?.default_zone) || "Lagos" : "Lagos";
+function redirectWithCookies(url: URL, cookiesToSet: CookieToSet[]) {
+  const response = NextResponse.redirect(url);
+  cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+  return response;
+}
 
-  await Promise.allSettled([
-    supabase.auth.updateUser({ data: { account_type: role, role, default_zone: selectedState, state: role === "customer" ? selectedState : undefined } }),
-    supabase.from("users").upsert({
-      id: user.id,
-      email: user.email || null,
-      phone: user.phone || null,
-      full_name: fullName,
-      role,
-      default_zone: selectedState,
-      updated_at: now
-    }),
-    supabase.from("profiles").upsert({
-      id: user.id,
-      user_id: user.id,
-      email: user.email || null,
-      phone: user.phone || null,
-      full_name: fullName,
-      account_type: role,
-      lga: selectedState,
-      updated_at: now
-    })
-  ]);
+function friendlyAuthError(message: string) {
+  if (message.includes("code verifier") || message.includes("pkce")) {
+    return "This verification link opened in a different browser session. Please request a new verification email, or open the link in the same browser you used to register.";
+  }
+  return message;
 }
