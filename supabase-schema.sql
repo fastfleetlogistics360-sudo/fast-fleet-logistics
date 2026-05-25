@@ -327,9 +327,15 @@ create table if not exists public.business_profiles (
   dispatch_volume text,
   pickup_address text,
   registration_status text not null default 'submitted' check (registration_status in ('submitted', 'active', 'paused', 'rejected')),
+  rejection_reason text,
+  reviewed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table if exists public.business_profiles
+  add column if not exists rejection_reason text,
+  add column if not exists reviewed_at timestamptz;
 
 drop trigger if exists business_profiles_set_updated_at on public.business_profiles;
 create trigger business_profiles_set_updated_at

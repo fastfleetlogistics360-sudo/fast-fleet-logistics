@@ -8,10 +8,14 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
 
+type BusinessRegistrationStatus = "submitted" | "active" | "paused" | "rejected";
+
 export function BusinessRegistrationFlow() {
   const [authReady, setAuthReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [registrationStatus, setRegistrationStatus] = useState<BusinessRegistrationStatus | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -35,6 +39,56 @@ export function BusinessRegistrationFlow() {
       supabase.auth.getUser().then(({ data }) => {
         setSignedIn(Boolean(data.user));
         setAuthReady(true);
+        if (data.user) {
+          supabase
+            .from("business_profiles")
+            .select("business_name, contact_name, phone, email, industry, dispatch_volume, pickup_address, registration_status, rejection_reason")
+            .eq("user_id", data.user.id)
+            .maybeSingle<{
+              business_name?: string | null;
+              contact_name?: string | null;
+              phone?: string | null;
+              email?: string | null;
+              industry?: string | null;
+              dispatch_volume?: string | null;
+              pickup_address?: string | null;
+              registration_status?: BusinessRegistrationStatus | null;
+              rejection_reason?: string | null;
+            }>()
+            .then(async ({ data: business, error }) => {
+              if (error) {
+                const fallback = await supabase
+                  .from("business_profiles")
+                  .select("business_name, contact_name, phone, email, industry, dispatch_volume, pickup_address, registration_status")
+                  .eq("user_id", data.user.id)
+                  .maybeSingle<{
+                    business_name?: string | null;
+                    contact_name?: string | null;
+                    phone?: string | null;
+                    email?: string | null;
+                    industry?: string | null;
+                    dispatch_volume?: string | null;
+                    pickup_address?: string | null;
+                    registration_status?: BusinessRegistrationStatus | null;
+                  }>();
+                business = fallback.data ? { ...fallback.data, rejection_reason: null } : null;
+              }
+              if (!business) return;
+              setForm((current) => ({
+                ...current,
+                businessName: business.business_name || current.businessName,
+                contactName: business.contact_name || current.contactName,
+                phone: business.phone || current.phone,
+                email: business.email || data.user.email || current.email,
+                industry: business.industry || current.industry,
+                dispatchVolume: business.dispatch_volume || current.dispatchVolume,
+                pickupAddress: business.pickup_address || current.pickupAddress
+              }));
+              setRegistrationStatus(business.registration_status || null);
+              setRejectionReason(business.rejection_reason || null);
+              if (business.registration_status && business.registration_status !== "rejected") setSubmitted(true);
+            });
+        }
       });
     } catch {
       setAuthReady(true);
@@ -84,6 +138,8 @@ export function BusinessRegistrationFlow() {
         { onConflict: "user_id" }
       );
       if (error) throw error;
+      setRegistrationStatus("submitted");
+      setRejectionReason(null);
       setSubmitted(true);
     } catch {
       window.localStorage.setItem("fastfleet.next.business_registration", JSON.stringify({ form, registration_status: "submitted", created_at: new Date().toISOString() }));
@@ -122,24 +178,28 @@ export function BusinessRegistrationFlow() {
     );
   }
 
-  if (submitted) {
+  if (submitted && registrationStatus !== "rejected") {
     return (
       <Card className="mx-auto max-w-3xl p-6 text-center">
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-50 text-emerald-600">
           <CheckCircle2 className="h-8 w-8" />
         </div>
-        <StatusBadge tone="green" className="mt-5">
-          Business submitted
+        <StatusBadge tone={registrationStatus === "active" ? "green" : "amber"} className="mt-5">
+          {registrationStatus === "active" ? "KYC approved" : "KYC pending"}
         </StatusBadge>
-        <h1 className="mt-3 text-3xl font-black text-fleet-night sm:text-4xl">Your business dashboard is ready.</h1>
+        <h1 className="mt-3 text-3xl font-black text-fleet-night sm:text-4xl">
+          {registrationStatus === "active" ? "Your business dashboard is ready." : "Your business KYC is under review."}
+        </h1>
         <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
-          Operations can review your dispatch profile while you start saving pickup details and preparing delivery requests.
+          {registrationStatus === "active"
+            ? "Your business account has been approved by FastFleet operations."
+            : "FastFleet admin will review your business profile. Your dashboard will show pending status until it is approved."}
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <LinkButton href="/business/dashboard" variant="secondary">
-            Open business dashboard
+            {registrationStatus === "active" ? "Open business dashboard" : "View pending dashboard"}
           </LinkButton>
-          <LinkButton href="/book">Book a delivery</LinkButton>
+          {registrationStatus === "active" ? <LinkButton href="/book">Book a delivery</LinkButton> : null}
         </div>
       </Card>
     );
@@ -153,6 +213,11 @@ export function BusinessRegistrationFlow() {
         <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">
           Add your company details so FastFleet can tailor pickup, billing, support, and bulk dispatch workflows.
         </p>
+        {registrationStatus === "rejected" ? (
+          <div className="mt-5 rounded-fleet border border-red-200 bg-red-50 p-4 text-sm font-bold leading-6 text-red-700">
+            Your previous business KYC was rejected. {rejectionReason ? `Reason: ${rejectionReason}` : "Please update your details and resubmit."}
+          </div>
+        ) : null}
         <div className="mt-5 grid gap-3">
           {[
             ["Account", "Business role and dashboard access", Building2],
@@ -205,7 +270,7 @@ export function BusinessRegistrationFlow() {
         <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto]">
           <Button type="button" onClick={submitBusiness} disabled={!complete || loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-            Submit business
+            {registrationStatus === "rejected" ? "Resubmit KYC" : "Submit business KYC"}
           </Button>
           <LinkButton href="/business/dashboard" variant="secondary">
             Dashboard

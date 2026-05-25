@@ -388,8 +388,8 @@ function AuthModal({ intent, onClose }: { intent: AuthIntent; onClose: () => voi
   const title = intent === "signup" ? "Create your FastFleet account" : "Sign in to FastFleet";
   const description =
     intent === "signup"
-      ? "Sign up with phone OTP, choose your access type, and continue into FastFleet."
-      : "Enter your phone details to receive an OTP and return to your delivery workspace.";
+      ? "Sign up with email, choose your access type, and continue into FastFleet."
+      : "Enter your email and password to return to your delivery workspace.";
 
   useEffect(() => {
     setMounted(true);

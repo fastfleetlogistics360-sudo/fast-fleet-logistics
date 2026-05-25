@@ -468,13 +468,9 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, prof
       {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
       {activeJob ? <ActiveJob job={activeJob} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} onStartTracking={onStartTracking} onStopTracking={onStopTracking} onProofFile={onProofFile} onAdvance={onAdvance} /> : null}
       <Card className="overflow-hidden p-0">
-        <div className="p-4">
-          <h2 className="text-xl font-black text-fleet-night">Live delivery map</h2>
-          <p className="mt-1 text-sm font-semibold text-slate-600">{activeJob ? activeJob.delivery_code : "Your active route appears here when assigned."}</p>
-        </div>
         <RoutePreview
           compact
-          className="rounded-none border-x-0 border-b-0"
+          className="rounded-none border-0"
           label="Rider live map"
           status={activeJob?.status}
           riderName={profile.full_name || "FastFleet rider"}

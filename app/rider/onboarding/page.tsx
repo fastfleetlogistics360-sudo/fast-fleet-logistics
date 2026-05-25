@@ -45,7 +45,7 @@ export default async function RiderOnboardingPage() {
         <Suspense fallback={<RiderAuthSkeleton />}>
           <PhoneAuthForm
             title="Create rider account"
-            description="Create a rider account with email, phone OTP, or Google. After sign-in, this page opens the rider application form."
+            description="Create a rider account with email or Google. After sign-in, this page opens the rider application form."
             defaultRole="rider"
             lockedRole="rider"
             returnToOverride="/rider/onboarding"

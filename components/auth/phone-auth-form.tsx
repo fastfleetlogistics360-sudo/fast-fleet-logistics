@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Bike, Building2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, MailCheck, MapPinned, Phone, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Bike, Building2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, MapPinned, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { normalizeRole, parseUserRole, roleHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
@@ -41,7 +41,6 @@ const roleOptions: Array<{
 ];
 
 type AuthMode = "login" | "signup";
-type AuthMethod = "email" | "phone";
 
 type PhoneAuthFormProps = {
   title?: string;
@@ -63,25 +62,13 @@ function roleFromRequest(value: string | null): UserRole | undefined {
   return parseUserRole(value) || undefined;
 }
 
-function formatNigerianPhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  if (!digits) return "+234";
-  if (digits.startsWith("234")) return `+${digits.slice(0, 13)}`;
-  if (digits.startsWith("0")) return `+234${digits.slice(1, 11)}`;
-  return `+234${digits.slice(0, 10)}`;
-}
-
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-function isValidNigerianPhone(value: string) {
-  return /^\+234[789][01]\d{8}$/.test(value.trim());
-}
-
 export function PhoneAuthForm({
   title = "Secure FastFleet access",
-  description = "Sign in with email and password, phone OTP, or Google. Your account type is locked when you register.",
+  description = "Sign in with email and password or Google. Your account type is locked when you register.",
   surface = "card",
   className,
   defaultRole = "customer",
@@ -89,39 +76,33 @@ export function PhoneAuthForm({
   returnToOverride,
   intent
 }: PhoneAuthFormProps = {}) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const requestedRole = roleFromRequest(searchParams.get("account") || searchParams.get("role"));
   const returnTo = searchParams.get("returnTo");
   const effectiveLockedRole = lockedRole || requestedRole;
   const [mode, setMode] = useState<AuthMode>(intent || (effectiveLockedRole ? "signup" : "login"));
-  const [method, setMethod] = useState<AuthMethod>("email");
   const [role, setRole] = useState<UserRole>(effectiveLockedRole || defaultRole);
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("+234");
-  const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [fullName, setFullName] = useState("");
   const [customerState, setCustomerState] = useState("Lagos");
-  const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<"google" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const targetRoleHome = roleHome[role];
-  const destination = returnToOverride || returnTo || targetRoleHome;
+  const signupDestination = mode === "signup" && role === "business" ? "/business/register" : targetRoleHome;
+  const destination = returnToOverride || returnTo || signupDestination;
   const safeDestination = destination.startsWith("/") && !destination.startsWith("//") ? destination : targetRoleHome;
   const emailValid = isValidEmail(email);
-  const phoneValid = isValidNigerianPhone(phone);
   const passwordValid = password.trim().length >= 6;
   const nameValid = mode === "login" || fullName.trim().length >= 2;
   const customerStateValid = mode === "login" || role !== "customer" || Boolean(normalizeState(customerState));
   const canSubmit = useMemo(() => {
-    if (method === "phone") return phoneValid && (otpSent ? /^\d{6}$/.test(otp.trim()) : true) && nameValid && customerStateValid;
     return emailValid && passwordValid && nameValid && customerStateValid;
-  }, [customerStateValid, emailValid, method, nameValid, otp, otpSent, passwordValid, phoneValid]);
+  }, [customerStateValid, emailValid, nameValid, passwordValid]);
 
   function setError(key: string, error: string | null) {
     setFieldErrors((previous) => {
@@ -138,8 +119,8 @@ export function PhoneAuthForm({
   }, [message, searchParams]);
 
   function redirectForRole(userRole: UserRole) {
-    router.replace(safeDashboardRedirectForRole(returnToOverride || returnTo, userRole));
-    router.refresh();
+    const nextUrl = safeDashboardRedirectForRole(safeDestination, userRole);
+    window.location.assign(nextUrl);
   }
 
   async function saveProfiles(userId: string, userRole: UserRole, fallbackEmail?: string | null, fallbackPhone?: string | null) {
@@ -151,7 +132,7 @@ export function PhoneAuthForm({
       user_id: userId,
       full_name: fullName.trim() || null,
       email: email.trim() || fallbackEmail || null,
-      phone: phoneValid ? phone.trim() : fallbackPhone || null,
+      phone: fallbackPhone || null,
       account_type: userRole,
       lga: selectedState,
       updated_at: now
@@ -198,7 +179,6 @@ export function PhoneAuthForm({
             role,
             account_type: role,
             full_name: fullName.trim(),
-            phone: phoneValid ? phone.trim() : undefined,
             default_zone: role === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos",
             state: role === "customer" ? normalizeState(customerState) || "Lagos" : undefined
           }
@@ -236,62 +216,6 @@ export function PhoneAuthForm({
       redirectForRole(userRole);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login failed. Check your email and password.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function sendOtp() {
-    setLoading(true);
-    setMessage(null);
-    try {
-      const supabase = createClient();
-      const redirectTo =
-        typeof window === "undefined"
-          ? undefined
-          : `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(safeDestination)}&role=${encodeURIComponent(role)}`;
-      const result = await supabase.auth.signInWithOtp({
-        phone: phone.trim(),
-        options: {
-          shouldCreateUser: mode === "signup",
-          data: {
-            role,
-            account_type: role,
-            full_name: fullName.trim(),
-            default_zone: role === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos",
-            state: role === "customer" ? normalizeState(customerState) || "Lagos" : undefined
-          },
-          channel: "sms",
-          emailRedirectTo: redirectTo
-        }
-      });
-      if (result.error) throw result.error;
-      setOtpSent(true);
-      setMessage("OTP sent. Enter the 6-digit code to continue.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not send OTP. Check the phone number.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function verifyOtp() {
-    setLoading(true);
-    setMessage(null);
-    try {
-      const supabase = createClient();
-      const result = await supabase.auth.verifyOtp({
-        phone: phone.trim(),
-        token: otp.trim(),
-        type: "sms"
-      });
-      if (result.error) throw result.error;
-      if (!result.data.user) throw new Error("OTP verified but no session was returned.");
-      const userRole = mode === "signup" ? role : await getSavedRole(result.data.user.id, role);
-      await saveProfiles(result.data.user.id, userRole, result.data.user.email, result.data.user.phone);
-      redirectForRole(userRole);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "OTP verification failed.");
     } finally {
       setLoading(false);
     }
@@ -360,11 +284,6 @@ export function PhoneAuthForm({
 
   async function handleSubmit() {
     if (!canSubmit || loading) return;
-    if (method === "phone") {
-      if (otpSent) await verifyOtp();
-      else await sendOtp();
-      return;
-    }
     if (mode === "signup") await createAccount();
     else await loginWithPassword();
   }
@@ -397,34 +316,9 @@ export function PhoneAuthForm({
             onClick={() => {
               setMode(option);
               setMessage(null);
-              setOtpSent(false);
             }}
           >
             {option === "login" ? "Sign in" : "Register"}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        {([
-          ["email", MailCheck, "Email"],
-          ["phone", Phone, "Phone OTP"]
-        ] as const).map(([option, Icon, label]) => (
-          <button
-            key={option}
-            type="button"
-            className={cn(
-              "inline-flex min-h-11 items-center justify-center gap-2 rounded-fleet border px-3 text-sm font-black transition",
-              method === option ? "border-fleet-navy bg-fleet-navy text-white" : "border-fleet-line bg-white text-fleet-night hover:border-fleet-gold"
-            )}
-            onClick={() => {
-              setMethod(option);
-              setMessage(null);
-              setOtpSent(false);
-            }}
-          >
-            <Icon className="h-4 w-4" />
-            {label}
           </button>
         ))}
       </div>
@@ -502,98 +396,62 @@ export function PhoneAuthForm({
           </label>
         ) : null}
 
-        {method === "email" ? (
-          <>
-            <label className="form-field">
-              <span className="form-label">Email</span>
-              <input
-                className="form-input"
-                value={email}
-                onBlur={() => setError("email", emailValid ? null : "Enter a valid email address.")}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                  if (fieldErrors.email) setError("email", null);
-                }}
-                placeholder="you@example.com"
-                autoComplete="email"
-                inputMode="email"
-              />
-              {fieldErrors.email ? <span className="text-xs font-bold text-red-600">{fieldErrors.email}</span> : null}
-            </label>
-            <label className="form-field">
-              <span className="form-label">Password</span>
-              <span className="relative">
-                <input
-                  className="form-input pr-12"
-                  value={password}
-                  onBlur={() => setError("password", passwordValid ? null : "Use at least 6 characters.")}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    if (fieldErrors.password) setError("password", null);
-                  }}
-                  placeholder="Minimum 6 characters"
-                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                  type={passwordVisible ? "text" : "password"}
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-fleet text-slate-500 transition hover:bg-fleet-paper hover:text-fleet-night"
-                  onClick={() => setPasswordVisible((value) => !value)}
-                  aria-label={passwordVisible ? "Hide password" : "Show password"}
-                >
-                  {passwordVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </span>
-              {fieldErrors.password ? <span className="text-xs font-bold text-red-600">{fieldErrors.password}</span> : null}
-            </label>
-          </>
-        ) : (
-          <>
-            <label className="form-field">
-              <span className="form-label">Phone number</span>
-              <input
-                className="form-input"
-                value={phone}
-                onBlur={() => setError("phone", phoneValid ? null : "Use a Nigerian number like +2348012345678.")}
-                onChange={(event) => {
-                  setPhone(formatNigerianPhone(event.target.value));
-                  if (fieldErrors.phone) setError("phone", null);
-                }}
-                placeholder="+2348012345678"
-                autoComplete="tel"
-                inputMode="tel"
-              />
-              {fieldErrors.phone ? <span className="text-xs font-bold text-red-600">{fieldErrors.phone}</span> : null}
-            </label>
-            {otpSent ? (
-              <label className="form-field">
-                <span className="form-label">OTP code</span>
-                <input
-                  className="form-input text-center text-xl tracking-[0.35em]"
-                  value={otp}
-                  onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="000000"
-                  inputMode="numeric"
-                  maxLength={6}
-                />
-              </label>
-            ) : null}
-          </>
-        )}
+        <label className="form-field">
+          <span className="form-label">Email</span>
+          <input
+            className="form-input"
+            value={email}
+            onBlur={() => setError("email", emailValid ? null : "Enter a valid email address.")}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              if (fieldErrors.email) setError("email", null);
+            }}
+            placeholder="you@example.com"
+            autoComplete="email"
+            inputMode="email"
+          />
+          {fieldErrors.email ? <span className="text-xs font-bold text-red-600">{fieldErrors.email}</span> : null}
+        </label>
+        <label className="form-field">
+          <span className="form-label">Password</span>
+          <span className="relative">
+            <input
+              className="form-input pr-12"
+              value={password}
+              onBlur={() => setError("password", passwordValid ? null : "Use at least 6 characters.")}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                if (fieldErrors.password) setError("password", null);
+              }}
+              placeholder="Minimum 6 characters"
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              type={passwordVisible ? "text" : "password"}
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-fleet text-slate-500 transition hover:bg-fleet-paper hover:text-fleet-night"
+              onClick={() => setPasswordVisible((value) => !value)}
+              aria-label={passwordVisible ? "Hide password" : "Show password"}
+            >
+              {passwordVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </span>
+          {fieldErrors.password ? <span className="text-xs font-bold text-red-600">{fieldErrors.password}</span> : null}
+        </label>
       </div>
 
       {message ? <div className="mt-5 rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800">{message}</div> : null}
 
       <div className="mt-6 grid gap-3">
         <Button type="button" disabled={!canSubmit || loading} onClick={handleSubmit} className="w-full bg-fleet-navy hover:bg-fleet-night">
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : method === "phone" ? <Phone className="h-4 w-4" /> : <KeyRound className="h-4 w-4" />}
-          {method === "phone" ? (otpSent ? "Verify OTP" : "Send OTP") : mode === "signup" ? "Create account" : "Sign in"}
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+          {mode === "signup" ? "Create account" : "Sign in"}
         </Button>
         <Button type="button" variant="secondary" onClick={continueWithGoogle} disabled={loading || Boolean(oauthLoading)} className="w-full">
           {oauthLoading === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon className="h-4 w-4" />}
           Continue with Google
         </Button>
-        {mode === "login" && method === "email" ? (
+        {mode === "login" ? (
           <button type="button" onClick={resetPassword} disabled={loading} className="inline-flex items-center justify-center gap-2 text-sm font-black text-fleet-navy hover:text-fleet-ember disabled:opacity-50">
             <RotateCcw className="h-4 w-4" />
             Forgot password

@@ -25,6 +25,15 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in before creating dispatches." }, { status: 401 });
 
+    const { data: businessProfile } = await supabase
+      .from("business_profiles")
+      .select("registration_status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (businessProfile?.registration_status !== "active") {
+      return NextResponse.json({ error: "Business KYC must be approved before creating dispatches." }, { status: 403 });
+    }
+
     const deliveries = rows.map((row, index) => {
       const pickup = clean(row.pickup_address);
       const dropoff = clean(row.dropoff_address);

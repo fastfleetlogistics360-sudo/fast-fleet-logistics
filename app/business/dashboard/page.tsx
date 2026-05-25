@@ -21,5 +21,22 @@ export default async function BusinessDashboardPage() {
   if (role !== "business") redirect(roleHome[role]);
   if (!user.email_confirmed_at) redirect("/auth?returnTo=/business/dashboard&account=business");
 
-  return <BusinessDashboard />;
+  const businessResult = await supabase
+    .from("business_profiles")
+    .select("registration_status, rejection_reason")
+    .eq("user_id", user.id)
+    .maybeSingle<{ registration_status?: "submitted" | "active" | "paused" | "rejected" | null; rejection_reason?: string | null }>();
+  const fallbackBusinessResult = businessResult.error
+    ? await supabase
+        .from("business_profiles")
+        .select("registration_status")
+        .eq("user_id", user.id)
+        .maybeSingle<{ registration_status?: "submitted" | "active" | "paused" | "rejected" | null }>()
+    : null;
+  const businessProfile = businessResult.data || fallbackBusinessResult?.data;
+
+  if (!businessProfile?.registration_status) redirect("/business/register");
+
+  const rejectionReason = (businessProfile as { rejection_reason?: unknown }).rejection_reason;
+  return <BusinessDashboard initialKycStatus={businessProfile.registration_status || "submitted"} initialKycRejectionReason={typeof rejectionReason === "string" ? rejectionReason : null} />;
 }

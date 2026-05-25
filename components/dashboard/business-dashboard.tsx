@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Building2, Clock, Download, FileText, Home, MapPin, PackageCheck, Plus, Upload, UserPlus, UserRound, WalletCards } from "lucide-react";
+import { BarChart3, Building2, Clock, Download, FileText, Home, MapPin, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 type BusinessTab = "overview" | "dispatch" | "history" | "analytics" | "team" | "account";
+type BusinessKycStatus = "submitted" | "active" | "paused" | "rejected";
 
 type BusinessProfile = {
   business_name?: string | null;
@@ -26,6 +27,8 @@ type BusinessProfile = {
   industry?: string | null;
   pickup_address?: string | null;
   cac_number?: string | null;
+  registration_status?: BusinessKycStatus | null;
+  rejection_reason?: string | null;
 };
 
 type DeliveryRow = {
@@ -101,10 +104,12 @@ function estimatePrice(form: DispatchForm) {
   return base + Math.max(1800, (form.pickupAddress.length + form.dropoffAddress.length) * 65);
 }
 
-export function BusinessDashboard() {
+export function BusinessDashboard({ initialKycStatus = "active", initialKycRejectionReason = null }: { initialKycStatus?: BusinessKycStatus; initialKycRejectionReason?: string | null }) {
   const [activeTab, setActiveTab] = useState<BusinessTab>("overview");
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<BusinessProfile>({ business_name: "FastFleet Business", contact_name: "Operations", phone: "+2348012345678" });
+  const [kycStatus, setKycStatus] = useState<BusinessKycStatus>(initialKycStatus);
+  const [kycRejectionReason, setKycRejectionReason] = useState<string | null>(initialKycRejectionReason);
   const [walletBalance, setWalletBalance] = useState(0);
   const [orders, setOrders] = useState<DeliveryRow[]>([]);
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
@@ -139,16 +144,23 @@ export function BusinessDashboard() {
         } = await supabase.auth.getUser();
         if (!user) return;
 
+        let businessQuery = supabase.from("business_profiles").select("business_name, contact_name, phone, email, industry, pickup_address, cac_number, registration_status, rejection_reason").eq("user_id", user.id).maybeSingle();
         const [businessResult, walletResult, ordersResult, addressResult, teamResult] = await Promise.all([
-          supabase.from("business_profiles").select("business_name, contact_name, phone, email, industry, pickup_address, cac_number").eq("user_id", user.id).maybeSingle(),
+          businessQuery,
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle(),
           supabase.from("deliveries").select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, proof_url").eq("customer_id", user.id).order("created_at", { ascending: false }).limit(50),
           supabase.from("saved_addresses").select("id, label, address").eq("user_id", user.id).order("created_at", { ascending: false }),
           fetch("/api/business/team").then((response) => response.json()).catch(() => ({ members: [] }))
         ]);
         if (!mounted) return;
-        const nextProfile = (businessResult.data || profile) as BusinessProfile;
+        let nextProfile = (businessResult.data || profile) as BusinessProfile;
+        if (businessResult.error) {
+          const fallback = await supabase.from("business_profiles").select("business_name, contact_name, phone, email, industry, pickup_address, cac_number, registration_status").eq("user_id", user.id).maybeSingle();
+          nextProfile = (fallback.data || profile) as BusinessProfile;
+        }
         setProfile(nextProfile);
+        setKycStatus(nextProfile.registration_status || initialKycStatus);
+        setKycRejectionReason(nextProfile.rejection_reason || initialKycRejectionReason);
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
         if (ordersResult.error) throw ordersResult.error;
         setOrders(mergeLocalDeliveries((ordersResult.data || []) as DeliveryRow[]));
@@ -323,34 +335,92 @@ export function BusinessDashboard() {
   return (
     <section className="min-h-screen bg-fleet-paper pb-24 lg:pb-0">
       <div className="mx-auto grid max-w-7xl lg:grid-cols-[260px_1fr]">
-        <DesktopNav activeTab={activeTab} onChange={setActiveTab} />
+        <DesktopNav activeTab={activeTab} onChange={setActiveTab} disabled={kycStatus !== "active"} />
         <main className="min-w-0 px-4 py-5 sm:px-6 lg:py-8">
           <header className="mb-5 flex items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-black text-fleet-night sm:text-4xl">{profile.business_name || "Business dashboard"}</h1>
-              <p className="mt-1 text-sm font-semibold text-slate-600">Dispatch, history, team, wallet, and account controls.</p>
+              <p className="mt-1 text-sm font-semibold text-slate-600">
+                {kycStatus === "active" ? "Dispatch, history, team, wallet, and account controls." : "Business KYC status and review updates."}
+              </p>
             </div>
             <NotificationBell />
           </header>
-          {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} stats={stats} orders={orders} /> : null}
-          {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsv={parseCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={deleteAddress} /> : null}
-          {activeTab === "history" ? <HistoryTab orders={filteredOrders} status={historyStatus} onStatus={setHistoryStatus} onExport={exportHistory} /> : null}
-          {activeTab === "analytics" ? <AnalyticsTab orders={orders} addresses={addresses} team={team} /> : null}
-          {activeTab === "team" ? <TeamTab team={team} email={teamEmail} role={teamRole} message={teamMessage} onEmail={setTeamEmail} onRole={setTeamRole} onInvite={inviteTeamMember} onRemove={removeTeamMember} /> : null}
-          {activeTab === "account" ? <AccountTab profile={profile} onProfile={setProfile} prefs={prefs} onPrefs={setPrefs} /> : null}
+          {kycStatus !== "active" ? (
+            <BusinessKycStatusView loading={loading} profile={profile} status={kycStatus} rejectionReason={kycRejectionReason} />
+          ) : (
+            <>
+              {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} stats={stats} orders={orders} /> : null}
+              {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsv={parseCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={deleteAddress} /> : null}
+              {activeTab === "history" ? <HistoryTab orders={filteredOrders} status={historyStatus} onStatus={setHistoryStatus} onExport={exportHistory} /> : null}
+              {activeTab === "analytics" ? <AnalyticsTab orders={orders} addresses={addresses} team={team} /> : null}
+              {activeTab === "team" ? <TeamTab team={team} email={teamEmail} role={teamRole} message={teamMessage} onEmail={setTeamEmail} onRole={setTeamRole} onInvite={inviteTeamMember} onRemove={removeTeamMember} /> : null}
+              {activeTab === "account" ? <AccountTab profile={profile} onProfile={setProfile} prefs={prefs} onPrefs={setPrefs} /> : null}
+            </>
+          )}
         </main>
       </div>
-      <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
+      {kycStatus === "active" ? <MobileTabs activeTab={activeTab} onChange={setActiveTab} /> : null}
     </section>
   );
 }
 
-function DesktopNav({ activeTab, onChange }: { activeTab: BusinessTab; onChange: (tab: BusinessTab) => void }) {
+function DesktopNav({ activeTab, onChange, disabled = false }: { activeTab: BusinessTab; onChange: (tab: BusinessTab) => void; disabled?: boolean }) {
   return (
     <aside className="sticky top-0 hidden h-screen border-r border-fleet-line bg-white p-4 lg:block">
       <div className="rounded-fleet bg-fleet-navy p-4 text-white"><span className="text-xl font-black">FastFleet</span><p className="mt-1 text-xs font-semibold text-white/70">Business app</p></div>
-      <nav className="mt-5 grid gap-2">{tabs.map((tab) => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("flex items-center gap-3 rounded-fleet px-3 py-3 text-sm font-black", activeTab === tab.id ? "bg-fleet-navy text-white" : "text-slate-600 hover:bg-fleet-paper")}><Icon className="h-4 w-4" />{tab.label}</button>; })}</nav>
+      <nav className="mt-5 grid gap-2">{tabs.map((tab) => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => !disabled && onChange(tab.id)} disabled={disabled} className={cn("flex items-center gap-3 rounded-fleet px-3 py-3 text-sm font-black", activeTab === tab.id && !disabled ? "bg-fleet-navy text-white" : "text-slate-600 hover:bg-fleet-paper", disabled && "cursor-not-allowed opacity-45 hover:bg-transparent")}><Icon className="h-4 w-4" />{tab.label}</button>; })}</nav>
     </aside>
+  );
+}
+
+function BusinessKycStatusView({ loading, profile, status, rejectionReason }: { loading: boolean; profile: BusinessProfile; status: BusinessKycStatus; rejectionReason: string | null }) {
+  if (loading) return <DashboardSkeleton />;
+  const rejected = status === "rejected";
+  return (
+    <div className="grid gap-5">
+      <Card className="p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Business KYC</span>
+            <h2 className="mt-2 text-3xl font-black text-fleet-night">{rejected ? "KYC rejected" : "KYC pending review"}</h2>
+            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+              {rejected
+                ? "FastFleet admin reviewed your business profile and needs you to correct the details below before resubmitting."
+                : "Your business profile has been submitted. Dispatch tools unlock after FastFleet admin approves your KYC."}
+            </p>
+          </div>
+          <StatusBadge tone={rejected ? "red" : "amber"}>{status.replaceAll("_", " ")}</StatusBadge>
+        </div>
+        {rejected ? (
+          <div className="mt-5 rounded-fleet border border-red-200 bg-red-50 p-4 text-sm font-bold leading-6 text-red-700">
+            {rejectionReason || "No reason was provided. Please contact support or update your business details."}
+          </div>
+        ) : null}
+      </Card>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Stat label="KYC status" value={rejected ? "Rejected" : "Pending"} />
+        <Stat label="Business" value={profile.business_name || "Submitted"} />
+        <Stat label="Pickup" value={profile.pickup_address ? "Added" : "Missing"} />
+      </div>
+      <Card className="p-5">
+        <div className="flex items-start gap-4">
+          <span className="grid h-12 w-12 place-items-center rounded-fleet bg-fleet-navy text-white">
+            <ShieldCheck className="h-5 w-5" />
+          </span>
+          <div>
+            <h3 className="text-xl font-black text-fleet-night">What happens next</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+              Admin can approve or reject the business from the admin backpage. Once approved, this same dashboard opens dispatch, team, analytics, wallet, and history controls.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {rejected ? <LinkButton href="/business/register" variant="secondary">Update KYC</LinkButton> : null}
+              <LinkButton href="/support?topic=business" variant="secondary">Contact support</LinkButton>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -367,13 +437,9 @@ function OverviewTab({ loading, profile, walletBalance, stats, orders }: { loadi
       <Card className="border-0 bg-fleet-night p-5 text-white shadow-[0_22px_58px_rgba(8,17,31,0.24)]"><p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">Wallet balance</p><h2 className="mt-3 text-4xl font-black">{formatMoney(walletBalance)}</h2><SmartWalletTopUp className="mt-5 bg-white text-fleet-night hover:bg-white" /></Card>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat label="Orders today" value={String(stats.today)} /><Stat label="Spent this month" value={formatMoney(stats.monthSpend)} /><Stat label="Active" value={String(stats.active)} /><Stat label="Saved addresses" value={String(stats.addresses)} /></div>
       <Card className="overflow-hidden p-0">
-        <div className="p-4">
-          <h2 className="text-xl font-black text-fleet-night">Live delivery map</h2>
-          <p className="mt-1 text-sm font-semibold text-slate-600">{activeOrder ? activeOrder.delivery_code : "Dispatch routes appear here as they move."}</p>
-        </div>
         <RoutePreview
           compact
-          className="rounded-none border-x-0 border-b-0"
+          className="rounded-none border-0"
           label="Business live map"
           status={activeOrder?.status}
           riderName="Assigned courier"

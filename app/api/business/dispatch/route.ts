@@ -52,9 +52,13 @@ export async function POST(request: Request) {
 
     const { data: businessProfile } = await supabase
       .from("business_profiles")
-      .select("id, business_name")
+      .select("id, business_name, registration_status")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (businessProfile?.registration_status !== "active") {
+      return NextResponse.json({ error: "Business KYC must be approved before creating dispatches." }, { status: 403 });
+    }
 
     const { data: delivery, error } = await supabase
       .from("deliveries")

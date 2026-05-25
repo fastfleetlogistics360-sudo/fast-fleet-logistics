@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import {
   AlertTriangle,
   Bike,
+  Building2,
   CalendarDays,
   CircleDollarSign,
   ClipboardCheck,
@@ -112,6 +113,26 @@ type AdminRider = {
     email?: string | null;
   } | null;
   rider_documents?: AdminRiderDocument[];
+};
+
+type AdminBusiness = {
+  id: string;
+  user_id: string;
+  business_name: string;
+  contact_name: string | null;
+  phone: string | null;
+  email: string | null;
+  industry: string | null;
+  dispatch_volume: string | null;
+  pickup_address: string | null;
+  registration_status: "submitted" | "active" | "paused" | "rejected";
+  rejection_reason: string | null;
+  created_at: string;
+  users?: {
+    full_name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  } | null;
 };
 
 type AdminDelivery = {
@@ -299,6 +320,24 @@ const demoRiders: AdminRider[] = [
   }
 ];
 
+const demoBusinesses: AdminBusiness[] = [
+  {
+    id: "BP-1001",
+    user_id: "USR-BIZ-1001",
+    business_name: "Adewale Stores",
+    contact_name: "Adewale Johnson",
+    phone: "+2348012345678",
+    email: "ops@example.com",
+    industry: "Retail and ecommerce",
+    dispatch_volume: "10 - 30 weekly deliveries",
+    pickup_address: "14 Acme Street, Ikeja",
+    registration_status: "submitted",
+    rejection_reason: null,
+    created_at: new Date().toISOString(),
+    users: { full_name: "Adewale Johnson", phone: "+2348012345678", email: "ops@example.com" }
+  }
+];
+
 const demoDeliveries: AdminDelivery[] = [
   {
     id: "DLV-1001",
@@ -418,6 +457,7 @@ export function AdminPanel() {
   const [liveCount, setLiveCount] = useState(284);
   const [launchStates, setLaunchStates] = useState<LaunchStateRecord[]>(defaultLaunchStateRecords());
   const [adminRiders, setAdminRiders] = useState<AdminRider[]>(demoRiders);
+  const [adminBusinesses, setAdminBusinesses] = useState<AdminBusiness[]>(demoBusinesses);
   const [adminDeliveries, setAdminDeliveries] = useState<AdminDelivery[]>(demoDeliveries);
   const [adminWithdrawals, setAdminWithdrawals] = useState<AdminWithdrawal[]>(demoWithdrawals);
   const [companyLogs, setCompanyLogs] = useState<CompanyTransactionLog[]>(demoCompanyTransactionLogs);
@@ -434,6 +474,7 @@ export function AdminPanel() {
   const [pricing, setPricing] = useState({ surge: "1.15", commission: "18", bikeBase: "1800" });
   const liveStates = useMemo(() => launchStates.filter((state) => state.status === "active" || state.status === "live").length, [launchStates]);
   const pendingRiderCount = useMemo(() => adminRiders.filter((rider) => !["approved", "rejected"].includes(rider.application_status)).length, [adminRiders]);
+  const pendingBusinessCount = useMemo(() => adminBusinesses.filter((business) => business.registration_status === "submitted").length, [adminBusinesses]);
   const activeDeliveryCount = useMemo(() => adminDeliveries.filter((delivery) => !["delivered", "cancelled"].includes(delivery.status)).length, [adminDeliveries]);
   const pendingWithdrawalCount = useMemo(() => adminWithdrawals.filter((withdrawal) => withdrawal.status === "pending").length, [adminWithdrawals]);
   const openRiskCount = useMemo(() => riskSignals.filter((signal) => !signal.resolved_at).length, [riskSignals]);
@@ -455,9 +496,10 @@ export function AdminPanel() {
   async function loadAdminData() {
     setBusyAction("refresh");
     try {
-      const [statesResponse, ridersResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, riskSignalsResponse, restaurantsResponse] = await Promise.all([
+      const [statesResponse, ridersResponse, businessesResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, riskSignalsResponse, restaurantsResponse] = await Promise.all([
         fetch("/api/admin/states"),
         fetch("/api/admin/riders"),
+        fetch("/api/admin/businesses"),
         fetch("/api/admin/deliveries"),
         fetch("/api/admin/withdrawals"),
         fetch("/api/admin/company-transactions"),
@@ -467,6 +509,7 @@ export function AdminPanel() {
       ]);
       const statesResult = await statesResponse.json().catch(() => ({}));
       const ridersResult = await ridersResponse.json().catch(() => ({}));
+      const businessesResult = await businessesResponse.json().catch(() => ({}));
       const deliveriesResult = await deliveriesResponse.json().catch(() => ({}));
       const withdrawalsResult = await withdrawalsResponse.json().catch(() => ({}));
       const companyLogsResult = await companyLogsResponse.json().catch(() => ({}));
@@ -476,6 +519,7 @@ export function AdminPanel() {
       const failedSections = [
         ["states", statesResponse, statesResult],
         ["riders", ridersResponse, ridersResult],
+        ["businesses", businessesResponse, businessesResult],
         ["deliveries", deliveriesResponse, deliveriesResult],
         ["withdrawals", withdrawalsResponse, withdrawalsResult],
         ["company logs", companyLogsResponse, companyLogsResult],
@@ -488,6 +532,7 @@ export function AdminPanel() {
 
       if (Array.isArray(statesResult.states)) setLaunchStates(statesResult.states);
       if (Array.isArray(ridersResult.riders)) setAdminRiders(ridersResult.riders);
+      if (Array.isArray(businessesResult.businesses)) setAdminBusinesses(businessesResult.businesses);
       if (Array.isArray(deliveriesResult.deliveries)) setAdminDeliveries(deliveriesResult.deliveries);
       if (Array.isArray(withdrawalsResult.withdrawals)) {
         setAdminWithdrawals(withdrawalsResult.withdrawals);
@@ -503,8 +548,8 @@ export function AdminPanel() {
         const savedMenus = readDemoRestaurantMenus();
         setRestaurantMenus(restaurantsResult.demo && savedMenus.length > 0 ? savedMenus : normalizeRestaurantKitchens(restaurantsResult.restaurants));
       }
-      if (statesResult.demo || ridersResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || riskSignalsResult.demo || restaurantsResult.demo) {
-        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, delivery timelines, withdrawals, site controls, risk signals, company logs, and restaurant menus write to Supabase.");
+      if (statesResult.demo || ridersResult.demo || businessesResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || riskSignalsResult.demo || restaurantsResult.demo) {
+        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, business KYC, delivery timelines, withdrawals, site controls, risk signals, company logs, and restaurant menus write to Supabase.");
       } else if (failedSections.length > 0) {
         setAdminMessage(`Some admin sections did not load: ${failedSections.join("; ")}`);
       }
@@ -576,6 +621,36 @@ export function AdminPanel() {
       setAdminMessage(`${current?.users?.full_name || "Rider"} KYC status updated to ${riderReviewLabel(status)}.`);
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "Could not update rider review.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function reviewBusiness(id: string, status: AdminBusiness["registration_status"]) {
+    const current = adminBusinesses.find((business) => business.id === id);
+    const reason = status === "rejected" ? window.prompt("Reason to show the business:")?.trim() : "";
+    if (status === "rejected" && !reason) return;
+
+    setBusyAction(`business:${id}:${status}`);
+    setAdminMessage(null);
+    try {
+      const response = await fetch("/api/admin/businesses", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status, reason })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not update business KYC.");
+      setAdminBusinesses((items) =>
+        items.map((item) =>
+          item.id === id
+            ? { ...item, registration_status: status, rejection_reason: status === "rejected" ? reason || null : null }
+            : item
+        )
+      );
+      setAdminMessage(`${current?.business_name || "Business"} KYC status updated to ${businessReviewLabel(status)}.`);
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "Could not update business KYC.");
     } finally {
       setBusyAction(null);
     }
@@ -966,6 +1041,13 @@ export function AdminPanel() {
           onClick={() => openAdminSection("rider-approvals")}
         />
         <ActionCard
+          icon={Building2}
+          title="Business KYC"
+          body="Approve or reject business dispatch accounts with visible reasons."
+          count={`${pendingBusinessCount} pending`}
+          onClick={() => openAdminSection("business-kyc")}
+        />
+        <ActionCard
           icon={PackageCheck}
           title="Delivery timelines"
           body="Update each customer timeline and push realtime green status updates."
@@ -1157,6 +1239,11 @@ export function AdminPanel() {
           riders={adminRiders}
           busyAction={busyAction}
           onReview={reviewRider}
+        />
+        <BusinessKycSection
+          businesses={adminBusinesses}
+          busyAction={busyAction}
+          onReview={reviewBusiness}
         />
         <DriverWithdrawalSection
           withdrawals={adminWithdrawals}
@@ -1859,6 +1946,72 @@ function RiderApprovalSection({
   );
 }
 
+function BusinessKycSection({
+  businesses,
+  busyAction,
+  onReview
+}: {
+  businesses: AdminBusiness[];
+  busyAction: string | null;
+  onReview: (id: string, status: AdminBusiness["registration_status"]) => void;
+}) {
+  return (
+    <Card id="business-kyc" className="scroll-mt-24 overflow-hidden">
+      <div className="flex items-center justify-between gap-4 border-b border-fleet-line p-5">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-fleet bg-fleet-night text-white">
+            <Building2 className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-xl font-black text-fleet-night">Business KYC</h2>
+            <span className="text-sm font-bold text-slate-500">Review vendor profile, pickup address, and dispatch volume</span>
+          </div>
+        </div>
+        <StatusBadge tone="amber">{businesses.filter((business) => business.registration_status === "submitted").length} pending</StatusBadge>
+      </div>
+      <div className="grid gap-3 p-4">
+        {businesses.map((business) => {
+          const canAct = business.registration_status === "submitted" || business.registration_status === "paused";
+          return (
+            <article key={business.id} className="rounded-fleet border border-fleet-line bg-white p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <strong className="block text-lg font-black text-fleet-night">{business.business_name}</strong>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                    {business.industry || "Industry pending"} · {business.dispatch_volume || "Volume pending"}
+                  </span>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                    {business.contact_name || business.users?.full_name || "No contact"} · {business.email || business.users?.email || "No email"} · {business.phone || business.users?.phone || "No phone"}
+                  </span>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                    Pickup: {business.pickup_address || "No pickup address"}
+                  </span>
+                  {business.rejection_reason ? <span className="mt-2 block rounded-fleet bg-red-50 p-2 text-xs font-bold leading-5 text-red-700">Reason: {business.rejection_reason}</span> : null}
+                </div>
+                <StatusBadge tone={business.registration_status === "active" ? "green" : business.registration_status === "rejected" ? "red" : "amber"}>
+                  {businessReviewLabel(business.registration_status)}
+                </StatusBadge>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <Button type="button" size="sm" onClick={() => onReview(business.id, "active")} disabled={!canAct || busyAction === `business:${business.id}:active`}>
+                  Accept
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => onReview(business.id, "paused")} disabled={business.registration_status === "active" || busyAction === `business:${business.id}:paused`}>
+                  Pause
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => onReview(business.id, "rejected")} disabled={business.registration_status === "active" || business.registration_status === "rejected" || busyAction === `business:${business.id}:rejected`}>
+                  Reject
+                </Button>
+              </div>
+            </article>
+          );
+        })}
+        {businesses.length === 0 ? <div className="rounded-fleet bg-fleet-paper p-5 text-sm font-bold text-slate-500">No business KYC requests yet.</div> : null}
+      </div>
+    </Card>
+  );
+}
+
 function SiteControlsSection({
   controls,
   busyAction,
@@ -2147,6 +2300,13 @@ function readDemoRestaurantMenus() {
 function writeDemoRestaurantMenus(restaurants: RestaurantKitchen[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(restaurantMenuStorageKey, JSON.stringify(restaurants));
+}
+
+function businessReviewLabel(status: AdminBusiness["registration_status"]) {
+  if (status === "active") return "Accepted";
+  if (status === "rejected") return "Rejected";
+  if (status === "paused") return "Paused";
+  return "Pending";
 }
 
 function upsertCompanyLog(logs: CompanyTransactionLog[], log: CompanyTransactionLog) {

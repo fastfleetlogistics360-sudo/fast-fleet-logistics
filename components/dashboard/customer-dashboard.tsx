@@ -615,13 +615,9 @@ function HomeTab({
       {activeOrder ? <ActiveDeliveryCard order={activeOrder} onSelect={() => onSelectOrder(activeOrder)} /> : <DashboardEmptyState title="No active delivery" body="Book your first delivery and live rider updates will appear here." ctaLabel="Book delivery" ctaHref="/book" />}
 
       <Card className="overflow-hidden p-0">
-        <div className="p-4">
-          <h2 className="text-xl font-black text-fleet-night">Live delivery map</h2>
-          <p className="mt-1 text-sm font-semibold text-slate-600">{activeOrder ? activeOrder.delivery_code : "Your next route preview appears here."}</p>
-        </div>
         <DeliveryRouteMap
           compact
-          className="rounded-none border-x-0 border-b-0"
+          className="rounded-none border-0"
           label="Customer live map"
           order={activeOrder}
           onLiveDeliveryChange={onLiveDeliveryChange}
