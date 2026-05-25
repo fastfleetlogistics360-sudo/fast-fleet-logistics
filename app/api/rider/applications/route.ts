@@ -1,4 +1,3 @@
-import { createHash, createCipheriv, randomBytes } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,7 +22,6 @@ type RiderApplicationForm = {
   bankCode: string;
   accountNumber: string;
   accountName: string;
-  bvn: string;
   agreement: boolean;
 };
 
@@ -73,8 +71,7 @@ function parsePayload(value: unknown): RiderApplicationPayload | null {
     "bankName",
     "bankCode",
     "accountNumber",
-    "accountName",
-    "bvn"
+    "accountName"
   ];
 
   if (!requiredStringKeys.every((key) => isString(form[key]))) return null;
@@ -101,21 +98,10 @@ function parsePayload(value: unknown): RiderApplicationPayload | null {
       bankCode: readString(form, "bankCode"),
       accountNumber: readString(form, "accountNumber"),
       accountName: readString(form, "accountName"),
-      bvn: readString(form, "bvn"),
       agreement: form.agreement
     },
     documents
   };
-}
-
-function encryptBvn(value: string) {
-  const secret = process.env.RIDER_BVN_ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "fastfleet-development-bvn-key";
-  const key = createHash("sha256").update(secret).digest();
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return `v1:${iv.toString("base64")}:${tag.toString("base64")}:${encrypted.toString("base64")}`;
 }
 
 function legacyVehicleType(vehicleType: RiderVehicleType) {
@@ -131,7 +117,6 @@ export async function POST(request: NextRequest) {
   if (!form.agreement) return NextResponse.json({ error: "Accept the rider agreement before submitting." }, { status: 400 });
   if (!/^\+234[789][01]\d{8}$/.test(form.phone)) return NextResponse.json({ error: "Enter a valid Nigerian phone number." }, { status: 400 });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
-  if (!/^\d{11}$/.test(form.bvn)) return NextResponse.json({ error: "Enter a valid 11-digit BVN." }, { status: 400 });
 
   const supabase = await createClient();
   const {
@@ -185,7 +170,6 @@ export async function POST(request: NextRequest) {
       bank_code: form.bankCode,
       account_number: form.accountNumber,
       account_name: form.accountName,
-      bvn_encrypted: encryptBvn(form.bvn),
       documents,
       agreement_accepted_at: now
     })

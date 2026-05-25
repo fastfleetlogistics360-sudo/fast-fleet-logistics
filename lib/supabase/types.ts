@@ -225,7 +225,6 @@ export interface Database {
           bank_code: string;
           account_number: string;
           account_name: string;
-          bvn_encrypted: string;
           documents: Json;
           agreement_accepted_at: string;
           reviewed_by: string | null;
@@ -250,7 +249,6 @@ export interface Database {
           bank_code: string;
           account_number: string;
           account_name: string;
-          bvn_encrypted: string;
           agreement_accepted_at: string;
         };
         Update: Partial<Database["public"]["Tables"]["rider_applications"]["Row"]>;

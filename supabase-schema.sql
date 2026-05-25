@@ -267,8 +267,6 @@ create table if not exists public.rider_applications (
   bank_code text not null,
   account_number text not null,
   account_name text not null,
-  bvn_encrypted text not null,
-  bvn_hash text,
   nin_url text,
   licence_url text,
   vehicle_reg_url text,
@@ -285,13 +283,16 @@ create table if not exists public.rider_applications (
 
 alter table if exists public.rider_applications
   add column if not exists rider_id uuid references public.profiles(id) on delete cascade,
-  add column if not exists bvn_hash text,
   add column if not exists nin_url text,
   add column if not exists licence_url text,
   add column if not exists vehicle_reg_url text,
   add column if not exists insurance_url text,
   add column if not exists guarantor_url text,
   add column if not exists rejection_reason text;
+
+alter table if exists public.rider_applications
+  drop column if exists bvn_encrypted,
+  drop column if exists bvn_hash;
 
 drop trigger if exists rider_applications_set_updated_at on public.rider_applications;
 create trigger rider_applications_set_updated_at

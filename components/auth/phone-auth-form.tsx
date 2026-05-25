@@ -242,6 +242,16 @@ export function PhoneAuthForm({
       if (error) throw error;
       if (!data.url) throw new Error("Could not start Google sign-in.");
 
+      const check = await fetch("/api/auth/oauth-provider-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "google", url: data.url })
+      });
+      const status: { ok?: boolean; reason?: string | null } = await check.json().catch(() => ({}));
+      if (!check.ok || !status.ok) {
+        throw new Error(status.reason || "Google sign-in is not configured for this environment.");
+      }
+
       window.location.assign(data.url);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not continue with Google.");

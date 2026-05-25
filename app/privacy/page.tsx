@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 const sections = [
   {
     title: "1. Data we collect",
-    body: "FastFleet collects account details such as name, email, phone number, account type, profile photo, saved addresses, delivery addresses, order history, support messages, notification preferences, and device/session information. We collect delivery location data needed for pickup, drop-off, rider assignment, live tracking, proof of delivery, fraud prevention, and customer support. Payment card data is not stored by FastFleet; we store Paystack payment references, wallet transactions, receipts, and payout records. Rider and business onboarding may require vehicle details, government ID documents, licence documents, insurance, guarantor records, bank details, BVN verification data, and review decisions."
+    body: "FastFleet collects account details such as name, email, phone number, account type, profile photo, saved addresses, delivery addresses, order history, support messages, notification preferences, and device/session information. We collect delivery location data needed for pickup, drop-off, rider assignment, live tracking, proof of delivery, fraud prevention, and customer support. Payment card data is not stored by FastFleet; we store Paystack payment references, wallet transactions, receipts, and payout records. Rider and business onboarding may require vehicle details, government ID documents, licence documents, insurance, guarantor records, bank details, and review decisions."
   },
   {
     title: "2. Why we collect it",

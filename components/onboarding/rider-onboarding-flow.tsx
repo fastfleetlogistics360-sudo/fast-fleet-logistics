@@ -96,7 +96,6 @@ type RiderForm = {
   bankCode: string;
   accountNumber: string;
   accountName: string;
-  bvn: string;
   agreement: boolean;
 };
 
@@ -149,7 +148,6 @@ export function RiderOnboardingFlow() {
     bankCode: "",
     accountNumber: "",
     accountName: "",
-    bvn: "",
     agreement: false
   });
 
@@ -192,8 +190,7 @@ export function RiderOnboardingFlow() {
       () => ({
         bankCode: form.bankCode ? "" : "Select a bank.",
         accountNumber: /^\d{10}$/.test(form.accountNumber) ? "" : "Enter a 10-digit account number.",
-        accountName: form.accountName.trim() ? "" : "Verify the account name before continuing.",
-        bvn: /^\d{11}$/.test(form.bvn) ? "" : "Enter your 11-digit BVN."
+        accountName: form.accountName.trim() ? "" : "Verify the account name before continuing."
       }),
       () => ({
         agreement: form.agreement ? "" : "Accept the rider agreement before submitting."
@@ -545,7 +542,6 @@ export function RiderOnboardingFlow() {
                 inputMode="numeric"
               />
               <Field label="Verified account name" value={form.accountName} error={errors.accountName} onChange={(value) => update("accountName", value)} placeholder="Auto-filled by Paystack" wide readOnly />
-              <Field label="BVN" value={form.bvn} error={errors.bvn} onChange={(value) => update("bvn", value.replace(/\D/g, "").slice(0, 11))} placeholder="11 digits" inputMode="numeric" />
             </div>
             <div className="mt-5 rounded-fleet border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
               {bankLoading ? "Checking Paystack for the account name..." : bankMessage || "Select a bank and enter a 10-digit account number to verify the account name automatically."}
