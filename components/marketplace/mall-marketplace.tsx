@@ -1,44 +1,20 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Loader2, MessageCircle, Minus, Plus, ShoppingCart, Store } from "lucide-react";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { defaultShoppingMalls, mallMenuStorageKey, normalizeShoppingMalls } from "@/lib/mall-menu";
+import type { MallCategory, MallProduct, MallStore, ShoppingMall } from "@/lib/mall-menu";
 
 const MALL_DELIVERY_BASE_FEE_NGN = 1500;
 const MALL_EXTRA_DISTANCE_FEE_NGN = 300;
 const MALL_PLATFORM_FEE_NGN = 500;
 const DEFAULT_DISTANCE_KM = 1;
-
-type MallCategory = "Grocery" | "Pharmacy" | "Fashion";
-type ProductPrice = number | null | "ASK_PRICE";
-
-type MallProduct = {
-  id: string;
-  name: string;
-  price: ProductPrice;
-  image: string;
-  available: boolean;
-};
-
-type MallStore = {
-  id: string;
-  name: string;
-  category: MallCategory;
-  products: MallProduct[];
-};
-
-type Mall = {
-  id: string;
-  name: string;
-  location: string;
-  image: string;
-  stores: MallStore[];
-};
 
 type CartItem = {
   productId: string;
@@ -53,83 +29,10 @@ type CartItem = {
   subtotal: number;
 };
 
-const malls: Mall[] = [
-  {
-    id: "ikeja-city-mall",
-    name: "Ikeja City Mall",
-    location: "Ikeja, Lagos",
-    image: "https://images.unsplash.com/photo-1519567241046-7f570eee3ce6?auto=format&fit=crop&w=1200&q=70",
-    stores: [
-      {
-        id: "market-square-ikeja",
-        name: "Market Square",
-        category: "Grocery",
-        products: [
-          {
-            id: "rice-5kg-market-square",
-            name: "Rice 5kg",
-            price: 18500,
-            image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=70",
-            available: true
-          },
-          {
-            id: "cooking-oil-market-square",
-            name: "Cooking Oil 3L",
-            price: 9800,
-            image: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=70",
-            available: true
-          }
-        ]
-      },
-      {
-        id: "healthplus-ikeja",
-        name: "HealthPlus",
-        category: "Pharmacy",
-        products: [
-          {
-            id: "vitamin-c-healthplus",
-            name: "Vitamin C",
-            price: 3500,
-            image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=70",
-            available: true
-          },
-          {
-            id: "digital-thermometer-healthplus",
-            name: "Digital Thermometer",
-            price: "ASK_PRICE",
-            image: "https://images.unsplash.com/photo-1584362917165-526a968579e8?auto=format&fit=crop&w=600&q=70",
-            available: true
-          }
-        ]
-      },
-      {
-        id: "fashion-store-ikeja",
-        name: "Fashion Store",
-        category: "Fashion",
-        products: [
-          {
-            id: "mens-shirt-fashion-store",
-            name: "Men's Shirt",
-            price: 12000,
-            image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=600&q=70",
-            available: true
-          },
-          {
-            id: "mens-shirt-premium-fashion-store",
-            name: "Men's Shirt",
-            price: 18000,
-            image: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?auto=format&fit=crop&w=600&q=70",
-            available: true
-          }
-        ]
-      }
-    ]
-  }
-];
-
 const categories: Array<"All" | MallCategory> = ["All", "Grocery", "Pharmacy", "Fashion"];
 
 export function MallMarketplace() {
+  const [malls, setMalls] = useState<ShoppingMall[]>(defaultShoppingMalls);
   const [selectedMallId, setSelectedMallId] = useState<string | null>(null);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<"All" | MallCategory>("All");
@@ -152,6 +55,32 @@ export function MallMarketplace() {
     return MALL_DELIVERY_BASE_FEE_NGN + extraKm * MALL_EXTRA_DISTANCE_FEE_NGN;
   }, []);
   const finalTotal = productsTotal + deliveryFee + MALL_PLATFORM_FEE_NGN;
+
+  useEffect(() => {
+    function applyStoredMalls() {
+      try {
+        const stored = window.localStorage.getItem(mallMenuStorageKey);
+        if (stored) setMalls(normalizeShoppingMalls(JSON.parse(stored)));
+      } catch {
+        // Keep bundled mall data if local fallback data is malformed.
+      }
+    }
+
+    applyStoredMalls();
+    fetch("/api/marketplace/malls")
+      .then((response) => response.json())
+      .then((payload) => {
+        if (Array.isArray(payload.malls)) {
+          const nextMalls = normalizeShoppingMalls(payload.malls);
+          setMalls(nextMalls);
+          window.localStorage.setItem(mallMenuStorageKey, JSON.stringify(nextMalls));
+        }
+      })
+      .catch(() => applyStoredMalls());
+
+    window.addEventListener("storage", applyStoredMalls);
+    return () => window.removeEventListener("storage", applyStoredMalls);
+  }, []);
 
   function selectMall(mallId: string) {
     setSelectedMallId(mallId);
@@ -187,7 +116,7 @@ export function MallMarketplace() {
     });
   }
 
-  function askPrice(product: MallProduct, vendor: MallStore, mall: Mall) {
+  function askPrice(product: MallProduct, vendor: MallStore, mall: ShoppingMall) {
     const text = encodeURIComponent(
       `Hello FastFleet, I want to ask the price of this item.\n\nProduct: ${product.name}\nMall: ${mall.name}\nVendor/store: ${vendor.name}`
     );
@@ -286,7 +215,7 @@ export function MallMarketplace() {
           </div>
 
           <div className="mt-8 grid gap-6">
-            <MallChooser selectedMallId={selectedMallId} onSelect={selectMall} />
+            <MallChooser malls={malls} selectedMallId={selectedMallId} onSelect={selectMall} />
 
             {selectedMall ? (
               <div className="grid gap-4">
@@ -452,7 +381,7 @@ export function MallMarketplace() {
   );
 }
 
-function MallChooser({ selectedMallId, onSelect }: { selectedMallId: string | null; onSelect: (mallId: string) => void }) {
+function MallChooser({ malls, selectedMallId, onSelect }: { malls: ShoppingMall[]; selectedMallId: string | null; onSelect: (mallId: string) => void }) {
   return (
     <div className="grid gap-4">
       <div>

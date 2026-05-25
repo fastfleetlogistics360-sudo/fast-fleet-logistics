@@ -54,6 +54,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Checkout total changed. Refresh and try again." }, { status: 400 });
     }
 
+    const supabase = await createClient();
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Please sign in before placing this order." }, { status: 401 });
+
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) {
       return NextResponse.json({ error: "Missing PAYSTACK_SECRET_KEY. Add it on Vercel before live marketplace checkout." }, { status: 500 });
@@ -68,12 +74,7 @@ export async function POST(request: Request) {
     const pickupAddress = Array.from(new Set(items.map((item) => item.store).filter(Boolean))).join(", ") || (payload.kind === "shopping" ? "Shopping pickup" : "Restaurant pickup");
 
     try {
-      const supabase = await createClient();
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from("deliveries").insert({
+        const { data: delivery } = await supabase.from("deliveries").insert({
           delivery_code: reference,
           customer_id: user.id,
           pickup_address: pickupAddress,
@@ -84,9 +85,9 @@ export async function POST(request: Request) {
           vehicle_type: "bike",
           delivery_speed: "same_day",
           payment_method: "card",
-          status: "pending_payment",
+          status: "searching",
           price_ngn: expectedAmount,
-          distance_km: 5,
+          distance_km: isShopping ? 1 : 5,
           eta_minutes: 35,
           metadata: {
             source: "fastfleet_marketplace",
@@ -94,8 +95,16 @@ export async function POST(request: Request) {
             items,
             paystack_reference: reference
           }
-        });
-      }
+        }).select("id").single();
+        if (delivery?.id) {
+          await supabase.from("delivery_events").insert({
+            delivery_id: delivery.id,
+            actor_id: user.id,
+            status: "searching",
+            title: "Marketplace order placed",
+            body: "FastFleet is notifying online drivers."
+          });
+        }
     } catch {
       // Local delivery fallback is still written in the browser before redirect.
     }

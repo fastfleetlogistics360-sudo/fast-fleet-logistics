@@ -488,7 +488,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
             <NotificationBell />
           </header>
 	          {activeTab === "home" ? <HomeTab loading={loading} online={online} elapsed={elapsed} onToggleOnline={toggleOnline} todayEarnings={todayEarnings} profile={profile} incomingJob={incomingJob} incomingExpires={incomingExpires} activeJob={activeJob} recentTrips={recentTrips} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} offerNotice={offerNotice} onStartTracking={startDeliveryTracking} onStopTracking={stopDeliveryTracking} onProofFile={setProofFile} onRespond={respondToJob} onAdvance={advanceJob} /> : null}
-          {activeTab === "jobs" ? <JobsTab loading={loading} jobs={jobs} /> : null}
+          {activeTab === "jobs" ? <JobsTab loading={loading} jobs={jobs} online={online} onToggleOnline={toggleOnline} /> : null}
           {activeTab === "earnings" ? <EarningsTab walletBalance={walletBalance} profile={profile} withdrawals={withdrawals} onOpenWithdrawal={() => setWithdrawalOpen(true)} /> : null}
           {activeTab === "account" ? <AccountTab profile={profile} kycStatus={profile.application_status || initialKycStatus} prefs={prefs} onPrefs={setPrefs} /> : null}
         </main>
@@ -560,7 +560,15 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, prof
       </Card>
       <section>
         <h2 className="mb-3 text-xl font-black text-fleet-night">Recent trips</h2>
-        <div className="grid gap-3">{recentTrips.length ? recentTrips.map((job) => <TripCard key={job.id} job={job} />) : <DashboardEmptyState title="No completed trips" body="Accepted jobs will move here after delivery." ctaLabel="Go online" ctaHref="/rider/dashboard" />}</div>
+        <div className="grid gap-3">
+          {recentTrips.length ? recentTrips.map((job) => <TripCard key={job.id} job={job} />) : (
+            <Card className="p-5 text-center">
+              <h3 className="text-xl font-black text-fleet-night">No completed trips</h3>
+              <p className="mt-2 text-sm font-semibold text-slate-600">Accepted jobs will move here after delivery.</p>
+              <Button type="button" className="mt-4" onClick={onToggleOnline}>{online ? "Go offline" : "Go online"}</Button>
+            </Card>
+          )}
+        </div>
       </section>
     </div>
   );
@@ -640,7 +648,7 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
   );
 }
 
-function JobsTab({ loading, jobs }: { loading: boolean; jobs: JobRow[] }) {
+function JobsTab({ loading, jobs, online, onToggleOnline }: { loading: boolean; jobs: JobRow[]; online: boolean; onToggleOnline: () => void }) {
   const [filter, setFilter] = useState<"active" | "available" | "completed">("active");
   if (loading) return <DashboardSkeleton />;
   const filteredJobs = jobs.filter((job) => {
@@ -651,7 +659,13 @@ function JobsTab({ loading, jobs }: { loading: boolean; jobs: JobRow[] }) {
   return (
     <div className="grid gap-4">
       <div className="flex gap-2">{(["active", "available", "completed"] as const).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={cn("rounded-full px-4 py-2 text-sm font-black capitalize", filter === item ? "bg-fleet-navy text-white" : "bg-white text-slate-600")}>{item}</button>)}</div>
-      {filteredJobs.length ? filteredJobs.map((job) => <TripCard key={job.id} job={job} />) : <DashboardEmptyState title="No jobs in this view" body="Go online to receive offers, then accept and advance each job from pickup to delivery." ctaLabel="Go online" ctaHref="/rider/dashboard" />}
+      {filteredJobs.length ? filteredJobs.map((job) => <TripCard key={job.id} job={job} />) : (
+        <Card className="p-5 text-center">
+          <h3 className="text-xl font-black text-fleet-night">No jobs in this view</h3>
+          <p className="mt-2 text-sm font-semibold text-slate-600">Go online to receive offers, then accept and advance each job from pickup to delivery.</p>
+          <Button type="button" className="mt-4" onClick={onToggleOnline}>{online ? "Go offline" : "Go online"}</Button>
+        </Card>
+      )}
     </div>
   );
 }

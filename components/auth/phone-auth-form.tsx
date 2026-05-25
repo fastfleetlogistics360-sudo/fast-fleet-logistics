@@ -242,19 +242,6 @@ export function PhoneAuthForm({
       if (error) throw error;
       if (!data.url) throw new Error("Could not start Google sign-in.");
 
-      const check = await fetch("/api/auth/oauth-provider-check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: data.url, provider: "google" })
-      });
-      const providerStatus = (await check.json().catch(() => null)) as { ok?: boolean; reason?: string | null } | null;
-      if (!providerStatus?.ok) {
-        throw new Error(
-          providerStatus?.reason ||
-            "Google sign-in is not enabled in Supabase yet. Enable the provider in Supabase Auth before using this button."
-        );
-      }
-
       window.location.assign(data.url);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not continue with Google.");

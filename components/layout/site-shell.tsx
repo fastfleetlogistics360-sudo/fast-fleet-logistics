@@ -68,7 +68,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
     pathname.startsWith("/account/orders") ||
     pathname.startsWith("/rider/dashboard") ||
     pathname.startsWith("/business/dashboard");
-  const usesGlobalDashboardMenu = isDashboardEnvironment && !pathname.startsWith("/business/dashboard");
+  const usesGlobalDashboardMenu = false;
   const hasSiteChrome = !isLaunchLanding && !isAdminEnvironment;
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState<string | null>(null);

@@ -8,7 +8,7 @@ import { formatMoney } from "@/lib/format";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { normalizeRestaurantKitchens, restaurantMenuStorageKey } from "@/lib/restaurant-menu";
 import { cn } from "@/lib/cn";
-import { Button } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -333,6 +333,9 @@ function RestaurantStoreCard({
           <span className="mt-4 inline-flex min-h-9 w-full items-center justify-center rounded-fleet bg-fleet-night px-3 text-xs font-black text-white transition group-hover:bg-fleet-ember">
             View menu
           </span>
+          <LinkButton href={`/restaurants/${store.id || itemKey(store.name, "kitchen")}`} size="sm" variant="secondary" className="mt-2 w-full" onClick={(event) => event.stopPropagation()}>
+            Open kitchen page
+          </LinkButton>
         </div>
       </summary>
       <div className="grid max-h-[360px] gap-2 overflow-y-auto border-t border-fleet-line bg-fleet-paper/55 p-3">

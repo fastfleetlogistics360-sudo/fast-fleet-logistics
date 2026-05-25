@@ -47,6 +47,14 @@ import {
   type RestaurantKitchen,
   type RestaurantMenuItem
 } from "@/lib/restaurant-menu";
+import {
+  defaultShoppingMalls,
+  mallMenuStorageKey,
+  normalizeShoppingMalls,
+  type MallProduct,
+  type MallStore,
+  type ShoppingMall
+} from "@/lib/mall-menu";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -475,6 +483,7 @@ export function AdminPanel() {
   const [adminWithdrawals, setAdminWithdrawals] = useState<AdminWithdrawal[]>(demoWithdrawals);
   const [companyLogs, setCompanyLogs] = useState<CompanyTransactionLog[]>(demoCompanyTransactionLogs);
   const [restaurantMenus, setRestaurantMenus] = useState<RestaurantKitchen[]>(defaultRestaurantKitchens);
+  const [mallMenus, setMallMenus] = useState<ShoppingMall[]>(defaultShoppingMalls);
   const [companyLogForm, setCompanyLogForm] = useState<CompanyTransactionForm>(blankCompanyTransactionForm);
   const [companyLogSearch, setCompanyLogSearch] = useState("");
   const [companyLogCategory, setCompanyLogCategory] = useState<"all" | CompanyTransactionCategory>("all");
@@ -509,7 +518,7 @@ export function AdminPanel() {
   async function loadAdminData() {
     setBusyAction("refresh");
     try {
-      const [statesResponse, ridersResponse, businessesResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, riskSignalsResponse, restaurantsResponse] = await Promise.all([
+      const [statesResponse, ridersResponse, businessesResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, riskSignalsResponse, restaurantsResponse, mallsResponse] = await Promise.all([
         fetch("/api/admin/states"),
         fetch("/api/admin/riders"),
         fetch("/api/admin/businesses"),
@@ -518,7 +527,8 @@ export function AdminPanel() {
         fetch("/api/admin/company-transactions"),
         fetch("/api/admin/site-controls"),
         fetch("/api/admin/risk-signals"),
-        fetch("/api/admin/restaurants")
+        fetch("/api/admin/restaurants"),
+        fetch("/api/admin/malls")
       ]);
       const statesResult = await statesResponse.json().catch(() => ({}));
       const ridersResult = await ridersResponse.json().catch(() => ({}));
@@ -529,6 +539,7 @@ export function AdminPanel() {
       const siteControlsResult = await siteControlsResponse.json().catch(() => ({}));
       const riskSignalsResult = await riskSignalsResponse.json().catch(() => ({}));
       const restaurantsResult = await restaurantsResponse.json().catch(() => ({}));
+      const mallsResult = await mallsResponse.json().catch(() => ({}));
       const failedSections = [
         ["states", statesResponse, statesResult],
         ["riders", ridersResponse, ridersResult],
@@ -538,7 +549,8 @@ export function AdminPanel() {
         ["company logs", companyLogsResponse, companyLogsResult],
         ["site controls", siteControlsResponse, siteControlsResult],
         ["risk/support", riskSignalsResponse, riskSignalsResult],
-        ["restaurants", restaurantsResponse, restaurantsResult]
+        ["restaurants", restaurantsResponse, restaurantsResult],
+        ["malls", mallsResponse, mallsResult]
       ]
         .filter(([, response]) => !(response as Response).ok)
         .map(([label, , result]) => `${label}: ${String((result as { error?: string }).error || "request failed")}`);
@@ -561,8 +573,12 @@ export function AdminPanel() {
         const savedMenus = readDemoRestaurantMenus();
         setRestaurantMenus(restaurantsResult.demo && savedMenus.length > 0 ? savedMenus : normalizeRestaurantKitchens(restaurantsResult.restaurants));
       }
-      if (statesResult.demo || ridersResult.demo || businessesResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || riskSignalsResult.demo || restaurantsResult.demo) {
-        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, business KYC, delivery timelines, withdrawals, site controls, risk signals, company logs, and restaurant menus write to Supabase.");
+      if (Array.isArray(mallsResult.malls)) {
+        const savedMalls = readDemoMallMenus();
+        setMallMenus(mallsResult.demo && savedMalls.length > 0 ? savedMalls : normalizeShoppingMalls(mallsResult.malls));
+      }
+      if (statesResult.demo || ridersResult.demo || businessesResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
+        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, business KYC, delivery timelines, withdrawals, site controls, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
       } else if (failedSections.length > 0) {
         setAdminMessage(`Some admin sections did not load: ${failedSections.join("; ")}`);
       }
@@ -948,6 +964,67 @@ export function AdminPanel() {
     );
   }
 
+  function updateMall(mallId: string, patch: Partial<ShoppingMall>) {
+    setMallMenus((malls) => malls.map((mall) => (mall.id === mallId ? { ...mall, ...patch } : mall)));
+  }
+
+  function updateMallStore(mallId: string, storeId: string, patch: Partial<MallStore>) {
+    setMallMenus((malls) =>
+      malls.map((mall) =>
+        mall.id === mallId
+          ? { ...mall, stores: mall.stores.map((store) => (store.id === storeId ? { ...store, ...patch } : store)) }
+          : mall
+      )
+    );
+  }
+
+  function updateMallProduct(mallId: string, storeId: string, productId: string, patch: Partial<MallProduct>) {
+    setMallMenus((malls) =>
+      malls.map((mall) =>
+        mall.id === mallId
+          ? {
+              ...mall,
+              stores: mall.stores.map((store) =>
+                store.id === storeId
+                  ? { ...store, products: store.products.map((product) => (product.id === productId ? { ...product, ...patch } : product)) }
+                  : store
+              )
+            }
+          : mall
+      )
+    );
+  }
+
+  async function saveMallMenus() {
+    const malls = normalizeShoppingMalls(mallMenus);
+    setBusyAction("malls:save");
+    setAdminMessage(null);
+    try {
+      const response = await fetch("/api/admin/malls", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ malls })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not save shopping mall menus.");
+      const saved = normalizeShoppingMalls(result.malls);
+      setMallMenus(saved);
+      writeDemoMallMenus(saved);
+      setAdminMessage("Shopping mall vendor products saved. The mall page will load the updated stores and prices.");
+    } catch (error) {
+      const canUseLocalFallback = error instanceof TypeError || (error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY"));
+      if (!canUseLocalFallback) {
+        setAdminMessage(error instanceof Error ? error.message : "Could not save shopping mall menus.");
+        return;
+      }
+      setMallMenus(malls);
+      writeDemoMallMenus(malls);
+      setAdminMessage("Saved mall menus in this browser using operational fallback storage. Add SUPABASE_SERVICE_ROLE_KEY in Vercel for live site-wide mall updates.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function saveRestaurantMenus() {
     const restaurants = normalizeRestaurantKitchens(restaurantMenus);
     setBusyAction("restaurants:save");
@@ -1089,6 +1166,13 @@ export function AdminPanel() {
           onClick={() => openAdminSection("restaurant-menus")}
         />
         <ActionCard
+          icon={StoreIcon}
+          title="Mall vendor menus"
+          body="Edit malls, vendor stores, product prices, availability, and Ask Price items."
+          count={`${mallMenus.reduce((count, mall) => count + mall.stores.reduce((sum, store) => sum + store.products.length, 0), 0)} products`}
+          onClick={() => openAdminSection("mall-menus")}
+        />
+        <ActionCard
           icon={AlertTriangle}
           title="Risk signals"
           body="Track fraud, payment mismatches, and operational exceptions."
@@ -1127,6 +1211,15 @@ export function AdminPanel() {
         onAddItem={addKitchenItem}
         onRemoveItem={removeKitchenItem}
         onSave={saveRestaurantMenus}
+      />
+
+      <MallMenuSection
+        malls={mallMenus}
+        busyAction={busyAction}
+        onMallChange={updateMall}
+        onStoreChange={updateMallStore}
+        onProductChange={updateMallProduct}
+        onSave={saveMallMenus}
       />
 
       <div className="mt-6 grid gap-4 xl:grid-cols-3">
@@ -1783,6 +1876,123 @@ function RestaurantMenuSection({
   );
 }
 
+function MallMenuSection({
+  malls,
+  busyAction,
+  onMallChange,
+  onStoreChange,
+  onProductChange,
+  onSave
+}: {
+  malls: ShoppingMall[];
+  busyAction: string | null;
+  onMallChange: (mallId: string, patch: Partial<ShoppingMall>) => void;
+  onStoreChange: (mallId: string, storeId: string, patch: Partial<MallStore>) => void;
+  onProductChange: (mallId: string, storeId: string, productId: string, patch: Partial<MallProduct>) => void;
+  onSave: () => void;
+}) {
+  const saving = busyAction === "malls:save";
+
+  return (
+    <Card id="mall-menus" className="mt-6 scroll-mt-24 overflow-hidden">
+      <div className="flex flex-col gap-4 border-b border-fleet-line p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-fleet bg-fleet-night text-white">
+            <StoreIcon className="h-5 w-5" />
+          </span>
+          <div>
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Mall authority</span>
+            <h2 className="mt-1 text-2xl font-black text-fleet-night">Shopping malls, vendors, and products</h2>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
+              Update each mall container, store category, product price, availability, and Ask Price status. Prices stay vendor-specific.
+            </p>
+          </div>
+        </div>
+        <Button type="button" onClick={onSave} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          Save mall menus
+        </Button>
+      </div>
+
+      <div className="grid gap-5 p-4">
+        {malls.map((mall) => (
+          <article key={mall.id} className="rounded-fleet border border-fleet-line bg-white p-4">
+            <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
+              <img src={mall.image} alt={mall.name} className="h-44 w-full rounded-fleet object-cover lg:h-full" />
+              <div className="grid gap-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="form-field">
+                    <span className="form-label">Mall name</span>
+                    <input className="form-input" value={mall.name} onChange={(event) => onMallChange(mall.id, { name: event.target.value })} />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Location</span>
+                    <input className="form-input" value={mall.location} onChange={(event) => onMallChange(mall.id, { location: event.target.value })} />
+                  </label>
+                </div>
+                <label className="form-field">
+                  <span className="form-label">Mall photo URL</span>
+                  <input className="form-input" value={mall.image} onChange={(event) => onMallChange(mall.id, { image: event.target.value })} />
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+              {mall.stores.map((store) => (
+                <div key={store.id} className="rounded-fleet border border-fleet-line bg-fleet-paper p-3">
+                  <div className="grid gap-3 md:grid-cols-[1fr_180px]">
+                    <label className="form-field">
+                      <span className="form-label">Vendor / store</span>
+                      <input className="form-input bg-white" value={store.name} onChange={(event) => onStoreChange(mall.id, store.id, { name: event.target.value })} />
+                    </label>
+                    <label className="form-field">
+                      <span className="form-label">Category</span>
+                      <select className="form-input bg-white" value={store.category} onChange={(event) => onStoreChange(mall.id, store.id, { category: event.target.value as MallStore["category"] })}>
+                        <option value="Grocery">Grocery</option>
+                        <option value="Pharmacy">Pharmacy</option>
+                        <option value="Fashion">Fashion</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    {store.products.map((product) => (
+                      <div key={product.id} className="grid gap-3 rounded-fleet border border-fleet-line bg-white p-3 xl:grid-cols-[64px_1fr_120px_1fr_120px] xl:items-end">
+                        <img src={product.image} alt={product.name} className="h-16 w-16 rounded-fleet object-cover" />
+                        <label className="form-field">
+                          <span className="form-label">Product</span>
+                          <input className="form-input" value={product.name} onChange={(event) => onProductChange(mall.id, store.id, product.id, { name: event.target.value })} />
+                        </label>
+                        <label className="form-field">
+                          <span className="form-label">Price</span>
+                          <input
+                            className="form-input"
+                            value={product.price === null || product.price === "ASK_PRICE" ? "" : String(product.price)}
+                            onChange={(event) => onProductChange(mall.id, store.id, product.id, { price: event.target.value ? Number(event.target.value) : "ASK_PRICE" })}
+                            placeholder="Ask Price"
+                            inputMode="numeric"
+                          />
+                        </label>
+                        <label className="form-field">
+                          <span className="form-label">Product photo URL</span>
+                          <input className="form-input" value={product.image} onChange={(event) => onProductChange(mall.id, store.id, product.id, { image: event.target.value })} />
+                        </label>
+                        <label className="flex min-h-11 items-center justify-between gap-3 rounded-fleet bg-fleet-paper px-3 text-sm font-black text-fleet-night">
+                          Available
+                          <input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={product.available} onChange={(event) => onProductChange(mall.id, store.id, product.id, { available: event.target.checked })} />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function FinanceStat({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <div className="rounded-fleet border border-fleet-line bg-fleet-paper p-4">
@@ -2332,6 +2542,21 @@ function readDemoRestaurantMenus() {
 function writeDemoRestaurantMenus(restaurants: RestaurantKitchen[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(restaurantMenuStorageKey, JSON.stringify(restaurants));
+}
+
+function readDemoMallMenus() {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(mallMenuStorageKey) || "[]");
+    return Array.isArray(parsed) ? normalizeShoppingMalls(parsed) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDemoMallMenus(malls: ShoppingMall[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(mallMenuStorageKey, JSON.stringify(malls));
 }
 
 function businessReviewLabel(status: AdminBusiness["registration_status"]) {
