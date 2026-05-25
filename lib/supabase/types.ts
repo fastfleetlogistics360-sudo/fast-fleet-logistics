@@ -58,8 +58,11 @@ export interface Database {
           phone: string | null;
           email: string | null;
           industry: string | null;
+          business_type: string | null;
+          commission_rate: number | null;
           dispatch_volume: string | null;
           pickup_address: string | null;
+          cac_number: string | null;
           registration_status: "submitted" | "active" | "paused" | "rejected";
           rejection_reason: string | null;
           reviewed_at: string | null;
@@ -71,6 +74,26 @@ export interface Database {
           business_name: string;
         };
         Update: Partial<Database["public"]["Tables"]["business_profiles"]["Row"]>;
+      };
+      business_documents: {
+        Row: {
+          id: string;
+          business_profile_id: string;
+          user_id: string;
+          document_type: "storefront_photo" | "cac_certificate" | "director_government_id" | "address_proof";
+          file_url: string | null;
+          storage_path: string | null;
+          status: "submitted" | "approved" | "rejected";
+          rejection_reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["business_documents"]["Row"]> & {
+          business_profile_id: string;
+          user_id: string;
+          document_type: "storefront_photo" | "cac_certificate" | "director_government_id" | "address_proof";
+        };
+        Update: Partial<Database["public"]["Tables"]["business_documents"]["Row"]>;
       };
       rider_profiles: {
         Row: {

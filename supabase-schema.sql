@@ -324,8 +324,11 @@ create table if not exists public.business_profiles (
   phone text,
   email text,
   industry text,
+  business_type text,
+  commission_rate numeric(5,2),
   dispatch_volume text,
   pickup_address text,
+  cac_number text,
   registration_status text not null default 'submitted' check (registration_status in ('submitted', 'active', 'paused', 'rejected')),
   rejection_reason text,
   reviewed_at timestamptz,
@@ -334,12 +337,34 @@ create table if not exists public.business_profiles (
 );
 
 alter table if exists public.business_profiles
+  add column if not exists business_type text,
+  add column if not exists commission_rate numeric(5,2),
+  add column if not exists cac_number text,
   add column if not exists rejection_reason text,
   add column if not exists reviewed_at timestamptz;
 
 drop trigger if exists business_profiles_set_updated_at on public.business_profiles;
 create trigger business_profiles_set_updated_at
 before update on public.business_profiles
+for each row execute function public.set_updated_at();
+
+create table if not exists public.business_documents (
+  id uuid primary key default gen_random_uuid(),
+  business_profile_id uuid not null references public.business_profiles(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  document_type text not null check (document_type in ('storefront_photo', 'cac_certificate', 'director_government_id', 'address_proof')),
+  file_url text,
+  storage_path text,
+  status text not null default 'submitted' check (status in ('submitted', 'approved', 'rejected')),
+  rejection_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (business_profile_id, document_type)
+);
+
+drop trigger if exists business_documents_set_updated_at on public.business_documents;
+create trigger business_documents_set_updated_at
+before update on public.business_documents
 for each row execute function public.set_updated_at();
 
 create table if not exists public.business_team_members (
@@ -1474,6 +1499,7 @@ create index if not exists users_phone_idx on public.users(phone);
 create index if not exists business_profiles_user_id_idx on public.business_profiles(user_id);
 create index if not exists profiles_user_id_idx on public.profiles(user_id);
 create index if not exists business_profiles_status_idx on public.business_profiles(registration_status);
+create index if not exists business_documents_profile_idx on public.business_documents(business_profile_id);
 create index if not exists rider_profiles_user_id_idx on public.rider_profiles(user_id);
 create index if not exists rider_profiles_status_idx on public.rider_profiles(application_status);
 create index if not exists rider_profiles_online_zone_idx on public.rider_profiles(online, operating_zone);
@@ -1505,6 +1531,7 @@ alter table public.users enable row level security;
 alter table public.profiles enable row level security;
 alter table public.orders enable row level security;
 alter table public.business_profiles enable row level security;
+alter table public.business_documents enable row level security;
 alter table public.business_team_members enable row level security;
 alter table public.rider_profiles enable row level security;
 alter table public.rider_applications enable row level security;
@@ -1618,6 +1645,12 @@ create policy "Rider applications updated by owner before review or admins"
 drop policy if exists "Businesses manage own business profile and admins manage all" on public.business_profiles;
 create policy "Businesses manage own business profile and admins manage all"
   on public.business_profiles for all
+  using (user_id = auth.uid() or public.current_user_role() = 'admin')
+  with check (user_id = auth.uid() or public.current_user_role() = 'admin');
+
+drop policy if exists "Business documents visible to owner and admins" on public.business_documents;
+create policy "Business documents visible to owner and admins"
+  on public.business_documents for all
   using (user_id = auth.uid() or public.current_user_role() = 'admin')
   with check (user_id = auth.uid() or public.current_user_role() = 'admin');
 
@@ -2005,6 +2038,10 @@ values ('rider-documents', 'rider-documents', false)
 on conflict (id) do nothing;
 
 insert into storage.buckets (id, name, public)
+values ('business-documents', 'business-documents', false)
+on conflict (id) do nothing;
+
+insert into storage.buckets (id, name, public)
 values ('delivery-proofs', 'delivery-proofs', true)
 on conflict (id) do update set public = excluded.public;
 
@@ -2021,6 +2058,25 @@ create policy "Riders and admins read rider documents"
   on storage.objects for select
   using (
     bucket_id = 'rider-documents'
+    and (
+      auth.uid()::text = (storage.foldername(name))[1]
+      or public.current_user_role() = 'admin'
+    )
+  );
+
+drop policy if exists "Businesses upload own documents" on storage.objects;
+create policy "Businesses upload own documents"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'business-documents'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Businesses and admins read business documents" on storage.objects;
+create policy "Businesses and admins read business documents"
+  on storage.objects for select
+  using (
+    bucket_id = 'business-documents'
     and (
       auth.uid()::text = (storage.foldername(name))[1]
       or public.current_user_role() = 'admin'

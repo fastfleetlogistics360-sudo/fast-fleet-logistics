@@ -68,11 +68,12 @@ export function SiteShell({ children }: { children: ReactNode }) {
     pathname.startsWith("/account/orders") ||
     pathname.startsWith("/rider/dashboard") ||
     pathname.startsWith("/business/dashboard");
+  const usesGlobalDashboardMenu = isDashboardEnvironment && !pathname.startsWith("/business/dashboard");
   const hasSiteChrome = !isLaunchLanding && !isAdminEnvironment;
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState<string | null>(null);
   const [accountRole, setAccountRole] = useState<UserRole | null>(null);
-  const dashboardMenu = isDashboardEnvironment ? dashboardMenuForRole(accountRole) : null;
+  const dashboardMenu = usesGlobalDashboardMenu ? dashboardMenuForRole(accountRole) : null;
   const dashboardBottomItems = dashboardMenu ? flattenDashboardMenu(dashboardMenu).filter((item) => item.href !== "__logout").slice(0, 5) : [];
   const dashboardHomeHref = accountRole ? roleHome[accountRole] : "/choose-account-type";
 

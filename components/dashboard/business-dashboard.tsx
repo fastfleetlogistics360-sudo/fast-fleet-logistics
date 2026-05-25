@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Building2, Clock, Download, FileText, Home, MapPin, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards } from "lucide-react";
+import { BarChart3, Building2, Clock, Download, FileText, Home, MapPin, Menu, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -9,7 +9,7 @@ import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
-import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
+import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
 import { RoutePreview } from "@/components/maps/route-preview";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,6 +25,8 @@ type BusinessProfile = {
   phone?: string | null;
   email?: string | null;
   industry?: string | null;
+  business_type?: string | null;
+  commission_rate?: number | null;
   pickup_address?: string | null;
   cac_number?: string | null;
   registration_status?: BusinessKycStatus | null;
@@ -106,6 +108,7 @@ function estimatePrice(form: DispatchForm) {
 
 export function BusinessDashboard({ initialKycStatus = "active", initialKycRejectionReason = null }: { initialKycStatus?: BusinessKycStatus; initialKycRejectionReason?: string | null }) {
   const [activeTab, setActiveTab] = useState<BusinessTab>("overview");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<BusinessProfile>({ business_name: "FastFleet Business", contact_name: "Operations", phone: "+2348012345678" });
   const [kycStatus, setKycStatus] = useState<BusinessKycStatus>(initialKycStatus);
@@ -134,6 +137,15 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
   const filteredOrders = historyStatus === "all" ? orders : orders.filter((order) => order.status === historyStatus);
 
   useEffect(() => {
+    if (!menuOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
     let mounted = true;
     async function load() {
       setLoading(true);
@@ -144,7 +156,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         } = await supabase.auth.getUser();
         if (!user) return;
 
-        let businessQuery = supabase.from("business_profiles").select("business_name, contact_name, phone, email, industry, pickup_address, cac_number, registration_status, rejection_reason").eq("user_id", user.id).maybeSingle();
+        let businessQuery = supabase.from("business_profiles").select("business_name, contact_name, phone, email, industry, business_type, commission_rate, pickup_address, cac_number, registration_status, rejection_reason").eq("user_id", user.id).maybeSingle();
         const [businessResult, walletResult, ordersResult, addressResult, teamResult] = await Promise.all([
           businessQuery,
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle(),
@@ -334,15 +346,32 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
 
   return (
     <section className="min-h-screen bg-fleet-paper pb-24 lg:pb-0">
-      <div className="mx-auto grid max-w-7xl lg:grid-cols-[260px_1fr]">
-        <DesktopNav activeTab={activeTab} onChange={setActiveTab} disabled={kycStatus !== "active"} />
+      <BusinessMenuDrawer
+        open={menuOpen}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        disabled={kycStatus !== "active"}
+        onClose={() => setMenuOpen(false)}
+      />
+      <div className="mx-auto max-w-7xl">
         <main className="min-w-0 px-4 py-5 sm:px-6 lg:py-8">
           <header className="mb-5 flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-black text-fleet-night sm:text-4xl">{profile.business_name || "Business dashboard"}</h1>
-              <p className="mt-1 text-sm font-semibold text-slate-600">
-                {kycStatus === "active" ? "Dispatch, history, team, wallet, and account controls." : "Business KYC status and review updates."}
-              </p>
+            <div className="flex min-w-0 items-start gap-3">
+              <button
+                type="button"
+                className="mt-1 inline-grid h-11 w-11 shrink-0 place-items-center rounded-fleet border border-fleet-line bg-white text-fleet-night shadow-lift transition hover:border-fleet-gold"
+                aria-label="Open business app menu"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen(true)}
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              <div className="min-w-0">
+                <h1 className="text-2xl font-black text-fleet-night sm:text-4xl">{profile.business_name || "Business dashboard"}</h1>
+                <p className="mt-1 text-sm font-semibold text-slate-600">
+                  {kycStatus === "active" ? "Dispatch, history, team, wallet, and account controls." : "Business KYC status and review updates."}
+                </p>
+              </div>
             </div>
             <NotificationBell />
           </header>
@@ -360,17 +389,57 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
           )}
         </main>
       </div>
-      {kycStatus === "active" ? <MobileTabs activeTab={activeTab} onChange={setActiveTab} /> : null}
     </section>
   );
 }
 
-function DesktopNav({ activeTab, onChange, disabled = false }: { activeTab: BusinessTab; onChange: (tab: BusinessTab) => void; disabled?: boolean }) {
+function BusinessMenuDrawer({ open, activeTab, onChange, disabled = false, onClose }: { open: boolean; activeTab: BusinessTab; onChange: (tab: BusinessTab) => void; disabled?: boolean; onClose: () => void }) {
+  if (!open) return null;
   return (
-    <aside className="sticky top-0 hidden h-screen border-r border-fleet-line bg-white p-4 lg:block">
-      <div className="rounded-fleet bg-fleet-navy p-4 text-white"><span className="text-xl font-black">FastFleet</span><p className="mt-1 text-xs font-semibold text-white/70">Business app</p></div>
-      <nav className="mt-5 grid gap-2">{tabs.map((tab) => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => !disabled && onChange(tab.id)} disabled={disabled} className={cn("flex items-center gap-3 rounded-fleet px-3 py-3 text-sm font-black", activeTab === tab.id && !disabled ? "bg-fleet-navy text-white" : "text-slate-600 hover:bg-fleet-paper", disabled && "cursor-not-allowed opacity-45 hover:bg-transparent")}><Icon className="h-4 w-4" />{tab.label}</button>; })}</nav>
-    </aside>
+    <div className="fixed inset-0 z-[90] bg-fleet-night/25 backdrop-blur-sm" role="presentation" onClick={onClose}>
+      <aside
+        className="absolute bottom-3 left-3 top-3 w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto rounded-fleet border border-fleet-line bg-white p-4 shadow-glow"
+        role="dialog"
+        aria-modal="true"
+        aria-label="FastFleet business app menu"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 rounded-fleet bg-fleet-navy p-4 text-white">
+          <div>
+            <span className="text-xl font-black">FastFleet</span>
+            <p className="mt-1 text-xs font-semibold text-white/70">Business app</p>
+          </div>
+          <button type="button" className="inline-grid h-10 w-10 place-items-center rounded-fleet border border-white/15 bg-white/10 text-white" onClick={onClose} aria-label="Close business app menu">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <nav className="mt-5 grid gap-2">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  if (disabled) return;
+                  onChange(tab.id);
+                  onClose();
+                }}
+                disabled={disabled}
+                className={cn(
+                  "flex items-center gap-3 rounded-fleet px-3 py-3 text-sm font-black transition",
+                  activeTab === tab.id && !disabled ? "bg-fleet-navy text-white" : "text-slate-600 hover:bg-fleet-paper",
+                  disabled && "cursor-not-allowed opacity-45 hover:bg-transparent"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+    </div>
   );
 }
 
@@ -424,17 +493,22 @@ function BusinessKycStatusView({ loading, profile, status, rejectionReason }: { 
   );
 }
 
-function MobileTabs({ activeTab, onChange }: { activeTab: BusinessTab; onChange: (tab: BusinessTab) => void }) {
-  return <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-6 rounded-fleet border border-fleet-line bg-white/95 p-1 shadow-glow backdrop-blur lg:hidden">{tabs.map((tab) => { const Icon = tab.icon; return <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("grid min-h-14 place-items-center rounded-fleet px-0.5 text-[0.58rem] font-black", activeTab === tab.id ? "bg-fleet-navy text-white" : "text-slate-500")}><Icon className="h-4 w-4" />{tab.label}</button>; })}</nav>;
-}
-
 function OverviewTab({ loading, profile, walletBalance, stats, orders }: { loading: boolean; profile: BusinessProfile; walletBalance: number; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[] }) {
   if (loading) return <DashboardSkeleton />;
   const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || orders[0] || null;
   return (
     <div className="grid gap-5">
       <Card className="p-5"><div className="flex items-center gap-4"><span className="grid h-16 w-16 place-items-center rounded-fleet bg-fleet-navy text-lg font-black text-white">{initials(profile.business_name || "Business")}</span><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">Logo and business name editable in Account</p></div></div></Card>
-      <Card className="border-0 bg-fleet-night p-5 text-white shadow-[0_22px_58px_rgba(8,17,31,0.24)]"><p className="text-xs font-black uppercase tracking-[0.16em] text-white/60">Wallet balance</p><h2 className="mt-3 text-4xl font-black">{formatMoney(walletBalance)}</h2><SmartWalletTopUp className="mt-5 bg-white text-fleet-night hover:bg-white" /></Card>
+      <WalletDashboardCard
+        userName={profile.business_name?.trim().split(/\s+/)[0] || "Business"}
+        balance={walletBalance}
+        walletType="customer"
+        accountKind="business"
+        kycStatus={profile.registration_status === "active" ? "verified" : profile.registration_status === "rejected" ? "more_info_needed" : "pending"}
+        returnTo="/business/dashboard"
+        onWithdraw={() => window.location.assign("/support?topic=business-wallet")}
+        transactionHref="/business/dashboard#transactions"
+      />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat label="Orders today" value={String(stats.today)} /><Stat label="Spent this month" value={formatMoney(stats.monthSpend)} /><Stat label="Active" value={String(stats.active)} /><Stat label="Saved addresses" value={String(stats.addresses)} /></div>
       <Card className="overflow-hidden p-0">
         <RoutePreview
@@ -520,7 +594,7 @@ function StatusMetric({ label, value, tone }: { label: string; value: number; to
 }
 
 function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessProfile; onProfile: (profile: BusinessProfile) => void; prefs: { email: boolean; sms: boolean; wallet: boolean }; onPrefs: (prefs: { email: boolean; sms: boolean; wallet: boolean }) => void }) {
-  return <div className="grid gap-5"><Card className="p-5"><div className="flex items-center gap-4"><span className="grid h-16 w-16 place-items-center rounded-fleet bg-fleet-navy text-lg font-black text-white">{initials(profile.business_name || "Business")}</span><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">{profile.industry || "Industry not set"}</p></div></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Business name" value={profile.business_name || ""} onChange={(value) => onProfile({ ...profile, business_name: value })} /><Field label="Address" value={profile.pickup_address || ""} onChange={(value) => onProfile({ ...profile, pickup_address: value })} /><Field label="CAC number" value={profile.cac_number || ""} onChange={(value) => onProfile({ ...profile, cac_number: value })} /><Field label="Industry" value={profile.industry || ""} onChange={(value) => onProfile({ ...profile, industry: value })} /><Field label="Contact person" value={profile.contact_name || ""} onChange={(value) => onProfile({ ...profile, contact_name: value })} /><Field label="Contact phone" value={profile.phone || ""} onChange={(value) => onProfile({ ...profile, phone: value })} /></div></Card><Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Notification preferences</h2><div className="mt-4 grid gap-3">{(["email", "sms", "wallet"] as const).map((key) => <label key={key} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black capitalize text-fleet-night">{key}<input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={prefs[key]} onChange={(event) => onPrefs({ ...prefs, [key]: event.target.checked })} /></label>)}</div></Card><Card className="p-5"><AccountDeletionButton /><Button type="button" variant="secondary" className="mt-3 w-full" onClick={async () => { const supabase = createClient(); await supabase.auth.signOut(); window.location.assign("/auth"); }}>Sign out</Button></Card></div>;
+  return <div className="grid gap-5"><Card className="p-5"><div className="flex items-center gap-4"><span className="grid h-16 w-16 place-items-center rounded-fleet bg-fleet-navy text-lg font-black text-white">{initials(profile.business_name || "Business")}</span><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">{profile.business_type || profile.industry || "Business type not set"} · Commission {Number(profile.commission_rate || 0).toFixed(0)}%</p></div></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Business name" value={profile.business_name || ""} onChange={(value) => onProfile({ ...profile, business_name: value })} /><Field label="Address" value={profile.pickup_address || ""} onChange={(value) => onProfile({ ...profile, pickup_address: value })} /><Field label="CAC number" value={profile.cac_number || ""} onChange={(value) => onProfile({ ...profile, cac_number: value })} /><Field label="Business type" value={profile.business_type || profile.industry || ""} onChange={(value) => onProfile({ ...profile, business_type: value, industry: value })} /><Field label="Contact person" value={profile.contact_name || ""} onChange={(value) => onProfile({ ...profile, contact_name: value })} /><Field label="Contact phone" value={profile.phone || ""} onChange={(value) => onProfile({ ...profile, phone: value })} /></div></Card><Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Notification preferences</h2><div className="mt-4 grid gap-3">{(["email", "sms", "wallet"] as const).map((key) => <label key={key} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black capitalize text-fleet-night">{key}<input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={prefs[key]} onChange={(event) => onPrefs({ ...prefs, [key]: event.target.checked })} /></label>)}</div></Card><Card className="p-5"><AccountDeletionButton /><Button type="button" variant="secondary" className="mt-3 w-full" onClick={async () => { const supabase = createClient(); await supabase.auth.signOut(); window.location.assign("/auth"); }}>Sign out</Button></Card></div>;
 }
 
 function OrderCard({ order, detail }: { order: DeliveryRow; detail?: boolean }) {

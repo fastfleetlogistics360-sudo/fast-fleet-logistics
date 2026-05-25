@@ -14,12 +14,19 @@ const demoBusinesses = [
     phone: "+2348012345678",
     email: "ops@example.com",
     industry: "Retail and ecommerce",
+    business_type: "Grocery",
+    commission_rate: 10,
     dispatch_volume: "10 - 30 weekly deliveries",
     pickup_address: "14 Acme Street, Ikeja",
+    cac_number: "RC 1234567",
     registration_status: "submitted",
     rejection_reason: null,
     created_at: new Date().toISOString(),
-    users: { full_name: "Adewale Johnson", phone: "+2348012345678", email: "ops@example.com" }
+    users: { full_name: "Adewale Johnson", phone: "+2348012345678", email: "ops@example.com" },
+    business_documents: [
+      { id: "BDOC-1", document_type: "storefront_photo", status: "submitted", file_url: null, storage_path: null, rejection_reason: null },
+      { id: "BDOC-2", document_type: "cac_certificate", status: "submitted", file_url: null, storage_path: null, rejection_reason: null }
+    ]
   }
 ];
 
@@ -36,7 +43,7 @@ export async function GET() {
 
   let { data, error } = await supabase
     .from("business_profiles")
-    .select("id, user_id, business_name, contact_name, phone, email, industry, dispatch_volume, pickup_address, registration_status, rejection_reason, created_at, updated_at, users:users!business_profiles_user_id_fkey(full_name, phone, email)")
+    .select("id, user_id, business_name, contact_name, phone, email, industry, business_type, commission_rate, dispatch_volume, pickup_address, cac_number, registration_status, rejection_reason, created_at, updated_at, users:users!business_profiles_user_id_fkey(full_name, phone, email), business_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)")
     .order("created_at", { ascending: false })
     .limit(75);
 
@@ -46,7 +53,7 @@ export async function GET() {
       .select("id, user_id, business_name, contact_name, phone, email, industry, dispatch_volume, pickup_address, registration_status, created_at, updated_at, users:users!business_profiles_user_id_fkey(full_name, phone, email)")
       .order("created_at", { ascending: false })
       .limit(75);
-    data = fallback.data?.map((business) => ({ ...business, rejection_reason: null })) || null;
+    data = fallback.data?.map((business) => ({ ...business, business_type: null, commission_rate: null, cac_number: null, rejection_reason: null, business_documents: [] })) || null;
     error = fallback.error;
   }
 

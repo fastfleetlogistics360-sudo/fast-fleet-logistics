@@ -51,3 +51,34 @@ export async function uploadRiderDocument(
     type: compressed.type
   };
 }
+
+export async function uploadBusinessDocument(
+  userId: string,
+  documentType: string,
+  file: File,
+  onProgress?: (progress: number) => void
+) {
+  const supabase = createClient();
+  const compressed = await compressImage(file);
+  const safeName = compressed.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
+  const path = `${userId}/${documentType}/${Date.now()}-${safeName}`;
+
+  onProgress?.(18);
+  const upload = await supabase.storage.from("business-documents").upload(path, compressed, {
+    cacheControl: "3600",
+    upsert: true
+  });
+  onProgress?.(82);
+
+  if (upload.error) throw upload.error;
+
+  const { data } = supabase.storage.from("business-documents").getPublicUrl(path);
+  onProgress?.(100);
+
+  return {
+    path,
+    publicUrl: data.publicUrl,
+    size: compressed.size,
+    type: compressed.type
+  };
+}

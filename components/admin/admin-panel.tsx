@@ -123,8 +123,11 @@ type AdminBusiness = {
   phone: string | null;
   email: string | null;
   industry: string | null;
+  business_type?: string | null;
+  commission_rate?: number | null;
   dispatch_volume: string | null;
   pickup_address: string | null;
+  cac_number?: string | null;
   registration_status: "submitted" | "active" | "paused" | "rejected";
   rejection_reason: string | null;
   created_at: string;
@@ -133,6 +136,16 @@ type AdminBusiness = {
     phone?: string | null;
     email?: string | null;
   } | null;
+  business_documents?: AdminBusinessDocument[];
+};
+
+type AdminBusinessDocument = {
+  id: string;
+  document_type: string;
+  status: string;
+  file_url?: string | null;
+  storage_path?: string | null;
+  rejection_reason?: string | null;
 };
 
 type AdminDelivery = {
@@ -1978,7 +1991,7 @@ function BusinessKycSection({
                 <div>
                   <strong className="block text-lg font-black text-fleet-night">{business.business_name}</strong>
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
-                    {business.industry || "Industry pending"} · {business.dispatch_volume || "Volume pending"}
+                    {business.business_type || business.industry || "Type pending"} · {business.dispatch_volume || "Volume pending"} · Commission {Number(business.commission_rate || 0).toFixed(0)}%
                   </span>
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
                     {business.contact_name || business.users?.full_name || "No contact"} · {business.email || business.users?.email || "No email"} · {business.phone || business.users?.phone || "No phone"}
@@ -1986,11 +1999,30 @@ function BusinessKycSection({
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
                     Pickup: {business.pickup_address || "No pickup address"}
                   </span>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                    CAC: {business.cac_number || "Not provided"}
+                  </span>
                   {business.rejection_reason ? <span className="mt-2 block rounded-fleet bg-red-50 p-2 text-xs font-bold leading-5 text-red-700">Reason: {business.rejection_reason}</span> : null}
                 </div>
                 <StatusBadge tone={business.registration_status === "active" ? "green" : business.registration_status === "rejected" ? "red" : "amber"}>
                   {businessReviewLabel(business.registration_status)}
                 </StatusBadge>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(business.business_documents || []).map((doc) => (
+                  <a
+                    key={doc.id}
+                    href={doc.file_url || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full bg-fleet-paper px-3 py-1 text-xs font-black capitalize text-slate-600 transition hover:bg-fleet-navy hover:text-white"
+                  >
+                    {doc.document_type.replaceAll("_", " ")}: {doc.status.replaceAll("_", " ")}
+                  </a>
+                ))}
+                {!business.business_documents?.length ? (
+                  <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700">No KYC documents uploaded</span>
+                ) : null}
               </div>
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
                 <Button type="button" size="sm" onClick={() => onReview(business.id, "active")} disabled={!canAct || busyAction === `business:${business.id}:active`}>
