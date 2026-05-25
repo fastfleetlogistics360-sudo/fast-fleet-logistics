@@ -109,6 +109,13 @@ export function RiderAccessState({ status, rejectionReason }: { status: KycStatu
 
 async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId: string | null, vehicleType: string | null | undefined, includeAvailable: boolean) {
   if (!riderId) return [] as JobRow[];
+  try {
+    const response = await fetch(`/api/rider/jobs?includeAvailable=${includeAvailable ? "1" : "0"}`, { cache: "no-store" });
+    const payload = (await response.json().catch(() => ({}))) as { jobs?: JobRow[] };
+    if (response.ok && Array.isArray(payload.jobs)) return payload.jobs;
+  } catch {
+    // Fall back to the browser Supabase client below when the API is unavailable in local preview.
+  }
   const [assignedResult, availableResult] = await Promise.all([
     supabase.from("deliveries").select(jobFields).eq("rider_id", riderId).order("created_at", { ascending: false }).limit(40),
     includeAvailable && vehicleType
@@ -125,6 +132,12 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
   const assigned = ((assignedResult.data || []) as JobRow[]).filter(Boolean);
   const available = ((availableResult.data || []) as JobRow[]).filter((job) => !isRejectedByRider(job, riderId));
   return mergeJobs([...available, ...assigned]);
+}
+
+function normalizeDispatchVehicle(vehicleType: string | null | undefined) {
+  if (vehicleType === "car" || vehicleType === "van" || vehicleType === "bike") return vehicleType;
+  if (vehicleType === "motorcycle" || vehicleType === "tricycle") return "bike";
+  return null;
 }
 
 function mergeJobs(jobs: JobRow[]) {
@@ -304,17 +317,18 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle()
         ]);
 	        const riderData = (riderResult.data as RiderProfile | null) || {};
+	        const dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || "bike";
 	        const riderId = riderData.id || null;
 	        const [jobsResult, withdrawalsResult] = await Promise.all([
 	          riderId
-	            ? loadRiderJobs(supabase, riderId, riderData.vehicle_type, Boolean(riderData.online))
+	            ? loadRiderJobs(supabase, riderId, dispatchVehicle, Boolean(riderData.online))
 	            : Promise.resolve({ data: [] }),
 	          riderId
 	            ? supabase.from("withdrawal_requests").select("id, amount_ngn, bank_name, account_number, status, created_at").eq("rider_profile_id", riderId).order("created_at", { ascending: false }).limit(12)
 	            : Promise.resolve({ data: [] })
 	        ]);
         if (!mounted) return;
-        const nextProfile = { ...((profileResult.data || {}) as RiderProfile), ...((riderResult.data || {}) as RiderProfile) };
+        const nextProfile = { ...((profileResult.data || {}) as RiderProfile), ...((riderResult.data || {}) as RiderProfile), vehicle_type: dispatchVehicle };
         setProfile(nextProfile);
         setOnline(Boolean(nextProfile.online));
         setOnlineSince(nextProfile.online ? new Date() : null);
@@ -334,12 +348,13 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	  }, []);
 
 	  useEffect(() => {
-	    if (!online || !profile.id || !profile.vehicle_type) return;
+	    if (!online || !profile.id) return;
 	    const supabase = createClient();
 	    let mounted = true;
+	    const dispatchVehicle = normalizeDispatchVehicle(profile.vehicle_type) || "bike";
 
 	    async function refreshAvailableJobs() {
-	      const nextJobs = await loadRiderJobs(supabase, profile.id || null, profile.vehicle_type, true);
+	      const nextJobs = await loadRiderJobs(supabase, profile.id || null, dispatchVehicle, true);
 	      if (!mounted) return;
 	      setJobs((current) => {
 	        const nextIds = new Set(nextJobs.map((job) => job.id));
@@ -353,7 +368,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	      .channel(`rider-available-jobs:${profile.id}`)
 	      .on("postgres_changes", { event: "*", schema: "public", table: "deliveries" }, (payload) => {
 	        const next = payload.new as Partial<JobRow> & { rider_id?: string | null; vehicle_type?: string | null };
-	        if (next?.vehicle_type === profile.vehicle_type || next?.rider_id === profile.id) void refreshAvailableJobs();
+	        if (next?.vehicle_type === dispatchVehicle || next?.rider_id === profile.id) void refreshAvailableJobs();
 	      })
 	      .subscribe();
 	    void refreshAvailableJobs();
@@ -381,10 +396,12 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
         data: { user }
       } = await supabase.auth.getUser();
       if (!user) return;
-	      const { error } = await supabase.from("rider_profiles").update({ online: nextOnline }).eq("user_id", user.id);
+        const dispatchVehicle = normalizeDispatchVehicle(profile.vehicle_type) || "bike";
+	      const { error } = await supabase.from("rider_profiles").update({ online: nextOnline, vehicle_type: dispatchVehicle }).eq("user_id", user.id);
 	      if (error) throw error;
+        setProfile((current) => ({ ...current, vehicle_type: dispatchVehicle, online: nextOnline }));
 	      if (nextOnline && profile.id) {
-	        const nextJobs = await loadRiderJobs(supabase, profile.id, profile.vehicle_type, true);
+	        const nextJobs = await loadRiderJobs(supabase, profile.id, dispatchVehicle, true);
 	        setJobs(nextJobs);
 	        setOfferNotice(nextJobs.some((job) => job.status === "searching") ? "New dispatch orders are available." : null);
 	      }

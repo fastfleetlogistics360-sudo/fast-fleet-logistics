@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { DeliveryStatus } from "@/types/domain";
 
@@ -8,6 +9,60 @@ const statusFlow: Record<string, DeliveryStatus> = {
   picked_up: "in_transit",
   in_transit: "delivered"
 };
+
+const jobSelect =
+  "id, delivery_code, pickup_address, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)";
+
+type JobRow = {
+  id: string;
+  metadata?: Record<string, unknown> | null;
+};
+
+export async function GET(request: Request) {
+  try {
+    const requestUrl = new URL(request.url);
+    const includeAvailable = requestUrl.searchParams.get("includeAvailable") !== "0";
+    const supabase = await createClient();
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
+
+    const admin = createAdminClient();
+    const db = admin || supabase;
+    const { data: rider, error: riderError } = await db
+      .from("rider_profiles")
+      .select("id, vehicle_type, online, application_status")
+      .eq("user_id", user.id)
+      .maybeSingle<{ id: string; vehicle_type?: string | null; online?: boolean | null; application_status?: string | null }>();
+    if (riderError) throw riderError;
+    if (!rider?.id) return NextResponse.json({ jobs: [] });
+
+    const dispatchVehicle = normalizeDispatchVehicle(rider.vehicle_type) || "bike";
+    const [assignedResult, availableResult] = await Promise.all([
+      db.from("deliveries").select(jobSelect).eq("rider_id", rider.id).order("created_at", { ascending: false }).limit(40),
+      includeAvailable && rider.online && rider.application_status === "approved"
+        ? db
+            .from("deliveries")
+            .select(jobSelect)
+            .eq("status", "searching")
+            .is("rider_id", null)
+            .eq("vehicle_type", dispatchVehicle)
+            .order("created_at", { ascending: true })
+            .limit(20)
+        : Promise.resolve({ data: [] })
+    ]);
+
+    if (assignedResult.error) throw assignedResult.error;
+    if ("error" in availableResult && availableResult.error) throw availableResult.error;
+
+    const assigned = ((assignedResult.data || []) as JobRow[]).filter(Boolean);
+    const available = (((availableResult as { data?: JobRow[] }).data || []) as JobRow[]).filter((job) => !isRejectedByRider(job, rider.id));
+    return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]) });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load rider jobs." }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -81,4 +136,24 @@ async function updateResponse(supabase: Awaited<ReturnType<typeof createClient>>
     .single();
   if (error) throw error;
   return NextResponse.json({ job: data });
+}
+
+function normalizeDispatchVehicle(vehicleType: string | null | undefined) {
+  if (vehicleType === "car" || vehicleType === "van" || vehicleType === "bike") return vehicleType;
+  if (vehicleType === "motorcycle" || vehicleType === "tricycle") return "bike";
+  return null;
+}
+
+function isRejectedByRider(job: JobRow, riderId: string | null | undefined) {
+  const rejectedIds = job.metadata?.rejected_rider_ids;
+  return Boolean(riderId && Array.isArray(rejectedIds) && rejectedIds.includes(riderId));
+}
+
+function mergeJobs(jobs: JobRow[]) {
+  const seen = new Set<string>();
+  return jobs.filter((job) => {
+    if (seen.has(job.id)) return false;
+    seen.add(job.id);
+    return true;
+  });
 }
