@@ -15,7 +15,7 @@ export default function TrackPage() {
       <CinematicPageHero
         eyebrow="Live movement"
         title="Track every handoff from route to arrival."
-        body="Follow delivery status, ETA, rider heartbeat, and package movement in one cinematic FastFleet control view."
+        body="Follow delivery status, ETA, rider heartbeat, and package movement in one cinematic FAST FLEETS360 control view."
         image="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=2200&q=84"
       />
       <div className="-mt-8 sm:-mt-10">

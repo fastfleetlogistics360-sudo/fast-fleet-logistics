@@ -7,13 +7,13 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatMoney } from "@/lib/format";
+import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { cn } from "@/lib/cn";
 import { defaultShoppingMalls, mallMenuStorageKey, normalizeShoppingMalls } from "@/lib/mall-menu";
 import type { MallCategory, MallProduct, MallStore, ShoppingMall } from "@/lib/mall-menu";
 
 const MALL_DELIVERY_BASE_FEE_NGN = 1500;
 const MALL_EXTRA_DISTANCE_FEE_NGN = 300;
-const MALL_PLATFORM_FEE_NGN = 500;
 const DEFAULT_DISTANCE_KM = 1;
 
 type CartItem = {
@@ -54,7 +54,7 @@ export function MallMarketplace() {
     const extraKm = Math.max(0, DEFAULT_DISTANCE_KM - 1);
     return MALL_DELIVERY_BASE_FEE_NGN + extraKm * MALL_EXTRA_DISTANCE_FEE_NGN;
   }, []);
-  const finalTotal = productsTotal + deliveryFee + MALL_PLATFORM_FEE_NGN;
+  const finalTotal = productsTotal + deliveryFee + PLATFORM_CHECKOUT_FEE_NGN;
 
   useEffect(() => {
     function applyStoredMalls() {
@@ -118,7 +118,7 @@ export function MallMarketplace() {
 
   function askPrice(product: MallProduct, vendor: MallStore, mall: ShoppingMall) {
     const text = encodeURIComponent(
-      `Hello FastFleet, I want to ask the price of this item.\n\nProduct: ${product.name}\nMall: ${mall.name}\nVendor/store: ${vendor.name}`
+      `Hello FAST FLEETS360, I want to ask the price of this item.\n\nProduct: ${product.name}\nMall: ${mall.name}\nVendor/store: ${vendor.name}`
     );
     window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   }
@@ -150,7 +150,7 @@ export function MallMarketplace() {
             store: `${item.mallName} · ${item.vendorName}`
           })),
           fees: {
-            platformFee: MALL_PLATFORM_FEE_NGN,
+            platformFee: PLATFORM_CHECKOUT_FEE_NGN,
             deliveryFee
           },
           amount: finalTotal
@@ -192,7 +192,7 @@ export function MallMarketplace() {
         <div className="min-w-0">
           <div className="grid gap-6 lg:grid-cols-[0.82fr_1.18fr] lg:items-end">
             <div>
-              <StatusBadge tone="blue">FastFleet Mall</StatusBadge>
+              <StatusBadge tone="blue">FAST FLEETS360 Mall</StatusBadge>
               <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-6xl">Shop malls by store, not generic shelves.</h1>
               <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-slate-600 sm:text-base">
                 Pick a mall, choose a vendor inside it, then add that vendor's products to cart with vendor-specific prices.
@@ -361,7 +361,7 @@ export function MallMarketplace() {
           <div className="mt-5 grid gap-2 text-sm font-bold">
             <Summary label="Products" value={formatMoney(productsTotal)} />
             <Summary label="Delivery fee" value={formatMoney(deliveryFee)} />
-            <Summary label="Platform fee" value={formatMoney(MALL_PLATFORM_FEE_NGN)} />
+            <Summary label="Platform fee" value={formatMoney(PLATFORM_CHECKOUT_FEE_NGN)} />
             <Summary label="Final total" value={formatMoney(finalTotal)} strong />
           </div>
 

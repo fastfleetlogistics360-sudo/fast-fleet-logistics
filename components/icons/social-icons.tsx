@@ -10,14 +10,6 @@ export function InstagramIcon(props: IconProps) {
   );
 }
 
-export function FacebookIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
-      <path d="M22 12.06C22 6.48 17.52 2 11.94 2S2 6.48 2 12.06c0 5.02 3.66 9.18 8.44 9.94v-7.03H7.9v-2.91h2.54V9.84c0-2.5 1.49-3.88 3.77-3.88 1.09 0 2.23.2 2.23.2v2.45h-1.25c-1.24 0-1.63.77-1.63 1.56v1.89h2.77l-.44 2.91h-2.33V22C18.34 21.24 22 17.08 22 12.06Z" />
-    </svg>
-  );
-}
-
 export function LinkedinIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
@@ -30,6 +22,14 @@ export function XIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
       <path d="M18.24 2h3.26l-7.11 8.13L22.75 22H16.2l-5.13-6.7L5.2 22H1.94l7.6-8.69L1.5 2h6.72l4.64 6.13L18.24 2Zm-1.14 17.9h1.8L7.24 3.99H5.3L17.1 19.9Z" />
+    </svg>
+  );
+}
+
+export function TikTokIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+      <path d="M16.4 3c.38 2.24 1.7 3.58 3.9 3.73v3.18a7.1 7.1 0 0 1-3.78-1.12v6.1c0 3.08-2.1 5.11-5.14 5.11-2.72 0-4.88-1.83-4.88-4.45 0-2.89 2.43-4.85 5.64-4.29v3.28c-1.34-.43-2.38.15-2.38 1.08 0 .8.68 1.3 1.58 1.3 1.03 0 1.8-.59 1.8-2.09V3h3.26Z" />
     </svg>
   );
 }

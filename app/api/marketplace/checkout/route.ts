@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 const PAYSTACK_INITIALIZE_URL = "https://api.paystack.co/transaction/initialize";
 const RESTAURANT_DELIVERY_FEE_NGN = 1000;
 const MALL_DELIVERY_FEE_NGN = 1500;
-const MALL_PLATFORM_FEE_NGN = 500;
 
 type CheckoutItem = {
   name: string;
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
     const items = Array.isArray(payload.items) ? payload.items : [];
     const itemsTotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
     const isShopping = payload.kind === "shopping";
-    const platformFee = isShopping ? MALL_PLATFORM_FEE_NGN : PLATFORM_CHECKOUT_FEE_NGN;
+    const platformFee = PLATFORM_CHECKOUT_FEE_NGN;
     const deliveryFee = isShopping ? MALL_DELIVERY_FEE_NGN : RESTAURANT_DELIVERY_FEE_NGN;
     const expectedAmount = itemsTotal + platformFee + deliveryFee;
 

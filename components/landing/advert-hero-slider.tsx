@@ -17,7 +17,7 @@ const slides = [
   {
     eyebrow: "Instant rider booking",
     title: "Book dispatch riders instantly",
-    copy: "Set pickup and drop-off points, choose your delivery type, and get matched to nearby FastFleet riders.",
+    copy: "Set pickup and drop-off points, choose your delivery type, and get matched to nearby FAST FLEETS360 riders.",
     image: "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1600&q=72",
     icon: Bike
   },
@@ -31,7 +31,7 @@ const slides = [
   {
     eyebrow: "Reliable package movement",
     title: "Send packages with confidence",
-    copy: "FastFleet keeps delivery fees clear, riders verified, and customers updated through every step.",
+    copy: "FAST FLEETS360 keeps delivery fees clear, riders verified, and customers updated through every step.",
     image: "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=1600&q=72",
     icon: ShieldCheck
   }
@@ -148,7 +148,7 @@ export function AdvertHeroSlider() {
                 type="button"
                 onClick={() => goToOffset(-1)}
                 className="grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white hover:text-fleet-night focus:outline-none focus:ring-4 focus:ring-fleet-gold/25"
-                aria-label="Previous FastFleet hero slide"
+                aria-label="Previous FAST FLEETS360 hero slide"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -156,7 +156,7 @@ export function AdvertHeroSlider() {
                 type="button"
                 onClick={() => goToOffset(1)}
                 className="grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white hover:text-fleet-night focus:outline-none focus:ring-4 focus:ring-fleet-gold/25"
-                aria-label="Next FastFleet hero slide"
+                aria-label="Next FAST FLEETS360 hero slide"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -170,7 +170,7 @@ export function AdvertHeroSlider() {
                   className={`h-2 rounded-full transition-all duration-300 ${
                     active === index ? "w-12 bg-fleet-gold" : "w-5 bg-white/45 hover:bg-white/75"
                   }`}
-                  aria-label={`Show FastFleet slide ${index + 1}`}
+                  aria-label={`Show FAST FLEETS360 slide ${index + 1}`}
                 />
               ))}
             </div>

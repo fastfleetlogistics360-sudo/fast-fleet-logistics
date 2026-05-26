@@ -14,7 +14,7 @@ export default function AuthPage() {
     <CinematicPageHero
       eyebrow="Secure access"
       title="One account for customers, riders, and business dispatch."
-      body="Sign in with the same premium FastFleet identity system that powers bookings, payouts, onboarding, and tracking."
+      body="Sign in with the same premium FAST FLEETS360 identity system that powers bookings, payouts, onboarding, and tracking."
       image="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=2200&q=84"
       className="min-h-0"
     />
@@ -29,7 +29,7 @@ export default function AuthPage() {
           <div>
             <div className="inline-flex items-center gap-3">
               <span className="grid h-11 w-11 place-items-center rounded-fleet bg-white text-lg font-black text-fleet-navy">FF</span>
-              <span className="text-xl font-black tracking-[0.02em]">FastFleet</span>
+              <span className="text-xl font-black tracking-[0.02em]">FAST FLEETS360</span>
             </div>
             <h2 className="mt-8 max-w-xl text-4xl font-black leading-tight sm:text-5xl">Move orders, payouts, and rider onboarding from one secure account.</h2>
             <p className="mt-4 max-w-lg text-sm font-semibold leading-7 text-white/75 sm:text-base">

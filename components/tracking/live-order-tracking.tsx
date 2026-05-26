@@ -143,6 +143,14 @@ export function LiveOrderTracking({
 	    const supabase = createClient();
 	    let mounted = true;
 	    async function loadRiderDetails() {
+	      const trackingResponse = await fetch(`/api/tracking?code=${encodeURIComponent(order.delivery_code)}`, { cache: "no-store" }).catch(() => null);
+	      if (trackingResponse?.ok) {
+	        const payload = (await trackingResponse.json().catch(() => ({}))) as { delivery?: { rider?: TrackingOrder["rider"] } };
+	        if (mounted && payload.delivery?.rider?.full_name) {
+	          setOrder((current) => ({ ...current, rider: payload.delivery?.rider || current.rider }));
+	          return;
+	        }
+	      }
 	      const { data } = await supabase
 	        .from("rider_profiles")
 	        .select("plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, email)")
@@ -170,7 +178,7 @@ export function LiveOrderTracking({
 	    return () => {
 	      mounted = false;
 	    };
-	  }, [order.rider?.full_name, order.rider_id]);
+	  }, [order.delivery_code, order.rider?.full_name, order.rider_id]);
 
   const pickup = toPoint(order.pickup_latitude, order.pickup_longitude);
   const dropoff = toPoint(order.dropoff_latitude, order.dropoff_longitude);

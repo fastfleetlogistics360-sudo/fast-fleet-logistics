@@ -23,7 +23,7 @@ import type { DashboardMenuItem } from "@/lib/dashboard-menus";
 import { parseUserRole, roleHome } from "@/lib/auth/roles";
 import type { UserRole } from "@/types/domain";
 import { LinkButton } from "@/components/ui/button";
-import { FacebookIcon, InstagramIcon, LinkedinIcon, XIcon } from "@/components/icons/social-icons";
+import { InstagramIcon, LinkedinIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
 import { createClient } from "@/lib/supabase/client";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -51,10 +51,10 @@ const bottomItems: Array<{ href: string; label: string; icon: LucideIcon; active
 ];
 
 const socialItems: Array<{ href: string; label: string; icon: (props: ComponentPropsWithoutRef<"svg">) => ReactElement; hover: string }> = [
-  { href: "https://www.instagram.com/fastfleetlogistics", label: "Instagram", icon: InstagramIcon, hover: "hover:bg-[#E4405F]" },
-  { href: "https://www.facebook.com/fastfleetlogistics", label: "Facebook", icon: FacebookIcon, hover: "hover:bg-[#1877F2]" },
-  { href: "https://www.linkedin.com/company/fastfleet-logistics", label: "LinkedIn", icon: LinkedinIcon, hover: "hover:bg-[#0A66C2]" },
-  { href: "https://x.com/fastfleetng", label: "X", icon: XIcon, hover: "hover:bg-black" }
+  { href: "https://www.instagram.com/fastfleets360", label: "Instagram", icon: InstagramIcon, hover: "hover:bg-[#E4405F]" },
+  { href: "https://x.com/fastfleets360", label: "X", icon: XIcon, hover: "hover:bg-black" },
+  { href: "https://www.tiktok.com/@fastfleets360", label: "TikTok", icon: TikTokIcon, hover: "hover:bg-black" },
+  { href: "https://www.linkedin.com/in/fast-fleets-logistics-3a3094412?utm_source=share_via&utm_content=profile&utm_medium=member_ios", label: "LinkedIn", icon: LinkedinIcon, hover: "hover:bg-[#0A66C2]" }
 ];
 
 export function SiteShell({ children }: { children: ReactNode }) {
@@ -140,17 +140,17 @@ export function SiteShell({ children }: { children: ReactNode }) {
       {hasSiteChrome ? (
       <header className="sticky top-0 z-50 border-b border-white/10 bg-fleet-night/90 text-white shadow-[0_18px_50px_rgba(8,17,31,0.22)] backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Link href="/" className="flex min-w-0 items-center gap-3" aria-label="FastFleet home">
+          <Link href="/" className="flex min-w-0 items-center gap-3" aria-label="FAST FLEETS360 home">
             <Image
               src="/fastfleet-logo.png"
-              alt="FastFleet Logistics"
+              alt="FAST FLEETS360 Logistics"
               width={46}
               height={46}
               className="h-11 w-11 rounded-fleet border border-white/15 object-cover shadow-[0_12px_28px_rgba(0,0,0,0.28)]"
               priority
             />
             <span className="grid leading-none">
-              <strong className="text-base font-black text-white sm:text-lg">FastFleet</strong>
+              <strong className="text-base font-black text-white sm:text-lg">FAST FLEETS360</strong>
               <span className="text-[0.66rem] font-black uppercase tracking-[0.28em] text-fleet-ember">Logistics</span>
             </span>
           </Link>
@@ -311,12 +311,12 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-3">
               <Image
                 src="/fastfleet-logo.png"
-                alt="FastFleet Logistics"
+                alt="FAST FLEETS360 Logistics"
                 width={42}
                 height={42}
                 className="h-10 w-10 rounded-fleet object-cover"
               />
-              <strong className="text-lg font-black">FastFleet Logistics</strong>
+              <strong className="text-lg font-black">FAST FLEETS360 Logistics</strong>
             </div>
             <p className="mt-4 max-w-sm text-sm font-medium text-white/70">
               Premium dispatch operations for Lagos and Ogun, built for fast booking, trusted riders, and scalable fleet control.

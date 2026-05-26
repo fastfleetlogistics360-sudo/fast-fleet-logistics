@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function RestaurantsPage() {
-  return <OrderMarketplace title="Order restaurant meals with FastFleet." eyebrow="Restaurants" stores={defaultRestaurantKitchens} kind="restaurant" />;
+  return <OrderMarketplace title="Order restaurant meals with FAST FLEETS360." eyebrow="Restaurants" stores={defaultRestaurantKitchens} kind="restaurant" />;
 }

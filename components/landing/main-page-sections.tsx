@@ -43,7 +43,7 @@ const serviceCards: DescriptionCard[] = [
   {
     label: "Riders",
     title: "Rider partnership",
-    body: "Verified riders can onboard, earn from delivery trips, and grow with FastFleet.",
+    body: "Verified riders can onboard, earn from delivery trips, and grow with FAST FLEETS360.",
     image: "https://images.unsplash.com/photo-1616432043562-3671ea2e5242?auto=format&fit=crop&w=1200&q=80",
     icon: Bike
   }
@@ -67,7 +67,7 @@ const trustCards: DescriptionCard[] = [
   {
     label: "Secure",
     title: "Secure delivery",
-    body: "FastFleet keeps rider, package, route, and support details tied to each delivery.",
+    body: "FAST FLEETS360 keeps rider, package, route, and support details tied to each delivery.",
     image: "https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=1200&q=80",
     icon: ShieldCheck
   },
@@ -84,7 +84,7 @@ const ctaCards = [
   {
     label: "Customers",
     title: "Send a package now",
-    body: "Book a FastFleet rider for documents, food, parcels, shopping, and urgent errands.",
+    body: "Book a FAST FLEETS360 rider for documents, food, parcels, shopping, and urgent errands.",
     href: "/book",
     cta: "Book delivery",
     image: "https://images.unsplash.com/photo-1580674285054-bed31e145f59?auto=format&fit=crop&w=1200&q=80",
@@ -92,7 +92,7 @@ const ctaCards = [
   },
   {
     label: "Riders",
-    title: "Earn with FastFleet",
+    title: "Earn with FAST FLEETS360",
     body: "Apply as a rider, complete onboarding, and get ready for delivery opportunities.",
     href: "/auth?account=driver",
     cta: "Become a rider",
@@ -101,7 +101,7 @@ const ctaCards = [
   },
   {
     label: "Businesses",
-    title: "Partner with FastFleet",
+    title: "Partner with FAST FLEETS360",
     body: "Give your store, office, or dispatch team a more reliable delivery layer.",
     href: "/business/register",
     cta: "Register business",
@@ -115,16 +115,16 @@ export function MainPageSections() {
     <>
       <AnimatedDescriptionCards
         surface="light"
-        eyebrow="FastFleet services"
+        eyebrow="FAST FLEETS360 services"
         title="Delivery options for real city movement."
-        body="FastFleet keeps everyday logistics simple for customers, restaurants, vendors, offices, riders, and growing businesses."
+        body="FAST FLEETS360 keeps everyday logistics simple for customers, restaurants, vendors, offices, riders, and growing businesses."
         cards={serviceCards}
       />
       <AudienceCtaSection />
       <AnimatedDescriptionCards
-        eyebrow="Why people trust FastFleet"
+        eyebrow="Why people trust FAST FLEETS360"
         title="Useful delivery confidence, not noise."
-        body="FastFleet combines rider speed, live visibility, safer package movement, and transparent pricing into one delivery experience."
+        body="FAST FLEETS360 combines rider speed, live visibility, safer package movement, and transparent pricing into one delivery experience."
         cards={trustCards}
       />
       <AppComingSoonSection />
@@ -140,10 +140,10 @@ function AudienceCtaSection() {
       <div className="section-wrap">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-3xl">
-            <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-gold">Move with FastFleet</span>
+            <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-gold">Move with FAST FLEETS360</span>
             <h2 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">One delivery page for customers, riders, and businesses.</h2>
             <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/[0.88] sm:text-base">
-              Book a delivery, start rider onboarding, or create a business dispatch account without leaving the FastFleet flow.
+              Book a delivery, start rider onboarding, or create a business dispatch account without leaving the FAST FLEETS360 flow.
             </p>
           </div>
           <LinkButton href="/book" variant="secondary" className="w-full sm:w-auto">
@@ -209,7 +209,7 @@ function AppComingSoonSection() {
         <div className="smart-card-grid grid gap-4 rounded-fleet border border-white/70 bg-white/70 p-4 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-2xl sm:p-5 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Mobile app</span>
-            <h2 className="mt-3 text-3xl font-black leading-tight text-fleet-night sm:text-5xl">FastFleet mobile app access is expanding</h2>
+            <h2 className="mt-3 text-3xl font-black leading-tight text-fleet-night sm:text-5xl">FAST FLEETS360 mobile app access is expanding</h2>
             <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
               The web platform is live today while native app access rolls out across customer, rider, and business operations.
             </p>

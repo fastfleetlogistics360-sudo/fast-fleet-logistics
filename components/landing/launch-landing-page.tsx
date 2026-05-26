@@ -3,12 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Suspense, useEffect, useState, type ComponentPropsWithoutRef, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Bike, CircleUserRound, LogIn, Play, Store, UserPlus, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { AppleIcon, FacebookIcon, GoogleIcon, InstagramIcon, LinkedinIcon, XIcon } from "@/components/icons/social-icons";
+import { AppleIcon, GoogleIcon, InstagramIcon, LinkedinIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 
 const PhoneAuthForm = dynamic(() => import("@/components/auth/phone-auth-form").then((mod) => mod.PhoneAuthForm), {
   ssr: false,
@@ -53,18 +53,17 @@ const actionItems: ActionItemConfig[] = [
   },
   {
     title: "Register Your Business",
-    body: "Grow your business with FastFleet",
+    body: "Grow your business with FAST FLEETS360",
     icon: Store,
     href: "/auth?account=business"
   }
 ];
 
 const socialItems = [
-  { label: "Facebook", href: "https://www.facebook.com/fastfleetlogistics", icon: FacebookIcon },
-  { label: "Instagram", href: "https://www.instagram.com/fastfleetlogistics", icon: InstagramIcon },
-  { label: "X", href: "https://x.com/fastfleetng", icon: XIcon },
-  { label: "LinkedIn", href: "https://www.linkedin.com/company/fastfleet-logistics", icon: LinkedinIcon },
-  { label: "TikTok", href: "#", icon: TikTokIcon }
+  { label: "Instagram", href: "https://www.instagram.com/fastfleets360", icon: InstagramIcon },
+  { label: "X", href: "https://x.com/fastfleets360", icon: XIcon },
+  { label: "TikTok", href: "https://www.tiktok.com/@fastfleets360", icon: TikTokIcon },
+  { label: "LinkedIn", href: "https://www.linkedin.com/in/fast-fleets-logistics-3a3094412?utm_source=share_via&utm_content=profile&utm_medium=member_ios", icon: LinkedinIcon }
 ];
 
 const partners = [
@@ -130,10 +129,10 @@ export function LaunchLandingPage() {
 
       <section className="section-wrap relative z-10 flex min-h-screen flex-col px-4 pb-8 pt-6 sm:px-6 lg:pb-10 lg:pt-7">
         <header className="flex items-center justify-between gap-4">
-          <Link href="/" className="group flex min-w-0 items-center gap-3" aria-label="FastFleet landing home">
+          <Link href="/" className="group flex min-w-0 items-center gap-3" aria-label="FAST FLEETS360 landing home">
             <Image
               src="/fastfleet-logo.png"
-              alt="FastFleet Logistics"
+              alt="FAST FLEETS360 Logistics"
               width={56}
               height={56}
               className="h-11 w-11 rounded-full border border-white/20 bg-white object-cover p-1 shadow-[0_16px_34px_rgba(0,0,0,0.28)] transition group-hover:-translate-y-0.5"
@@ -141,7 +140,7 @@ export function LaunchLandingPage() {
               sizes="56px"
             />
             <span className="grid leading-none">
-              <strong className="text-lg font-black italic tracking-[0.02em] text-white sm:text-2xl">FASTFLEET</strong>
+              <strong className="text-lg font-black italic tracking-[0.02em] text-white sm:text-2xl">FAST FLEETS360</strong>
               <span className="mt-1 text-[0.58rem] font-black uppercase tracking-[0.42em] text-fleet-gold sm:text-[0.64rem]">Logistics</span>
             </span>
           </Link>
@@ -176,7 +175,7 @@ export function LaunchLandingPage() {
               Delivering More, Everyday.
             </h1>
             <p className="mt-6 max-w-2xl text-base font-semibold leading-8 text-white/85 sm:text-xl">
-              FastFleet connects people, businesses and communities through fast, safe and reliable delivery.
+              FAST FLEETS360 connects people, businesses and communities through fast, safe and reliable delivery.
             </p>
             <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:items-center">
               <Link
@@ -256,7 +255,7 @@ export function LaunchLandingPage() {
               ))}
             </div>
           </div>
-          <footer className="pt-14 text-center text-sm font-semibold text-white/[0.72]">© 2025 FastFleet. All rights reserved.</footer>
+          <footer className="pt-14 text-center text-sm font-semibold text-white/[0.72]">© 2025 FAST FLEETS360. All rights reserved.</footer>
         </div>
       </section>
 
@@ -352,17 +351,9 @@ function StoreBadge({ icon, eyebrow, label, onClick }: { icon: ReactNode; eyebro
   );
 }
 
-function TikTokIcon(props: ComponentPropsWithoutRef<"svg">) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
-      <path d="M16.4 3c.38 2.24 1.7 3.58 3.9 3.73v3.18a7.1 7.1 0 0 1-3.78-1.12v6.1c0 3.08-2.1 5.11-5.14 5.11-2.72 0-4.88-1.83-4.88-4.45 0-2.89 2.43-4.85 5.64-4.29v3.28c-1.34-.43-2.38.15-2.38 1.08 0 .8.68 1.3 1.58 1.3 1.03 0 1.8-.59 1.8-2.09V3h3.26Z" />
-    </svg>
-  );
-}
-
 function ComingSoonModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-[170] grid place-items-center bg-black/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="FastFleet app release access">
+    <div className="fixed inset-0 z-[170] grid place-items-center bg-black/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="FAST FLEETS360 app release access">
       <motion.div
         className="w-full max-w-sm rounded-[18px] border border-white/15 bg-white p-6 text-center text-fleet-night shadow-[0_28px_90px_rgba(0,0,0,0.35)]"
         initial={{ opacity: 0, y: 18, scale: 0.96 }}
@@ -370,7 +361,7 @@ function ComingSoonModal({ onClose }: { onClose: () => void }) {
         transition={{ duration: 0.2, ease: "easeOut" }}
       >
         <strong className="block text-2xl font-black">Release access underway</strong>
-        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">FastFleet mobile app access is being rolled out in controlled phases.</p>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">FAST FLEETS360 mobile app access is being rolled out in controlled phases.</p>
         <button
           type="button"
           onClick={onClose}
@@ -385,10 +376,10 @@ function ComingSoonModal({ onClose }: { onClose: () => void }) {
 
 function AuthModal({ intent, onClose }: { intent: AuthIntent; onClose: () => void }) {
   const [mounted, setMounted] = useState(false);
-  const title = intent === "signup" ? "Create your FastFleet account" : "Sign in to FastFleet";
+  const title = intent === "signup" ? "Create your FAST FLEETS360 account" : "Sign in to FAST FLEETS360";
   const description =
     intent === "signup"
-      ? "Sign up with email, choose your access type, and continue into FastFleet."
+      ? "Sign up with email, choose your access type, and continue into FAST FLEETS360."
       : "Enter your email and password to return to your delivery workspace.";
 
   useEffect(() => {

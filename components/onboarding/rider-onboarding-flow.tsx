@@ -566,7 +566,7 @@ export function RiderOnboardingFlow() {
                   checked={form.agreement}
                   onChange={(event) => update("agreement", event.target.checked)}
                 />
-                <span>I agree to the FastFleet Rider Agreement and Code of Conduct</span>
+                <span>I agree to the FAST FLEETS360 Rider Agreement and Code of Conduct</span>
               </label>
               {errors.agreement ? <span className="text-xs font-bold text-red-600">{errors.agreement}</span> : null}
             </div>

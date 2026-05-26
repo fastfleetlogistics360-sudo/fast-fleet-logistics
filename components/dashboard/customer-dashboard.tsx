@@ -43,6 +43,16 @@ type WalletRow = {
 type RiderInfo = {
   full_name?: string | null;
   phone?: string | null;
+  email?: string | null;
+};
+
+type RiderTrackingDetails = {
+  full_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  vehicle_type?: string | null;
+  plate_number?: string | null;
+  vehicle_color?: string | null;
 };
 
 type OrderRow = {
@@ -96,13 +106,14 @@ const tabs: Array<{ id: CustomerTab; label: string; icon: LucideIcon }> = [
 ];
 
 const fallbackProfile: ProfileRow = {
-  full_name: "FastFleet Customer",
+  full_name: "FAST FLEETS360 Customer",
   email: "customer@fastfleet.ng",
   phone: "+2348012345678",
   lga: "Lagos"
 };
 
 const operationalStatuses = new Set<LaunchStateStatus>(["active", "live"]);
+const riderVisibleStatuses = new Set(["accepted", "rider_arrived", "picked_up", "in_transit"]);
 
 function statusTone(status: string): "green" | "amber" | "red" | "blue" | "neutral" {
   if (status === "delivered") return "green";
@@ -117,6 +128,48 @@ function greeting() {
   if (hour < 12) return { text: "Good morning", symbol: "🌅" };
   if (hour < 17) return { text: "Good afternoon", symbol: "☀️" };
   return { text: "Good evening", symbol: "🌙" };
+}
+
+async function enrichOrdersWithRiderDetails(orders: OrderRow[]) {
+  const activeAssignedOrders = orders.filter((order) => order.rider_id && riderVisibleStatuses.has(String(order.status)) && !order.rider_profiles?.users?.full_name);
+  if (!activeAssignedOrders.length) return orders;
+
+  const details = await Promise.allSettled(
+    activeAssignedOrders.map(async (order) => {
+      const response = await fetch(`/api/tracking?code=${encodeURIComponent(order.delivery_code)}`, { cache: "no-store" });
+      const payload = (await response.json().catch(() => ({}))) as {
+        delivery?: {
+          rider?: RiderTrackingDetails | null;
+        };
+      };
+      if (!response.ok || !payload.delivery?.rider) return null;
+      return { id: order.id, rider: payload.delivery.rider };
+    })
+  );
+
+  const riderByOrderId = new Map<string, RiderTrackingDetails>();
+  details.forEach((result) => {
+    if (result.status === "fulfilled" && result.value) riderByOrderId.set(result.value.id, result.value.rider);
+  });
+
+  if (!riderByOrderId.size) return orders;
+  return orders.map((order) => {
+    const rider = riderByOrderId.get(order.id);
+    if (!rider) return order;
+    return {
+      ...order,
+      rider_profiles: {
+        plate_number: rider.plate_number || null,
+        vehicle_type: rider.vehicle_type || null,
+        vehicle_color: rider.vehicle_color || null,
+        users: {
+          full_name: rider.full_name || null,
+          phone: rider.phone || null,
+          email: rider.email || null
+        }
+      }
+    };
+  });
 }
 
 export function CustomerDashboard() {
@@ -186,7 +239,10 @@ export function CustomerDashboard() {
         setLaunchStatus(normalizeLaunchStatus(launchRow?.status || (DEFAULT_LIVE_STATES.includes(selectedState as (typeof DEFAULT_LIVE_STATES)[number]) ? "active" : "waitlist")));
         if (orderResult.error) throw orderResult.error;
         if (promotionResult.error) throw promotionResult.error;
-        setOrders(mergeLocalDeliveries((orderResult.data || []) as OrderRow[]));
+        const mergedOrders = mergeLocalDeliveries((orderResult.data || []) as OrderRow[]);
+        const hydratedOrders = await enrichOrdersWithRiderDetails(mergedOrders);
+        if (!mounted) return;
+        setOrders(hydratedOrders);
         setPromotions((promotionResult.data || []) as PromotionRow[]);
         setAddresses((addressResult.data || []) as SavedAddress[]);
       } catch (error) {
@@ -315,7 +371,7 @@ export function CustomerDashboard() {
       <div className="mx-auto grid max-w-7xl gap-0 lg:grid-cols-[260px_1fr]">
         <DesktopNav activeTab={activeTab} onChange={setActiveTab} />
         <main className="min-w-0 px-4 py-5 sm:px-6 lg:py-8">
-          <DashboardHeader title={`${greetingText}, ${firstName}`} subtitle={stateIsOperational ? `${symbol} Your FastFleet mobile workspace is ready.` : `FastFleet early-access workspace for ${customerState}.`} />
+          <DashboardHeader title={`${greetingText}, ${firstName}`} subtitle={stateIsOperational ? `${symbol} Your FAST FLEETS360 mobile workspace is ready.` : `FAST FLEETS360 early-access workspace for ${customerState}.`} />
           {activeTab === "home" && !stateIsOperational ? (
             <RolloutStateDashboard profile={profile} state={customerState} status={launchStatus} balance={balance} addresses={addresses} message={waitlistMessage} onNotify={joinStateWaitlist} />
           ) : null}
@@ -369,7 +425,7 @@ function DesktopNav({ activeTab, onChange }: { activeTab: CustomerTab; onChange:
   return (
     <aside className="sticky top-0 hidden h-screen border-r border-fleet-line bg-white p-4 lg:block">
       <div className="rounded-fleet bg-fleet-navy p-4 text-white">
-        <span className="text-xl font-black">FastFleet</span>
+        <span className="text-xl font-black">FAST FLEETS360</span>
         <p className="mt-1 text-xs font-semibold text-white/70">Customer app</p>
       </div>
       <nav className="mt-5 grid gap-2">
@@ -429,7 +485,7 @@ function RolloutStateDashboard({
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,17,31,0.96),rgba(8,17,31,0.72)),radial-gradient(circle_at_20%_20%,rgba(244,166,42,0.22),transparent_32%)]" />
           <div className="relative z-10 grid min-h-[360px] content-end p-5 sm:p-7">
             <StatusBadge tone="amber">Launching Soon</StatusBadge>
-            <h2 className="mt-4 max-w-3xl text-3xl font-black leading-tight sm:text-5xl">FastFleet is preparing operations in {state}</h2>
+            <h2 className="mt-4 max-w-3xl text-3xl font-black leading-tight sm:text-5xl">FAST FLEETS360 is preparing operations in {state}</h2>
             <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/78">
               We&apos;re currently active in Lagos and Ogun State as part of our phased rollout strategy.
               Your account has already been successfully created, and you&apos;ll be among the first users notified once operations begin in your area.
@@ -456,7 +512,7 @@ function RolloutStateDashboard({
       <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
         <Card className="p-4">
           <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Available now</span>
-          <h3 className="mt-2 text-2xl font-black text-fleet-night">Explore FastFleet before launch.</h3>
+          <h3 className="mt-2 text-2xl font-black text-fleet-night">Explore FAST FLEETS360 before launch.</h3>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {["Profile management", "Saved addresses", "Wallet preview", "Pricing previews", "Tracking preview", "Support access"].map((item) => (
               <div key={item} className="rounded-fleet border border-white/70 bg-white/65 p-3 text-sm font-black text-fleet-night shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
@@ -482,7 +538,7 @@ function RolloutStateDashboard({
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div>
             <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Account ready</span>
-            <h3 className="mt-1 text-xl font-black text-fleet-night">{profile.full_name || "FastFleet Customer"}</h3>
+            <h3 className="mt-1 text-xl font-black text-fleet-night">{profile.full_name || "FAST FLEETS360 Customer"}</h3>
             <p className="mt-1 text-sm font-semibold text-slate-600">{addresses.length} saved address{addresses.length === 1 ? "" : "es"} prepared for launch.</p>
           </div>
           <LinkButton href="/support" variant="secondary">Request early access</LinkButton>
@@ -510,7 +566,7 @@ function RestrictedOperationsPreview({ state, status }: { state: string; status:
         <StatusBadge tone="amber">{launchStatusLabel(status)}</StatusBadge>
         <h2 className="mt-3 text-2xl font-black text-fleet-night">Delivery creation is paused for {state}.</h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-          Your account is active, but live shipments open when FastFleet operations launch in your area.
+          Your account is active, but live shipments open when FAST FLEETS360 operations launch in your area.
         </p>
       </Card>
       <div className="grid gap-3 md:grid-cols-3">
@@ -534,7 +590,7 @@ function TrackingPreview({ state }: { state: string }) {
         <h2 className="mt-3 text-2xl font-black text-fleet-night">Live tracking will activate when {state} opens.</h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Preview how rider status, ETA, pickup, and drop-off movement will appear once operations begin.</p>
       </Card>
-      <RoutePreview label="Rollout route preview" status="launching_soon" riderName="FastFleet rollout rider" pickupAddress={`${state} pickup zone`} dropoffAddress={`${state} delivery zone`} />
+      <RoutePreview label="Rollout route preview" status="launching_soon" riderName="FAST FLEETS360 rollout rider" pickupAddress={`${state} pickup zone`} dropoffAddress={`${state} delivery zone`} />
     </div>
   );
 }
@@ -653,7 +709,7 @@ function HomeTab({
             ))}
           </div>
         ) : (
-          <DashboardEmptyState title="No promotions yet" body="Fresh offers will appear here when FastFleet publishes them." ctaLabel="Book delivery" ctaHref="/book" icon={<Bell className="h-7 w-7" />} />
+          <DashboardEmptyState title="No promotions yet" body="Fresh offers will appear here when FAST FLEETS360 publishes them." ctaLabel="Book delivery" ctaHref="/book" icon={<Bell className="h-7 w-7" />} />
         )}
       </section>
 
@@ -828,9 +884,9 @@ function AccountTab({
     <div className="grid gap-5">
       <Card className="p-5">
         <div className="flex items-center gap-4">
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-fleet-navy text-lg font-black text-white">{initials(profile.full_name || "FastFleet Customer")}</span>
+          <span className="grid h-16 w-16 place-items-center rounded-full bg-fleet-navy text-lg font-black text-white">{initials(profile.full_name || "FAST FLEETS360 Customer")}</span>
           <div>
-            <h2 className="text-xl font-black text-fleet-night">{profile.full_name || "FastFleet Customer"}</h2>
+            <h2 className="text-xl font-black text-fleet-night">{profile.full_name || "FAST FLEETS360 Customer"}</h2>
             <p className="text-sm font-semibold text-slate-500">{profile.email || "No email"} · {profile.phone || "No phone"}</p>
           </div>
         </div>
@@ -962,7 +1018,7 @@ function DeliveryRouteMap({
       className={className}
       label={label}
       status={delivery?.status || order?.status}
-      riderName={order?.rider_profiles?.users?.full_name || "FastFleet rider"}
+      riderName={order?.rider_profiles?.users?.full_name || "FAST FLEETS360 rider"}
       pickupAddress={order?.pickup_address || "Victoria Island, Lagos"}
       dropoffAddress={order?.dropoff_address || "Ikeja GRA, Lagos"}
       riderLocation={riderLocation}

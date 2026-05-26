@@ -49,6 +49,8 @@ type JobRow = {
   id: string;
   delivery_code: string;
   pickup_address: string;
+  pickup_latitude?: number | null;
+  pickup_longitude?: number | null;
   pickup_contact?: string | null;
   dropoff_address: string;
   dropoff_contact?: string | null;
@@ -83,7 +85,7 @@ const tabs: Array<{ id: RiderTab; label: string; icon: LucideIcon }> = [
 ];
 
 const jobFields =
-  "id, delivery_code, pickup_address, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)";
+  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)";
 
 export function RiderAccessState({ status, rejectionReason }: { status: KycStatus; rejectionReason?: string | null }) {
   const rejected = status === "rejected";
@@ -96,7 +98,7 @@ export function RiderAccessState({ status, rejectionReason }: { status: KycStatu
         <StatusBadge tone={rejected ? "red" : "amber"} className="mt-5">{rejected ? "Rejected" : "Pending review"}</StatusBadge>
         <h1 className="mt-3 text-3xl font-black text-fleet-night">{rejected ? "Your rider application needs attention" : "Your application is under review"}</h1>
         <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
-          {rejected ? rejectionReason || "FastFleet operations rejected this application. Please review the note and re-apply." : "We review rider applications within 48 hours. You will receive an SMS and email when a decision is made."}
+          {rejected ? rejectionReason || "FAST FLEETS360 operations rejected this application. Please review the note and re-apply." : "We review rider applications within 48 hours. You will receive an SMS and email when a decision is made."}
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <LinkButton href="/rider/onboarding">{rejected ? "Re-apply" : "Update application"}</LinkButton>
@@ -154,6 +156,58 @@ function isRejectedByRider(job: JobRow, riderId: string | null | undefined) {
   return Boolean(riderId && Array.isArray(rejectedIds) && rejectedIds.includes(riderId));
 }
 
+function formatCoordinates(location: LiveRiderLocation) {
+  return `${location.latitude},${location.longitude}`;
+}
+
+function pickupDestination(job: JobRow) {
+  if (job.pickup_latitude != null && job.pickup_longitude != null) return `${job.pickup_latitude},${job.pickup_longitude}`;
+  return job.pickup_address;
+}
+
+function fallbackPickupEta(job: JobRow, liveLocation: LiveRiderLocation | null) {
+  if (liveLocation && job.pickup_latitude != null && job.pickup_longitude != null) {
+    const distanceKm = haversineKm(liveLocation, { latitude: Number(job.pickup_latitude), longitude: Number(job.pickup_longitude) });
+    return Math.max(4, Math.round((distanceKm / 24) * 60 + 5));
+  }
+  const routeEta = Number(job.eta_minutes || 0);
+  if (routeEta > 0) return Math.max(5, Math.round(routeEta * 0.45));
+  const distanceKm = Number(job.distance_km || 0);
+  if (distanceKm > 0) return Math.max(5, Math.round((distanceKm / 24) * 60));
+  return null;
+}
+
+function pickupEtaLabel(minutes: number | null, loading: boolean, liveLocation: LiveRiderLocation | null) {
+  if (minutes) return `ETA to pickup: ${minutes} min`;
+  if (loading) return "ETA to pickup: calculating...";
+  if (!liveLocation) return "ETA to pickup: waiting for driver location";
+  return "ETA to pickup: unavailable";
+}
+
+function parseDurationMinutes(value: string | null | undefined) {
+  if (!value) return null;
+  const hourMatch = value.match(/(\d+(?:\.\d+)?)\s*hour/i);
+  const minuteMatch = value.match(/(\d+(?:\.\d+)?)\s*min/i);
+  const hours = hourMatch ? Number(hourMatch[1]) : 0;
+  const minutes = minuteMatch ? Number(minuteMatch[1]) : 0;
+  const total = Math.round(hours * 60 + minutes);
+  return total > 0 ? total : null;
+}
+
+function haversineKm(from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }) {
+  const earthKm = 6371;
+  const dLat = degreesToRadians(to.latitude - from.latitude);
+  const dLng = degreesToRadians(to.longitude - from.longitude);
+  const lat1 = degreesToRadians(from.latitude);
+  const lat2 = degreesToRadians(to.latitude);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return earthKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function degreesToRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
 export function RiderDashboard({ initialKycStatus = "approved", rejectionReason }: RiderDashboardProps) {
   const [activeTab, setActiveTab] = useState<RiderTab>("home");
   const [loading, setLoading] = useState(true);
@@ -175,6 +229,8 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
   const [trackingActive, setTrackingActive] = useState(false);
   const [trackingMessage, setTrackingMessage] = useState<string | null>(null);
   const [offerNotice, setOfferNotice] = useState<string | null>(null);
+  const [pickupEtaMinutes, setPickupEtaMinutes] = useState<number | null>(null);
+  const [pickupEtaLoading, setPickupEtaLoading] = useState(false);
 
   const incomingJob = jobs.find((job) => job.status === "searching") || null;
   const activeJob = jobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status)) || null;
@@ -275,6 +331,84 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
   }, [activeJob?.id, activeJob?.status, online, profile.id, profile.lga, trackingActive]);
 
   useEffect(() => {
+    if (!online || !profile.id) return;
+    const supabase = createClient();
+    const riderProfileId = profile.id;
+    let stopped = false;
+
+    async function publishOnlineLocation() {
+      try {
+        const position = await requestCurrentPosition();
+        if (stopped) return;
+        const nextLocation: LiveRiderLocation = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          heading: position.coords.heading,
+          speed: position.coords.speed,
+          updated_at: new Date().toISOString()
+        };
+        setLiveLocation(nextLocation);
+        await supabase.from("rider_locations").upsert(
+          {
+            rider_profile_id: riderProfileId,
+            zone: profile.lga || "Lagos",
+            latitude: nextLocation.latitude,
+            longitude: nextLocation.longitude,
+            heading: nextLocation.heading,
+            speed: nextLocation.speed,
+            updated_at: nextLocation.updated_at
+          },
+          { onConflict: "rider_profile_id" }
+        );
+      } catch (error) {
+        if (!stopped && incomingJob) setOfferNotice(geolocationErrorMessage(error));
+      }
+    }
+
+    void publishOnlineLocation();
+    const timer = window.setInterval(publishOnlineLocation, incomingJob ? 12000 : 30000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [incomingJob?.id, online, profile.id, profile.lga]);
+
+  useEffect(() => {
+    if (!incomingJob) {
+      setPickupEtaMinutes(null);
+      setPickupEtaLoading(false);
+      return;
+    }
+
+    const fallback = fallbackPickupEta(incomingJob, liveLocation);
+    setPickupEtaMinutes(fallback);
+
+    if (!liveLocation) return;
+    let cancelled = false;
+    setPickupEtaLoading(true);
+    const origin = formatCoordinates(liveLocation);
+    const destination = pickupDestination(incomingJob);
+
+    fetch(`/api/maps/distance?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`, { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload: { durationText?: string | null }) => {
+        if (cancelled) return;
+        const minutes = parseDurationMinutes(payload.durationText);
+        if (minutes) setPickupEtaMinutes(minutes);
+      })
+      .catch(() => {
+        if (!cancelled) setPickupEtaMinutes(fallback);
+      })
+      .finally(() => {
+        if (!cancelled) setPickupEtaLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [incomingJob, liveLocation]);
+
+  useEffect(() => {
     if (trackingActive && !activeJob) {
       setTrackingActive(false);
       setTrackingMessage("Delivery tracking stopped.");
@@ -311,8 +445,10 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
         } = await supabase.auth.getUser();
         if (!user) return;
 
-        const [profileResult, riderResult, walletResult] = await Promise.all([
+        const [profileResult, appUserResult, latestApplicationResult, riderResult, walletResult] = await Promise.all([
           supabase.from("profiles").select("full_name, email, phone, lga").eq("user_id", user.id).maybeSingle(),
+          supabase.from("users").select("full_name, email, phone, default_zone").eq("id", user.id).maybeSingle(),
+          supabase.from("rider_applications").select("full_name, phone, email, lga").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("rider_profiles").select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status").eq("user_id", user.id).maybeSingle(),
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle()
         ]);
@@ -342,7 +478,20 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	          riderId = riderData.id || null;
 	        }
         if (!mounted) return;
-        const nextProfile = { ...((profileResult.data || {}) as RiderProfile), ...riderData, application_status: approved ? "approved" : riderData.application_status, vehicle_type: dispatchVehicle, online: effectiveOnline };
+        const profileData = (profileResult.data || {}) as RiderProfile;
+        const appUserData = (appUserResult.data || {}) as RiderProfile & { default_zone?: string | null };
+        const applicationData = (latestApplicationResult.data || {}) as RiderProfile;
+        const nextProfile = {
+          ...profileData,
+          ...riderData,
+          full_name: profileData.full_name || appUserData.full_name || applicationData.full_name || user.user_metadata?.full_name || user.user_metadata?.name || null,
+          phone: profileData.phone || appUserData.phone || applicationData.phone || user.phone || null,
+          email: profileData.email || appUserData.email || applicationData.email || user.email || null,
+          lga: profileData.lga || applicationData.lga || appUserData.default_zone || "Lagos",
+          application_status: approved ? "approved" : riderData.application_status,
+          vehicle_type: dispatchVehicle,
+          online: effectiveOnline
+        };
         setProfile(nextProfile);
         setOnline(Boolean(nextProfile.online));
         setOnlineSince(nextProfile.online ? new Date() : null);
@@ -518,14 +667,14 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
             </div>
             <NotificationBell />
           </header>
-	          {activeTab === "home" ? <HomeTab loading={loading} online={online} elapsed={elapsed} onToggleOnline={toggleOnline} todayEarnings={todayEarnings} profile={profile} incomingJob={incomingJob} incomingExpires={incomingExpires} activeJob={activeJob} recentTrips={recentTrips} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} offerNotice={offerNotice} onStartTracking={startDeliveryTracking} onStopTracking={stopDeliveryTracking} onProofFile={setProofFile} onRespond={respondToJob} onAdvance={advanceJob} /> : null}
+	          {activeTab === "home" ? <HomeTab loading={loading} online={online} elapsed={elapsed} onToggleOnline={toggleOnline} todayEarnings={todayEarnings} profile={profile} incomingJob={incomingJob} incomingExpires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} activeJob={activeJob} recentTrips={recentTrips} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} offerNotice={offerNotice} onStartTracking={startDeliveryTracking} onStopTracking={stopDeliveryTracking} onProofFile={setProofFile} onRespond={respondToJob} onAdvance={advanceJob} /> : null}
           {activeTab === "jobs" ? <JobsTab loading={loading} jobs={jobs} online={online} onToggleOnline={toggleOnline} /> : null}
           {activeTab === "earnings" ? <EarningsTab walletBalance={walletBalance} profile={profile} withdrawals={withdrawals} onOpenWithdrawal={() => setWithdrawalOpen(true)} /> : null}
           {activeTab === "account" ? <AccountTab profile={profile} kycStatus={profile.application_status || initialKycStatus} prefs={prefs} onPrefs={setPrefs} /> : null}
         </main>
       </div>
 	      <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
-	      {online && incomingJob ? <IncomingJobModal job={incomingJob} expires={incomingExpires} onRespond={respondToJob} /> : null}
+	      {online && incomingJob ? <IncomingJobModal job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={respondToJob} /> : null}
 	      {withdrawalOpen ? <WithdrawalModal amount={withdrawalAmount} onAmount={setWithdrawalAmount} profile={profile} loading={withdrawalLoading} message={withdrawalMessage} onClose={() => setWithdrawalOpen(false)} onSubmit={requestWithdrawal} /> : null}
     </section>
   );
@@ -535,7 +684,7 @@ function DesktopNav({ activeTab, onChange }: { activeTab: RiderTab; onChange: (t
   return (
     <aside className="sticky top-0 hidden h-screen border-r border-fleet-line bg-white p-4 lg:block">
       <div className="rounded-fleet bg-fleet-navy p-4 text-white">
-        <span className="text-xl font-black">FastFleet</span>
+        <span className="text-xl font-black">FAST FLEETS360</span>
         <p className="mt-1 text-xs font-semibold text-white/70">Rider app</p>
       </div>
       <nav className="mt-5 grid gap-2">
@@ -559,7 +708,7 @@ function MobileTabs({ activeTab, onChange }: { activeTab: RiderTab; onChange: (t
   );
 }
 
-function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, profile, incomingJob, incomingExpires, activeJob, recentTrips, proofFile, liveLocation, trackingActive, trackingMessage, offerNotice, onStartTracking, onStopTracking, onProofFile, onRespond, onAdvance }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; todayEarnings: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; activeJob: JobRow | null; recentTrips: JobRow[]; proofFile: File | null; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onStartTracking: () => void; onStopTracking: () => void; onProofFile: (file: File | null) => void; onRespond: (job: JobRow, accepted: boolean) => void; onAdvance: (job: JobRow) => void }) {
+function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, recentTrips, proofFile, liveLocation, trackingActive, trackingMessage, offerNotice, onStartTracking, onStopTracking, onProofFile, onRespond, onAdvance }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; todayEarnings: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; recentTrips: JobRow[]; proofFile: File | null; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onStartTracking: () => void; onStopTracking: () => void; onProofFile: (file: File | null) => void; onRespond: (job: JobRow, accepted: boolean) => void; onAdvance: (job: JobRow) => void }) {
   if (loading) return <DashboardSkeleton />;
   return (
     <div className="grid gap-5">
@@ -575,7 +724,7 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, prof
 	        <Stat label="Rating" value={(profile.rating || 4.9).toFixed(1)} />
 	      </div>
 	      {offerNotice ? <div className="rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-800">{offerNotice}</div> : null}
-	      {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
+	      {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
       {activeJob ? <ActiveJob job={activeJob} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} onStartTracking={onStartTracking} onStopTracking={onStopTracking} onProofFile={onProofFile} onAdvance={onAdvance} /> : null}
       <Card className="overflow-hidden p-0">
         <RoutePreview
@@ -583,7 +732,7 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, prof
           className="rounded-none border-0"
           label="Rider live map"
           status={activeJob?.status}
-          riderName={profile.full_name || "FastFleet rider"}
+          riderName={profile.full_name || "FAST FLEETS360 rider"}
           pickupAddress={activeJob?.pickup_address || "Victoria Island, Lagos"}
           dropoffAddress={activeJob?.dropoff_address || "Ikeja GRA, Lagos"}
           riderLocation={liveLocation}
@@ -605,7 +754,7 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, prof
   );
 }
 
-function IncomingJob({ job, expires, onRespond }: { job: JobRow; expires: number; onRespond: (job: JobRow, accepted: boolean) => void }) {
+function IncomingJob({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLocation, onRespond }: { job: JobRow; expires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; liveLocation: LiveRiderLocation | null; onRespond: (job: JobRow, accepted: boolean) => void }) {
   return (
     <Card className="border-fleet-gold p-5">
       <div className="flex items-start justify-between gap-4">
@@ -613,6 +762,7 @@ function IncomingJob({ job, expires, onRespond }: { job: JobRow; expires: number
 	          <StatusBadge tone="amber">Incoming job</StatusBadge>
 	          <h2 className="mt-3 text-2xl font-black text-fleet-night">{job.pickup_address} to {job.dropoff_address}</h2>
 	          <p className="mt-2 text-sm font-semibold text-slate-600">{job.distance_km || 6} km · {formatMoney(job.price_ngn)} estimated earning</p>
+	          <p className="mt-2 inline-flex rounded-fleet bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">{pickupEtaLabel(pickupEtaMinutes, pickupEtaLoading, liveLocation)}</p>
 	          <p className="mt-2 text-sm font-bold text-slate-600">Customer: {job.users?.full_name || "Customer"} · {job.dropoff_contact || job.pickup_contact || job.users?.phone || "Phone pending"}</p>
 	        </div>
 	        <span className="grid h-14 w-14 place-items-center rounded-full border-4 border-fleet-navy text-lg font-black text-fleet-navy">{expires}</span>
@@ -625,11 +775,11 @@ function IncomingJob({ job, expires, onRespond }: { job: JobRow; expires: number
 	  );
 	}
 
-function IncomingJobModal({ job, expires, onRespond }: { job: JobRow; expires: number; onRespond: (job: JobRow, accepted: boolean) => void }) {
+function IncomingJobModal({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLocation, onRespond }: { job: JobRow; expires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; liveLocation: LiveRiderLocation | null; onRespond: (job: JobRow, accepted: boolean) => void }) {
   return (
     <div className="fixed inset-0 z-[110] grid place-items-end bg-fleet-night/35 p-3 sm:place-items-center">
       <div className="w-full max-w-lg">
-        <IncomingJob job={job} expires={expires} onRespond={onRespond} />
+        <IncomingJob job={job} expires={expires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={onRespond} />
       </div>
     </div>
   );

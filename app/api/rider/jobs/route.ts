@@ -11,7 +11,7 @@ const statusFlow: Record<string, DeliveryStatus> = {
 };
 
 const jobSelect =
-  "id, delivery_code, pickup_address, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)";
+  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)";
 
 type JobRow = {
   id: string;
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
 async function updateResponse(supabase: Awaited<ReturnType<typeof createClient>>, id: string) {
   const { data, error } = await supabase
     .from("deliveries")
-    .select("id, delivery_code, pickup_address, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)")
+    .select("id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)")
     .eq("id", id)
     .single();
   if (error) throw error;

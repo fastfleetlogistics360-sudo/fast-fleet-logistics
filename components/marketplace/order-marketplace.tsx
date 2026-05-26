@@ -176,7 +176,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
     <CinematicPageHero
       eyebrow={eyebrow}
       title={title}
-      body={`Choose items, confirm the delivery address, and checkout through FastFleet with transparent fees and Paystack payment flow.`}
+      body={`Choose items, confirm the delivery address, and checkout through FAST FLEETS360 with transparent fees and Paystack payment flow.`}
       image={kind === "restaurant" ? "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=2200&q=84" : "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=2200&q=84"}
     />
     <section className="section-wrap -mt-8 pb-28 sm:-mt-10 sm:pb-12">
@@ -186,7 +186,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Marketplace lane</span>
           <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Pick, pack, and dispatch.</h2>
           <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
-            Open a store, pick items with the plus button, then checkout through Paystack. FastFleet adds {formatMoney(PLATFORM_CHECKOUT_FEE_NGN)} platform fee and {formatMoney(deliveryFee)} delivery fee automatically.
+            Open a store, pick items with the plus button, then checkout through Paystack. FAST FLEETS360 adds {formatMoney(PLATFORM_CHECKOUT_FEE_NGN)} platform fee and {formatMoney(deliveryFee)} delivery fee automatically.
           </p>
           </div>
 

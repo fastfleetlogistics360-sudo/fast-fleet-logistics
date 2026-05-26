@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { LiveOrderTracking, type DeliveryLocation, type TrackingOrder } from "@/components/tracking/live-order-tracking";
 
@@ -37,6 +38,8 @@ type DeliveryRow = {
   } | null;
 };
 
+type RiderProfileRow = NonNullable<DeliveryRow["rider_profiles"]>;
+
 export default async function TrackOrderPage({ params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = await params;
   const supabase = await createClient();
@@ -58,6 +61,19 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
     : await query.eq("delivery_code", orderId.toUpperCase()).maybeSingle<DeliveryRow>();
 
   if (result.error || !result.data) notFound();
+
+  let riderProfile = result.data.rider_profiles;
+  if (result.data.rider_id && !riderProfile?.users?.full_name) {
+    const admin = createAdminClient();
+    if (admin) {
+      const { data } = await admin
+        .from("rider_profiles")
+        .select("plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, email)")
+        .eq("id", result.data.rider_id)
+        .maybeSingle<RiderProfileRow>();
+      riderProfile = data || riderProfile;
+    }
+  }
 
   const { data: location } = await supabase
     .from("delivery_locations")
@@ -84,12 +100,12 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
     updated_at: result.data.updated_at,
     rider_id: result.data.rider_id,
     rider: {
-      full_name: result.data.rider_profiles?.users?.full_name || null,
-      phone: result.data.rider_profiles?.users?.phone || null,
-      email: result.data.rider_profiles?.users?.email || null,
-      vehicle_type: result.data.rider_profiles?.vehicle_type || null,
-      plate_number: result.data.rider_profiles?.plate_number || null,
-      vehicle_color: result.data.rider_profiles?.vehicle_color || null
+      full_name: riderProfile?.users?.full_name || null,
+      phone: riderProfile?.users?.phone || null,
+      email: riderProfile?.users?.email || null,
+      vehicle_type: riderProfile?.vehicle_type || null,
+      plate_number: riderProfile?.plate_number || null,
+      vehicle_color: riderProfile?.vehicle_color || null
     }
   };
 

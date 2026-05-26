@@ -43,7 +43,7 @@ export function AdminLogin() {
             Private command center
           </div>
           <h1 className="mt-6 max-w-2xl text-4xl font-black leading-tight sm:text-6xl">
-            FastFleet admin environment
+            FAST FLEETS360 admin environment
           </h1>
           <p className="mt-5 max-w-xl text-sm font-semibold leading-7 text-white/70">
             Protected access for launch controls, rider reviews, withdrawals, pricing, site operations, and company transaction records.

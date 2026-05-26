@@ -15,7 +15,7 @@ const SPEED_MULTIPLIERS: Record<DeliverySpeed, number> = {
   interstate: 1.92
 };
 
-export const PLATFORM_CHECKOUT_FEE_NGN = 200;
+export const PLATFORM_CHECKOUT_FEE_NGN = 500;
 
 function stableHash(value: string) {
   let hash = 0;

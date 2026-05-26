@@ -341,7 +341,7 @@ export function BusinessRegistrationFlow() {
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Business registration</span>
           <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-5xl">Register your business.</h1>
           <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">
-            This creates a FastFleet business account first, then opens the vendor setup for pickup points, bulk delivery tools, wallet records, and dispatch support.
+            This creates a FAST FLEETS360 business account first, then opens the vendor setup for pickup points, bulk delivery tools, wallet records, and dispatch support.
           </p>
           <div className="mt-5 grid gap-3 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">
             <span>Business dashboard access</span>
@@ -375,8 +375,8 @@ export function BusinessRegistrationFlow() {
         </h1>
         <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
           {registrationStatus === "active"
-            ? "Your business account has been approved by FastFleet operations."
-            : "FastFleet admin will review your business profile. Your dashboard will show pending status until it is approved."}
+            ? "Your business account has been approved by FAST FLEETS360 operations."
+            : "FAST FLEETS360 admin will review your business profile. Your dashboard will show pending status until it is approved."}
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <LinkButton href="/business/dashboard" variant="secondary">
@@ -394,7 +394,7 @@ export function BusinessRegistrationFlow() {
         <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Vendor setup</span>
         <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-5xl">Business dispatch profile.</h1>
         <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">
-          Add your company details so FastFleet can tailor pickup, billing, support, and bulk dispatch workflows.
+          Add your company details so FAST FLEETS360 can tailor pickup, billing, support, and bulk dispatch workflows.
         </p>
         {registrationStatus === "rejected" ? (
           <div className="mt-5 rounded-fleet border border-red-200 bg-red-50 p-4 text-sm font-bold leading-6 text-red-700">

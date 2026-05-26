@@ -1670,6 +1670,22 @@ create policy "Users can read own profile or admins read all"
   on public.users for select
   using (auth.uid() = id or public.current_user_role() = 'admin');
 
+drop policy if exists "Customers read assigned rider user profile" on public.users;
+create policy "Customers read assigned rider user profile"
+  on public.users for select
+  using (
+    auth.uid() = id
+    or public.current_user_role() = 'admin'
+    or exists (
+      select 1
+      from public.deliveries d
+      join public.rider_profiles rp on rp.id = d.rider_id
+      where rp.user_id = users.id
+        and d.customer_id = auth.uid()
+        and d.status in ('accepted', 'rider_arrived', 'picked_up', 'in_transit', 'delivered')
+    )
+  );
+
 drop policy if exists "Users can update own profile" on public.users;
 create policy "Users can update own profile"
   on public.users for update
@@ -1733,6 +1749,20 @@ create policy "Riders manage own rider profile and admins manage all"
   on public.rider_profiles for all
   using (user_id = auth.uid() or public.current_user_role() = 'admin')
   with check (user_id = auth.uid() or public.current_user_role() = 'admin');
+
+drop policy if exists "Customers read assigned rider profile" on public.rider_profiles;
+create policy "Customers read assigned rider profile"
+  on public.rider_profiles for select
+  using (
+    public.current_user_role() = 'admin'
+    or user_id = auth.uid()
+    or exists (
+      select 1 from public.deliveries d
+      where d.rider_id = rider_profiles.id
+        and d.customer_id = auth.uid()
+        and d.status in ('accepted', 'rider_arrived', 'picked_up', 'in_transit', 'delivered')
+    )
+  );
 
 drop policy if exists "Rider applications visible to owner and admins" on public.rider_applications;
 create policy "Rider applications visible to owner and admins"

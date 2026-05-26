@@ -1,6 +1,6 @@
-# FAST FLEET LOGISTICS
+# FAST FLEETS360 LOGISTICS
 
-FAST FLEET LOGISTICS is an on-demand dispatch, courier, and parcel delivery platform for customers, businesses, riders, and fleet partners in Nigeria.
+FAST FLEETS360 LOGISTICS is an on-demand dispatch, courier, and parcel delivery platform for customers, businesses, riders, and fleet partners in Nigeria.
 
 Primary services:
 - Dispatch rider booking for documents, retail parcels, food, grocery, pharmacy, and urgent errands.

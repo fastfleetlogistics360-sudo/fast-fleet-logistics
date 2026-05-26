@@ -449,7 +449,7 @@ const demoDeliveries: AdminDelivery[] = [
     price_ngn: 10850,
     eta_minutes: 22,
     created_at: new Date().toISOString(),
-    users: { full_name: "FastFleet Customer", phone: "+2348000000000", email: "customer@example.com" },
+    users: { full_name: "FAST FLEETS360 Customer", phone: "+2348000000000", email: "customer@example.com" },
     rider_profiles: { users: { full_name: "Tunde Adebayo", phone: "+2348012204410" } }
   }
 ];
@@ -460,7 +460,7 @@ const defaultSiteControls: SiteControls = {
   wallet_topups_enabled: true,
   withdrawals_enabled: true,
   support_status: "open",
-  launch_headline: "FastFleet is live in Lagos and Ogun.",
+  launch_headline: "FAST FLEETS360 is live in Lagos and Ogun.",
   launch_message: "Customers and riders in new states can join the waitlist while operations expand.",
   wallet_policy: {
     min_topup_ngn: 500,
@@ -478,7 +478,7 @@ const demoRiskSignals: RiskSignal[] = [
     details: { reason: "Wallet debit did not match delivery amount" },
     resolved_at: null,
     created_at: new Date().toISOString(),
-    users: { full_name: "FastFleet Customer", email: "customer@example.com", phone: "+2348000000000" },
+    users: { full_name: "FAST FLEETS360 Customer", email: "customer@example.com", phone: "+2348000000000" },
     deliveries: { delivery_code: "FF-240911-02", status: "pending_payment", price_ngn: 12500 }
   }
 ];
@@ -491,7 +491,7 @@ const demoSupportTickets: SupportTicket[] = [
     message: "Customer says Paystack debited them but wallet has not updated.",
     priority: "urgent",
     status: "open",
-    contact_name: "FastFleet Customer",
+    contact_name: "FAST FLEETS360 Customer",
     contact_email: "customer@example.com",
     contact_phone: "+2348000000000",
     created_at: new Date().toISOString(),
@@ -514,7 +514,7 @@ const demoCompanyTransactionLogs: CompanyTransactionLog[] = [
     direction: "income",
     amount_ngn: 486000,
     title: "Same-day delivery collections",
-    counterparty: "FastFleet customers",
+    counterparty: "FAST FLEETS360 customers",
     reference: "DAY-CLOSE",
     payment_method: "Wallet / Paystack",
     status: "cleared",
@@ -1201,7 +1201,7 @@ export function AdminPanel() {
             </Button>
             <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Admin panel</span>
           </div>
-          <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-6xl">Operate FastFleet with confidence.</h1>
+          <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-6xl">Operate FAST FLEETS360 with confidence.</h1>
           <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">
             Monitor riders, deliveries, payouts, pricing, support, fraud signals, zones, and growth metrics from one premium command center.
           </p>

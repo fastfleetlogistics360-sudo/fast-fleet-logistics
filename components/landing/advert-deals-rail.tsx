@@ -21,7 +21,7 @@ const deals = [
   },
   {
     title: "Restaurant orders delivered fast",
-    body: "Order meals, add delivery, and checkout through Paystack with FastFleet handling movement.",
+    body: "Order meals, add delivery, and checkout through Paystack with FAST FLEETS360 handling movement.",
     image: "/hero/customer-control.svg",
     href: "/restaurants",
     cta: "Order food",
@@ -37,7 +37,7 @@ const deals = [
   },
   {
     title: "Drivers earn with every trip",
-    body: "Register, complete KYC, and get reviewed by FastFleet operations before going live.",
+    body: "Register, complete KYC, and get reviewed by FAST FLEETS360 operations before going live.",
     image: "/hero/vehicle-income.svg",
     href: "/rider/onboarding",
     cta: "Drive now",

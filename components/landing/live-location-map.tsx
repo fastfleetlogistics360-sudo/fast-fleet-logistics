@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowRight, Loader2, LocateFixed, MapPin, Navigation, Route, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { formatMoney } from "@/lib/format";
 
 type LocationState = {
@@ -20,7 +21,6 @@ type Coordinates = {
 
 const BASE_DELIVERY_FEE = 1500;
 const EXTRA_KM_FEE = 300;
-const PLATFORM_FEE = 500;
 
 export function LiveLocationMap() {
   const [location, setLocation] = useState<LocationState | null>(null);
@@ -173,7 +173,7 @@ export function LiveLocationMap() {
       setDistanceSource("Calculated with route distance");
     } catch {
       setDistanceKm(fallbackDistance(origin, destination));
-      setDistanceSource("Estimated with FastFleet fallback routing");
+      setDistanceSource("Estimated with FAST FLEETS360 fallback routing");
     } finally {
       setRouteLoading(false);
     }
@@ -311,7 +311,7 @@ export function LiveLocationMap() {
             </div>
             <h3 className="mt-4 text-2xl font-black text-fleet-night">Enable location for accurate delivery booking.</h3>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-              FastFleet uses your location to improve pickup accuracy, live tracking, and delivery fee estimates. Please enable location permission in your browser or app settings.
+              FAST FLEETS360 uses your location to improve pickup accuracy, live tracking, and delivery fee estimates. Please enable location permission in your browser or app settings.
             </p>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Button type="button" onClick={() => requestLocation()} className="flex-1">
@@ -344,8 +344,8 @@ function calculateDeliveryPrice(distanceKm: number) {
 
   return {
     deliveryFee,
-    platformFee: PLATFORM_FEE,
-    total: deliveryFee + PLATFORM_FEE
+    platformFee: PLATFORM_CHECKOUT_FEE_NGN,
+    total: deliveryFee + PLATFORM_CHECKOUT_FEE_NGN
   };
 }
 
