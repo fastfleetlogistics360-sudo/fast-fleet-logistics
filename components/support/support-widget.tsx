@@ -94,7 +94,7 @@ export function SupportWidget() {
           ticket_id: ticket.data.id,
           sender_type: "bot",
           sender_user_id: user?.id,
-          body: selected?.answer || "FAST FLEETS360 support triage started."
+          body: selected?.answer || "Fast Fleets 360 support triage started."
         },
         {
           ticket_id: ticket.data.id,
@@ -128,7 +128,7 @@ export function SupportWidget() {
           <div className="flex items-center justify-between gap-3 border-b border-fleet-line bg-fleet-night px-4 py-3 text-white">
             <span className="flex items-center gap-2 text-sm font-black">
               <Headphones className="h-4 w-4" />
-              FAST FLEETS360 support
+              Fast Fleets 360 support
             </span>
             <button type="button" className="grid h-8 w-8 place-items-center rounded-full bg-white/10" onClick={() => setOpen(false)} aria-label="Close support chat">
               <X className="h-4 w-4" />

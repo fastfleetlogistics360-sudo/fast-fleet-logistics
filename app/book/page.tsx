@@ -76,9 +76,9 @@ function BookingRolloutGate({ state, status }: { state: string; status: string }
             <Sparkles className="h-4 w-4" />
             {launchStatusLabel(status)}
           </span>
-          <h2 className="mt-4 text-3xl font-black leading-tight text-fleet-night sm:text-5xl">FAST FLEETS360 is preparing operations in {state}</h2>
+          <h2 className="mt-4 text-3xl font-black leading-tight text-fleet-night sm:text-5xl">Fast Fleets 360 is preparing operations in {state}</h2>
           <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
-            Your account is ready, but live deliveries open when FAST FLEETS360 activates the {rolloutWaveForState(state, status)} for your area.
+            Your account is ready, but live deliveries open when Fast Fleets 360 activates the {rolloutWaveForState(state, status)} for your area.
           </p>
           <div className="mt-5 flex flex-col gap-3 sm:flex-row">
             <LinkButton href="/dashboard" variant="secondary">Open early-access dashboard</LinkButton>

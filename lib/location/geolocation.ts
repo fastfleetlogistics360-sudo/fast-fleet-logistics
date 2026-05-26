@@ -14,7 +14,7 @@ export async function getLocationPermissionState(): Promise<LocationPermissionSt
 
 export function assertGeolocationReady() {
   if (typeof window !== "undefined" && window.isSecureContext === false) {
-    throw new Error("Location requires HTTPS or localhost. Open FastFleet from the secure app URL.");
+    throw new Error("Location requires HTTPS or localhost. Open Fast Fleets 360 from the secure app URL.");
   }
   if (typeof navigator === "undefined" || !navigator.geolocation) {
     throw new Error("Location access is not enabled on this device.");
@@ -38,13 +38,13 @@ export function geolocationErrorMessage(error: unknown) {
   const code = typeof error === "object" && error && "code" in error ? Number((error as GeolocationPositionError).code) : null;
 
   if (code === 1) {
-    return "Location permission was denied. Enable location access for FastFleet to share live movement.";
+    return "Location permission was denied. Enable location access for Fast Fleets 360 to share live movement.";
   }
   if (code === 2) {
     return "Your device could not find a reliable location. Check GPS/network signal and retry.";
   }
   if (code === 3) {
-    return "Location lookup timed out. FastFleet will retry shortly.";
+    return "Location lookup timed out. Fast Fleets 360 will retry shortly.";
   }
   return error instanceof Error ? error.message : "Could not read your location. Retrying shortly.";
 }

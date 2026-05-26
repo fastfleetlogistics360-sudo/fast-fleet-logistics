@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
+import { normalizeRiderAccountType } from "@/lib/rider-account-type";
 import type { RiderApplicationStatus } from "@/types/domain";
 
 const riderStatuses = new Set(["pending_review", "submitted", "under_review", "approved", "rejected", "more_info_required"]);
@@ -10,6 +11,7 @@ const demoRiders = [
   {
     id: "RP-1001",
     application_status: "submitted",
+    rider_account_type: "independent",
     vehicle_type: "bike",
     plate_number: "LSR-428-QA",
     vehicle_color: "Orange",
@@ -44,7 +46,7 @@ export async function GET() {
   const { data: profileRows, error } = await supabase
     .from("rider_profiles")
     .select(
-      "id, user_id, application_status, vehicle_type, plate_number, vehicle_color, operating_zone, bank_name, account_number, account_name, online, created_at, updated_at, users:users!rider_profiles_user_id_fkey(full_name, phone, email), rider_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)"
+      "id, user_id, application_status, rider_account_type, vehicle_type, plate_number, vehicle_color, operating_zone, bank_name, account_number, account_name, online, created_at, updated_at, users:users!rider_profiles_user_id_fkey(full_name, phone, email), rider_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)"
     )
     .order("created_at", { ascending: false })
     .limit(75);
@@ -69,6 +71,7 @@ export async function GET() {
         application_id: application.id,
         user_id: application.user_id,
         application_status: application.status || profile?.application_status || "pending_review",
+        rider_account_type: profile?.rider_account_type || "independent",
         vehicle_type: application.vehicle_type || profile?.vehicle_type || null,
         plate_number: application.plate_number || profile?.plate_number || null,
         vehicle_color: application.vehicle_color || profile?.vehicle_color || null,
@@ -99,6 +102,7 @@ export async function PATCH(request: Request) {
   const status = String(body.status || "").trim();
   const reason = String(body.reason || "").trim();
   const operatingZone = String(body.operatingZone || body.operating_zone || "").trim();
+  const riderAccountType = normalizeRiderAccountType(body.riderAccountType || body.rider_account_type);
 
   if (!id || !riderStatuses.has(status)) {
     return NextResponse.json({ error: "Choose a rider and a valid review status." }, { status: 400 });
@@ -116,6 +120,7 @@ export async function PATCH(request: Request) {
     application_status: RiderApplicationStatus;
     reviewed_at: string;
     suspension_reason: string | null;
+    rider_account_type?: string;
     operating_zone?: string;
     online?: boolean;
   } = {
@@ -124,13 +129,16 @@ export async function PATCH(request: Request) {
     suspension_reason: status === "rejected" || status === "more_info_required" ? reason : null
   };
   if (operatingZone) patch.operating_zone = operatingZone;
-  if (status === "approved") patch.online = true;
+  if (status === "approved") {
+    patch.online = true;
+    patch.rider_account_type = riderAccountType;
+  }
 
   const { data, error } = await supabase
     .from("rider_profiles")
     .update(patch)
     .eq("id", id)
-    .select("id, user_id, application_status, operating_zone, suspension_reason, reviewed_at")
+    .select("id, user_id, application_status, rider_account_type, operating_zone, suspension_reason, reviewed_at")
     .maybeSingle();
 
   if (error) {
@@ -157,7 +165,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Rider application was not found." }, { status: 404 });
     }
 
-    const riderProfile = await ensureRiderProfileFromApplication(supabase, application, status as RiderApplicationStatus, operatingZone);
+    const riderProfile = await ensureRiderProfileFromApplication(supabase, application, status as RiderApplicationStatus, operatingZone, riderAccountType);
 
     await Promise.allSettled([
       supabase
@@ -174,7 +182,7 @@ export async function PATCH(request: Request) {
       })
     ]);
 
-    return NextResponse.json({ rider: { id: riderProfile?.id || application.id, user_id: application.user_id, application_status: application.status } });
+    return NextResponse.json({ rider: { id: riderProfile?.id || application.id, user_id: application.user_id, application_status: application.status, rider_account_type: riderAccountType } });
   }
 
   await Promise.allSettled([
@@ -213,7 +221,8 @@ async function ensureRiderProfileFromApplication(
     account_name?: string | null;
   },
   status: RiderApplicationStatus,
-  operatingZone: string
+  operatingZone: string,
+  riderAccountType: string
 ) {
   const { data } = await supabase
     .from("rider_profiles")
@@ -221,6 +230,7 @@ async function ensureRiderProfileFromApplication(
       {
         user_id: application.user_id,
         application_status: status,
+        rider_account_type: riderAccountType,
         address: application.lga || operatingZone || null,
         operating_zone: operatingZone || application.lga || null,
         vehicle_type: normalizeDispatchVehicle(application.vehicle_type),

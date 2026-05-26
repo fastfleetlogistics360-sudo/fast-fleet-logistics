@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
-  description: "FAST FLEETS360 Logistics terms covering eligibility, accounts, prohibited items, cancellations, refunds, liability, disputes, and Nigerian governing law."
+  description: "Fast Fleets 360 Logistics terms covering eligibility, accounts, prohibited items, cancellations, refunds, liability, disputes, and Nigerian governing law."
 };
 
 const terms = [
   {
     title: "1. Eligibility",
-    body: "FAST FLEETS360 is available to users who are at least 18 years old, capable of entering a binding agreement, and resident or operating in Nigeria. Riders and business users must provide accurate onboarding, KYC, payout, and operational information before using restricted services."
+    body: "Fast Fleets 360 is available to users who are at least 18 years old, capable of entering a binding agreement, and resident or operating in Nigeria. Riders and business users must provide accurate onboarding, KYC, payout, and operational information before using restricted services."
   },
   {
     title: "2. Account responsibilities",
@@ -16,31 +16,31 @@ const terms = [
   },
   {
     title: "3. Delivery rules",
-    body: "Packages must be lawful, safe, properly packed, and ready at pickup. FAST FLEETS360 may reject, cancel, inspect, delay, or report deliveries where fraud, safety, prohibited items, regulatory issues, or inaccurate information are suspected."
+    body: "Packages must be lawful, safe, properly packed, and ready at pickup. Fast Fleets 360 may reject, cancel, inspect, delay, or report deliveries where fraud, safety, prohibited items, regulatory issues, or inaccurate information are suspected."
   },
   {
     title: "4. Prohibited items",
-    body: "You must not send weapons, ammunition, explosives, illegal drugs, controlled substances without lawful authorisation, stolen items, counterfeit goods, cash bundles, live animals, hazardous chemicals, flammable materials, human remains, pornography involving minors, regulated medical products without approval, or any item prohibited by Nigerian law or FAST FLEETS360 policy."
+    body: "You must not send weapons, ammunition, explosives, illegal drugs, controlled substances without lawful authorisation, stolen items, counterfeit goods, cash bundles, live animals, hazardous chemicals, flammable materials, human remains, pornography involving minors, regulated medical products without approval, or any item prohibited by Nigerian law or Fast Fleets 360 policy."
   },
   {
     title: "5. Cancellation and refunds",
-    body: "A customer may cancel within 5 minutes of booking for a full refund if no rider has picked up the package. After a rider is assigned but before pickup, FAST FLEETS360 may deduct reasonable rider-arrival or processing costs where permitted. After pickup, delivery fees are not refundable except where FAST FLEETS360 confirms a platform-caused failure. Wallet refunds may be returned to the wallet balance or original payment channel depending on the transaction, payment provider timing, and fraud checks."
+    body: "A customer may cancel within 5 minutes of booking for a full refund if no rider has picked up the package. After a rider is assigned but before pickup, Fast Fleets 360 may deduct reasonable rider-arrival or processing costs where permitted. After pickup, delivery fees are not refundable except where Fast Fleets 360 confirms a platform-caused failure. Wallet refunds may be returned to the wallet balance or original payment channel depending on the transaction, payment provider timing, and fraud checks."
   },
   {
     title: "6. Payments and wallets",
-    body: "FAST FLEETS360 may use Paystack and wallet balances to collect delivery fees, top-ups, and payout references. Users are responsible for ensuring payment information and bank details are correct. Rider withdrawals may be reviewed before payout."
+    body: "Fast Fleets 360 may use Paystack and wallet balances to collect delivery fees, top-ups, and payout references. Users are responsible for ensuring payment information and bank details are correct. Rider withdrawals may be reviewed before payout."
   },
   {
     title: "7. Limitation of liability",
-    body: "To the fullest extent permitted by law, FAST FLEETS360 is not liable for indirect, incidental, special, punitive, or consequential losses, including loss of profit, business interruption, missed events, emotional distress, or losses caused by inaccurate sender or recipient information. FAST FLEETS360's aggregate liability for a delivery is limited to the delivery fee paid for that delivery unless Nigerian law requires otherwise."
+    body: "To the fullest extent permitted by law, Fast Fleets 360 is not liable for indirect, incidental, special, punitive, or consequential losses, including loss of profit, business interruption, missed events, emotional distress, or losses caused by inaccurate sender or recipient information. Fast Fleets 360's aggregate liability for a delivery is limited to the delivery fee paid for that delivery unless Nigerian law requires otherwise."
   },
   {
     title: "8. Suspension and termination",
-    body: "FAST FLEETS360 may suspend or terminate accounts that violate these terms, create safety risks, submit false KYC details, misuse wallets, abuse support, commit fraud, or send prohibited items. Users may delete their account in-app from the dashboard account tab."
+    body: "Fast Fleets 360 may suspend or terminate accounts that violate these terms, create safety risks, submit false KYC details, misuse wallets, abuse support, commit fraud, or send prohibited items. Users may delete their account in-app from the dashboard account tab."
   },
   {
     title: "9. Dispute resolution",
-    body: "Users should contact FAST FLEETS360 support first with the order ID, payment reference, and supporting information. If the issue cannot be resolved through support, disputes will proceed to arbitration in Lagos State, Nigeria, unless applicable law requires another forum."
+    body: "Users should contact Fast Fleets 360 support first with the order ID, payment reference, and supporting information. If the issue cannot be resolved through support, disputes will proceed to arbitration in Lagos State, Nigeria, unless applicable law requires another forum."
   },
   {
     title: "10. Governing law",
@@ -48,7 +48,7 @@ const terms = [
   },
   {
     title: "11. Notices and updates",
-    body: "FAST FLEETS360 may update these terms when products, fees, payment providers, safety rules, or legal obligations change. Material updates will be posted in-app or on this page. Questions about these terms, cancellations, refunds, or account closure can be sent to support@fastfleet.com.ng."
+    body: "Fast Fleets 360 may update these terms when products, fees, payment providers, safety rules, or legal obligations change. Material updates will be posted in-app or on this page. Questions about these terms, cancellations, refunds, or account closure can be sent to support@fastfleet.com.ng."
   }
 ];
 
@@ -56,7 +56,7 @@ export default function TermsPage() {
   return (
     <section className="section-wrap py-10">
       <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Terms of Service</span>
-      <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight text-fleet-night sm:text-6xl">The rules for using FAST FLEETS360.</h1>
+      <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight text-fleet-night sm:text-6xl">The rules for using Fast Fleets 360.</h1>
       <p className="mt-4 text-sm font-bold text-slate-500">Effective date: May 22, 2026 · Version 1.0</p>
       <div className="mt-8 grid gap-5">
         {terms.map((term) => (

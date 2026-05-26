@@ -14,7 +14,7 @@ const MainPageSections = dynamic(() => import("@/components/landing/main-page-se
 
 export const metadata: Metadata = {
   title: "Book Same-Day Delivery",
-  description: "Book, track, and manage same-day dispatch deliveries with FAST FLEETS360 across Lagos and Ogun."
+  description: "Book, track, and manage same-day dispatch deliveries with Fast Fleets 360 across Lagos and Ogun."
 };
 
 export default function MainPage() {

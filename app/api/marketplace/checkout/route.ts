@@ -101,7 +101,7 @@ export async function POST(request: Request) {
             actor_id: user.id,
             status: "searching",
             title: "Marketplace order placed",
-            body: "FastFleet is notifying online drivers."
+            body: "Fast Fleets 360 is notifying online drivers."
           });
         }
     } catch {

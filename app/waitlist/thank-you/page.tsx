@@ -27,7 +27,7 @@ export default async function WaitlistThankYouPage({
         </span>
         <h1 className="mt-4 text-3xl font-black leading-tight text-fleet-night sm:text-5xl">Thank you.</h1>
         <p className="mx-auto mt-4 max-w-xl text-sm font-semibold leading-7 text-slate-600 sm:text-base">
-          We will reach out to you via the email provided during registration when FAST FLEETS360 launches in {state}.
+          We will reach out to you via the email provided during registration when Fast Fleets 360 launches in {state}.
         </p>
         <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <LinkButton href="/" variant="secondary">

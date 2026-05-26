@@ -32,7 +32,7 @@ const workflowCards: DescriptionCard[] = [
 export function AppWorkflowCards() {
   return (
     <AnimatedDescriptionCards
-      eyebrow="FAST FLEETS360 app"
+      eyebrow="Fast Fleets 360 app"
       title="Animated delivery cards for every screen."
       body="The public pages now use the same illustrated card language: swipeable on phones, polished and balanced on laptops."
       cards={workflowCards}

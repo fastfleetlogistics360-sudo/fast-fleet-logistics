@@ -9,7 +9,7 @@ export function LiveDashboardPreview() {
         <div className="flex items-center justify-between">
           <div>
             <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Ops console</span>
-            <strong className="mt-1 block text-xl font-black">FAST FLEETS360 Live</strong>
+            <strong className="mt-1 block text-xl font-black">Fast Fleets 360 Live</strong>
           </div>
           <StatusBadge tone="green">Realtime</StatusBadge>
         </div>

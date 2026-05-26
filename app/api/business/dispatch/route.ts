@@ -111,7 +111,7 @@ export async function POST(request: Request) {
         actor_id: user.id,
         status: delivery.status,
         title: "Business dispatch created",
-        body: "Wallet payment received. FastFleet is finding a courier."
+        body: "Wallet payment received. Fast Fleets 360 is finding a courier."
       }),
       supabase.from("notifications").insert({
         user_id: user.id,

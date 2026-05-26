@@ -122,7 +122,7 @@ export async function POST(request: Request) {
         actor_id: user.id,
         status: "searching",
         title: "Payment received",
-        body: "Wallet payment received. FastFleet is notifying online drivers."
+        body: "Wallet payment received. Fast Fleets 360 is notifying online drivers."
       });
 
       return NextResponse.json({

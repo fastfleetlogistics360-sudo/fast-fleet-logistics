@@ -67,7 +67,7 @@ function isValidEmail(value: string) {
 }
 
 export function PhoneAuthForm({
-  title = "Secure FAST FLEETS360 access",
+  title = "Secure Fast Fleets 360 access",
   description = "Sign in with email and password or Google. Your account type is locked when you register.",
   surface = "card",
   className,

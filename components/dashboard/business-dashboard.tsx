@@ -110,7 +110,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
   const [activeTab, setActiveTab] = useState<BusinessTab>("overview");
   const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<BusinessProfile>({ business_name: "FAST FLEETS360 Business", contact_name: "Operations", phone: "+2348012345678" });
+  const [profile, setProfile] = useState<BusinessProfile>({ business_name: "Fast Fleets 360 Business", contact_name: "Operations", phone: "+2348012345678" });
   const [kycStatus, setKycStatus] = useState<BusinessKycStatus>(initialKycStatus);
   const [kycRejectionReason, setKycRejectionReason] = useState<string | null>(initialKycRejectionReason);
   const [walletBalance, setWalletBalance] = useState(0);
@@ -401,12 +401,12 @@ function BusinessMenuDrawer({ open, activeTab, onChange, disabled = false, onClo
         className="absolute bottom-3 left-3 top-3 w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto rounded-fleet border border-fleet-line bg-white p-4 shadow-glow"
         role="dialog"
         aria-modal="true"
-        aria-label="FAST FLEETS360 business app menu"
+        aria-label="Fast Fleets 360 business app menu"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 rounded-fleet bg-fleet-navy p-4 text-white">
           <div>
-            <span className="text-xl font-black">FAST FLEETS360</span>
+            <span className="text-xl font-black">Fast Fleets 360</span>
             <p className="mt-1 text-xs font-semibold text-white/70">Business app</p>
           </div>
           <button type="button" className="inline-grid h-10 w-10 place-items-center rounded-fleet border border-white/15 bg-white/10 text-white" onClick={onClose} aria-label="Close business app menu">
@@ -455,8 +455,8 @@ function BusinessKycStatusView({ loading, profile, status, rejectionReason }: { 
             <h2 className="mt-2 text-3xl font-black text-fleet-night">{rejected ? "KYC rejected" : "KYC pending review"}</h2>
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
               {rejected
-                ? "FAST FLEETS360 admin reviewed your business profile and needs you to correct the details below before resubmitting."
-                : "Your business profile has been submitted. Dispatch tools unlock after FAST FLEETS360 admin approves your KYC."}
+                ? "Fast Fleets 360 admin reviewed your business profile and needs you to correct the details below before resubmitting."
+                : "Your business profile has been submitted. Dispatch tools unlock after Fast Fleets 360 admin approves your KYC."}
             </p>
           </div>
           <StatusBadge tone={rejected ? "red" : "amber"}>{status.replaceAll("_", " ")}</StatusBadge>

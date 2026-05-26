@@ -38,7 +38,7 @@ export default function SupportPage() {
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Support center</span>
           <h2 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Commercial-grade support lanes.</h2>
           <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">
-            Keep route issues, wallet questions, rider applications, delivery proof, and business dispatch requests in one FAST FLEETS360 support flow.
+            Keep route issues, wallet questions, rider applications, delivery proof, and business dispatch requests in one Fast Fleets 360 support flow.
           </p>
         </div>
         <Card>

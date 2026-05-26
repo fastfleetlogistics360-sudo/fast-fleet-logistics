@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeRiderAccountType, type RiderAccountType } from "@/lib/rider-account-type";
 
 const activeStatuses = ["searching", "accepted", "rider_arrived", "picked_up", "in_transit"];
 
@@ -18,6 +19,7 @@ type DeliveryRow = {
     plate_number?: string | null;
     vehicle_type?: string | null;
     vehicle_color?: string | null;
+    rider_account_type?: RiderAccountType | null;
     users?: {
       full_name?: string | null;
       phone?: string | null;
@@ -41,7 +43,7 @@ export async function GET(request: Request) {
   const { data, error } = await supabase
 	    .from("deliveries")
 	    .select(
-	      "id, rider_id, delivery_code, pickup_address, dropoff_address, status, vehicle_type, delivery_speed, price_ngn, eta_minutes, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, email))"
+	      "id, rider_id, delivery_code, pickup_address, dropoff_address, status, vehicle_type, delivery_speed, price_ngn, eta_minutes, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email))"
 	    )
     .eq("delivery_code", code)
     .in("status", activeStatuses)
@@ -92,7 +94,8 @@ export async function GET(request: Request) {
 	        email: data.rider_profiles?.users?.email || null,
 	        vehicle_type: data.rider_profiles?.vehicle_type || null,
 	        plate_number: data.rider_profiles?.plate_number || null,
-	        vehicle_color: data.rider_profiles?.vehicle_color || null
+	        vehicle_color: data.rider_profiles?.vehicle_color || null,
+	        rider_account_type: normalizeRiderAccountType(data.rider_profiles?.rider_account_type)
 	      },
       last_location: lastLocation
     }

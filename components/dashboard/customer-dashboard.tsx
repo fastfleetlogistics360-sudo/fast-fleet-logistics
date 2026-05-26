@@ -7,6 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
+import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -53,6 +54,7 @@ type RiderTrackingDetails = {
   vehicle_type?: string | null;
   plate_number?: string | null;
   vehicle_color?: string | null;
+  rider_account_type?: RiderAccountType | null;
 };
 
 type OrderRow = {
@@ -70,6 +72,7 @@ type OrderRow = {
     plate_number?: string | null;
     vehicle_type?: string | null;
     vehicle_color?: string | null;
+    rider_account_type?: RiderAccountType | null;
     users?: RiderInfo | null;
   } | null;
 };
@@ -106,7 +109,7 @@ const tabs: Array<{ id: CustomerTab; label: string; icon: LucideIcon }> = [
 ];
 
 const fallbackProfile: ProfileRow = {
-  full_name: "FAST FLEETS360 Customer",
+  full_name: "Fast Fleets 360 Customer",
   email: "customer@fastfleet.ng",
   phone: "+2348012345678",
   lga: "Lagos"
@@ -162,6 +165,7 @@ async function enrichOrdersWithRiderDetails(orders: OrderRow[]) {
         plate_number: rider.plate_number || null,
         vehicle_type: rider.vehicle_type || null,
         vehicle_color: rider.vehicle_color || null,
+        rider_account_type: rider.rider_account_type || null,
         users: {
           full_name: rider.full_name || null,
           phone: rider.phone || null,
@@ -222,7 +226,7 @@ export function CustomerDashboard() {
           supabase.from("wallets").select("balance_ngn, locked_balance_ngn, balance").eq("user_id", user.id).maybeSingle(),
           supabase
             .from("deliveries")
-            .select("id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone))")
+            .select("id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone))")
             .eq("customer_id", user.id)
             .order("created_at", { ascending: false })
             .limit(50),
@@ -371,7 +375,7 @@ export function CustomerDashboard() {
       <div className="mx-auto grid max-w-7xl gap-0 lg:grid-cols-[260px_1fr]">
         <DesktopNav activeTab={activeTab} onChange={setActiveTab} />
         <main className="min-w-0 px-4 py-5 sm:px-6 lg:py-8">
-          <DashboardHeader title={`${greetingText}, ${firstName}`} subtitle={stateIsOperational ? `${symbol} Your FAST FLEETS360 mobile workspace is ready.` : `FAST FLEETS360 early-access workspace for ${customerState}.`} />
+          <DashboardHeader title={`${greetingText}, ${firstName}`} subtitle={stateIsOperational ? `${symbol} Your Fast Fleets 360 mobile workspace is ready.` : `Fast Fleets 360 early-access workspace for ${customerState}.`} />
           {activeTab === "home" && !stateIsOperational ? (
             <RolloutStateDashboard profile={profile} state={customerState} status={launchStatus} balance={balance} addresses={addresses} message={waitlistMessage} onNotify={joinStateWaitlist} />
           ) : null}
@@ -425,7 +429,7 @@ function DesktopNav({ activeTab, onChange }: { activeTab: CustomerTab; onChange:
   return (
     <aside className="sticky top-0 hidden h-screen border-r border-fleet-line bg-white p-4 lg:block">
       <div className="rounded-fleet bg-fleet-navy p-4 text-white">
-        <span className="text-xl font-black">FAST FLEETS360</span>
+        <span className="text-xl font-black">Fast Fleets 360</span>
         <p className="mt-1 text-xs font-semibold text-white/70">Customer app</p>
       </div>
       <nav className="mt-5 grid gap-2">
@@ -485,7 +489,7 @@ function RolloutStateDashboard({
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,17,31,0.96),rgba(8,17,31,0.72)),radial-gradient(circle_at_20%_20%,rgba(244,166,42,0.22),transparent_32%)]" />
           <div className="relative z-10 grid min-h-[360px] content-end p-5 sm:p-7">
             <StatusBadge tone="amber">Launching Soon</StatusBadge>
-            <h2 className="mt-4 max-w-3xl text-3xl font-black leading-tight sm:text-5xl">FAST FLEETS360 is preparing operations in {state}</h2>
+            <h2 className="mt-4 max-w-3xl text-3xl font-black leading-tight sm:text-5xl">Fast Fleets 360 is preparing operations in {state}</h2>
             <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/78">
               We&apos;re currently active in Lagos and Ogun State as part of our phased rollout strategy.
               Your account has already been successfully created, and you&apos;ll be among the first users notified once operations begin in your area.
@@ -512,7 +516,7 @@ function RolloutStateDashboard({
       <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
         <Card className="p-4">
           <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Available now</span>
-          <h3 className="mt-2 text-2xl font-black text-fleet-night">Explore FAST FLEETS360 before launch.</h3>
+          <h3 className="mt-2 text-2xl font-black text-fleet-night">Explore Fast Fleets 360 before launch.</h3>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {["Profile management", "Saved addresses", "Wallet preview", "Pricing previews", "Tracking preview", "Support access"].map((item) => (
               <div key={item} className="rounded-fleet border border-white/70 bg-white/65 p-3 text-sm font-black text-fleet-night shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
@@ -538,7 +542,7 @@ function RolloutStateDashboard({
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div>
             <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Account ready</span>
-            <h3 className="mt-1 text-xl font-black text-fleet-night">{profile.full_name || "FAST FLEETS360 Customer"}</h3>
+            <h3 className="mt-1 text-xl font-black text-fleet-night">{profile.full_name || "Fast Fleets 360 Customer"}</h3>
             <p className="mt-1 text-sm font-semibold text-slate-600">{addresses.length} saved address{addresses.length === 1 ? "" : "es"} prepared for launch.</p>
           </div>
           <LinkButton href="/support" variant="secondary">Request early access</LinkButton>
@@ -566,7 +570,7 @@ function RestrictedOperationsPreview({ state, status }: { state: string; status:
         <StatusBadge tone="amber">{launchStatusLabel(status)}</StatusBadge>
         <h2 className="mt-3 text-2xl font-black text-fleet-night">Delivery creation is paused for {state}.</h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-          Your account is active, but live shipments open when FAST FLEETS360 operations launch in your area.
+          Your account is active, but live shipments open when Fast Fleets 360 operations launch in your area.
         </p>
       </Card>
       <div className="grid gap-3 md:grid-cols-3">
@@ -590,7 +594,7 @@ function TrackingPreview({ state }: { state: string }) {
         <h2 className="mt-3 text-2xl font-black text-fleet-night">Live tracking will activate when {state} opens.</h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Preview how rider status, ETA, pickup, and drop-off movement will appear once operations begin.</p>
       </Card>
-      <RoutePreview label="Rollout route preview" status="launching_soon" riderName="FAST FLEETS360 rollout rider" pickupAddress={`${state} pickup zone`} dropoffAddress={`${state} delivery zone`} />
+      <RoutePreview label="Rollout route preview" status="launching_soon" riderName="Fast Fleets 360 rollout rider" pickupAddress={`${state} pickup zone`} dropoffAddress={`${state} delivery zone`} />
     </div>
   );
 }
@@ -709,7 +713,7 @@ function HomeTab({
             ))}
           </div>
         ) : (
-          <DashboardEmptyState title="No promotions yet" body="Fresh offers will appear here when FAST FLEETS360 publishes them." ctaLabel="Book delivery" ctaHref="/book" icon={<Bell className="h-7 w-7" />} />
+          <DashboardEmptyState title="No promotions yet" body="Fresh offers will appear here when Fast Fleets 360 publishes them." ctaLabel="Book delivery" ctaHref="/book" icon={<Bell className="h-7 w-7" />} />
         )}
       </section>
 
@@ -738,6 +742,7 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
 
 function ActiveDeliveryCard({ order, onSelect }: { order: OrderRow; onSelect: () => void }) {
   const riderName = order.rider_profiles?.users?.full_name || "Assigned rider";
+  const riderTag = order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Rider tag pending";
   return (
     <Card className="animate-pulseSoft border-fleet-navy/30 p-4">
       <div className="flex items-center justify-between gap-3">
@@ -746,6 +751,7 @@ function ActiveDeliveryCard({ order, onSelect }: { order: OrderRow; onSelect: ()
           <div>
             <h2 className="text-lg font-black text-fleet-night">{riderName}</h2>
             <p className="text-xs font-bold text-slate-500">{order.rider_profiles?.plate_number || "Plate pending"} · {order.rider_profiles?.vehicle_type || "bike"}</p>
+            <p className="mt-1 text-[0.68rem] font-black uppercase tracking-[0.12em] text-fleet-night">{riderTag}</p>
           </div>
         </div>
         <StatusBadge tone={statusTone(order.status)}>{order.status.replaceAll("_", " ")}</StatusBadge>
@@ -832,7 +838,7 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange }: { o
           />
           <Card className="p-4">
             <h3 className="text-lg font-black text-fleet-night">Rider info</h3>
-            <p className="mt-2 text-sm font-semibold text-slate-600">{order.rider_profiles?.users?.full_name || "Rider pending"} · Rating 4.9 · {order.rider_profiles?.vehicle_type || "bike"}</p>
+            <p className="mt-2 text-sm font-semibold text-slate-600">{order.rider_profiles?.users?.full_name || "Rider pending"} · Rating 4.9 · {order.rider_profiles?.vehicle_type || "bike"} · {order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Rider tag pending"}</p>
             <LinkButton href={`tel:${order.rider_profiles?.users?.phone || ""}`} className="mt-4 w-full">Call rider</LinkButton>
           </Card>
         </>
@@ -884,9 +890,9 @@ function AccountTab({
     <div className="grid gap-5">
       <Card className="p-5">
         <div className="flex items-center gap-4">
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-fleet-navy text-lg font-black text-white">{initials(profile.full_name || "FAST FLEETS360 Customer")}</span>
+          <span className="grid h-16 w-16 place-items-center rounded-full bg-fleet-navy text-lg font-black text-white">{initials(profile.full_name || "Fast Fleets 360 Customer")}</span>
           <div>
-            <h2 className="text-xl font-black text-fleet-night">{profile.full_name || "FAST FLEETS360 Customer"}</h2>
+            <h2 className="text-xl font-black text-fleet-night">{profile.full_name || "Fast Fleets 360 Customer"}</h2>
             <p className="text-sm font-semibold text-slate-500">{profile.email || "No email"} · {profile.phone || "No phone"}</p>
           </div>
         </div>
@@ -972,7 +978,7 @@ function OrderSheet({ order, onClose, onLiveDeliveryChange }: { order: OrderRow;
           ))}
         </div>
         <div className="mt-5 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">
-          Rider: {order.rider_profiles?.users?.full_name || "Pending"} · Plate: {order.rider_profiles?.plate_number || "Pending"}
+          Rider: {order.rider_profiles?.users?.full_name || "Pending"} · Plate: {order.rider_profiles?.plate_number || "Pending"} · {order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Rider tag pending"}
         </div>
         <LinkButton href={`/account/orders/${order.id}/track`} className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night">
           Open live tracking
@@ -1018,7 +1024,7 @@ function DeliveryRouteMap({
       className={className}
       label={label}
       status={delivery?.status || order?.status}
-      riderName={order?.rider_profiles?.users?.full_name || "FAST FLEETS360 rider"}
+      riderName={order?.rider_profiles?.users?.full_name || "Fast Fleets 360 rider"}
       pickupAddress={order?.pickup_address || "Victoria Island, Lagos"}
       dropoffAddress={order?.dropoff_address || "Ikeja GRA, Lagos"}
       riderLocation={riderLocation}

@@ -11,7 +11,7 @@ const demoRiskSignals = [
     details: { reason: "Wallet debit did not match delivery amount" },
     resolved_at: null,
     created_at: new Date().toISOString(),
-    users: { full_name: "FastFleet Customer", email: "customer@example.com", phone: "+2348000000000" },
+    users: { full_name: "Fast Fleets 360 Customer", email: "customer@example.com", phone: "+2348000000000" },
     deliveries: { delivery_code: "FF-240911-02", status: "pending_payment", price_ngn: 12500 }
   }
 ];
@@ -24,7 +24,7 @@ const demoSupportTickets = [
     message: "Customer says Paystack debited them but wallet has not updated.",
     priority: "urgent",
     status: "open",
-    contact_name: "FastFleet Customer",
+    contact_name: "Fast Fleets 360 Customer",
     contact_email: "customer@example.com",
     contact_phone: "+2348000000000",
     created_at: new Date().toISOString(),

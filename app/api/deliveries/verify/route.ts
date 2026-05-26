@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
         actor_id: user.id,
         status: "searching",
         title: "Payment received",
-        body: "Paystack payment confirmed. FastFleet is notifying online drivers."
+        body: "Paystack payment confirmed. Fast Fleets 360 is notifying online drivers."
       });
     }
 

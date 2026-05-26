@@ -11,12 +11,12 @@ export const runtime = "nodejs";
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://fastfleetlogistics.netlify.app"),
   title: {
-    default: "FAST FLEETS360 Logistics",
-    template: "%s | FAST FLEETS360 Logistics"
+    default: "Fast Fleets 360 Logistics",
+    template: "%s | Fast Fleets 360 Logistics"
   },
   description: "Premium logistics marketplace for Lagos and Ogun deliveries, riders, fleets, wallets, and live tracking.",
   keywords: [
-    "FAST FLEETS360 Logistics",
+    "Fast Fleets 360 Logistics",
     "Lagos delivery",
     "Ogun dispatch",
     "courier service Nigeria",
@@ -29,17 +29,17 @@ export const metadata: Metadata = {
     canonical: "/"
   },
   openGraph: {
-    title: "FAST FLEETS360 Logistics",
+    title: "Fast Fleets 360 Logistics",
     description: "Book, track, and manage dispatch deliveries with wallet payments and verified riders.",
     url: "/",
-    siteName: "FAST FLEETS360 Logistics",
-    images: [{ url: "/fastfleet-logo.png", width: 512, height: 512, alt: "FAST FLEETS360 Logistics" }],
+    siteName: "Fast Fleets 360 Logistics",
+    images: [{ url: "/fastfleet-logo.png", width: 512, height: 512, alt: "Fast Fleets 360 Logistics" }],
     locale: "en_NG",
     type: "website"
   },
   twitter: {
     card: "summary_large_image",
-    title: "FAST FLEETS360 Logistics",
+    title: "Fast Fleets 360 Logistics",
     description: "Fast dispatch, verified riders, wallet payments, and live delivery tracking."
   },
   manifest: "/manifest.webmanifest",
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "FAST FLEETS360",
+    title: "Fast Fleets 360",
     statusBarStyle: "black-translucent"
   }
 };
@@ -68,7 +68,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <ThemeScript />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="FAST FLEETS360" />
+        <meta name="apple-mobile-web-app-title" content="Fast Fleets 360" />
         <link rel="apple-touch-icon" href="/icons/icon-180.png" />
         <link rel="apple-touch-startup-image" href="/splash/splash-1170x2532.png" />
       </head>

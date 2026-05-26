@@ -179,6 +179,7 @@ async function ensureApprovedRiderProfile(admin: NonNullable<ReturnType<typeof c
       {
         user_id: application.user_id,
         application_status: "approved",
+        rider_account_type: "independent",
         address: application.lga || null,
         operating_zone: application.lga || null,
         vehicle_type: vehicleType,

@@ -1,4 +1,4 @@
--- FastFleet Logistics Supabase schema
+-- Fast Fleets 360 Logistics Supabase schema
 -- Run in the Supabase SQL editor, then set NEXT_PUBLIC_SUPABASE_URL and
 -- NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local for the Next.js app.
 -- The legacy user_profiles and delivery_orders tables are preserved at the
@@ -191,6 +191,7 @@ create table if not exists public.rider_profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique references public.users(id) on delete cascade,
   application_status public.rider_application_status not null default 'submitted',
+  rider_account_type text not null default 'independent' check (rider_account_type in ('independent', 'fastfleets360')),
   address text,
   operating_zone text,
   vehicle_type public.vehicle_type,
@@ -222,10 +223,16 @@ before update on public.rider_profiles
 for each row execute function public.set_updated_at();
 
 alter table if exists public.rider_profiles
+  add column if not exists rider_account_type text not null default 'independent',
   add column if not exists vehicle_make text,
   add column if not exists vehicle_model text,
   add column if not exists vehicle_year integer,
   add column if not exists bank_code text;
+
+do $$ begin
+  alter table public.rider_profiles add constraint rider_profiles_rider_account_type_check check (rider_account_type in ('independent', 'fastfleets360'));
+exception when duplicate_object then null;
+end $$;
 
 create table if not exists public.rider_documents (
   id uuid primary key default gen_random_uuid(),
@@ -1028,7 +1035,7 @@ begin
   where id = target_delivery.id;
 
   insert into public.delivery_events (delivery_id, actor_id, status, title, body)
-  values (target_delivery.id, target_rider.user_id, 'searching', 'Driver notified', 'FastFleet offered this delivery to a nearby online driver.');
+  values (target_delivery.id, target_rider.user_id, 'searching', 'Driver notified', 'Fast Fleets 360 offered this delivery to a nearby online driver.');
 
   return target_delivery.id;
 end;
@@ -2159,7 +2166,7 @@ values (
     "wallet_topups_enabled": true,
     "withdrawals_enabled": true,
     "support_status": "open",
-    "launch_headline": "FastFleet is live in Lagos and Ogun.",
+    "launch_headline": "Fast Fleets 360 is live in Lagos and Ogun.",
     "launch_message": "Customers and riders in new states can join the waitlist while operations expand.",
     "wallet_policy": {
       "min_topup_ngn": 500,

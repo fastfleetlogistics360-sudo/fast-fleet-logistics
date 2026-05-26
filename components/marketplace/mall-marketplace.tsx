@@ -118,7 +118,7 @@ export function MallMarketplace() {
 
   function askPrice(product: MallProduct, vendor: MallStore, mall: ShoppingMall) {
     const text = encodeURIComponent(
-      `Hello FAST FLEETS360, I want to ask the price of this item.\n\nProduct: ${product.name}\nMall: ${mall.name}\nVendor/store: ${vendor.name}`
+      `Hello Fast Fleets 360, I want to ask the price of this item.\n\nProduct: ${product.name}\nMall: ${mall.name}\nVendor/store: ${vendor.name}`
     );
     window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   }
@@ -192,7 +192,7 @@ export function MallMarketplace() {
         <div className="min-w-0">
           <div className="grid gap-6 lg:grid-cols-[0.82fr_1.18fr] lg:items-end">
             <div>
-              <StatusBadge tone="blue">FAST FLEETS360 Mall</StatusBadge>
+              <StatusBadge tone="blue">Fast Fleets 360 Mall</StatusBadge>
               <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-6xl">Shop malls by store, not generic shelves.</h1>
               <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-slate-600 sm:text-base">
                 Pick a mall, choose a vendor inside it, then add that vendor's products to cart with vendor-specific prices.

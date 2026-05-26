@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 
 export function AdminLogin() {
   const router = useRouter();
-  const [username, setUsername] = useState("FastFleetAdmin");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -43,7 +43,7 @@ export function AdminLogin() {
             Private command center
           </div>
           <h1 className="mt-6 max-w-2xl text-4xl font-black leading-tight sm:text-6xl">
-            FAST FLEETS360 admin environment
+            Fast Fleets 360 admin environment
           </h1>
           <p className="mt-5 max-w-xl text-sm font-semibold leading-7 text-white/70">
             Protected access for launch controls, rider reviews, withdrawals, pricing, site operations, and company transaction records.
@@ -81,7 +81,7 @@ export function AdminLogin() {
               <span className="form-label">Username</span>
               <span className="relative">
                 <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input className="form-input pl-10" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" />
+                <input className="form-input pl-10" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" placeholder="Admin username" />
               </span>
             </label>
             <label className="form-field">

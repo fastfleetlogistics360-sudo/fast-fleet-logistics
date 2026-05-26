@@ -173,7 +173,7 @@ export function LiveLocationMap() {
       setDistanceSource("Calculated with route distance");
     } catch {
       setDistanceKm(fallbackDistance(origin, destination));
-      setDistanceSource("Estimated with FAST FLEETS360 fallback routing");
+      setDistanceSource("Estimated with Fast Fleets 360 fallback routing");
     } finally {
       setRouteLoading(false);
     }
@@ -311,7 +311,7 @@ export function LiveLocationMap() {
             </div>
             <h3 className="mt-4 text-2xl font-black text-fleet-night">Enable location for accurate delivery booking.</h3>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-              FAST FLEETS360 uses your location to improve pickup accuracy, live tracking, and delivery fee estimates. Please enable location permission in your browser or app settings.
+              Fast Fleets 360 uses your location to improve pickup accuracy, live tracking, and delivery fee estimates. Please enable location permission in your browser or app settings.
             </p>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Button type="button" onClick={() => requestLocation()} className="flex-1">

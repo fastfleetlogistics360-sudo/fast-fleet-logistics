@@ -16,7 +16,7 @@ const demoDeliveries = [
     price_ngn: 10850,
     eta_minutes: 22,
     created_at: new Date().toISOString(),
-    users: { full_name: "FastFleet Customer", phone: "+2348000000000", email: "customer@example.com" },
+    users: { full_name: "Fast Fleets 360 Customer", phone: "+2348000000000", email: "customer@example.com" },
     rider_profiles: { users: { full_name: "Tunde Adebayo", phone: "+2348012204410" } }
   }
 ];

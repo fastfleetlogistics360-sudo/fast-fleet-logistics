@@ -14,7 +14,7 @@ type AuthUser = {
 
 export async function upsertRoleProfile(supabase: SupabaseServerClient, user: AuthUser, role: UserRole) {
   const now = new Date().toISOString();
-  const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "FastFleet user";
+  const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "Fast Fleets 360 user";
   const selectedState = role === "customer" ? normalizeState(user.user_metadata?.state || user.user_metadata?.default_zone) || "Lagos" : "Lagos";
 
   await Promise.allSettled([

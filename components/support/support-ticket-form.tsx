@@ -92,7 +92,7 @@ export function SupportTicketForm() {
         </label>
         <label className="form-field sm:col-span-2">
           <span className="form-label">Message</span>
-          <textarea className="form-textarea" value={form.body} onChange={(event) => update("body", event.target.value)} placeholder="How can FAST FLEETS360 help?" />
+          <textarea className="form-textarea" value={form.body} onChange={(event) => update("body", event.target.value)} placeholder="How can Fast Fleets 360 help?" />
         </label>
         {message ? <div className="rounded-fleet bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800 sm:col-span-2">{message}</div> : null}
         <Button className="sm:col-span-2" type="button" onClick={submit} disabled={loading}>

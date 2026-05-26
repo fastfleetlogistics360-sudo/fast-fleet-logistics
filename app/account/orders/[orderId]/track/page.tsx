@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import type { RiderAccountType } from "@/lib/rider-account-type";
 import { LiveOrderTracking, type DeliveryLocation, type TrackingOrder } from "@/components/tracking/live-order-tracking";
 
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ type DeliveryRow = {
     plate_number?: string | null;
     vehicle_type?: string | null;
     vehicle_color?: string | null;
+    rider_account_type?: RiderAccountType | null;
     users?: {
       full_name?: string | null;
       phone?: string | null;
@@ -52,7 +54,7 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
   const query = supabase
     .from("deliveries")
     .select(
-      "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, dropoff_latitude, dropoff_longitude, status, price_ngn, distance_km, eta_minutes, created_at, updated_at, rider_id, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, email))"
+      "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, dropoff_latitude, dropoff_longitude, status, price_ngn, distance_km, eta_minutes, created_at, updated_at, rider_id, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email))"
     )
     .eq("customer_id", user.id);
 
@@ -68,7 +70,7 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
     if (admin) {
       const { data } = await admin
         .from("rider_profiles")
-        .select("plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, email)")
+        .select("plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email)")
         .eq("id", result.data.rider_id)
         .maybeSingle<RiderProfileRow>();
       riderProfile = data || riderProfile;
@@ -105,7 +107,8 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
       email: riderProfile?.users?.email || null,
       vehicle_type: riderProfile?.vehicle_type || null,
       plate_number: riderProfile?.plate_number || null,
-      vehicle_color: riderProfile?.vehicle_color || null
+      vehicle_color: riderProfile?.vehicle_color || null,
+      rider_account_type: riderProfile?.rider_account_type || null
     }
   };
 

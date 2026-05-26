@@ -140,17 +140,17 @@ export function SiteShell({ children }: { children: ReactNode }) {
       {hasSiteChrome ? (
       <header className="sticky top-0 z-50 border-b border-white/10 bg-fleet-night/90 text-white shadow-[0_18px_50px_rgba(8,17,31,0.22)] backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Link href="/" className="flex min-w-0 items-center gap-3" aria-label="FAST FLEETS360 home">
+          <Link href="/" className="flex min-w-0 items-center gap-3" aria-label="Fast Fleets 360 home">
             <Image
               src="/fastfleet-logo.png"
-              alt="FAST FLEETS360 Logistics"
+              alt="Fast Fleets 360 Logistics"
               width={46}
               height={46}
               className="h-11 w-11 rounded-fleet border border-white/15 object-cover shadow-[0_12px_28px_rgba(0,0,0,0.28)]"
               priority
             />
             <span className="grid leading-none">
-              <strong className="text-base font-black text-white sm:text-lg">FAST FLEETS360</strong>
+              <strong className="text-base font-black text-white sm:text-lg">Fast Fleets 360</strong>
               <span className="text-[0.66rem] font-black uppercase tracking-[0.28em] text-fleet-ember">Logistics</span>
             </span>
           </Link>
@@ -311,12 +311,12 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-3">
               <Image
                 src="/fastfleet-logo.png"
-                alt="FAST FLEETS360 Logistics"
+                alt="Fast Fleets 360 Logistics"
                 width={42}
                 height={42}
                 className="h-10 w-10 rounded-fleet object-cover"
               />
-              <strong className="text-lg font-black">FAST FLEETS360 Logistics</strong>
+              <strong className="text-lg font-black">Fast Fleets 360 Logistics</strong>
             </div>
             <p className="mt-4 max-w-sm text-sm font-medium text-white/70">
               Premium dispatch operations for Lagos and Ogun, built for fast booking, trusted riders, and scalable fleet control.

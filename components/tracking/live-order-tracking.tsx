@@ -8,6 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
 import { LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -51,6 +52,7 @@ export type TrackingOrder = {
     vehicle_type?: string | null;
     plate_number?: string | null;
     vehicle_color?: string | null;
+    rider_account_type?: RiderAccountType | null;
   } | null;
 };
 
@@ -153,12 +155,13 @@ export function LiveOrderTracking({
 	      }
 	      const { data } = await supabase
 	        .from("rider_profiles")
-	        .select("plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, email)")
+	        .select("plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email)")
 	        .eq("id", order.rider_id)
 	        .maybeSingle<{
 	          plate_number?: string | null;
 	          vehicle_type?: string | null;
 	          vehicle_color?: string | null;
+	          rider_account_type?: RiderAccountType | null;
 	          users?: { full_name?: string | null; phone?: string | null; email?: string | null } | null;
 	        }>();
 	      if (!mounted || !data) return;
@@ -170,7 +173,8 @@ export function LiveOrderTracking({
 	          email: data.users?.email || null,
 	          vehicle_type: data.vehicle_type || null,
 	          plate_number: data.plate_number || null,
-	          vehicle_color: data.vehicle_color || null
+	          vehicle_color: data.vehicle_color || null,
+	          rider_account_type: data.rider_account_type || null
 	        }
 	      }));
 	    }
@@ -192,6 +196,7 @@ export function LiveOrderTracking({
   }, [dropoff, location?.speed, order.eta_minutes, remainingKm]);
   const stale = location?.updated_at ? Date.now() - new Date(location.updated_at).getTime() > 30000 : !location;
   const riderName = order.rider?.full_name || "Rider pending";
+  const riderTag = order.rider_id ? riderAccountTypeLabel(order.rider?.rider_account_type) : "Rider tag pending";
   const completed = isComplete(order.status);
 
   return (
@@ -244,6 +249,9 @@ export function LiveOrderTracking({
                 <p className="mt-1 text-sm font-semibold text-slate-600">
                   {order.rider?.vehicle_color || "Vehicle"} {order.rider?.vehicle_type || "bike"} · {order.rider?.plate_number || "Plate pending"}
                 </p>
+                <span className="mt-2 inline-flex rounded-fleet bg-fleet-paper px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.12em] text-fleet-night">
+                  {riderTag}
+                </span>
               </div>
             </div>
             <div className="mt-5 grid gap-2">

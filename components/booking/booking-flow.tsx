@@ -235,7 +235,7 @@ export function BookingFlow() {
               value={form.payment}
               options={[
                 { value: "card", label: "Card", body: "Pay securely on Paystack with your debit or credit card." },
-                { value: "wallet", label: "Wallet", body: "Pay from funded FAST FLEETS360 customer balance." },
+                { value: "wallet", label: "Wallet", body: "Pay from funded Fast Fleets 360 customer balance." },
                 { value: "transfer", label: "Transfer", body: "Use Paystack bank transfer and dispatch after confirmation." }
               ]}
               onChange={(value) => update("payment", value as "card" | "wallet" | "transfer")}

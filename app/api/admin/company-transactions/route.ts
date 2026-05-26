@@ -38,7 +38,7 @@ const demoLogs = [
     direction: "income",
     amount_ngn: 486000,
     title: "Same-day delivery collections",
-    counterparty: "FastFleet customers",
+    counterparty: "Fast Fleets 360 customers",
     reference: "DAY-CLOSE",
     payment_method: "Wallet / Paystack",
     status: "cleared",

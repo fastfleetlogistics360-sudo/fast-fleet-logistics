@@ -24,7 +24,7 @@ export const restaurantMenuStorageKey = "fastfleet_restaurant_menu";
 export const defaultRestaurantKitchens: RestaurantKitchen[] = [
   {
     id: "fastfleet-kitchen-partners",
-    name: "FastFleet Kitchen Partners",
+    name: "Fast Fleets 360 Kitchen Partners",
     area: "Lekki",
     address: "14 Admiralty Way, Lekki Phase 1, Lagos",
     description: "Fast lunch portions, smoky grills, and office-friendly rice bowls prepared for dispatch speed.",

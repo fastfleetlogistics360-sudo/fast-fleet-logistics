@@ -52,7 +52,7 @@ export function ChooseAccountTypeForm() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Please sign in again to choose an account type.");
 
-      const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "FAST FLEETS360 user";
+      const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "Fast Fleets 360 user";
       const now = new Date().toISOString();
       const selectedState = selected === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos";
       const [metadataResult, usersResult, profilesResult] = await Promise.allSettled([
@@ -93,7 +93,7 @@ export function ChooseAccountTypeForm() {
   return (
     <Card className="mx-auto max-w-5xl p-5 sm:p-7">
       <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">One last step</span>
-      <h1 className="mt-3 text-3xl font-black text-fleet-night sm:text-5xl">Choose your FAST FLEETS360 account type.</h1>
+      <h1 className="mt-3 text-3xl font-black text-fleet-night sm:text-5xl">Choose your Fast Fleets 360 account type.</h1>
       <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
         This controls which dashboard, permissions, and onboarding flow your OAuth account uses.
       </p>

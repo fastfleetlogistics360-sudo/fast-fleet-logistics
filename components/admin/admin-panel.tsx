@@ -42,6 +42,7 @@ import { defaultLaunchStateRecords, launchStatusLabel, rememberLiveState } from 
 import type { LaunchStateRecord } from "@/lib/launch-states";
 import { formatMoney } from "@/lib/format";
 import { riderReviewLabel } from "@/lib/kyc";
+import { normalizeRiderAccountType, riderAccountTypeLabel, riderAccountTypes, type RiderAccountType } from "@/lib/rider-account-type";
 import {
   defaultRestaurantKitchens,
   normalizeRestaurantKitchens,
@@ -189,6 +190,7 @@ type AdminRiderDocument = {
 type AdminRider = {
   id: string;
   application_status: "pending_review" | "submitted" | "under_review" | "approved" | "rejected" | "more_info_required";
+  rider_account_type?: RiderAccountType | null;
   vehicle_type: string | null;
   plate_number: string | null;
   vehicle_color: string | null;
@@ -449,7 +451,7 @@ const demoDeliveries: AdminDelivery[] = [
     price_ngn: 10850,
     eta_minutes: 22,
     created_at: new Date().toISOString(),
-    users: { full_name: "FAST FLEETS360 Customer", phone: "+2348000000000", email: "customer@example.com" },
+    users: { full_name: "Fast Fleets 360 Customer", phone: "+2348000000000", email: "customer@example.com" },
     rider_profiles: { users: { full_name: "Tunde Adebayo", phone: "+2348012204410" } }
   }
 ];
@@ -460,7 +462,7 @@ const defaultSiteControls: SiteControls = {
   wallet_topups_enabled: true,
   withdrawals_enabled: true,
   support_status: "open",
-  launch_headline: "FAST FLEETS360 is live in Lagos and Ogun.",
+  launch_headline: "Fast Fleets 360 is live in Lagos and Ogun.",
   launch_message: "Customers and riders in new states can join the waitlist while operations expand.",
   wallet_policy: {
     min_topup_ngn: 500,
@@ -478,7 +480,7 @@ const demoRiskSignals: RiskSignal[] = [
     details: { reason: "Wallet debit did not match delivery amount" },
     resolved_at: null,
     created_at: new Date().toISOString(),
-    users: { full_name: "FAST FLEETS360 Customer", email: "customer@example.com", phone: "+2348000000000" },
+    users: { full_name: "Fast Fleets 360 Customer", email: "customer@example.com", phone: "+2348000000000" },
     deliveries: { delivery_code: "FF-240911-02", status: "pending_payment", price_ngn: 12500 }
   }
 ];
@@ -491,7 +493,7 @@ const demoSupportTickets: SupportTicket[] = [
     message: "Customer says Paystack debited them but wallet has not updated.",
     priority: "urgent",
     status: "open",
-    contact_name: "FAST FLEETS360 Customer",
+    contact_name: "Fast Fleets 360 Customer",
     contact_email: "customer@example.com",
     contact_phone: "+2348000000000",
     created_at: new Date().toISOString(),
@@ -514,7 +516,7 @@ const demoCompanyTransactionLogs: CompanyTransactionLog[] = [
     direction: "income",
     amount_ngn: 486000,
     title: "Same-day delivery collections",
-    counterparty: "FAST FLEETS360 customers",
+    counterparty: "Fast Fleets 360 customers",
     reference: "DAY-CLOSE",
     payment_method: "Wallet / Paystack",
     status: "cleared",
@@ -717,26 +719,26 @@ export function AdminPanel() {
     window.history.replaceState(null, "", `#${id}`);
   }
 
-  async function reviewRider(id: string, status: AdminRider["application_status"]) {
+  async function reviewRider(id: string, status: AdminRider["application_status"], riderAccountType?: RiderAccountType, options?: { tagOnly?: boolean }) {
     const current = adminRiders.find((rider) => rider.id === id);
     const reason =
-      status === "rejected" || status === "more_info_required"
+      !options?.tagOnly && (status === "rejected" || status === "more_info_required")
         ? window.prompt("Reason to show the rider:")?.trim()
         : "";
-    if ((status === "rejected" || status === "more_info_required") && !reason) return;
+    if (!options?.tagOnly && (status === "rejected" || status === "more_info_required") && !reason) return;
 
     const operatingZone =
-      status === "approved"
+      status === "approved" && !options?.tagOnly
         ? window.prompt("Confirm or update this rider's operating zone:", current?.operating_zone || "")?.trim()
         : current?.operating_zone || "";
 
-    setBusyAction(`rider:${id}:${status}`);
+    setBusyAction(options?.tagOnly ? `rider:${id}:tag` : `rider:${id}:${status}`);
     setAdminMessage(null);
     try {
       const response = await fetch("/api/admin/riders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status, reason, operatingZone })
+        body: JSON.stringify({ id, status, reason, operatingZone, riderAccountType: riderAccountType || current?.rider_account_type || "independent" })
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Could not update rider review.");
@@ -745,9 +747,17 @@ export function AdminPanel() {
           item.id === id
             ? { ...item, application_status: status, operating_zone: operatingZone || item.operating_zone }
             : item
+        ).map((item) =>
+          item.id === id && status === "approved"
+            ? { ...item, rider_account_type: riderAccountType || item.rider_account_type || "independent" }
+            : item
         )
       );
-      setAdminMessage(`${current?.users?.full_name || "Rider"} KYC status updated to ${riderReviewLabel(status)}.`);
+      setAdminMessage(
+        options?.tagOnly
+          ? `${current?.users?.full_name || "Rider"} tag updated to ${riderAccountTypeLabel(riderAccountType)}.`
+          : `${current?.users?.full_name || "Rider"} KYC status updated to ${riderReviewLabel(status)}.`
+      );
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "Could not update rider review.");
     } finally {
@@ -1201,7 +1211,7 @@ export function AdminPanel() {
             </Button>
             <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Admin panel</span>
           </div>
-          <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-6xl">Operate FAST FLEETS360 with confidence.</h1>
+          <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-6xl">Operate Fast Fleets 360 with confidence.</h1>
           <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">
             Monitor riders, deliveries, payouts, pricing, support, fraud signals, zones, and growth metrics from one premium command center.
           </p>
@@ -1400,7 +1410,7 @@ export function AdminPanel() {
               Admin route: <span className="text-fleet-night">/admin</span>
             </div>
             <div className="rounded-fleet bg-fleet-paper p-3">
-              Username: <span className="text-fleet-night">FastFleetAdmin</span>
+              Username: <span className="text-fleet-night">Configured in environment</span>
             </div>
             <div className="rounded-fleet bg-emerald-50 p-3 text-emerald-800">
               Admin login is separate from customer and driver registration.
@@ -2319,8 +2329,9 @@ function RiderApprovalSection({
 }: {
   riders: AdminRider[];
   busyAction: string | null;
-  onReview: (id: string, status: AdminRider["application_status"]) => void;
+  onReview: (id: string, status: AdminRider["application_status"], riderAccountType?: RiderAccountType, options?: { tagOnly?: boolean }) => void;
 }) {
+  const [accountTypesByRider, setAccountTypesByRider] = useState<Record<string, RiderAccountType>>({});
   return (
     <Card id="rider-approvals" className="scroll-mt-24 overflow-hidden">
       <div className="flex items-center justify-between gap-4 border-b border-fleet-line p-5">
@@ -2339,6 +2350,9 @@ function RiderApprovalSection({
         {riders.map((rider) => {
           const riderName = rider.users?.full_name || rider.users?.phone || "Rider";
           const canAct = rider.application_status !== "approved" && rider.application_status !== "rejected";
+          const canEditTag = rider.application_status !== "rejected";
+          const selectedAccountType = accountTypesByRider[rider.id] || normalizeRiderAccountType(rider.rider_account_type);
+          const tagChanged = selectedAccountType !== normalizeRiderAccountType(rider.rider_account_type);
           return (
             <article key={rider.id} className="rounded-fleet border border-fleet-line bg-white p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2355,6 +2369,29 @@ function RiderApprovalSection({
                   {riderReviewLabel(rider.application_status)}
                 </StatusBadge>
               </div>
+              <div className="mt-3 grid gap-2 rounded-fleet bg-fleet-paper p-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div>
+                  <span className="block text-[0.68rem] font-black uppercase tracking-[0.12em] text-slate-500">Rider account tag</span>
+                  <strong className="mt-1 block text-sm font-black text-fleet-night">{riderAccountTypeLabel(selectedAccountType)}</strong>
+                </div>
+                <select
+                  className="form-input min-h-10 text-sm font-black"
+                  value={selectedAccountType}
+                  disabled={!canEditTag}
+                  onChange={(event) =>
+                    setAccountTypesByRider((current) => ({
+                      ...current,
+                      [rider.id]: normalizeRiderAccountType(event.target.value)
+                    }))
+                  }
+                >
+                  {riderAccountTypes.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {(rider.rider_documents || []).map((doc) => (
                   <span key={doc.id} className="rounded-full bg-fleet-paper px-3 py-1 text-xs font-black capitalize text-slate-600">
@@ -2363,15 +2400,23 @@ function RiderApprovalSection({
                 ))}
               </div>
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                <Button type="button" size="sm" onClick={() => onReview(rider.id, "approved")} disabled={!canAct || busyAction === `rider:${rider.id}:approved`}>
-                  Approve
-                </Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "more_info_required")} disabled={!canAct || busyAction === `rider:${rider.id}:more_info_required`}>
-                  More info
-                </Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "rejected")} disabled={!canAct || busyAction === `rider:${rider.id}:rejected`}>
-                  Reject
-                </Button>
+                {rider.application_status === "approved" ? (
+                  <Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "approved", selectedAccountType, { tagOnly: true })} disabled={!tagChanged || busyAction === `rider:${rider.id}:tag`}>
+                    Save tag
+                  </Button>
+                ) : (
+                  <>
+                    <Button type="button" size="sm" onClick={() => onReview(rider.id, "approved", selectedAccountType)} disabled={!canAct || busyAction === `rider:${rider.id}:approved`}>
+                      Approve
+                    </Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "more_info_required")} disabled={!canAct || busyAction === `rider:${rider.id}:more_info_required`}>
+                      More info
+                    </Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "rejected")} disabled={!canAct || busyAction === `rider:${rider.id}:rejected`}>
+                      Reject
+                    </Button>
+                  </>
+                )}
               </div>
             </article>
           );

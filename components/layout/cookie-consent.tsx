@@ -36,7 +36,7 @@ export function CookieConsent() {
           <Cookie className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <strong className="block text-sm font-black text-fleet-night">FAST FLEETS360 uses cookies and browser storage.</strong>
+          <strong className="block text-sm font-black text-fleet-night">Fast Fleets 360 uses cookies and browser storage.</strong>
           <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
             We use essential storage for sign-in, delivery drafts, wallet preview, theme preference, and dashboard continuity. Read the{" "}
             <Link href="/cookies" className="text-fleet-ember underline">

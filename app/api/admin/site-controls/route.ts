@@ -12,7 +12,7 @@ const defaultControls = {
   wallet_topups_enabled: true,
   withdrawals_enabled: true,
   support_status: "open",
-  launch_headline: "FastFleet is live in Lagos and Ogun.",
+  launch_headline: "Fast Fleets 360 is live in Lagos and Ogun.",
   launch_message: "Customers and riders in new states can join the waitlist while operations expand.",
   wallet_policy: {
     min_topup_ngn: 500,

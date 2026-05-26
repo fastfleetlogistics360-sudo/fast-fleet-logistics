@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { geolocationErrorMessage, getLocationPermissionState, requestCurrentPosition } from "@/lib/location/geolocation";
+import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -43,6 +44,7 @@ type RiderProfile = {
   completed_deliveries?: number | null;
   online?: boolean | null;
   application_status?: KycStatus | null;
+  rider_account_type?: RiderAccountType | null;
 };
 
 type JobRow = {
@@ -98,7 +100,7 @@ export function RiderAccessState({ status, rejectionReason }: { status: KycStatu
         <StatusBadge tone={rejected ? "red" : "amber"} className="mt-5">{rejected ? "Rejected" : "Pending review"}</StatusBadge>
         <h1 className="mt-3 text-3xl font-black text-fleet-night">{rejected ? "Your rider application needs attention" : "Your application is under review"}</h1>
         <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
-          {rejected ? rejectionReason || "FAST FLEETS360 operations rejected this application. Please review the note and re-apply." : "We review rider applications within 48 hours. You will receive an SMS and email when a decision is made."}
+          {rejected ? rejectionReason || "Fast Fleets 360 operations rejected this application. Please review the note and re-apply." : "We review rider applications within 48 hours. You will receive an SMS and email when a decision is made."}
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <LinkButton href="/rider/onboarding">{rejected ? "Re-apply" : "Update application"}</LinkButton>
@@ -449,7 +451,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
           supabase.from("profiles").select("full_name, email, phone, lga").eq("user_id", user.id).maybeSingle(),
           supabase.from("users").select("full_name, email, phone, default_zone").eq("id", user.id).maybeSingle(),
           supabase.from("rider_applications").select("full_name, phone, email, lga").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-          supabase.from("rider_profiles").select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status").eq("user_id", user.id).maybeSingle(),
+          supabase.from("rider_profiles").select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type").eq("user_id", user.id).maybeSingle(),
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle()
         ]);
 	        let riderData = (riderResult.data as RiderProfile | null) || {};
@@ -471,7 +473,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	        if (!riderId && approved) {
 	          const repaired = await supabase
 	            .from("rider_profiles")
-	            .select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status")
+	            .select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type")
 	            .eq("user_id", user.id)
 	            .maybeSingle();
 	          riderData = ((repaired.data as RiderProfile | null) || riderData);
@@ -684,7 +686,7 @@ function DesktopNav({ activeTab, onChange }: { activeTab: RiderTab; onChange: (t
   return (
     <aside className="sticky top-0 hidden h-screen border-r border-fleet-line bg-white p-4 lg:block">
       <div className="rounded-fleet bg-fleet-navy p-4 text-white">
-        <span className="text-xl font-black">FAST FLEETS360</span>
+        <span className="text-xl font-black">Fast Fleets 360</span>
         <p className="mt-1 text-xs font-semibold text-white/70">Rider app</p>
       </div>
       <nav className="mt-5 grid gap-2">
@@ -717,6 +719,7 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, prof
           <span><strong className="block text-2xl font-black">{online ? "Go offline" : "Go online"}</strong><span className="text-sm font-bold">{online ? `Online for ${elapsed}` : "Paused from dispatch"}</span></span>
           {online ? <ToggleRight className="h-12 w-12" /> : <ToggleLeft className="h-12 w-12" />}
         </button>
+        <RiderAccountTypeCard accountType={profile.rider_account_type} />
       </Card>
 	      <div className="grid grid-cols-3 gap-3">
 	        <Stat label="Trips" value={String(profile.completed_deliveries || recentTrips.length)} />
@@ -732,7 +735,7 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, prof
           className="rounded-none border-0"
           label="Rider live map"
           status={activeJob?.status}
-          riderName={profile.full_name || "FAST FLEETS360 rider"}
+          riderName={profile.full_name || "Fast Fleets 360 rider"}
           pickupAddress={activeJob?.pickup_address || "Victoria Island, Lagos"}
           dropoffAddress={activeJob?.dropoff_address || "Ikeja GRA, Lagos"}
           riderLocation={liveLocation}
@@ -774,6 +777,17 @@ function IncomingJob({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLoc
     </Card>
 	  );
 	}
+
+function RiderAccountTypeCard({ accountType }: { accountType?: RiderAccountType | null }) {
+  const label = riderAccountTypeLabel(accountType);
+  const fastFleet = accountType === "fastfleets360";
+  return (
+    <div className={cn("mt-3 inline-flex w-full items-center justify-between gap-3 rounded-fleet border px-3 py-2 text-xs font-black sm:w-auto", fastFleet ? "border-fleet-navy/20 bg-fleet-navy text-white" : "border-amber-200 bg-amber-50 text-amber-800")}>
+      <span className="uppercase tracking-[0.12em]">Rider tag</span>
+      <strong>{label}</strong>
+    </div>
+  );
+}
 
 function IncomingJobModal({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLocation, onRespond }: { job: JobRow; expires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; liveLocation: LiveRiderLocation | null; onRespond: (job: JobRow, accepted: boolean) => void }) {
   return (
