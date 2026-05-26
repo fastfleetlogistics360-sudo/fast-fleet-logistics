@@ -1,0 +1,78 @@
+import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+
+const orderSelectWithRiderTag =
+  "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone))";
+
+const orderSelectWithoutRiderTag =
+  "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone))";
+
+export async function GET() {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Please sign in to load your dashboard." }, { status: 401 });
+    }
+
+    const admin = createAdminClient();
+    const db = admin || supabase;
+
+    const [profileResult, appUserResult, walletResult, orderResult, promotionResult, addressResult] = await Promise.all([
+      db.from("profiles").select("id, full_name, email, phone, avatar_url, lga, kyc_status").eq("user_id", user.id).maybeSingle(),
+      db.from("users").select("default_zone").eq("id", user.id).maybeSingle(),
+      db.from("wallets").select("balance_ngn, locked_balance_ngn, balance").eq("user_id", user.id).maybeSingle(),
+      loadOrders(db, user.id),
+      db.from("promotions").select("id, title, image_url, cta_label, cta_url, active").eq("active", true).order("created_at", { ascending: false }).limit(8),
+      db.from("saved_addresses").select("id, label, address").eq("user_id", user.id).order("created_at", { ascending: false })
+    ]);
+
+    if (orderResult.error) throw orderResult.error;
+    if (promotionResult.error) throw promotionResult.error;
+
+    return NextResponse.json({
+      user: {
+        email: user.email || null,
+        phone: user.phone || null,
+        metadata: user.user_metadata || {}
+      },
+      profile: profileResult.data || null,
+      appUser: appUserResult.data || null,
+      wallet: walletResult.data || null,
+      orders: orderResult.data || [],
+      promotions: promotionResult.data || [],
+      addresses: addressResult.data || []
+    });
+  } catch (error) {
+    return NextResponse.json({ error: readableError(error, "Could not load your dashboard data.") }, { status: 500 });
+  }
+}
+
+async function loadOrders(db: SupabaseClient, userId: string) {
+  const result = await db
+    .from("deliveries")
+    .select(orderSelectWithRiderTag)
+    .eq("customer_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (!result.error || !/rider_account_type/i.test(result.error.message)) return result;
+
+  return db
+    .from("deliveries")
+    .select(orderSelectWithoutRiderTag)
+    .eq("customer_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+}
+
+function readableError(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  return fallback;
+}

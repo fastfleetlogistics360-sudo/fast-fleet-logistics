@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { estimateFare } from "@/lib/fare";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
@@ -66,6 +67,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Add an email address to your account before Paystack checkout." }, { status: 400 });
     }
 
+    const admin = createAdminClient();
+    const db = admin || supabase;
     const code = `FF-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
     const paystackReference = `FFD-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     const metadata = {
@@ -76,7 +79,7 @@ export async function POST(request: Request) {
       paystack_reference: paymentMethod === "wallet" ? null : paystackReference
     };
 
-    const { data: delivery, error: insertError } = await supabase
+    const { data: delivery, error: insertError } = await db
       .from("deliveries")
       .insert({
         delivery_code: code,
@@ -110,14 +113,14 @@ export async function POST(request: Request) {
         }
       });
       if (paymentError) {
-        await supabase.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, wallet_error: paymentError.message } }).eq("id", delivery.id);
+        await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, wallet_error: paymentError.message } }).eq("id", delivery.id);
         return NextResponse.json(
           { error: `${paymentError.message}. Top up your wallet or choose card/transfer instead.` },
           { status: 400 }
         );
       }
 
-      await supabase.from("delivery_events").insert({
+      await db.from("delivery_events").insert({
         delivery_id: delivery.id,
         actor_id: user.id,
         status: "searching",
@@ -135,7 +138,7 @@ export async function POST(request: Request) {
 
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) {
-      await supabase.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, paystack_error: "missing_secret" } }).eq("id", delivery.id);
+      await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, paystack_error: "missing_secret" } }).eq("id", delivery.id);
       return NextResponse.json({ error: "Missing PAYSTACK_SECRET_KEY. Add it before card or transfer checkout." }, { status: 500 });
     }
 
@@ -172,7 +175,7 @@ export async function POST(request: Request) {
     const paystackData = await paystackResponse.json();
 
     if (!paystackResponse.ok || !paystackData.status) {
-      await supabase.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, paystack_error: paystackData.message || "initialize_failed" } }).eq("id", delivery.id);
+      await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, paystack_error: paystackData.message || "initialize_failed" } }).eq("id", delivery.id);
       return NextResponse.json({ error: paystackData.message || "Paystack could not initialize this payment." }, { status: 502 });
     }
 

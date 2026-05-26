@@ -101,6 +101,21 @@ type SavedAddress = {
   address: string;
 };
 
+type CustomerDashboardPayload = {
+  user?: {
+    email?: string | null;
+    phone?: string | null;
+    metadata?: Record<string, unknown>;
+  };
+  profile?: ProfileRow | null;
+  appUser?: { default_zone?: string | null } | null;
+  wallet?: WalletRow | null;
+  orders?: OrderRow[];
+  promotions?: PromotionRow[];
+  addresses?: SavedAddress[];
+  error?: string;
+};
+
 const tabs: Array<{ id: CustomerTab; label: string; icon: LucideIcon }> = [
   { id: "home", label: "Home", icon: Home },
   { id: "orders", label: "Orders", icon: PackageCheck },
@@ -131,6 +146,11 @@ function greeting() {
   if (hour < 12) return { text: "Good morning", symbol: "🌅" };
   if (hour < 17) return { text: "Good afternoon", symbol: "☀️" };
   return { text: "Good evening", symbol: "🌙" };
+}
+
+function stringMetadata(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === "string" ? value : "";
 }
 
 async function enrichOrdersWithRiderDetails(orders: OrderRow[]) {
@@ -214,41 +234,30 @@ export function CustomerDashboard() {
       setLoading(true);
       setLoadError(null);
       try {
-        const supabase = createClient();
-        const {
-          data: { user }
-        } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const [profileResult, appUserResult, walletResult, orderResult, promotionResult, addressResult] = await Promise.all([
-          supabase.from("profiles").select("id, full_name, email, phone, avatar_url, lga, kyc_status").eq("user_id", user.id).maybeSingle(),
-          supabase.from("users").select("default_zone").eq("id", user.id).maybeSingle<{ default_zone?: string | null }>(),
-          supabase.from("wallets").select("balance_ngn, locked_balance_ngn, balance").eq("user_id", user.id).maybeSingle(),
-          supabase
-            .from("deliveries")
-            .select("id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone))")
-            .eq("customer_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(50),
-          supabase.from("promotions").select("id, title, image_url, cta_label, cta_url, active").eq("active", true).order("created_at", { ascending: false }).limit(8),
-          supabase.from("saved_addresses").select("id, label, address").eq("user_id", user.id).order("created_at", { ascending: false })
-        ]);
+        const response = await fetch("/api/customer/dashboard", { cache: "no-store" });
+        const payload = (await response.json().catch(() => ({}))) as CustomerDashboardPayload;
+        if (!response.ok) throw new Error(payload.error || "Could not load your dashboard data.");
 
         if (!mounted) return;
-        const nextProfile = (profileResult.data as ProfileRow | null) || { ...fallbackProfile, email: user.email, phone: user.phone };
-        const selectedState = normalizeState(nextProfile.lga || appUserResult.data?.default_zone || user.user_metadata?.state || user.user_metadata?.default_zone) || "Lagos";
-        setProfile({ ...nextProfile, lga: selectedState, default_zone: appUserResult.data?.default_zone || selectedState });
-        setWallet((walletResult.data as WalletRow | null) || { balance_ngn: 0, locked_balance_ngn: 0 });
+        const nextProfile = payload.profile || { ...fallbackProfile, email: payload.user?.email, phone: payload.user?.phone };
+        const selectedState =
+          normalizeState(
+            nextProfile.lga ||
+              payload.appUser?.default_zone ||
+              stringMetadata(payload.user?.metadata, "state") ||
+              stringMetadata(payload.user?.metadata, "default_zone")
+          ) || "Lagos";
+        setProfile({ ...nextProfile, lga: selectedState, default_zone: payload.appUser?.default_zone || selectedState });
+        setWallet(payload.wallet || { balance_ngn: 0, locked_balance_ngn: 0 });
+        const supabase = createClient();
         const { data: launchRow } = await supabase.from("platform_launch_states").select("status").eq("state", selectedState).maybeSingle<{ status?: string | null }>();
         setLaunchStatus(normalizeLaunchStatus(launchRow?.status || (DEFAULT_LIVE_STATES.includes(selectedState as (typeof DEFAULT_LIVE_STATES)[number]) ? "active" : "waitlist")));
-        if (orderResult.error) throw orderResult.error;
-        if (promotionResult.error) throw promotionResult.error;
-        const mergedOrders = mergeLocalDeliveries((orderResult.data || []) as OrderRow[]);
+        const mergedOrders = mergeLocalDeliveries(payload.orders || []);
         const hydratedOrders = await enrichOrdersWithRiderDetails(mergedOrders);
         if (!mounted) return;
         setOrders(hydratedOrders);
-        setPromotions((promotionResult.data || []) as PromotionRow[]);
-        setAddresses((addressResult.data || []) as SavedAddress[]);
+        setPromotions(payload.promotions || []);
+        setAddresses(payload.addresses || []);
       } catch (error) {
         if (!mounted) return;
         setOrders([]);
