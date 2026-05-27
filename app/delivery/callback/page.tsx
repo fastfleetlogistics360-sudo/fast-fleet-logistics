@@ -9,6 +9,7 @@ import { LinkButton } from "@/components/ui/button";
 
 type VerificationState =
   | { status: "loading"; message: string }
+  | { status: "pending"; message: string; deliveryCode?: string }
   | { status: "success"; message: string; amount?: number; deliveryCode?: string }
   | { status: "error"; message: string };
 
@@ -37,13 +38,28 @@ function DeliveryCallbackContent() {
       return;
     }
 
+    let stopped = false;
+    let attempts = 0;
+
     async function verify() {
       try {
+        attempts += 1;
         const params = new URLSearchParams({ reference: reference || "" });
         if (code) params.set("code", code);
         if (deliveryId) params.set("deliveryId", deliveryId);
         const response = await fetch(`/api/deliveries/verify?${params.toString()}`);
         const data = await response.json();
+        if (response.status === 202) {
+          setState({
+            status: "pending",
+            message: data.message || "Paystack is still confirming this payment. This page will keep checking.",
+            deliveryCode: data.deliveryCode
+          });
+          if (!stopped && attempts < 8) {
+            window.setTimeout(verify, 5000);
+          }
+          return;
+        }
         if (!response.ok) throw new Error(data.error || "Payment verification failed.");
         setState({
           status: "success",
@@ -60,6 +76,9 @@ function DeliveryCallbackContent() {
     }
 
     verify();
+    return () => {
+      stopped = true;
+    };
   }, [code, deliveryId, reference, returnTo]);
 
   const Icon = state.status === "success" ? CheckCircle2 : state.status === "error" ? XCircle : Loader2;
@@ -72,13 +91,13 @@ function DeliveryCallbackContent() {
             state.status === "success" ? "bg-emerald-50 text-emerald-700" : state.status === "error" ? "bg-rose-50 text-rose-700" : "bg-sky-50 text-sky-700"
           }`}
         >
-          <Icon className={`h-8 w-8 ${state.status === "loading" ? "animate-spin" : ""}`} />
+          <Icon className={`h-8 w-8 ${state.status === "loading" || state.status === "pending" ? "animate-spin" : ""}`} />
         </div>
-        <h1 className="mt-5 text-3xl font-black text-fleet-night">{state.status === "success" ? "Delivery paid" : "Delivery payment"}</h1>
+        <h1 className="mt-5 text-3xl font-black text-fleet-night">{state.status === "success" ? "Delivery paid" : state.status === "pending" ? "Payment pending" : "Delivery payment"}</h1>
         <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-7 text-slate-600">
           {state.message}
           {state.status === "success" && state.amount ? ` Amount: ${formatMoney(state.amount)}.` : ""}
-          {state.status === "success" && state.deliveryCode ? ` Code: ${state.deliveryCode}.` : ""}
+          {(state.status === "success" || state.status === "pending") && state.deliveryCode ? ` Code: ${state.deliveryCode}.` : ""}
         </p>
         {reference ? <p className="mt-3 text-xs font-bold text-slate-500">Reference: {reference}</p> : null}
         <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">

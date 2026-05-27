@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { estimateFare } from "@/lib/fare";
+import { createClient } from "@/lib/supabase/server";
 import type { VehicleType } from "@/types/domain";
 
 type BulkRow = {
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
 
     const { data: businessProfile } = await supabase
       .from("business_profiles")
-      .select("registration_status")
+      .select("business_name, registration_status")
       .eq("user_id", user.id)
       .maybeSingle();
     if (businessProfile?.registration_status !== "active") {
@@ -102,6 +103,18 @@ export async function POST(request: Request) {
       channel: "in_app",
       metadata: { count: paidDeliveries.length }
     });
+    await Promise.allSettled(
+      paidDeliveries.map((delivery) =>
+        recordDeliveryIncome({
+          amountNgn: Number(delivery.price_ngn || 0),
+          deliveryCode: delivery.delivery_code,
+          paymentMethod: "wallet",
+          reference: `${delivery.delivery_code}-wallet-checkout`,
+          counterparty: businessProfile?.business_name || user.email || user.id,
+          notes: "Business bulk wallet dispatch payment was recorded automatically."
+        })
+      )
+    );
 
     return NextResponse.json({ deliveries: paidDeliveries });
   } catch (error) {

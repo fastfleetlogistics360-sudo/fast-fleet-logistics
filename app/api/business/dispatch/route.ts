@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { estimateFare } from "@/lib/fare";
+import { createClient } from "@/lib/supabase/server";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
 const vehicleTypes = new Set<VehicleType>(["bike", "car", "van"]);
@@ -122,6 +123,14 @@ export async function POST(request: Request) {
         metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code }
       })
     ]);
+    await recordDeliveryIncome({
+      amountNgn: fare.total,
+      deliveryCode: delivery.delivery_code,
+      paymentMethod: "wallet",
+      reference: `${delivery.delivery_code}-wallet-checkout`,
+      counterparty: businessProfile?.business_name || user.email || user.id,
+      notes: "Business wallet balance was debited for this dispatch."
+    });
 
     return NextResponse.json({ delivery });
   } catch (error) {

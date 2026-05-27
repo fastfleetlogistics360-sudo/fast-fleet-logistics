@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 export async function requireAdminSession() {
   const cookieStore = await cookies();
   if (!isValidAdminSession(cookieStore.get(ADMIN_SESSION_COOKIE)?.value)) return false;
+  if (process.env.FASTFLEET_ADMIN_REQUIRE_SUPABASE_PROFILE !== "true") return true;
+
   const supabase = await createClient();
   const {
     data: { user }

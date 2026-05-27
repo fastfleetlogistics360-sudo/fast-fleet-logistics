@@ -50,6 +50,9 @@ export async function POST(request: Request) {
     if (!items.length || expectedAmount < 1200) {
       return NextResponse.json({ error: "Add at least one item before checkout." }, { status: 400 });
     }
+    if (!payload.address || payload.address.trim().length < 6) {
+      return NextResponse.json({ error: "Enter the delivery street address." }, { status: 400 });
+    }
     if (Number(payload.amount) !== expectedAmount) {
       return NextResponse.json({ error: "Checkout total changed. Refresh and try again." }, { status: 400 });
     }
@@ -78,7 +81,7 @@ export async function POST(request: Request) {
           delivery_code: reference,
           customer_id: user.id,
           pickup_address: pickupAddress,
-          dropoff_address: payload.address || "Customer delivery address",
+          dropoff_address: payload.address,
           pickup_contact: payload.kind === "shopping" ? "Shopping vendor" : "Restaurant vendor",
           dropoff_contact: payload.phone || payload.email,
           parcel_type: payload.kind === "shopping" ? "shopping items" : "food order",
@@ -125,7 +128,7 @@ export async function POST(request: Request) {
           source: "fastfleet_marketplace",
           kind: payload.kind,
           phone: payload.phone || null,
-          delivery_address: payload.address || null,
+          delivery_address: payload.address,
           platform_fee_ngn: platformFee,
           delivery_fee_ngn: deliveryFee,
           items

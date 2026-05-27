@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { LocationPermissionGate } from "@/components/location/location-permission-gate";
 import { SiteShell } from "@/components/layout/site-shell";
 import { PwaRegister } from "@/components/layout/pwa-register";
 
@@ -74,6 +75,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <PwaRegister />
+        <LocationPermissionGate />
         <SiteShell>
           {children}
         </SiteShell>

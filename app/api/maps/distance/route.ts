@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { googleRequestReferer } from "@/lib/maps/google-api";
 
 const googleMapsKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -25,6 +26,9 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?${params.toString()}`, {
+      headers: {
+        Referer: googleRequestReferer(request)
+      },
       next: { revalidate: 60 }
     });
 

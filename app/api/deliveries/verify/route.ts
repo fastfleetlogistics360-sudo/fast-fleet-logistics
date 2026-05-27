@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordDeliveryIncome } from "@/lib/company-ledger";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify";
+const pendingPaystackStatuses = new Set(["ongoing", "pending", "processing", "queued"]);
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,6 +26,8 @@ export async function GET(request: NextRequest) {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in to verify this delivery payment." }, { status: 401 });
+    const admin = createAdminClient();
+    const db = admin || supabase;
 
     const paystackResponse = await fetch(`${PAYSTACK_VERIFY_URL}/${encodeURIComponent(reference)}`, {
       headers: {
@@ -35,7 +40,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: paystackData.message || "Paystack verification failed." }, { status: 502 });
     }
 
-    const query = supabase
+    const query = db
       .from("deliveries")
       .select("id, delivery_code, customer_id, payment_method, price_ngn, status, metadata")
       .eq("customer_id", user.id);
@@ -52,14 +57,27 @@ export async function GET(request: NextRequest) {
     }
 
     if (paystackData.data.status !== "success") {
-      await supabase.from("deliveries").update({
+      const paystackStatus = String(paystackData.data.status || "pending");
+      await db.from("deliveries").update({
         metadata: {
           ...metadata,
-          paystack_status: paystackData.data.status,
+          paystack_status: paystackStatus,
           paystack_gateway_response: paystackData.data.gateway_response
         }
       }).eq("id", delivery.id);
-      return NextResponse.json({ error: `Payment status is ${paystackData.data.status}.` }, { status: 400 });
+      if (pendingPaystackStatuses.has(paystackStatus)) {
+        return NextResponse.json(
+          {
+            reference,
+            deliveryId: delivery.id,
+            deliveryCode: delivery.delivery_code,
+            status: "pending",
+            message: "Paystack is still waiting for this payment to clear."
+          },
+          { status: 202 }
+        );
+      }
+      return NextResponse.json({ error: `Payment status is ${paystackStatus}.` }, { status: 400 });
     }
 
     const amountNgn = Number(paystackData.data.amount) / 100;
@@ -69,7 +87,7 @@ export async function GET(request: NextRequest) {
 
     if (delivery.status !== "searching") {
       const paidAt = paystackData.data.paid_at || new Date().toISOString();
-      const { error: updateError } = await supabase
+      const { error: updateError } = await db
         .from("deliveries")
         .update({
           status: "searching",
@@ -86,7 +104,7 @@ export async function GET(request: NextRequest) {
         .eq("id", delivery.id);
       if (updateError) throw updateError;
 
-      await supabase.from("delivery_events").insert({
+      await db.from("delivery_events").insert({
         delivery_id: delivery.id,
         actor_id: user.id,
         status: "searching",
@@ -94,6 +112,15 @@ export async function GET(request: NextRequest) {
         body: "Paystack payment confirmed. Fast Fleets 360 is notifying online drivers."
       });
     }
+
+    await recordDeliveryIncome({
+      amountNgn,
+      deliveryCode: delivery.delivery_code,
+      paymentMethod: paystackData.data.channel || delivery.payment_method || "paystack",
+      reference,
+      counterparty: user.email || user.id,
+      notes: "Paystack delivery checkout was verified successfully."
+    });
 
     return NextResponse.json({
       deliveryId: delivery.id,

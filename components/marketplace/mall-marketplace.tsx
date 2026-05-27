@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Loader2, MessageCircle, Minus, Plus, ShoppingCart, Store } from "lucide-react";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatMoney } from "@/lib/format";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
@@ -39,7 +40,7 @@ export function MallMarketplace() {
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("Lekki Phase 1, Lagos");
+  const [address, setAddress] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -131,6 +132,10 @@ export function MallMarketplace() {
     }
     if (!email.trim()) {
       setMessage("Enter an email address for Paystack checkout.");
+      return;
+    }
+    if (address.trim().length < 6) {
+      setMessage("Enter the delivery street address.");
       return;
     }
 
@@ -368,7 +373,7 @@ export function MallMarketplace() {
           <div className="mt-5 grid gap-3">
             <input className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email for receipt" type="email" />
             <input className="form-input" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" inputMode="tel" />
-            <textarea className="form-textarea min-h-20" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Delivery address" />
+            <AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} placeholder="Enter recipient street address" />
             <Button type="button" onClick={checkout} disabled={loading || cartItems.length === 0}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
               Checkout Mall Order

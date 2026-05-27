@@ -38,6 +38,7 @@ import {
   X
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from "@/lib/brand-partners";
 import { defaultLaunchStateRecords, launchStatusLabel, rememberLiveState } from "@/lib/launch-states";
 import type { LaunchStateRecord } from "@/lib/launch-states";
 import { formatMoney } from "@/lib/format";
@@ -259,6 +260,7 @@ type SiteControls = {
   support_status: "open" | "priority_only" | "closed";
   launch_headline: string;
   launch_message: string;
+  brand_partners: BrandPartner[];
   wallet_policy: {
     min_topup_ngn: number;
     min_withdrawal_ngn: number;
@@ -464,6 +466,7 @@ const defaultSiteControls: SiteControls = {
   support_status: "open",
   launch_headline: "Fast Fleets 360 is live in Lagos and Ogun.",
   launch_message: "Customers and riders in new states can join the waitlist while operations expand.",
+  brand_partners: defaultBrandPartners,
   wallet_policy: {
     min_topup_ngn: 500,
     min_withdrawal_ngn: 3000,
@@ -471,6 +474,19 @@ const defaultSiteControls: SiteControls = {
     payout_sla_hours: 24
   }
 };
+
+function normalizeSiteControls(value: unknown): SiteControls {
+  const controls = (value || {}) as Partial<SiteControls>;
+  return {
+    ...defaultSiteControls,
+    ...controls,
+    brand_partners: normalizeBrandPartners(controls.brand_partners),
+    wallet_policy: {
+      ...defaultSiteControls.wallet_policy,
+      ...(controls.wallet_policy || {})
+    }
+  };
+}
 
 const demoRiskSignals: RiskSignal[] = [
   {
@@ -666,7 +682,7 @@ export function AdminPanel() {
         const savedLogs = readDemoCompanyLogs();
         setCompanyLogs(companyLogsResult.demo && savedLogs.length > 0 ? savedLogs : companyLogsResult.logs);
       }
-      if (siteControlsResult.controls) setSiteControls(siteControlsResult.controls);
+      if (siteControlsResult.controls) setSiteControls(normalizeSiteControls(siteControlsResult.controls));
       if (Array.isArray(riskSignalsResult.riskSignals)) setRiskSignals(riskSignalsResult.riskSignals);
       if (Array.isArray(riskSignalsResult.supportTickets)) setSupportTickets(riskSignalsResult.supportTickets);
       if (Array.isArray(restaurantsResult.restaurants)) {
@@ -861,7 +877,7 @@ export function AdminPanel() {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Could not save site controls.");
-      setSiteControls(result.controls || siteControls);
+      setSiteControls(normalizeSiteControls(result.controls || siteControls));
       setAdminMessage("Site controls saved. Platform switches and policy settings are ready for your live app to read.");
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "Could not save site controls.");
@@ -2526,6 +2542,32 @@ function SiteControlsSection({
   onSave: () => void;
 }) {
   const saving = busyAction === "site-controls:save";
+  const brandPartners = Array.isArray(controls.brand_partners) ? controls.brand_partners : defaultBrandPartners;
+
+  function updateBrandPartner(id: string, patch: Partial<BrandPartner>) {
+    onChange({
+      brand_partners: brandPartners.map((partner) => (partner.id === id ? { ...partner, ...patch } : partner))
+    });
+  }
+
+  function addBrandPartner() {
+    onChange({
+      brand_partners: [
+        ...brandPartners,
+        {
+          id: `partner-${Date.now()}`,
+          name: "New partner",
+          image: "",
+          active: true
+        }
+      ]
+    });
+  }
+
+  function removeBrandPartner(id: string) {
+    onChange({ brand_partners: brandPartners.filter((partner) => partner.id !== id) });
+  }
+
   return (
     <Card id="site-controls" className="scroll-mt-24 p-5">
       <div className="flex items-center justify-between gap-4">
@@ -2571,6 +2613,49 @@ function SiteControlsSection({
           <span className="form-label">Launch message</span>
           <textarea className="form-input min-h-20" value={controls.launch_message} onChange={(event) => onChange({ launch_message: event.target.value })} />
         </label>
+        <div className="rounded-fleet border border-fleet-line bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <strong className="block text-sm font-black text-fleet-night">Brand partners</strong>
+              <span className="text-xs font-bold text-slate-500">These pictures power the live OUR BRAND PARTNERS section.</span>
+            </div>
+            <Button type="button" size="sm" variant="secondary" onClick={addBrandPartner}>
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
+          </div>
+          <div className="mt-4 grid gap-3">
+            {brandPartners.map((partner) => (
+              <article key={partner.id} className="grid gap-3 rounded-fleet border border-fleet-line bg-fleet-paper p-3">
+                <div className="flex items-center gap-3">
+                  <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-fleet bg-white">
+                    {partner.image ? <img src={partner.image} alt="" className="h-full w-full object-cover" /> : null}
+                  </div>
+                  <label className="flex min-w-0 flex-1 items-center gap-2 text-xs font-black text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={partner.active}
+                      onChange={(event) => updateBrandPartner(partner.id, { active: event.target.checked })}
+                      className="h-4 w-4 accent-fleet-ember"
+                    />
+                    Live
+                  </label>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => removeBrandPartner(partner.id)} aria-label={`Remove ${partner.name}`}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                <label className="form-field">
+                  <span className="form-label">Partner name</span>
+                  <input className="form-input" value={partner.name} onChange={(event) => updateBrandPartner(partner.id, { name: event.target.value })} />
+                </label>
+                <label className="form-field">
+                  <span className="form-label">Image URL</span>
+                  <input className="form-input" value={partner.image} onChange={(event) => updateBrandPartner(partner.id, { image: event.target.value })} placeholder="https://..." />
+                </label>
+              </article>
+            ))}
+          </div>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <AdminNumberInput label="Min top-up" value={controls.wallet_policy.min_topup_ngn} onChange={(value) => onWalletPolicyChange({ min_topup_ngn: value })} />
           <AdminNumberInput label="Min withdrawal" value={controls.wallet_policy.min_withdrawal_ngn} onChange={(value) => onWalletPolicyChange({ min_withdrawal_ngn: value })} />

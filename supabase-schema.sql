@@ -2211,6 +2211,32 @@ values (
     "support_status": "open",
     "launch_headline": "Fast Fleets 360 is live in Lagos and Ogun.",
     "launch_message": "Customers and riders in new states can join the waitlist while operations expand.",
+    "brand_partners": [
+      {
+        "id": "freshmart",
+        "name": "FreshMart",
+        "image": "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=500&q=78",
+        "active": true
+      },
+      {
+        "id": "swiftfoods",
+        "name": "SwiftFoods",
+        "image": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=500&q=78",
+        "active": true
+      },
+      {
+        "id": "medilink",
+        "name": "MediLink",
+        "image": "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=500&q=78",
+        "active": true
+      },
+      {
+        "id": "city-bites",
+        "name": "City Bites",
+        "image": "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=500&q=78",
+        "active": true
+      }
+    ],
     "wallet_policy": {
       "min_topup_ngn": 500,
       "min_withdrawal_ngn": 3000,

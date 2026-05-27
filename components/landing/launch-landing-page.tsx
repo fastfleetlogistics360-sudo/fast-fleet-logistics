@@ -9,6 +9,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Bike, CircleUserRound, LogIn, Play, Store, UserPlus, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AppleIcon, GoogleIcon, InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
+import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from "@/lib/brand-partners";
 
 const PhoneAuthForm = dynamic(() => import("@/components/auth/phone-auth-form").then((mod) => mod.PhoneAuthForm), {
   ssr: false,
@@ -65,41 +66,6 @@ const socialItems = [
   { label: "TikTok", href: "https://www.tiktok.com/@fastfleets360", icon: TikTokIcon }
 ];
 
-const partners = [
-  {
-    name: "FreshMart",
-    image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=500&q=78"
-  },
-  {
-    name: "SwiftFoods",
-    image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=500&q=78"
-  },
-  {
-    name: "MediLink",
-    image: "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=500&q=78"
-  },
-  {
-    name: "City Bites",
-    image: "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=500&q=78"
-  },
-  {
-    name: "ParcelPro",
-    image: "https://images.unsplash.com/photo-1607082349566-187342175e2f?auto=format&fit=crop&w=500&q=78"
-  },
-  {
-    name: "MarketHub",
-    image: "https://images.unsplash.com/photo-1515706886582-54c73c5eaf41?auto=format&fit=crop&w=500&q=78"
-  },
-  {
-    name: "Shop Lagos",
-    image: "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=500&q=78"
-  },
-  {
-    name: "QuickSend",
-    image: "https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?auto=format&fit=crop&w=500&q=78"
-  }
-];
-
 const heroBackgroundImage = "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1500&q=70";
 const heroBlurDataURL =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwMjA2MDgnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yOCcvPjxjaXJjbGUgY3g9JzQnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNDgnLz48L3N2Zz4=";
@@ -108,8 +74,24 @@ const brandLogo = "/brand/fastfleet-logo-2026-header.png";
 export function LaunchLandingPage() {
   const [authIntent, setAuthIntent] = useState<AuthIntent | null>(null);
   const [storePopup, setStorePopup] = useState(false);
+  const [partners, setPartners] = useState<BrandPartner[]>(defaultBrandPartners);
   const reduceMotion = useReducedMotion();
-  const partnerLoop = [...partners, ...partners];
+  const activePartners = partners.filter((partner) => partner.active);
+  const partnerLoop = [...activePartners, ...activePartners];
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/site-controls", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!cancelled) setPartners(normalizeBrandPartners(data.brand_partners));
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <main className="relative isolate min-h-screen overflow-hidden bg-[#020608] text-white">
@@ -246,7 +228,7 @@ export function LaunchLandingPage() {
             <div className="partner-marquee flex w-max gap-3">
               {partnerLoop.map((partner, index) => (
                 <div key={`${partner.name}-${index}`} className="relative h-24 w-40 shrink-0 overflow-hidden rounded-[10px] bg-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] sm:h-28 sm:w-48">
-                  <Image src={partner.image} alt="" fill className="object-cover" sizes="(min-width: 640px) 192px, 160px" quality={58} loading="lazy" />
+                  <img src={partner.image} alt="" className="h-full w-full object-cover" loading="lazy" />
                   <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/80 via-fleet-night/10 to-white/10" />
                   <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/92 px-2 py-1 text-center text-sm font-black text-fleet-night shadow-[0_8px_18px_rgba(0,0,0,0.16)]">
                     {partner.name}

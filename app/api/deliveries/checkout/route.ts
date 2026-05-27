@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { estimateFare } from "@/lib/fare";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -63,7 +64,8 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in before booking delivery." }, { status: 401 });
 
-    const email = user.email || "";
+    const { data: profile } = await supabase.from("users").select("email, phone, full_name").eq("id", user.id).maybeSingle();
+    const email = user.email || profile?.email || "";
     if (paymentMethod !== "wallet" && !email.includes("@")) {
       return NextResponse.json({ error: "Add an email address to your account before Paystack checkout." }, { status: 400 });
     }
@@ -128,6 +130,14 @@ export async function POST(request: Request) {
         title: "Payment received",
         body: "Wallet payment received. Fast Fleets 360 is notifying online drivers."
       });
+      await recordDeliveryIncome({
+        amountNgn: estimate.total,
+        deliveryCode: delivery.delivery_code,
+        paymentMethod: "wallet",
+        reference: `${delivery.delivery_code}-wallet-checkout`,
+        counterparty: profile?.full_name || email || user.id,
+        notes: "Customer wallet balance was debited for this delivery."
+      });
 
       return NextResponse.json({
         deliveryId: delivery.id,
@@ -161,7 +171,6 @@ export async function POST(request: Request) {
         currency: "NGN",
         reference: paystackReference,
         callback_url: callbackUrl.toString(),
-        channels: paymentMethod === "card" ? ["card"] : ["bank_transfer"],
         metadata: {
           source: "booking_checkout",
           delivery_id: delivery.id,
@@ -169,7 +178,8 @@ export async function POST(request: Request) {
           payment_method: paymentMethod,
           pickup_address: pickup,
           dropoff_address: dropoff,
-          customer_phone: String(payload.dropoffContact || payload.pickupContact || "").trim() || null
+          customer_phone: profile?.phone || user.phone || String(payload.dropoffContact || payload.pickupContact || "").trim() || null,
+          customer_name: profile?.full_name || null
         }
       })
     });

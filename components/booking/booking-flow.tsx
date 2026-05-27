@@ -9,6 +9,7 @@ import { formatMoney } from "@/lib/format";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { RoutePreview } from "@/components/maps/route-preview";
 import { StatusBadge } from "@/components/ui/status-badge";
 
@@ -46,9 +47,9 @@ export function BookingFlow() {
   const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
-    pickup: searchParams.get("pickup") || "Victoria Island, Lagos",
+    pickup: searchParams.get("pickup") || "",
     pickupContact: "",
-    dropoff: searchParams.get("dropoff") || "Ikeja GRA, Lagos",
+    dropoff: searchParams.get("dropoff") || "",
     dropoffContact: "",
     parcel: "Retail parcel",
     vehicle: "bike" as VehicleType,
@@ -328,10 +329,7 @@ function AddressStep({
       <span className="grid h-12 w-12 place-items-center rounded-fleet bg-fleet-night text-white">
         <Icon className="h-5 w-5" />
       </span>
-      <label className="form-field">
-        <span className="form-label">{label}</span>
-        <input className="form-input" value={value} onChange={(event) => onValue(event.target.value)} placeholder={placeholder} />
-      </label>
+      <AddressAutocompleteInput label={label} value={value} onChange={onValue} placeholder={placeholder} />
       <label className="form-field">
         <span className="form-label">Contact phone</span>
         <input className="form-input" value={contact} onChange={(event) => onContact(event.target.value)} placeholder="+234..." inputMode="tel" />

@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowRight, Loader2, LocateFixed, MapPin, Navigation, Route, ShieldCheck, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, Loader2, MapPin, Navigation, Route, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { formatMoney } from "@/lib/format";
+import { currentLocationUpdatedEvent, readStoredCurrentLocation, type StoredCurrentLocation } from "@/lib/location/current-location";
 
 type LocationState = {
   latitude: number;
@@ -24,16 +25,14 @@ const EXTRA_KM_FEE = 300;
 
 export function LiveLocationMap() {
   const [location, setLocation] = useState<LocationState | null>(null);
-  const [pickup, setPickup] = useState("Your Location");
-  const [dropoff, setDropoff] = useState("Ikeja GRA, Lagos");
+  const [pickup, setPickup] = useState("");
+  const [dropoff, setDropoff] = useState("");
   const [pickupUsesCurrentLocation, setPickupUsesCurrentLocation] = useState(true);
-  const [loadingLocation, setLoadingLocation] = useState(false);
   const [distanceKm, setDistanceKm] = useState(1);
   const [distanceSource, setDistanceSource] = useState("Waiting for route details");
   const [routeLoading, setRouteLoading] = useState(false);
-  const [locationMessage, setLocationMessage] = useState("Your Location");
-  const [showDeniedModal, setShowDeniedModal] = useState(false);
-  const requestedOnEntry = useRef(false);
+  const [locationMessage, setLocationMessage] = useState("Detecting your address...");
+  const [currentAddress, setCurrentAddress] = useState("");
 
   const pickupCoordinates = pickupUsesCurrentLocation && location ? location : parseCoordinates(pickup);
   const dropoffCoordinates = parseCoordinates(dropoff);
@@ -47,9 +46,22 @@ export function LiveLocationMap() {
       return `https://maps.google.com/maps?saddr=${encodeURIComponent(origin)}&daddr=${encodeURIComponent(destination)}&output=embed`;
     }
 
+    if (pickupCoordinates && dropoff.trim().length > 3) {
+      const origin = `${pickupCoordinates.latitude},${pickupCoordinates.longitude}`;
+      return `https://maps.google.com/maps?saddr=${encodeURIComponent(origin)}&daddr=${encodeURIComponent(dropoff)}&output=embed`;
+    }
+
     if (pickupCoordinates) {
       const query = `${pickupCoordinates.latitude},${pickupCoordinates.longitude}`;
       return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`;
+    }
+
+    if (pickup.trim().length > 3 && dropoff.trim().length > 3) {
+      return `https://maps.google.com/maps?saddr=${encodeURIComponent(pickup)}&daddr=${encodeURIComponent(dropoff)}&output=embed`;
+    }
+
+    if (pickup.trim().length > 3) {
+      return `https://maps.google.com/maps?q=${encodeURIComponent(pickup)}&z=16&output=embed`;
     }
 
     if (dropoff.trim().length > 3) {
@@ -57,34 +69,19 @@ export function LiveLocationMap() {
     }
 
     return null;
-  }, [dropoff, dropoffCoordinates, pickupCoordinates]);
+  }, [dropoff, dropoffCoordinates, pickup, pickupCoordinates]);
 
   useEffect(() => {
-    if (requestedOnEntry.current) return;
-    requestedOnEntry.current = true;
+    const stored = readStoredCurrentLocation();
+    if (stored) applyStoredLocation(stored);
 
-    if (!("geolocation" in navigator)) {
-      setLocationMessage("Your browser does not support live location.");
-      return;
+    function handleLocationUpdate(event: Event) {
+      const nextLocation = (event as CustomEvent<StoredCurrentLocation>).detail;
+      if (nextLocation) applyStoredLocation(nextLocation);
     }
 
-    const permissions = navigator.permissions;
-    if (permissions?.query) {
-      permissions
-        .query({ name: "geolocation" as PermissionName })
-        .then((status) => {
-          if (status.state === "denied") {
-            setShowDeniedModal(true);
-            setLocationMessage("Location permission is blocked.");
-            return;
-          }
-          requestLocation(true);
-        })
-        .catch(() => requestLocation(true));
-      return;
-    }
-
-    requestLocation(true);
+    window.addEventListener(currentLocationUpdatedEvent, handleLocationUpdate);
+    return () => window.removeEventListener(currentLocationUpdatedEvent, handleLocationUpdate);
   }, []);
 
   useEffect(() => {
@@ -109,44 +106,21 @@ export function LiveLocationMap() {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [dropoff, pickup, pickupUsesCurrentLocation, location?.latitude, location?.longitude]);
+  }, [currentAddress, dropoff, pickup, pickupUsesCurrentLocation, location?.latitude, location?.longitude]);
 
-  function requestLocation(automatic = false) {
-    if (!navigator.geolocation) {
-      setLocationMessage("Your browser does not support live location.");
-      return;
-    }
-
-    setLoadingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nextLocation = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy
-        };
-        setLocation(nextLocation);
-        setPickup("Your Location");
-        setPickupUsesCurrentLocation(true);
-        setLocationMessage("Your Location");
-        setShowDeniedModal(false);
-        setLoadingLocation(false);
-      },
-      (error) => {
-        setLoadingLocation(false);
-        if (error.code === error.PERMISSION_DENIED) {
-          setShowDeniedModal(true);
-          setLocationMessage("Location permission is blocked.");
-          return;
-        }
-        setLocationMessage(automatic ? "We could not read your location yet." : "Could not read your location. Try again.");
-      },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-    );
+  function applyStoredLocation(stored: StoredCurrentLocation) {
+    setLocation({
+      latitude: stored.latitude,
+      longitude: stored.longitude,
+      accuracy: stored.accuracy
+    });
+    setCurrentAddress(stored.address);
+    setLocationMessage(stored.address);
+    setPickup((current) => (current.trim() ? current : stored.address));
   }
 
   async function updateDistance() {
-    const origin = pickupCoordinates ? formatCoordinates(pickupCoordinates) : pickup.trim();
+    const origin = pickupUsesCurrentLocation ? (currentAddress || pickup.trim()) : pickup.trim();
     const destination = dropoffCoordinates ? formatCoordinates(dropoffCoordinates) : dropoff.trim();
 
     if (!origin || !destination || destination.length < 3) {
@@ -155,7 +129,7 @@ export function LiveLocationMap() {
       return;
     }
 
-    if (pickupCoordinates && dropoffCoordinates) {
+    if (!currentAddress && pickupCoordinates && dropoffCoordinates) {
       const directDistance = roundDistance(haversineDistanceKm(pickupCoordinates, dropoffCoordinates));
       setDistanceKm(Math.max(1, directDistance));
       setDistanceSource("Calculated from map coordinates");
@@ -179,7 +153,10 @@ export function LiveLocationMap() {
     }
   }
 
-  const bookingHref = `/book?pickup=${encodeURIComponent(pickupUsesCurrentLocation && location ? formatCoordinates(location) : pickup)}&dropoff=${encodeURIComponent(dropoff)}`;
+  const bookingParams = new URLSearchParams();
+  if ((pickupUsesCurrentLocation ? currentAddress || pickup : pickup).trim()) bookingParams.set("pickup", (pickupUsesCurrentLocation ? currentAddress || pickup : pickup).trim());
+  if (dropoff.trim()) bookingParams.set("dropoff", dropoff.trim());
+  const bookingHref = bookingParams.toString() ? `/book?${bookingParams.toString()}` : "/book";
 
   return (
     <section className="bg-white py-7 sm:py-10">
@@ -195,34 +172,24 @@ export function LiveLocationMap() {
             </div>
 
             <div className="mt-4 grid gap-3">
-              <label className="form-field">
-                <span className="form-label">Pickup location</span>
-                <input
-                  className="form-input"
-                  value={pickup}
-                  onChange={(event) => {
-                    setPickup(event.target.value);
-                    setPickupUsesCurrentLocation(false);
-                  }}
-                  placeholder="Pickup address or 6.5244, 3.3792"
-                />
-              </label>
+              <AddressAutocompleteInput
+                label="Pickup address"
+                value={pickup}
+                onChange={(value) => {
+                  setPickup(value);
+                  setPickupUsesCurrentLocation(false);
+                }}
+                placeholder="Enter pickup street address"
+              />
 
-              <label className="form-field">
-                <span className="form-label">Dropoff location</span>
-                <input
-                  className="form-input"
-                  value={dropoff}
-                  onChange={(event) => setDropoff(event.target.value)}
-                  placeholder="Drop-off address or coordinates"
-                />
-              </label>
+              <AddressAutocompleteInput
+                label="Drop-off address"
+                value={dropoff}
+                onChange={setDropoff}
+                placeholder="Enter recipient street address"
+              />
 
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Button type="button" variant="secondary" onClick={() => requestLocation()} disabled={loadingLocation}>
-                  {loadingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-                  Use My Location
-                </Button>
+              <div className="grid gap-2">
                 <Link href={bookingHref} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-fleet border border-transparent bg-fleet-ember px-4 text-sm font-extrabold text-white shadow-[0_16px_32px_rgba(239,108,0,0.2)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#f47e18] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20">
                   Book Delivery
                   <ArrowRight className="h-4 w-4" />
@@ -236,12 +203,7 @@ export function LiveLocationMap() {
                   <Navigation className="h-4 w-4 text-fleet-ember" />
                   {locationMessage}
                 </span>
-                {location ? (
-                  <span className="text-xs font-bold text-slate-500">
-                    {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
-                    {location.accuracy ? ` · ${Math.round(location.accuracy)}m accuracy` : ""}
-                  </span>
-                ) : null}
+                {location?.accuracy ? <span className="text-xs font-bold text-slate-500">{Math.round(location.accuracy)}m accuracy</span> : null}
               </div>
             </div>
           </Card>
@@ -298,33 +260,6 @@ export function LiveLocationMap() {
         </div>
       </div>
 
-      {showDeniedModal ? (
-        <div className="fixed inset-0 z-[120] grid place-items-center bg-fleet-night/70 px-4 py-8 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Location permission warning">
-          <div className="w-full max-w-md rounded-fleet border border-white/20 bg-white p-5 shadow-[0_28px_90px_rgba(0,0,0,0.35)]">
-            <div className="flex items-start justify-between gap-4">
-              <span className="grid h-12 w-12 place-items-center rounded-fleet bg-amber-50 text-amber-700">
-                <AlertTriangle className="h-6 w-6" />
-              </span>
-              <button type="button" onClick={() => setShowDeniedModal(false)} className="grid h-10 w-10 place-items-center rounded-fleet border border-fleet-line text-fleet-night" aria-label="Close location warning">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <h3 className="mt-4 text-2xl font-black text-fleet-night">Enable location for accurate delivery booking.</h3>
-            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-              Fast Fleets 360 uses your location to improve pickup accuracy, live tracking, and delivery fee estimates. Please enable location permission in your browser or app settings.
-            </p>
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <Button type="button" onClick={() => requestLocation()} className="flex-1">
-                <LocateFixed className="h-4 w-4" />
-                Try Again
-              </Button>
-              <Button type="button" variant="secondary" onClick={() => setShowDeniedModal(false)} className="flex-1">
-                Continue manually
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }

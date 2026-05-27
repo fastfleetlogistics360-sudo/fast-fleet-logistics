@@ -16,6 +16,10 @@ export default async function AdminPage() {
   if (!isValidAdminSession(cookieStore.get(ADMIN_SESSION_COOKIE)?.value)) {
     return <AdminLogin />;
   }
+  if (process.env.FASTFLEET_ADMIN_REQUIRE_SUPABASE_PROFILE !== "true") {
+    return <AdminPanel />;
+  }
+
   const supabase = await createClient();
   const {
     data: { user }

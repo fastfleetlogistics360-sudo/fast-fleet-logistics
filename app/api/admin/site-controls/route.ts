@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
+import { defaultBrandPartners, normalizeBrandPartners } from "@/lib/brand-partners";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import type { Json } from "@/lib/supabase/types";
@@ -14,6 +15,7 @@ const defaultControls = {
   support_status: "open",
   launch_headline: "Fast Fleets 360 is live in Lagos and Ogun.",
   launch_message: "Customers and riders in new states can join the waitlist while operations expand.",
+  brand_partners: defaultBrandPartners,
   wallet_policy: {
     min_topup_ngn: 500,
     min_withdrawal_ngn: 3000,
@@ -81,6 +83,7 @@ function parseControls(body: Record<string, unknown>): { controls: typeof defaul
     support_status: supportStatus,
     launch_headline: String(body.launch_headline || "").trim().slice(0, 140) || defaultControls.launch_headline,
     launch_message: String(body.launch_message || "").trim().slice(0, 300) || defaultControls.launch_message,
+    brand_partners: normalizeBrandPartners(body.brand_partners),
     wallet_policy: {
       min_topup_ngn: clampMoney(walletPolicy.min_topup_ngn, 100, 1000000, defaultControls.wallet_policy.min_topup_ngn),
       min_withdrawal_ngn: clampMoney(walletPolicy.min_withdrawal_ngn, 1000, 1000000, defaultControls.wallet_policy.min_withdrawal_ngn),
