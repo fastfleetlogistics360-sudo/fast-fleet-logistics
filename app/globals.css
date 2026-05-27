@@ -17,21 +17,6 @@
   --fleet-grid: rgba(15, 52, 96, 0.08);
 }
 
-html[data-theme="dark"] {
-  color-scheme: dark;
-  --fleet-ink: 246 248 251;
-  --fleet-night: 10 23 40;
-  --fleet-navy: 15 52 96;
-  --fleet-blue: 27 117 187;
-  --fleet-gold: 250 204 93;
-  --fleet-ember: 251 146 60;
-  --fleet-leaf: 52 211 153;
-  --fleet-mint: 25 78 61;
-  --fleet-paper: 8 17 31;
-  --fleet-line: 45 62 84;
-  --fleet-grid: rgba(199, 249, 223, 0.08);
-}
-
 * {
   box-sizing: border-box;
 }
@@ -209,50 +194,6 @@ svg {
   .transport-panel.sm\:p-7,
   .transport-panel.sm\:p-8 {
     padding: 1.1rem;
-  }
-}
-
-@layer base {
-  html[data-theme="dark"] [class~="bg-white"],
-  html[data-theme="dark"] [class~="bg-white/70"],
-  html[data-theme="dark"] [class~="bg-white/80"],
-  html[data-theme="dark"] [class~="bg-white/85"],
-  html[data-theme="dark"] [class~="bg-white/90"],
-  html[data-theme="dark"] [class~="bg-white/92"],
-  html[data-theme="dark"] [class~="bg-[#fffdf4]"],
-  html[data-theme="dark"] [class~="bg-[#fffdf7]"],
-  html[data-theme="dark"] [class~="bg-[#fff8e8]/90"] {
-    background-color: rgba(255, 255, 255, 0.96) !important;
-  }
-
-  html[data-theme="dark"] [class~="bg-fleet-paper"] {
-    background-color: rgba(8, 17, 31, 0.98) !important;
-  }
-
-  html[data-theme="dark"] [class~="text-slate-400"],
-  html[data-theme="dark"] [class~="text-slate-500"],
-  html[data-theme="dark"] [class~="text-slate-600"],
-  html[data-theme="dark"] [class~="text-slate-700"] {
-    color: rgb(71, 84, 103) !important;
-  }
-
-  html[data-theme="dark"] [class~="bg-amber-50"],
-  html[data-theme="dark"] [class~="bg-emerald-50"],
-  html[data-theme="dark"] [class~="bg-rose-50"],
-  html[data-theme="dark"] [class~="bg-red-50"] {
-    background-color: rgba(30, 41, 59, 0.92) !important;
-  }
-
-  html[data-theme="dark"] [class~="border-white/60"],
-  html[data-theme="dark"] [class~="border-white/70"] {
-    border-color: rgba(148, 163, 184, 0.24) !important;
-  }
-
-  html[data-theme="dark"] input,
-  html[data-theme="dark"] select,
-  html[data-theme="dark"] textarea {
-    background-color: rgb(255, 255, 255);
-    color: rgb(10, 23, 40);
   }
 }
 

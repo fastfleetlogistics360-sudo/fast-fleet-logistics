@@ -5,7 +5,7 @@ import type { ChangeEvent, DragEvent, ReactNode } from "react";
 import { Banknote, Bike, Camera, CheckCircle2, FileText, FileUp, IdCard, Loader2, RefreshCcw, ShieldCheck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { uploadRiderDocument } from "@/lib/storage";
+import { uploadProfilePhoto, uploadRiderDocument } from "@/lib/storage";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -324,12 +324,16 @@ export function RiderOnboardingFlow() {
         data: { user }
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Sign in again to upload documents.");
-      const upload = await uploadRiderDocument(user.id, key, file, (progress) => {
+      const onProgress = (progress: number) => {
         setDocs((previous) => ({
           ...previous,
           [key]: { ...(previous[key] || { key, label, name: file.name }), progress }
         }));
-      });
+      };
+      const upload =
+        key === "profile_photo"
+          ? await uploadProfilePhoto(user.id, file, onProgress)
+          : await uploadRiderDocument(user.id, key, file, onProgress);
       setDocs((previous) => ({
         ...previous,
         [key]: { key, label, name: file.name, progress: 100, url: upload.publicUrl, path: upload.path, contentType: upload.type }

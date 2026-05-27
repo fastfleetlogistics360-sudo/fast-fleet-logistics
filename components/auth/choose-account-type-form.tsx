@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Bike, Building2, Loader2, MapPinned, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { roleHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import { roleHome, roleSignupHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
 import { cn } from "@/lib/cn";
 import { initials } from "@/lib/format";
 import { uploadProfilePhoto } from "@/lib/storage";
@@ -88,7 +88,8 @@ export function ChooseAccountTypeForm() {
       const failed = [metadataResult, usersResult, profilesResult].find((result) => result.status === "rejected");
       if (failed?.status === "rejected") throw failed.reason;
 
-      router.replace(safeDashboardRedirectForRole(returnTo || roleHome[selected], selected));
+      const destination = selected === "customer" ? returnTo || roleHome.customer : roleSignupHome[selected];
+      router.replace(safeDashboardRedirectForRole(destination, selected));
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save your account type.");
@@ -157,7 +158,7 @@ export function ChooseAccountTypeForm() {
 
       <Button type="button" className="mt-6 w-full bg-fleet-navy hover:bg-fleet-night" onClick={saveAccountType} disabled={loading || !profilePhotoFile}>
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        Continue to dashboard
+        {selected === "rider" ? "Continue to rider KYC" : selected === "business" ? "Continue to business KYC" : "Continue to dashboard"}
       </Button>
     </Card>
   );

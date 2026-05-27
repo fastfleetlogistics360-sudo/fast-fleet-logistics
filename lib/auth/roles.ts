@@ -7,6 +7,13 @@ export const roleHome: Record<UserRole, string> = {
   admin: "/admin/dashboard"
 };
 
+export const roleSignupHome: Record<UserRole, string> = {
+  customer: "/customer/dashboard",
+  rider: "/rider/onboarding",
+  business: "/business/register",
+  admin: "/admin/dashboard"
+};
+
 export const legacyRoleHome: Record<UserRole, string> = {
   customer: "/dashboard",
   rider: "/rider/dashboard",

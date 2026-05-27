@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Bike, Building2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, MapPinned, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { normalizeRole, parseUserRole, roleHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import { normalizeRole, parseUserRole, roleHome, roleSignupHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
 import type { UserRole } from "@/types/domain";
 import { cn } from "@/lib/cn";
 import { initials } from "@/lib/format";
@@ -96,7 +96,7 @@ export function PhoneAuthForm({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const targetRoleHome = roleHome[role];
-  const signupDestination = mode === "signup" && role === "business" ? "/business/register" : targetRoleHome;
+  const signupDestination = mode === "signup" ? roleSignupHome[role] : targetRoleHome;
   const destination = returnToOverride || returnTo || signupDestination;
   const safeDestination = destination.startsWith("/") && !destination.startsWith("//") ? destination : targetRoleHome;
   const emailValid = isValidEmail(email);

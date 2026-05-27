@@ -2,13 +2,12 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { SiteShell } from "@/components/layout/site-shell";
-import { PageTransition } from "@/components/motion/page-transition";
 import { PwaRegister } from "@/components/layout/pwa-register";
-import { ThemeScript } from "@/components/layout/theme-script";
 
 export const runtime = "nodejs";
 
 const brandLogo = "/brand/fastfleet-logo-2026.png";
+const brandIcon = "/brand/fastfleet-logo-2026-header.png";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://fastfleet.com.ng"),
@@ -46,7 +45,7 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: brandLogo,
+    icon: brandIcon,
     apple: "/icons/icon-180.png"
   },
   appleWebApp: {
@@ -67,7 +66,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <ThemeScript />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Fast Fleets 360" />
@@ -77,7 +75,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <PwaRegister />
         <SiteShell>
-          <PageTransition>{children}</PageTransition>
+          {children}
         </SiteShell>
       </body>
     </html>

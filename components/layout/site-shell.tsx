@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -23,12 +24,12 @@ import type { DashboardMenuItem } from "@/lib/dashboard-menus";
 import { parseUserRole, roleHome } from "@/lib/auth/roles";
 import type { UserRole } from "@/types/domain";
 import { LinkButton } from "@/components/ui/button";
-import { InstagramIcon, LinkedinIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
+import { InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
 import { createClient } from "@/lib/supabase/client";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { SupportWidget } from "@/components/support/support-widget";
-import { CookieConsent } from "@/components/layout/cookie-consent";
+
+const SupportWidget = dynamic(() => import("@/components/support/support-widget").then((mod) => mod.SupportWidget), { ssr: false });
+const CookieConsent = dynamic(() => import("@/components/layout/cookie-consent").then((mod) => mod.CookieConsent), { ssr: false });
 
 const navItems = [
   { href: "/main", label: "Home" },
@@ -42,7 +43,7 @@ const navItems = [
   { href: "/support", label: "Support" }
 ];
 
-const brandLogo = "/brand/fastfleet-logo-2026.png";
+const brandLogo = "/brand/fastfleet-logo-2026-header.png";
 
 const bottomItems: Array<{ href: string; label: string; icon: LucideIcon; activePaths?: string[] }> = [
   { href: "/book", label: "Book", icon: PackageCheck },
@@ -55,8 +56,7 @@ const bottomItems: Array<{ href: string; label: string; icon: LucideIcon; active
 const socialItems: Array<{ href: string; label: string; icon: (props: ComponentPropsWithoutRef<"svg">) => ReactElement; hover: string }> = [
   { href: "https://www.instagram.com/fastfleets360", label: "Instagram", icon: InstagramIcon, hover: "hover:bg-[#E4405F]" },
   { href: "https://x.com/fastfleets360", label: "X", icon: XIcon, hover: "hover:bg-black" },
-  { href: "https://www.tiktok.com/@fastfleets360", label: "TikTok", icon: TikTokIcon, hover: "hover:bg-black" },
-  { href: "https://www.linkedin.com/in/fast-fleets-logistics-3a3094412?utm_source=share_via&utm_content=profile&utm_medium=member_ios", label: "LinkedIn", icon: LinkedinIcon, hover: "hover:bg-[#0A66C2]" }
+  { href: "https://www.tiktok.com/@fastfleets360", label: "TikTok", icon: TikTokIcon, hover: "hover:bg-black" }
 ];
 
 export function SiteShell({ children }: { children: ReactNode }) {
@@ -134,11 +134,6 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={cn("min-h-screen text-fleet-ink", hasSiteChrome ? "site-canvas" : "bg-fleet-paper")}>
-      {isAdminEnvironment ? (
-        <div className="fixed right-4 top-4 z-[90]">
-          <ThemeToggle />
-        </div>
-      ) : null}
       {hasSiteChrome ? (
       <header className="sticky top-0 z-50 border-b border-white/10 bg-fleet-night/90 text-white shadow-[0_18px_50px_rgba(8,17,31,0.22)] backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
@@ -173,7 +168,6 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="hidden items-center gap-2 lg:flex">
-            <ThemeToggle />
             <SmartWalletTopUp />
             {accountName ? (
               <>
@@ -222,7 +216,6 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <div className="sticky top-0 z-10 mb-2 flex items-center justify-between gap-3 rounded-fleet border border-white/10 bg-white/10 p-2">
               <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-gold">Menu</span>
               <div className="flex items-center gap-2">
-                <ThemeToggle />
                 <button
                   type="button"
                   onClick={() => setOpen(false)}

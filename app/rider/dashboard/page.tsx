@@ -57,6 +57,7 @@ export default async function RiderDashboardPage() {
   const status = rawStatus === "submitted" || rawStatus === "under_review" ? "pending_review" : rawStatus;
   const rejectionReason = applicationResult.data?.rejection_reason || riderProfileResult.data?.suspension_reason || null;
 
+  if (!applicationResult.data && !riderProfileResult.data) redirect("/rider/onboarding");
   if (status !== "approved") return <RiderAccessState status={status} rejectionReason={rejectionReason} />;
   await ensureDispatchProfileForApprovedRider(user.id, applicationResult.data, riderProfileResult.data);
   return <RiderDashboard initialKycStatus="approved" />;

@@ -296,12 +296,39 @@ create table if not exists public.rider_applications (
 
 alter table if exists public.rider_applications
   add column if not exists rider_id uuid references public.profiles(id) on delete cascade,
+  add column if not exists full_name text,
+  add column if not exists phone text,
+  add column if not exists email text,
+  add column if not exists lga text,
+  add column if not exists vehicle_type text,
+  add column if not exists vehicle_make text,
+  add column if not exists vehicle_model text,
+  add column if not exists vehicle_year integer,
+  add column if not exists plate_number text,
+  add column if not exists vehicle_color text,
+  add column if not exists government_id_type text,
+  add column if not exists bank_name text,
+  add column if not exists bank_code text,
+  add column if not exists account_number text,
+  add column if not exists account_name text,
   add column if not exists nin_url text,
   add column if not exists licence_url text,
   add column if not exists vehicle_reg_url text,
   add column if not exists insurance_url text,
   add column if not exists guarantor_url text,
-  add column if not exists rejection_reason text;
+  add column if not exists rejection_reason text,
+  add column if not exists documents jsonb not null default '[]'::jsonb,
+  add column if not exists agreement_accepted_at timestamptz not null default now(),
+  add column if not exists reviewed_by uuid references public.users(id),
+  add column if not exists reviewed_at timestamptz;
+
+do $$ begin
+  alter table public.rider_applications drop constraint if exists rider_applications_status_check;
+  alter table public.rider_applications
+    add constraint rider_applications_status_check
+    check (status in ('pending_review', 'submitted', 'under_review', 'approved', 'rejected', 'more_info_required'));
+exception when undefined_table then null;
+end $$;
 
 alter table if exists public.rider_applications
   drop column if exists bvn_encrypted,

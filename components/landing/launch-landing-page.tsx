@@ -8,7 +8,7 @@ import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Bike, CircleUserRound, LogIn, Play, Store, UserPlus, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { AppleIcon, GoogleIcon, InstagramIcon, LinkedinIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
+import { AppleIcon, GoogleIcon, InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 
 const PhoneAuthForm = dynamic(() => import("@/components/auth/phone-auth-form").then((mod) => mod.PhoneAuthForm), {
   ssr: false,
@@ -62,8 +62,7 @@ const actionItems: ActionItemConfig[] = [
 const socialItems = [
   { label: "Instagram", href: "https://www.instagram.com/fastfleets360", icon: InstagramIcon },
   { label: "X", href: "https://x.com/fastfleets360", icon: XIcon },
-  { label: "TikTok", href: "https://www.tiktok.com/@fastfleets360", icon: TikTokIcon },
-  { label: "LinkedIn", href: "https://www.linkedin.com/in/fast-fleets-logistics-3a3094412?utm_source=share_via&utm_content=profile&utm_medium=member_ios", icon: LinkedinIcon }
+  { label: "TikTok", href: "https://www.tiktok.com/@fastfleets360", icon: TikTokIcon }
 ];
 
 const partners = [
@@ -104,7 +103,7 @@ const partners = [
 const heroBackgroundImage = "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1500&q=70";
 const heroBlurDataURL =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwMjA2MDgnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yOCcvPjxjaXJjbGUgY3g9JzQnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNDgnLz48L3N2Zz4=";
-const brandLogo = "/brand/fastfleet-logo-2026.png";
+const brandLogo = "/brand/fastfleet-logo-2026-header.png";
 
 export function LaunchLandingPage() {
   const [authIntent, setAuthIntent] = useState<AuthIntent | null>(null);
