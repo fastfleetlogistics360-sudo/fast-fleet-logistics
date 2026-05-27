@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { DeliveryStatus } from "@/types/domain";
@@ -11,7 +12,7 @@ const statusFlow: Record<string, DeliveryStatus> = {
 };
 
 const jobSelect =
-  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)";
+  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
 
 type JobRow = {
   id: string;
@@ -86,10 +87,13 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
 
+    const admin = createAdminClient();
+    const db = admin || supabase;
+
     if (action === "accept") {
       const { error } = await supabase.rpc("accept_delivery_offer", { target_delivery_id: id });
       if (error) throw error;
-      return updateResponse(supabase, id);
+      return updateResponse(db, id);
     }
 
     if (action === "decline") {
@@ -98,15 +102,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, declined: id });
     }
 
-    const { data: current, error: currentError } = await supabase
+    const { data: rider, error: riderError } = await db
+      .from("rider_profiles")
+      .select("id, user_id")
+      .eq("user_id", user.id)
+      .maybeSingle<{ id: string; user_id?: string | null }>();
+    if (riderError) throw riderError;
+    if (!rider?.id) return NextResponse.json({ error: "Rider profile not found." }, { status: 404 });
+
+    const { data: current, error: currentError } = await db
       .from("deliveries")
-	    .select("id, status, rider_profiles(user_id)")
+      .select("id, status, rider_id")
       .eq("id", id)
-      .single();
+      .single<{ id: string; status: string; rider_id?: string | null }>();
     if (currentError) throw currentError;
 
-    const riderProfiles = current.rider_profiles as { user_id?: string | null } | null;
-    if (riderProfiles?.user_id !== user.id) {
+    if (current.rider_id !== rider.id) {
       return NextResponse.json({ error: "Only the assigned rider can update this delivery." }, { status: 403 });
     }
 
@@ -116,29 +127,29 @@ export async function POST(request: Request) {
     if (nextStatus === "picked_up") patch.picked_up_at = timestamp;
     if (nextStatus === "delivered") patch.delivered_at = timestamp;
 
-    const { error: updateError } = await supabase.from("deliveries").update(patch).eq("id", id);
+    const { error: updateError } = await db.from("deliveries").update(patch).eq("id", id);
     if (updateError) throw updateError;
 
-    await supabase.from("delivery_events").insert({
+    await db.from("delivery_events").insert({
       delivery_id: id,
       actor_id: user.id,
       status: nextStatus,
       title: nextStatus.replaceAll("_", " "),
       body: "Rider updated this delivery."
     });
-    await supabase.from("delivery_locations").update({ status: nextStatus, updated_at: timestamp }).eq("order_id", id);
+    await db.from("delivery_locations").update({ status: nextStatus, updated_at: timestamp }).eq("order_id", id);
 
-    return updateResponse(supabase, id);
+    return updateResponse(db, id);
 	  } catch (error) {
 	    const message = error instanceof Error ? error.message : "Could not update rider job.";
 	    return NextResponse.json({ error: message }, { status: message.includes("accepted by another rider") ? 409 : 500 });
 	  }
 	}
 
-async function updateResponse(supabase: Awaited<ReturnType<typeof createClient>>, id: string) {
+async function updateResponse(supabase: SupabaseClient, id: string) {
   const { data, error } = await supabase
     .from("deliveries")
-    .select("id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)")
+    .select(jobSelect)
     .eq("id", id)
     .single();
   if (error) throw error;

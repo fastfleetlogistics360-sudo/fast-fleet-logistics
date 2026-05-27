@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import { normalizeRole, parseUserRole, roleHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
 import type { UserRole } from "@/types/domain";
 import { cn } from "@/lib/cn";
+import { initials } from "@/lib/format";
+import { uploadProfilePhoto } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -86,6 +88,7 @@ export function PhoneAuthForm({
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [fullName, setFullName] = useState("");
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [customerState, setCustomerState] = useState("Lagos");
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<"google" | null>(null);
@@ -99,10 +102,11 @@ export function PhoneAuthForm({
   const emailValid = isValidEmail(email);
   const passwordValid = password.trim().length >= 6;
   const nameValid = mode === "login" || fullName.trim().length >= 2;
+  const profilePhotoValid = mode === "login" || Boolean(profilePhotoFile);
   const customerStateValid = mode === "login" || role !== "customer" || Boolean(normalizeState(customerState));
   const canSubmit = useMemo(() => {
-    return emailValid && passwordValid && nameValid && customerStateValid;
-  }, [customerStateValid, emailValid, nameValid, passwordValid]);
+    return emailValid && passwordValid && nameValid && profilePhotoValid && customerStateValid;
+  }, [customerStateValid, emailValid, nameValid, passwordValid, profilePhotoValid]);
 
   function setError(key: string, error: string | null) {
     setFieldErrors((previous) => {
@@ -123,10 +127,11 @@ export function PhoneAuthForm({
     window.location.assign(nextUrl);
   }
 
-  async function saveProfiles(userId: string, userRole: UserRole, fallbackEmail?: string | null, fallbackPhone?: string | null) {
+  async function saveProfiles(userId: string, userRole: UserRole, fallbackEmail?: string | null, fallbackPhone?: string | null, avatarUrl?: string | null) {
     const now = new Date().toISOString();
     const supabase = createClient();
     const selectedState = userRole === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos";
+    const avatarPatch = avatarUrl ? { avatar_url: avatarUrl } : {};
     const profilePayload = {
       id: userId,
       user_id: userId,
@@ -144,11 +149,12 @@ export function PhoneAuthForm({
         full_name: profilePayload.full_name,
         phone: profilePayload.phone,
         email: profilePayload.email,
+        ...avatarPatch,
         role: userRole,
         default_zone: selectedState,
         updated_at: now
       }),
-      supabase.from("profiles").upsert(profilePayload)
+      supabase.from("profiles").upsert({ ...profilePayload, ...avatarPatch })
     ]);
   }
 
@@ -187,7 +193,8 @@ export function PhoneAuthForm({
 
       if (result.error) throw result.error;
       if (result.data.session && result.data.user) {
-        await saveProfiles(result.data.user.id, role, result.data.user.email, result.data.user.phone);
+        const upload = profilePhotoFile ? await uploadProfilePhoto(result.data.user.id, profilePhotoFile) : null;
+        await saveProfiles(result.data.user.id, role, result.data.user.email, result.data.user.phone, upload?.publicUrl || null);
         redirectForRole(role);
         return;
       }
@@ -363,6 +370,30 @@ export function PhoneAuthForm({
               autoComplete="name"
             />
             {fieldErrors.fullName ? <span className="text-xs font-bold text-red-600">{fieldErrors.fullName}</span> : null}
+          </label>
+        ) : null}
+
+        {mode === "signup" ? (
+          <label className="form-field">
+            <span className="form-label">Profile picture</span>
+            <span className="flex items-center gap-3 rounded-fleet border border-fleet-line bg-white p-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-fleet-navy text-sm font-black text-white">
+                {profilePhotoFile ? <UserRound className="h-5 w-5" /> : initials(fullName || "User")}
+              </span>
+              <span className="min-w-0 flex-1 text-sm font-bold text-slate-600">{profilePhotoFile?.name || "Upload a clear face photo for account identity."}</span>
+              <span className="rounded-fleet bg-fleet-paper px-3 py-2 text-xs font-black text-fleet-night">Choose</span>
+              <input
+                className="sr-only"
+                type="file"
+                accept="image/*"
+                onChange={(event) => {
+                  setProfilePhotoFile(event.target.files?.[0] || null);
+                  if (fieldErrors.profilePhoto) setError("profilePhoto", null);
+                }}
+              />
+            </span>
+            {!profilePhotoValid ? <span className="text-xs font-bold text-red-600">Upload a profile picture.</span> : null}
+            {fieldErrors.profilePhoto ? <span className="text-xs font-bold text-red-600">{fieldErrors.profilePhoto}</span> : null}
           </label>
         ) : null}
 

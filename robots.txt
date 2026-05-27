@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /admin/
 
-Sitemap: https://fastfleetlogistics.pages.dev/sitemap.xml
+Sitemap: https://fastfleet.com.ng/sitemap.xml

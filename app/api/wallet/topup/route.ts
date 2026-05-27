@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createClient } from "@/lib/supabase/server";
 import type { WalletType } from "@/types/domain";
 
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
 
     if (fundingError) throw fundingError;
 
-    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, "");
+    const siteUrl = paymentCallbackOrigin(request);
     const callbackUrl = new URL(`${siteUrl}/wallet/callback`);
     callbackUrl.searchParams.set("returnTo", safeReturnTo);
     callbackUrl.searchParams.set("walletType", walletType);

@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { Bike, CheckCircle2, Clock3, MapPinned, PackageCheck, Search } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { formatMoney } from "@/lib/format";
+import { initials } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RoutePreview } from "@/components/maps/route-preview";
@@ -33,6 +35,7 @@ type TrackedDelivery = {
     full_name?: string | null;
     phone?: string | null;
     email?: string | null;
+    avatar_url?: string | null;
     vehicle_type?: string | null;
     plate_number?: string | null;
     vehicle_color?: string | null;
@@ -110,7 +113,7 @@ export function TrackingConsole() {
           <RoutePreview
             label="Active delivery route"
             status={delivery.status}
-            riderName={delivery.rider?.full_name || "Verified rider assigned"}
+            riderName={delivery.rider?.full_name || "Verified driver assigned"}
             pickupAddress={delivery.pickup_address}
             dropoffAddress={delivery.dropoff_address}
             riderLocation={delivery.last_location}
@@ -142,7 +145,7 @@ export function TrackingConsole() {
           <div className="mt-5 grid gap-3">
             <InfoRow icon={MapPinned} label="Pickup" value={delivery.pickup_address} />
             <InfoRow icon={PackageCheck} label="Drop-off" value={delivery.dropoff_address} />
-	            <InfoRow icon={Bike} label="Rider" value={riderLabel(delivery)} />
+            <InfoRow icon={Bike} label="Driver" value={riderLabel(delivery)} imageUrl={delivery.rider?.avatar_url} />
 	            <InfoRow icon={Bike} label="Vehicle" value={`${delivery.rider?.vehicle_color || "Vehicle"} ${delivery.rider?.vehicle_type || delivery.vehicle_type} · ${delivery.rider?.plate_number || "Plate pending"}`} />
             <InfoRow icon={Clock3} label="ETA" value={delivery.eta_minutes ? `${delivery.eta_minutes} minutes` : "Updating"} />
             <InfoRow icon={MapPinned} label="Live movement" value={locationLabel || "Waiting for rider heartbeat"} />
@@ -201,7 +204,7 @@ function formatLocation(location?: TrackedDelivery["last_location"]) {
 }
 
 function riderLabel(delivery: TrackedDelivery) {
-  const name = delivery.rider?.full_name || "Verified rider assigned";
+  const name = delivery.rider?.full_name || "Verified driver assigned";
   const phone = delivery.rider?.phone ? ` · ${delivery.rider.phone}` : "";
   return `${name}${phone}`;
 }
@@ -216,10 +219,16 @@ function relativeUpdateLabel(value: string) {
   return "recently";
 }
 
-function InfoRow({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+function InfoRow({ icon: Icon, label, value, imageUrl }: { icon: LucideIcon; label: string; value: string; imageUrl?: string | null }) {
   return (
     <div className="flex gap-3 rounded-fleet bg-fleet-paper p-3">
-      <Icon className="mt-1 h-4 w-4 shrink-0 text-fleet-ember" />
+      {imageUrl ? (
+        <Image src={imageUrl} alt="" width={40} height={40} unoptimized className="h-10 w-10 shrink-0 rounded-full object-cover" />
+      ) : (
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-xs font-black text-fleet-navy">
+          {label === "Driver" ? initials(value) : <Icon className="h-4 w-4 text-fleet-ember" />}
+        </span>
+      )}
       <div>
         <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</span>
         <strong className="block text-sm font-black text-fleet-night">{value}</strong>

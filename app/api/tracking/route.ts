@@ -15,7 +15,9 @@ type DeliveryRow = {
   delivery_speed: string;
   price_ngn: number | string;
   eta_minutes: number | null;
+  created_at?: string | null;
   rider_profiles?: {
+    user_id?: string | null;
     plate_number?: string | null;
     vehicle_type?: string | null;
     vehicle_color?: string | null;
@@ -24,6 +26,7 @@ type DeliveryRow = {
       full_name?: string | null;
       phone?: string | null;
       email?: string | null;
+      avatar_url?: string | null;
     } | null;
   } | null;
 };
@@ -43,7 +46,7 @@ export async function GET(request: Request) {
   const { data, error } = await supabase
 	    .from("deliveries")
 	    .select(
-	      "id, rider_id, delivery_code, pickup_address, dropoff_address, status, vehicle_type, delivery_speed, price_ngn, eta_minutes, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email))"
+	      "id, rider_id, delivery_code, pickup_address, dropoff_address, status, vehicle_type, delivery_speed, price_ngn, eta_minutes, created_at, rider_profiles:rider_profiles!deliveries_rider_id_fkey(user_id, plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))"
 	    )
     .eq("delivery_code", code)
     .in("status", activeStatuses)
@@ -58,6 +61,7 @@ export async function GET(request: Request) {
   }
 
   let lastLocation: { latitude: number; longitude: number; updated_at?: string | null } | null = null;
+  let profileFallback: { full_name?: string | null; phone?: string | null; email?: string | null; avatar_url?: string | null } | null = null;
 
 	  if (data.rider_id) {
 	    const { data: location } = await supabase
@@ -77,6 +81,15 @@ export async function GET(request: Request) {
     }
   }
 
+  if (data.rider_profiles?.user_id && (!data.rider_profiles.users?.full_name || !data.rider_profiles.users?.avatar_url)) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, phone, email, avatar_url")
+      .eq("user_id", data.rider_profiles.user_id)
+      .maybeSingle<{ full_name?: string | null; phone?: string | null; email?: string | null; avatar_url?: string | null }>();
+    profileFallback = profile || null;
+  }
+
   return NextResponse.json({
     delivery: {
       id: data.id,
@@ -88,10 +101,12 @@ export async function GET(request: Request) {
       delivery_speed: data.delivery_speed,
       price_ngn: Number(data.price_ngn || 0),
       eta_minutes: data.eta_minutes || 0,
+      created_at: data.created_at || null,
 	      rider: {
-	        full_name: data.rider_profiles?.users?.full_name || null,
-	        phone: data.rider_profiles?.users?.phone || null,
-	        email: data.rider_profiles?.users?.email || null,
+	        full_name: data.rider_profiles?.users?.full_name || profileFallback?.full_name || null,
+	        phone: data.rider_profiles?.users?.phone || profileFallback?.phone || null,
+	        email: data.rider_profiles?.users?.email || profileFallback?.email || null,
+	        avatar_url: data.rider_profiles?.users?.avatar_url || profileFallback?.avatar_url || null,
 	        vehicle_type: data.rider_profiles?.vehicle_type || null,
 	        plate_number: data.rider_profiles?.plate_number || null,
 	        vehicle_color: data.rider_profiles?.vehicle_color || null,

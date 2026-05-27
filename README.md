@@ -33,7 +33,7 @@ FASTFLEET_ADMIN_PASSWORD="Fastfleet360@#"
 FASTFLEET_ADMIN_SECRET=change-this-long-random-secret
 PAYSTACK_SECRET_KEY=sk_test_or_live_xxxxxxxxxxxxxxxxxxxx
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=optional-google-maps-key
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_URL=https://fastfleet.com.ng
 ```
 
 Run `supabase-schema.sql` in the Supabase SQL editor before testing live auth, orders, rider documents, wallets, withdrawals, notifications, and admin operations.
@@ -62,10 +62,6 @@ Set `PAYSTACK_SECRET_KEY` in `.env.local`, and set `NEXT_PUBLIC_SITE_URL` to you
 - Password: `Fastfleet360@#`
 
 The admin login is separate from customer and driver registration. Real admin actions such as state launch updates and withdrawal approvals require `SUPABASE_SERVICE_ROLE_KEY` in your server environment.
-
-## Netlify
-
-This folder is intended to deploy as a Next.js production app. Netlify will detect Next.js when you upload the full folder because `package.json`, `next.config.ts`, and `app/` are present. Use the included `netlify.toml` for the Next.js app.
 
 ## Key Routes
 

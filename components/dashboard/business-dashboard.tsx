@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { BarChart3, Building2, Clock, Download, FileText, Home, MapPin, Menu, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
+import { uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -24,6 +26,7 @@ type BusinessProfile = {
   contact_name?: string | null;
   phone?: string | null;
   email?: string | null;
+  avatar_url?: string | null;
   industry?: string | null;
   business_type?: string | null;
   commission_rate?: number | null;
@@ -157,8 +160,9 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         if (!user) return;
 
         let businessQuery = supabase.from("business_profiles").select("business_name, contact_name, phone, email, industry, business_type, commission_rate, pickup_address, cac_number, registration_status, rejection_reason").eq("user_id", user.id).maybeSingle();
-        const [businessResult, walletResult, ordersResult, addressResult, teamResult] = await Promise.all([
+        const [businessResult, accountProfileResult, walletResult, ordersResult, addressResult, teamResult] = await Promise.all([
           businessQuery,
+          supabase.from("profiles").select("avatar_url").eq("user_id", user.id).maybeSingle(),
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle(),
           supabase.from("deliveries").select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, proof_url").eq("customer_id", user.id).order("created_at", { ascending: false }).limit(50),
           supabase.from("saved_addresses").select("id, label, address").eq("user_id", user.id).order("created_at", { ascending: false }),
@@ -170,7 +174,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
           const fallback = await supabase.from("business_profiles").select("business_name, contact_name, phone, email, industry, pickup_address, cac_number, registration_status").eq("user_id", user.id).maybeSingle();
           nextProfile = (fallback.data || profile) as BusinessProfile;
         }
-        setProfile(nextProfile);
+        setProfile({ ...nextProfile, avatar_url: (accountProfileResult.data as { avatar_url?: string | null } | null)?.avatar_url || nextProfile.avatar_url || null });
         setKycStatus(nextProfile.registration_status || initialKycStatus);
         setKycRejectionReason(nextProfile.rejection_reason || initialKycRejectionReason);
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
@@ -498,7 +502,7 @@ function OverviewTab({ loading, profile, walletBalance, stats, orders }: { loadi
   const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || orders[0] || null;
   return (
     <div className="grid gap-5">
-      <Card className="p-5"><div className="flex items-center gap-4"><span className="grid h-16 w-16 place-items-center rounded-fleet bg-fleet-navy text-lg font-black text-white">{initials(profile.business_name || "Business")}</span><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">Logo and business name editable in Account</p></div></div></Card>
+      <Card className="p-5"><div className="flex items-center gap-4"><ProfileImage src={profile.avatar_url} name={profile.business_name || "Business"} className="h-16 w-16 rounded-fleet text-lg" /><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">Profile picture and business name editable in Account</p></div></div></Card>
       <WalletDashboardCard
         userName={profile.business_name?.trim().split(/\s+/)[0] || "Business"}
         balance={walletBalance}
@@ -594,7 +598,39 @@ function StatusMetric({ label, value, tone }: { label: string; value: number; to
 }
 
 function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessProfile; onProfile: (profile: BusinessProfile) => void; prefs: { email: boolean; sms: boolean; wallet: boolean }; onPrefs: (prefs: { email: boolean; sms: boolean; wallet: boolean }) => void }) {
-  return <div className="grid gap-5"><Card className="p-5"><div className="flex items-center gap-4"><span className="grid h-16 w-16 place-items-center rounded-fleet bg-fleet-navy text-lg font-black text-white">{initials(profile.business_name || "Business")}</span><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">{profile.business_type || profile.industry || "Business type not set"} · Commission {Number(profile.commission_rate || 0).toFixed(0)}%</p></div></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Business name" value={profile.business_name || ""} onChange={(value) => onProfile({ ...profile, business_name: value })} /><Field label="Address" value={profile.pickup_address || ""} onChange={(value) => onProfile({ ...profile, pickup_address: value })} /><Field label="CAC number" value={profile.cac_number || ""} onChange={(value) => onProfile({ ...profile, cac_number: value })} /><Field label="Business type" value={profile.business_type || profile.industry || ""} onChange={(value) => onProfile({ ...profile, business_type: value, industry: value })} /><Field label="Contact person" value={profile.contact_name || ""} onChange={(value) => onProfile({ ...profile, contact_name: value })} /><Field label="Contact phone" value={profile.phone || ""} onChange={(value) => onProfile({ ...profile, phone: value })} /></div></Card><Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Notification preferences</h2><div className="mt-4 grid gap-3">{(["email", "sms", "wallet"] as const).map((key) => <label key={key} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black capitalize text-fleet-night">{key}<input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={prefs[key]} onChange={(event) => onPrefs({ ...prefs, [key]: event.target.checked })} /></label>)}</div></Card><Card className="p-5"><AccountDeletionButton /><Button type="button" variant="secondary" className="mt-3 w-full" onClick={async () => { const supabase = createClient(); await supabase.auth.signOut(); window.location.assign("/auth"); }}>Sign out</Button></Card></div>;
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const [photoMessage, setPhotoMessage] = useState<string | null>(profile.avatar_url ? null : "Upload a business profile picture for your account.");
+
+  async function handleProfilePhoto(file: File | null) {
+    if (!file) return;
+    setPhotoLoading(true);
+    setPhotoMessage("Uploading profile picture...");
+    try {
+      const supabase = createClient();
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sign in again to upload your profile picture.");
+      const upload = await uploadProfilePhoto(user.id, file);
+      await Promise.allSettled([
+        supabase.from("profiles").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("user_id", user.id),
+        supabase.from("users").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("id", user.id)
+      ]);
+      onProfile({ ...profile, avatar_url: upload.publicUrl });
+      setPhotoMessage("Profile picture updated.");
+    } catch (error) {
+      setPhotoMessage(error instanceof Error ? error.message : "Could not upload profile picture.");
+    } finally {
+      setPhotoLoading(false);
+    }
+  }
+
+  return <div className="grid gap-5"><Card className="p-5"><div className="flex items-center gap-4"><ProfileImage src={profile.avatar_url} name={profile.business_name || "Business"} className="h-16 w-16 rounded-fleet text-lg" /><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">{profile.business_type || profile.industry || "Business type not set"} · Commission {Number(profile.commission_rate || 0).toFixed(0)}%</p><label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">{photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}<input className="sr-only" type="file" accept="image/*" onChange={(event) => handleProfilePhoto(event.target.files?.[0] || null)} /></label></div></div>{photoMessage ? <div className="mt-4 rounded-fleet bg-fleet-paper p-3 text-xs font-bold leading-5 text-slate-600">{photoMessage}</div> : null}<div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Business name" value={profile.business_name || ""} onChange={(value) => onProfile({ ...profile, business_name: value })} /><Field label="Address" value={profile.pickup_address || ""} onChange={(value) => onProfile({ ...profile, pickup_address: value })} /><Field label="CAC number" value={profile.cac_number || ""} onChange={(value) => onProfile({ ...profile, cac_number: value })} /><Field label="Business type" value={profile.business_type || profile.industry || ""} onChange={(value) => onProfile({ ...profile, business_type: value, industry: value })} /><Field label="Contact person" value={profile.contact_name || ""} onChange={(value) => onProfile({ ...profile, contact_name: value })} /><Field label="Contact phone" value={profile.phone || ""} onChange={(value) => onProfile({ ...profile, phone: value })} /></div></Card><Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Notification preferences</h2><div className="mt-4 grid gap-3">{(["email", "sms", "wallet"] as const).map((key) => <label key={key} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black capitalize text-fleet-night">{key}<input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={prefs[key]} onChange={(event) => onPrefs({ ...prefs, [key]: event.target.checked })} /></label>)}</div></Card><Card className="p-5"><AccountDeletionButton /><Button type="button" variant="secondary" className="mt-3 w-full" onClick={async () => { const supabase = createClient(); await supabase.auth.signOut(); window.location.assign("/auth"); }}>Sign out</Button></Card></div>;
+}
+
+function ProfileImage({ src, name, className }: { src?: string | null; name: string; className?: string }) {
+  if (src) return <Image src={src} alt="" width={96} height={96} unoptimized className={cn("shrink-0 object-cover", className)} />;
+  return <span className={cn("grid shrink-0 place-items-center bg-fleet-navy font-black text-white", className)}>{initials(name)}</span>;
 }
 
 function OrderCard({ order, detail }: { order: DeliveryRow; detail?: boolean }) {

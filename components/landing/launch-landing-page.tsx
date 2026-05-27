@@ -104,6 +104,7 @@ const partners = [
 const heroBackgroundImage = "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1500&q=70";
 const heroBlurDataURL =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwMjA2MDgnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yOCcvPjxjaXJjbGUgY3g9JzQnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNDgnLz48L3N2Zz4=";
+const brandLogo = "/brand/fastfleet-logo-2026.png";
 
 export function LaunchLandingPage() {
   const [authIntent, setAuthIntent] = useState<AuthIntent | null>(null);
@@ -131,7 +132,7 @@ export function LaunchLandingPage() {
         <header className="flex items-center justify-between gap-4">
           <Link href="/" className="group flex min-w-0 items-center gap-3" aria-label="Fast Fleets 360 landing home">
             <Image
-              src="/fastfleet-logo.png"
+              src={brandLogo}
               alt="Fast Fleets 360 Logistics"
               width={56}
               height={56}

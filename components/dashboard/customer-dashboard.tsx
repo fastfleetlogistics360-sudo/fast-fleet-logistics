@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
+import { uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -45,12 +46,14 @@ type RiderInfo = {
   full_name?: string | null;
   phone?: string | null;
   email?: string | null;
+  avatar_url?: string | null;
 };
 
 type RiderTrackingDetails = {
   full_name?: string | null;
   phone?: string | null;
   email?: string | null;
+  avatar_url?: string | null;
   vehicle_type?: string | null;
   plate_number?: string | null;
   vehicle_color?: string | null;
@@ -189,7 +192,8 @@ async function enrichOrdersWithRiderDetails(orders: OrderRow[]) {
         users: {
           full_name: rider.full_name || null,
           phone: rider.phone || null,
-          email: rider.email || null
+          email: rider.email || null,
+          avatar_url: rider.avatar_url || null
         }
       }
     };
@@ -284,8 +288,8 @@ export function CustomerDashboard() {
       if (!user) throw new Error("Sign in again to update your profile.");
       const selectedState = normalizeState(profile.lga || profile.default_zone) || "Lagos";
       await Promise.allSettled([
-        supabase.from("profiles").update({ full_name: profile.full_name, phone: profile.phone, lga: selectedState, updated_at: new Date().toISOString() }).eq("user_id", user.id),
-        supabase.from("users").update({ full_name: profile.full_name, phone: profile.phone, default_zone: selectedState, updated_at: new Date().toISOString() }).eq("id", user.id)
+        supabase.from("profiles").update({ full_name: profile.full_name, phone: profile.phone, avatar_url: profile.avatar_url || null, lga: selectedState, updated_at: new Date().toISOString() }).eq("user_id", user.id),
+        supabase.from("users").update({ full_name: profile.full_name, phone: profile.phone, avatar_url: profile.avatar_url || null, default_zone: selectedState, updated_at: new Date().toISOString() }).eq("id", user.id)
       ]);
       const { data: launchRow } = await supabase.from("platform_launch_states").select("status").eq("state", selectedState).maybeSingle<{ status?: string | null }>();
       setLaunchStatus(normalizeLaunchStatus(launchRow?.status || (DEFAULT_LIVE_STATES.includes(selectedState as (typeof DEFAULT_LIVE_STATES)[number]) ? "active" : "waitlist")));
@@ -749,14 +753,29 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
   );
 }
 
+function trackHref(order: OrderRow) {
+  return `/track?code=${encodeURIComponent(order.delivery_code)}`;
+}
+
+function detailsHref(order: OrderRow) {
+  return `/delivery/details?code=${encodeURIComponent(order.delivery_code)}`;
+}
+
+function ProfileImage({ src, name, className }: { src?: string | null; name: string; className?: string }) {
+  if (src) {
+    return <Image src={src} alt="" width={96} height={96} unoptimized className={cn("shrink-0 rounded-full object-cover", className)} />;
+  }
+  return <span className={cn("grid shrink-0 place-items-center rounded-full bg-fleet-navy font-black text-white", className)}>{initials(name)}</span>;
+}
+
 function ActiveDeliveryCard({ order, onSelect }: { order: OrderRow; onSelect: () => void }) {
-  const riderName = order.rider_profiles?.users?.full_name || "Assigned rider";
+  const riderName = order.rider_profiles?.users?.full_name || "Assigned driver";
   const riderTag = order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Rider tag pending";
   return (
     <Card className="animate-pulseSoft border-fleet-navy/30 p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="grid h-12 w-12 place-items-center rounded-full bg-fleet-navy text-sm font-black text-white">{initials(riderName)}</span>
+          <ProfileImage src={order.rider_profiles?.users?.avatar_url} name={riderName} className="h-12 w-12 text-sm" />
           <div>
             <h2 className="text-lg font-black text-fleet-night">{riderName}</h2>
             <p className="text-xs font-bold text-slate-500">{order.rider_profiles?.plate_number || "Plate pending"} · {order.rider_profiles?.vehicle_type || "bike"}</p>
@@ -767,8 +786,8 @@ function ActiveDeliveryCard({ order, onSelect }: { order: OrderRow; onSelect: ()
       </div>
       <p className="mt-4 text-sm font-semibold leading-6 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <LinkButton href={`/account/orders/${order.id}/track`} className="w-full bg-fleet-navy hover:bg-fleet-night">Live track</LinkButton>
-        <Button type="button" variant="secondary" className="w-full" onClick={onSelect}>Details</Button>
+        <LinkButton href={trackHref(order)} className="w-full bg-fleet-navy hover:bg-fleet-night">Live track</LinkButton>
+        <LinkButton href={detailsHref(order)} variant="secondary" className="w-full">Details</LinkButton>
       </div>
     </Card>
   );
@@ -806,8 +825,8 @@ function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?:
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <strong className="text-sm font-black text-fleet-night">{formatMoney(order.price_ngn)}</strong>
         <div className="flex gap-2">
-          {!compact ? <Button type="button" size="sm" variant="secondary" onClick={onSelect}>View details</Button> : null}
-          <LinkButton href={`/account/orders/${order.id}/track`} size="sm" variant="secondary">Live track</LinkButton>
+          {!compact ? <LinkButton href={detailsHref(order)} size="sm" variant="secondary">View details</LinkButton> : null}
+          <LinkButton href={trackHref(order)} size="sm" variant="secondary">Live track</LinkButton>
           <LinkButton href={`/book?reorder=${order.delivery_code}`} size="sm">Re-order</LinkButton>
         </div>
       </div>
@@ -846,9 +865,14 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange }: { o
             onLiveDeliveryChange={onLiveDeliveryChange}
           />
           <Card className="p-4">
-            <h3 className="text-lg font-black text-fleet-night">Rider info</h3>
-            <p className="mt-2 text-sm font-semibold text-slate-600">{order.rider_profiles?.users?.full_name || "Rider pending"} · Rating 4.9 · {order.rider_profiles?.vehicle_type || "bike"} · {order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Rider tag pending"}</p>
-            <LinkButton href={`tel:${order.rider_profiles?.users?.phone || ""}`} className="mt-4 w-full">Call rider</LinkButton>
+            <div className="flex items-center gap-3">
+              <ProfileImage src={order.rider_profiles?.users?.avatar_url} name={order.rider_profiles?.users?.full_name || "Driver"} className="h-14 w-14" />
+              <div>
+                <h3 className="text-lg font-black text-fleet-night">Driver info</h3>
+                <p className="mt-1 text-sm font-semibold text-slate-600">{order.rider_profiles?.users?.full_name || "Driver assigned"} · Rating 4.9 · {order.rider_profiles?.vehicle_type || "bike"} · {order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Driver tag pending"}</p>
+              </div>
+            </div>
+            <LinkButton href={`tel:${order.rider_profiles?.users?.phone || ""}`} className="mt-4 w-full">Call driver</LinkButton>
           </Card>
         </>
       ) : (
@@ -895,16 +919,48 @@ function AccountTab({
   onPrefs: (value: { sms: boolean; email: boolean; push: boolean }) => void;
   onSignOut: () => void;
 }) {
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const [photoMessage, setPhotoMessage] = useState<string | null>(profile.avatar_url ? null : "Upload a profile picture so drivers can see who ordered.");
+
+  async function handleProfilePhoto(file: File | null) {
+    if (!file) return;
+    setPhotoLoading(true);
+    setPhotoMessage("Uploading profile picture...");
+    try {
+      const supabase = createClient();
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sign in again to upload your profile picture.");
+      const upload = await uploadProfilePhoto(user.id, file);
+      await Promise.allSettled([
+        supabase.from("profiles").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("user_id", user.id),
+        supabase.from("users").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("id", user.id)
+      ]);
+      onProfile({ ...profile, avatar_url: upload.publicUrl });
+      setPhotoMessage("Profile picture updated.");
+    } catch (error) {
+      setPhotoMessage(error instanceof Error ? error.message : "Could not upload profile picture.");
+    } finally {
+      setPhotoLoading(false);
+    }
+  }
+
   return (
     <div className="grid gap-5">
       <Card className="p-5">
         <div className="flex items-center gap-4">
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-fleet-navy text-lg font-black text-white">{initials(profile.full_name || "Fast Fleets 360 Customer")}</span>
+          <ProfileImage src={profile.avatar_url} name={profile.full_name || "Fast Fleets 360 Customer"} className="h-16 w-16 text-lg" />
           <div>
             <h2 className="text-xl font-black text-fleet-night">{profile.full_name || "Fast Fleets 360 Customer"}</h2>
             <p className="text-sm font-semibold text-slate-500">{profile.email || "No email"} · {profile.phone || "No phone"}</p>
+            <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">
+              {photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}
+              <input className="sr-only" type="file" accept="image/*" onChange={(event) => handleProfilePhoto(event.target.files?.[0] || null)} />
+            </label>
           </div>
         </div>
+        {photoMessage ? <div className="mt-4 rounded-fleet bg-fleet-paper p-3 text-xs font-bold leading-5 text-slate-600">{photoMessage}</div> : null}
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <Field label="Name" value={profile.full_name || ""} onChange={(value) => onProfile({ ...profile, full_name: value })} />
           <Field label="Phone" value={profile.phone || ""} onChange={(value) => onProfile({ ...profile, phone: value })} />
@@ -987,9 +1043,9 @@ function OrderSheet({ order, onClose, onLiveDeliveryChange }: { order: OrderRow;
           ))}
         </div>
         <div className="mt-5 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">
-          Rider: {order.rider_profiles?.users?.full_name || "Pending"} · Plate: {order.rider_profiles?.plate_number || "Pending"} · {order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Rider tag pending"}
+          Driver: {order.rider_profiles?.users?.full_name || "Pending"} · Plate: {order.rider_profiles?.plate_number || "Pending"} · {order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Driver tag pending"}
         </div>
-        <LinkButton href={`/account/orders/${order.id}/track`} className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night">
+        <LinkButton href={trackHref(order)} className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night">
           Open live tracking
         </LinkButton>
         <DeliveryRouteMap
@@ -1033,7 +1089,7 @@ function DeliveryRouteMap({
       className={className}
       label={label}
       status={delivery?.status || order?.status}
-      riderName={order?.rider_profiles?.users?.full_name || "Fast Fleets 360 rider"}
+      riderName={order?.rider_profiles?.users?.full_name || "Fast Fleets 360 driver"}
       pickupAddress={order?.pickup_address || "Victoria Island, Lagos"}
       dropoffAddress={order?.dropoff_address || "Ikeja GRA, Lagos"}
       riderLocation={riderLocation}

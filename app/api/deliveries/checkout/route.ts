@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { estimateFare } from "@/lib/fare";
+import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
@@ -142,7 +143,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing PAYSTACK_SECRET_KEY. Add it before card or transfer checkout." }, { status: 500 });
     }
 
-    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, "");
+    const siteUrl = paymentCallbackOrigin(request);
     const callbackUrl = new URL(`${siteUrl}/delivery/callback`);
     callbackUrl.searchParams.set("code", delivery.delivery_code);
     callbackUrl.searchParams.set("deliveryId", delivery.id);

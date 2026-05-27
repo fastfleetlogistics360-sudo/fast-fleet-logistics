@@ -1693,6 +1693,22 @@ create policy "Customers read assigned rider user profile"
     )
   );
 
+drop policy if exists "Assigned riders read customer user profile" on public.users;
+create policy "Assigned riders read customer user profile"
+  on public.users for select
+  using (
+    auth.uid() = id
+    or public.current_user_role() = 'admin'
+    or exists (
+      select 1
+      from public.deliveries d
+      join public.rider_profiles rp on rp.id = d.rider_id
+      where d.customer_id = users.id
+        and rp.user_id = auth.uid()
+        and d.status in ('searching', 'accepted', 'rider_arrived', 'picked_up', 'in_transit', 'delivered')
+    )
+  );
+
 drop policy if exists "Users can update own profile" on public.users;
 create policy "Users can update own profile"
   on public.users for update
@@ -2190,6 +2206,10 @@ insert into storage.buckets (id, name, public)
 values ('delivery-proofs', 'delivery-proofs', true)
 on conflict (id) do update set public = excluded.public;
 
+insert into storage.buckets (id, name, public)
+values ('profile-photos', 'profile-photos', true)
+on conflict (id) do update set public = excluded.public;
+
 drop policy if exists "Riders upload own documents" on storage.objects;
 create policy "Riders upload own documents"
   on storage.objects for insert
@@ -2244,6 +2264,31 @@ drop policy if exists "Delivery proofs are readable by signed in users" on stora
 create policy "Delivery proofs are readable by signed in users"
   on storage.objects for select
   using (bucket_id = 'delivery-proofs' and auth.uid() is not null);
+
+drop policy if exists "Users upload own profile photos" on storage.objects;
+create policy "Users upload own profile photos"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'profile-photos'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Users update own profile photos" on storage.objects;
+create policy "Users update own profile photos"
+  on storage.objects for update
+  using (
+    bucket_id = 'profile-photos'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  )
+  with check (
+    bucket_id = 'profile-photos'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Profile photos are public" on storage.objects;
+create policy "Profile photos are public"
+  on storage.objects for select
+  using (bucket_id = 'profile-photos');
 
 do $$ begin
   alter publication supabase_realtime add table public.deliveries;

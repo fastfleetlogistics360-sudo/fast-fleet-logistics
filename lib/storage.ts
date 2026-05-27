@@ -82,3 +82,29 @@ export async function uploadBusinessDocument(
     type: compressed.type
   };
 }
+
+export async function uploadProfilePhoto(userId: string, file: File, onProgress?: (progress: number) => void) {
+  const supabase = createClient();
+  const compressed = await compressImage(file, 720, 0.82);
+  const safeName = compressed.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
+  const path = `${userId}/${Date.now()}-${safeName}`;
+
+  onProgress?.(18);
+  const upload = await supabase.storage.from("profile-photos").upload(path, compressed, {
+    cacheControl: "3600",
+    upsert: true
+  });
+  onProgress?.(82);
+
+  if (upload.error) throw upload.error;
+
+  const { data } = supabase.storage.from("profile-photos").getPublicUrl(path);
+  onProgress?.(100);
+
+  return {
+    path,
+    publicUrl: data.publicUrl,
+    size: compressed.size,
+    type: compressed.type
+  };
+}

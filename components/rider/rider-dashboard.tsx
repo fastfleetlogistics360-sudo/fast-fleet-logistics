@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { geolocationErrorMessage, getLocationPermissionState, requestCurrentPosition } from "@/lib/location/geolocation";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
+import { uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -33,6 +34,7 @@ type RiderProfile = {
   full_name?: string | null;
   phone?: string | null;
   email?: string | null;
+  avatar_url?: string | null;
   lga?: string | null;
   vehicle_type?: string | null;
   plate_number?: string | null;
@@ -67,6 +69,7 @@ type JobRow = {
     full_name?: string | null;
     phone?: string | null;
     email?: string | null;
+    avatar_url?: string | null;
   } | null;
 };
 
@@ -87,7 +90,7 @@ const tabs: Array<{ id: RiderTab; label: string; icon: LucideIcon }> = [
 ];
 
 const jobFields =
-  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email)";
+  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
 
 export function RiderAccessState({ status, rejectionReason }: { status: KycStatus; rejectionReason?: string | null }) {
   const rejected = status === "rejected";
@@ -448,8 +451,8 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
         if (!user) return;
 
         const [profileResult, appUserResult, latestApplicationResult, riderResult, walletResult] = await Promise.all([
-          supabase.from("profiles").select("full_name, email, phone, lga").eq("user_id", user.id).maybeSingle(),
-          supabase.from("users").select("full_name, email, phone, default_zone").eq("id", user.id).maybeSingle(),
+          supabase.from("profiles").select("full_name, email, phone, avatar_url, lga").eq("user_id", user.id).maybeSingle(),
+          supabase.from("users").select("full_name, email, phone, avatar_url, default_zone").eq("id", user.id).maybeSingle(),
           supabase.from("rider_applications").select("full_name, phone, email, lga").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("rider_profiles").select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type").eq("user_id", user.id).maybeSingle(),
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle()
@@ -489,6 +492,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
           full_name: profileData.full_name || appUserData.full_name || applicationData.full_name || user.user_metadata?.full_name || user.user_metadata?.name || null,
           phone: profileData.phone || appUserData.phone || applicationData.phone || user.phone || null,
           email: profileData.email || appUserData.email || applicationData.email || user.email || null,
+          avatar_url: profileData.avatar_url || appUserData.avatar_url || null,
           lga: profileData.lga || applicationData.lga || appUserData.default_zone || "Lagos",
           application_status: approved ? "approved" : riderData.application_status,
           vehicle_type: dispatchVehicle,
@@ -621,10 +625,12 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       if ((payload.job as JobRow)?.status === "delivered" || (payload.job as JobRow)?.status === "cancelled") {
         setTrackingActive(false);
         setTrackingMessage("Delivery tracking stopped.");
+      } else {
+        setTrackingMessage(`Delivery status updated to ${(payload.job as JobRow).status.replaceAll("_", " ")}.`);
       }
       setProofFile(null);
-    } catch {
-      // Keep the current server state visible when the action fails.
+    } catch (error) {
+      setTrackingMessage(error instanceof Error ? error.message : "Could not update delivery status.");
     }
   }
 
@@ -672,7 +678,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	          {activeTab === "home" ? <HomeTab loading={loading} online={online} elapsed={elapsed} onToggleOnline={toggleOnline} todayEarnings={todayEarnings} profile={profile} incomingJob={incomingJob} incomingExpires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} activeJob={activeJob} recentTrips={recentTrips} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} offerNotice={offerNotice} onStartTracking={startDeliveryTracking} onStopTracking={stopDeliveryTracking} onProofFile={setProofFile} onRespond={respondToJob} onAdvance={advanceJob} /> : null}
           {activeTab === "jobs" ? <JobsTab loading={loading} jobs={jobs} online={online} onToggleOnline={toggleOnline} /> : null}
           {activeTab === "earnings" ? <EarningsTab walletBalance={walletBalance} profile={profile} withdrawals={withdrawals} onOpenWithdrawal={() => setWithdrawalOpen(true)} /> : null}
-          {activeTab === "account" ? <AccountTab profile={profile} kycStatus={profile.application_status || initialKycStatus} prefs={prefs} onPrefs={setPrefs} /> : null}
+          {activeTab === "account" ? <AccountTab profile={profile} onProfile={setProfile} kycStatus={profile.application_status || initialKycStatus} prefs={prefs} onPrefs={setPrefs} /> : null}
         </main>
       </div>
 	      <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
@@ -758,15 +764,19 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, prof
 }
 
 function IncomingJob({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLocation, onRespond }: { job: JobRow; expires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; liveLocation: LiveRiderLocation | null; onRespond: (job: JobRow, accepted: boolean) => void }) {
+  const customerName = job.users?.full_name || "Customer";
   return (
     <Card className="border-fleet-gold p-5">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="flex min-w-0 gap-3">
+          <ProfileImage src={job.users?.avatar_url} name={customerName} className="h-14 w-14" />
+          <div className="min-w-0">
 	          <StatusBadge tone="amber">Incoming job</StatusBadge>
 	          <h2 className="mt-3 text-2xl font-black text-fleet-night">{job.pickup_address} to {job.dropoff_address}</h2>
 	          <p className="mt-2 text-sm font-semibold text-slate-600">{job.distance_km || 6} km · {formatMoney(job.price_ngn)} estimated earning</p>
 	          <p className="mt-2 inline-flex rounded-fleet bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">{pickupEtaLabel(pickupEtaMinutes, pickupEtaLoading, liveLocation)}</p>
-	          <p className="mt-2 text-sm font-bold text-slate-600">Customer: {job.users?.full_name || "Customer"} · {job.dropoff_contact || job.pickup_contact || job.users?.phone || "Phone pending"}</p>
+	          <p className="mt-2 text-sm font-bold text-slate-600">Customer: {customerName} · {job.dropoff_contact || job.pickup_contact || job.users?.phone || "Phone pending"}</p>
+	        </div>
 	        </div>
 	        <span className="grid h-14 w-14 place-items-center rounded-full border-4 border-fleet-navy text-lg font-black text-fleet-navy">{expires}</span>
       </div>
@@ -801,14 +811,18 @@ function IncomingJobModal({ job, expires, pickupEtaMinutes, pickupEtaLoading, li
 
 function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessage, onStartTracking, onStopTracking, onProofFile, onAdvance }: { job: JobRow; proofFile: File | null; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; onStartTracking: () => void; onStopTracking: () => void; onProofFile: (file: File | null) => void; onAdvance: (job: JobRow) => void }) {
   const label = job.status === "accepted" ? "I've arrived at pickup" : job.status === "rider_arrived" ? "Package collected" : job.status === "picked_up" ? "Start trip" : job.status === "in_transit" ? "Delivered" : "Complete delivery";
+  const customerName = job.users?.full_name || "Customer";
   return (
     <Card className="p-5">
 	      <StatusBadge tone="blue">Active delivery</StatusBadge>
 	      <h2 className="mt-3 text-xl font-black text-fleet-night">{job.delivery_code}</h2>
 	      <p className="mt-2 text-sm font-semibold text-slate-600">{job.pickup_address} to {job.dropoff_address}</p>
-	      <div className="mt-3 grid gap-2 rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-600">
-	        <span>Customer: {job.users?.full_name || "Customer"}</span>
-	        <span>Phone: {job.dropoff_contact || job.pickup_contact || job.users?.phone || "Not provided"}</span>
+	      <div className="mt-3 flex gap-3 rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-600">
+          <ProfileImage src={job.users?.avatar_url} name={customerName} className="h-12 w-12" />
+          <div className="grid min-w-0 gap-1">
+	          <span>Customer: {customerName}</span>
+	          <span>Phone: {job.dropoff_contact || job.pickup_contact || job.users?.phone || "Not provided"}</span>
+          </div>
 	      </div>
 	      <RoutePreview
         compact
@@ -895,16 +909,58 @@ function EarningsTab({ walletBalance, profile, withdrawals, onOpenWithdrawal }: 
   );
 }
 
-function AccountTab({ profile, kycStatus, prefs, onPrefs }: { profile: RiderProfile; kycStatus: KycStatus; prefs: { jobs: boolean; payouts: boolean; sms: boolean }; onPrefs: (prefs: { jobs: boolean; payouts: boolean; sms: boolean }) => void }) {
+function ProfileImage({ src, name, className }: { src?: string | null; name: string; className?: string }) {
+  if (src) {
+    return <Image src={src} alt="" width={96} height={96} unoptimized className={cn("shrink-0 rounded-full object-cover", className)} />;
+  }
+  return <span className={cn("grid shrink-0 place-items-center rounded-full bg-fleet-navy text-lg font-black text-white", className)}>{initials(name)}</span>;
+}
+
+function AccountTab({ profile, onProfile, kycStatus, prefs, onPrefs }: { profile: RiderProfile; onProfile: (profile: RiderProfile) => void; kycStatus: KycStatus; prefs: { jobs: boolean; payouts: boolean; sms: boolean }; onPrefs: (prefs: { jobs: boolean; payouts: boolean; sms: boolean }) => void }) {
   const approved = kycStatus === "approved";
   const kycTone = approved ? "green" : kycStatus === "rejected" ? "red" : "amber";
+  const [photoMessage, setPhotoMessage] = useState<string | null>(profile.avatar_url ? null : "Upload a profile picture so customers can identify you.");
+  const [photoLoading, setPhotoLoading] = useState(false);
+
+  async function handlePhoto(file: File | null) {
+    if (!file) return;
+    setPhotoLoading(true);
+    setPhotoMessage("Uploading profile picture...");
+    try {
+      const supabase = createClient();
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sign in again to upload your profile picture.");
+      const upload = await uploadProfilePhoto(user.id, file);
+      await Promise.allSettled([
+        supabase.from("users").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("id", user.id),
+        supabase.from("profiles").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("user_id", user.id)
+      ]);
+      onProfile({ ...profile, avatar_url: upload.publicUrl });
+      setPhotoMessage("Profile picture updated.");
+    } catch (error) {
+      setPhotoMessage(error instanceof Error ? error.message : "Could not upload profile picture.");
+    } finally {
+      setPhotoLoading(false);
+    }
+  }
+
   return (
     <div className="grid gap-5">
       <Card className="p-5">
         <div className="flex items-center gap-4">
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-fleet-navy text-lg font-black text-white">{initials(profile.full_name || "Rider")}</span>
-          <div><h2 className="text-xl font-black text-fleet-night">{profile.full_name || "Rider"}</h2><p className="text-sm font-semibold text-slate-500">{profile.phone || "No phone"} · {profile.lga || "Lagos"}</p></div>
+          <ProfileImage src={profile.avatar_url} name={profile.full_name || "Rider"} className="h-16 w-16" />
+          <div className="min-w-0">
+            <h2 className="text-xl font-black text-fleet-night">{profile.full_name || "Rider"}</h2>
+            <p className="text-sm font-semibold text-slate-500">{profile.phone || "No phone"} · {profile.lga || "Lagos"}</p>
+            <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">
+              {photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}
+              <input className="sr-only" type="file" accept="image/*" onChange={(event) => handlePhoto(event.target.files?.[0] || null)} />
+            </label>
+          </div>
         </div>
+        {photoMessage ? <div className="mt-4 rounded-fleet bg-fleet-paper p-3 text-xs font-bold leading-5 text-slate-600">{photoMessage}</div> : null}
       </Card>
       <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Vehicle details</h2><div className="mt-4 grid gap-3 text-sm font-bold text-slate-600"><Info label="Vehicle" value={profile.vehicle_type || "Motorcycle"} /><Info label="Plate" value={profile.plate_number || "Pending"} /><Info label="Colour" value={profile.vehicle_color || "Pending"} /></div><p className="mt-4 text-xs font-bold text-slate-500">Vehicle edits require re-submission.</p></Card>
       <Card className="p-5"><div className="flex items-center justify-between gap-3"><h2 className="text-xl font-black text-fleet-night">KYC document status</h2><StatusBadge tone={kycTone}>{kycStatus.replaceAll("_", " ")}</StatusBadge></div><div className="mt-4 grid gap-2">{["Government ID", "Driver's Licence", "Vehicle registration", "Insurance", "Guarantor letter"].map((item) => <div key={item} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black text-fleet-night"><span>{item}</span><StatusBadge tone={kycTone}>{approved ? "Approved" : "Review"}</StatusBadge></div>)}</div><LinkButton href="/rider/onboarding" variant="secondary" className="mt-4 w-full">Update KYC</LinkButton></Card>

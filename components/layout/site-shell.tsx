@@ -42,6 +42,8 @@ const navItems = [
   { href: "/support", label: "Support" }
 ];
 
+const brandLogo = "/brand/fastfleet-logo-2026.png";
+
 const bottomItems: Array<{ href: string; label: string; icon: LucideIcon; activePaths?: string[] }> = [
   { href: "/book", label: "Book", icon: PackageCheck },
   { href: "/track", label: "Track", icon: Route },
@@ -142,7 +144,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/" className="flex min-w-0 items-center gap-3" aria-label="Fast Fleets 360 home">
             <Image
-              src="/fastfleet-logo.png"
+              src={brandLogo}
               alt="Fast Fleets 360 Logistics"
               width={46}
               height={46}
@@ -310,7 +312,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
           <div>
             <div className="flex items-center gap-3">
               <Image
-                src="/fastfleet-logo.png"
+                src={brandLogo}
                 alt="Fast Fleets 360 Logistics"
                 width={42}
                 height={42}

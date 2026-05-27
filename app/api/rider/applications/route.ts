@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
   if (!payload) return NextResponse.json({ error: "Invalid rider application payload." }, { status: 400 });
 
   const { form, documents } = payload;
+  const profilePhotoUrl = documents.find((document) => document.key === "profile_photo")?.url || null;
   if (!form.agreement) return NextResponse.json({ error: "Accept the rider agreement before submitting." }, { status: 400 });
   if (!/^\+234[789][01]\d{8}$/.test(form.phone)) return NextResponse.json({ error: "Enter a valid Nigerian phone number." }, { status: 400 });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
@@ -135,6 +136,7 @@ export async function POST(request: NextRequest) {
       full_name: form.fullName,
       phone: form.phone,
       email: form.email,
+      avatar_url: profilePhotoUrl,
       role: "rider",
       default_zone: form.lga,
       updated_at: now
@@ -145,6 +147,7 @@ export async function POST(request: NextRequest) {
       full_name: form.fullName,
       phone: form.phone,
       email: form.email,
+      avatar_url: profilePhotoUrl,
       account_type: "rider",
       updated_at: now
     })

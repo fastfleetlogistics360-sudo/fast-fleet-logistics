@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
+import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createClient } from "@/lib/supabase/server";
 
 const PAYSTACK_INITIALIZE_URL = "https://api.paystack.co/transaction/initialize";
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
     }
 
     const reference = `FFM-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, "");
+    const siteUrl = paymentCallbackOrigin(request);
     const callbackUrl = new URL(`${siteUrl}/track`);
     callbackUrl.searchParams.set("paid", "1");
     callbackUrl.searchParams.set("reference", reference);

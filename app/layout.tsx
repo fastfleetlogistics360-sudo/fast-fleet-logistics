@@ -8,8 +8,10 @@ import { ThemeScript } from "@/components/layout/theme-script";
 
 export const runtime = "nodejs";
 
+const brandLogo = "/brand/fastfleet-logo-2026.png";
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://fastfleetlogistics.netlify.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://fastfleet.com.ng"),
   title: {
     default: "Fast Fleets 360 Logistics",
     template: "%s | Fast Fleets 360 Logistics"
@@ -33,7 +35,7 @@ export const metadata: Metadata = {
     description: "Book, track, and manage dispatch deliveries with wallet payments and verified riders.",
     url: "/",
     siteName: "Fast Fleets 360 Logistics",
-    images: [{ url: "/fastfleet-logo.png", width: 512, height: 512, alt: "Fast Fleets 360 Logistics" }],
+    images: [{ url: brandLogo, width: 1254, height: 1254, alt: "Fast Fleets 360 Logistics" }],
     locale: "en_NG",
     type: "website"
   },
@@ -44,7 +46,7 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/fastfleet-logo.png",
+    icon: brandLogo,
     apple: "/icons/icon-180.png"
   },
   appleWebApp: {

@@ -1,11 +1,11 @@
-const CACHE_NAME = "fastfleet-shell-v6";
-const PAGES_CACHE = "fastfleet-pages-v6";
+const CACHE_NAME = "fastfleet-shell-v7";
+const PAGES_CACHE = "fastfleet-pages-v7";
 const OFFLINE_QUEUE = "fastfleet-offline-bookings-v1";
 const APP_SHELL = [
   "/main",
   "/offline",
   "/manifest.webmanifest",
-  "/fastfleet-logo.png",
+  "/brand/fastfleet-logo-2026.png",
   "/icons/icon-180.png",
   "/icons/icon-192.png",
   "/icons/icon-512.png"

@@ -10,15 +10,15 @@ Primary services:
 - Business logistics for vendors, offices, repeat deliveries, and fleet operations.
 
 Important public URLs:
-- Home: https://fastfleetlogistics.pages.dev/
-- App home: https://fastfleetlogistics.pages.dev/mainpage.html
-- Book delivery: https://fastfleetlogistics.pages.dev/order.html
-- Track delivery: https://fastfleetlogistics.pages.dev/track.html
-- Customer dashboard: https://fastfleetlogistics.pages.dev/dashboard.html
-- Rider onboarding: https://fastfleetlogistics.pages.dev/driver.html
-- Support: https://fastfleetlogistics.pages.dev/support.html
-- Privacy policy: https://fastfleetlogistics.pages.dev/privacy.html
-- Terms: https://fastfleetlogistics.pages.dev/terms.html
+- Home: https://fastfleet.com.ng/
+- App home: https://fastfleet.com.ng/main
+- Book delivery: https://fastfleet.com.ng/book
+- Track delivery: https://fastfleet.com.ng/track
+- Customer dashboard: https://fastfleet.com.ng/dashboard
+- Rider onboarding: https://fastfleet.com.ng/rider/onboarding
+- Support: https://fastfleet.com.ng/support
+- Privacy policy: https://fastfleet.com.ng/privacy
+- Terms: https://fastfleet.com.ng/terms
 
 Search topics:
 dispatch riders in Lagos, courier service Nigeria, same-day delivery Lagos, parcel delivery app, dispatch rider app, rider onboarding, business logistics Nigeria, bike delivery service, van delivery Lagos.

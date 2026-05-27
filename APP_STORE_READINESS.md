@@ -2,10 +2,10 @@
 
 ## Public URLs
 
-- Marketing URL: https://fastfleetlogistics.pages.dev/
-- Support URL: https://fastfleetlogistics.pages.dev/support
-- Privacy Policy: https://fastfleetlogistics.pages.dev/privacy
-- Terms of Service: https://fastfleetlogistics.pages.dev/terms
+- Marketing URL: https://fastfleet.com.ng/
+- Support URL: https://fastfleet.com.ng/support
+- Privacy Policy: https://fastfleet.com.ng/privacy
+- Terms of Service: https://fastfleet.com.ng/terms
 
 ## Store Submission Status
 
