@@ -98,6 +98,15 @@ export function NotificationBell() {
     }
   }
 
+  async function handleNotificationClick(notification: NotificationRow) {
+    await markRead(notification.id);
+    if (notification.type !== "business_order_received") return;
+    setOpen(false);
+    window.requestAnimationFrame(() => {
+      document.getElementById("marketplace-orders")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   async function markAllRead() {
     const ids = notifications.filter(isUnread).map((item) => item.id);
     setNotifications((current) => current.map((item) => ({ ...item, read: true, read_at: item.read_at || new Date().toISOString() })));
@@ -159,7 +168,7 @@ export function NotificationBell() {
                       <button
                         key={notification.id}
                         type="button"
-                        onClick={() => markRead(notification.id)}
+                        onClick={() => void handleNotificationClick(notification)}
                         className={cn(
                           "flex gap-3 rounded-fleet border p-3 text-left transition hover:border-fleet-gold",
                           unread ? "border-fleet-navy bg-sky-50" : "border-fleet-line bg-white"

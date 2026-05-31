@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { BarChart3, Building2, Clock, Download, FileText, Home, MapPin, Menu, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -123,6 +124,44 @@ const defaultDispatch = {
 
 type DispatchForm = typeof defaultDispatch;
 
+const businessOrderSelect =
+  "id, order_code, delivery_id, marketplace_kind, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, status, amount, payment_status, created_at, updated_at";
+
+async function loadBusinessOrdersForProfile(supabase: ReturnType<typeof createClient>, businessProfileId?: string | null, userId?: string | null) {
+  let apiOrders: BusinessOrderRow[] = [];
+  let apiError: string | null = null;
+
+  try {
+    const response = await fetch("/api/business/orders", { cache: "no-store" });
+    const payload = await response.json().catch(() => ({ orders: [] }));
+    if (response.ok) {
+      apiOrders = ((payload.orders || []) as BusinessOrderRow[]).filter(Boolean);
+      if (apiOrders.length || (!businessProfileId && !userId)) return { orders: apiOrders, error: null };
+    } else {
+      apiError = typeof payload.error === "string" ? payload.error : "Could not load marketplace orders.";
+    }
+  } catch (error) {
+    apiError = error instanceof Error ? error.message : "Could not load marketplace orders.";
+  }
+
+  const filters = [
+    businessProfileId ? `business_profile_id.eq.${businessProfileId}` : null,
+    userId ? `business_id.eq.${userId}` : null
+  ].filter((filter): filter is string => Boolean(filter));
+
+  if (!filters.length) return { orders: apiOrders, error: apiError };
+
+  const { data, error } = await supabase
+    .from("orders")
+    .select(businessOrderSelect)
+    .or(filters.join(","))
+    .order("created_at", { ascending: false })
+    .limit(60);
+
+  if (error) return { orders: apiOrders, error: apiOrders.length ? null : error.message || apiError };
+  return { orders: ((data || []) as BusinessOrderRow[]).filter(Boolean), error: null };
+}
+
 function estimatePrice(form: DispatchForm) {
   const base = form.vehicleType === "Van" ? 7000 : form.vehicleType === "Car" ? 4500 : form.vehicleType === "Bike" ? 2500 : 3200;
   return base + Math.max(1800, (form.pickupAddress.length + form.dropoffAddress.length) * 65);
@@ -144,6 +183,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
   const [dispatchMessage, setDispatchMessage] = useState<string | null>(null);
   const [dispatchLoading, setDispatchLoading] = useState(false);
   const [businessOrderLoading, setBusinessOrderLoading] = useState<string | null>(null);
+  const [businessOrderError, setBusinessOrderError] = useState<string | null>(null);
   const [bulkRows, setBulkRows] = useState<BulkRow[]>([]);
   const [addressDraft, setAddressDraft] = useState({ label: "", address: "" });
   const [historyStatus, setHistoryStatus] = useState("all");
@@ -182,12 +222,11 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         if (!user) return;
 
         let businessQuery = supabase.from("business_profiles").select("id, business_name, contact_name, phone, email, industry, business_type, commission_rate, pickup_address, cac_number, registration_status, rejection_reason").eq("user_id", user.id).maybeSingle();
-        const [businessResult, accountProfileResult, walletResult, ordersResult, businessOrdersResult, addressResult, teamResult] = await Promise.all([
+        const [businessResult, accountProfileResult, walletResult, ordersResult, addressResult, teamResult] = await Promise.all([
           businessQuery,
           supabase.from("profiles").select("avatar_url").eq("user_id", user.id).maybeSingle(),
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle(),
           supabase.from("deliveries").select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, proof_url").eq("customer_id", user.id).order("created_at", { ascending: false }).limit(50),
-          fetch("/api/business/orders", { cache: "no-store" }).then((response) => response.json()).catch(() => ({ orders: [] })),
           supabase.from("saved_addresses").select("id, label, address").eq("user_id", user.id).order("created_at", { ascending: false }),
           fetch("/api/business/team").then((response) => response.json()).catch(() => ({ members: [] }))
         ]);
@@ -201,9 +240,11 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         setKycStatus(nextProfile.registration_status || initialKycStatus);
         setKycRejectionReason(nextProfile.rejection_reason || initialKycRejectionReason);
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
-        if (ordersResult.error) throw ordersResult.error;
-        setOrders(mergeLocalDeliveries((ordersResult.data || []) as DeliveryRow[]));
-        setBusinessOrders((businessOrdersResult.orders || []) as BusinessOrderRow[]);
+        setOrders(ordersResult.error ? mergeLocalDeliveries([]) : mergeLocalDeliveries((ordersResult.data || []) as DeliveryRow[]));
+        const businessOrdersResult = await loadBusinessOrdersForProfile(supabase, nextProfile.id, user.id);
+        if (!mounted) return;
+        setBusinessOrders(businessOrdersResult.orders);
+        setBusinessOrderError(businessOrdersResult.error);
         setAddresses((addressResult.data || []) as SavedAddress[]);
         setTeam((teamResult.members || []) as TeamMember[]);
         setDispatch((current) => ({
@@ -213,15 +254,30 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
           pickupAddress: nextProfile.pickup_address || ""
         }));
         const businessProfileId = nextProfile.id;
+        const orderChannels: RealtimeChannel[] = [];
         if (businessProfileId) {
-          const channel = supabase
-            .channel(`business-orders:${businessProfileId}`)
-            .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `business_profile_id=eq.${businessProfileId}` }, () => {
-              void fetchBusinessOrders();
+          orderChannels.push(
+            supabase
+              .channel(`business-orders:${businessProfileId}`)
+              .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `business_profile_id=eq.${businessProfileId}` }, () => {
+                void fetchBusinessOrders(businessProfileId, user.id);
+              })
+              .subscribe()
+          );
+        }
+        orderChannels.push(
+          supabase
+            .channel(`business-orders-user:${user.id}`)
+            .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `business_id=eq.${user.id}` }, () => {
+              void fetchBusinessOrders(businessProfileId, user.id);
             })
-            .subscribe();
+            .subscribe()
+        );
+        if (orderChannels.length) {
           removeOrderChannel = () => {
-            supabase.removeChannel(channel);
+            orderChannels.forEach((channel) => {
+              supabase.removeChannel(channel);
+            });
           };
         }
       } catch (error) {
@@ -237,10 +293,11 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
     };
   }, []);
 
-  async function fetchBusinessOrders() {
-    const response = await fetch("/api/business/orders", { cache: "no-store" });
-    const payload = await response.json().catch(() => ({ orders: [] }));
-    if (response.ok) setBusinessOrders((payload.orders || []) as BusinessOrderRow[]);
+  async function fetchBusinessOrders(businessProfileId = profile.id, userId?: string | null) {
+    setBusinessOrderError(null);
+    const result = await loadBusinessOrdersForProfile(createClient(), businessProfileId, userId);
+    setBusinessOrders(result.orders);
+    setBusinessOrderError(result.error);
   }
 
   async function updateBusinessOrder(id: string, status: string) {
@@ -256,7 +313,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
       if (!response.ok) throw new Error(payload.error || "Could not update business order.");
       setBusinessOrders((current) => current.map((order) => (order.id === id ? (payload.order as BusinessOrderRow) : order)));
       if (status === "ready_for_pickup") {
-        await fetchBusinessOrders();
+        await fetchBusinessOrders(profile.id);
         setDispatchMessage("Dispatch request sent to available riders.");
       }
     } catch (error) {
@@ -449,7 +506,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
             <BusinessKycStatusView loading={loading} profile={profile} status={kycStatus} rejectionReason={kycRejectionReason} />
           ) : (
             <>
-              {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} stats={stats} orders={orders} businessOrders={businessOrders} businessOrderLoading={businessOrderLoading} onBusinessOrderStatus={updateBusinessOrder} /> : null}
+              {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} stats={stats} orders={orders} businessOrders={businessOrders} businessOrderError={businessOrderError} businessOrderLoading={businessOrderLoading} onBusinessOrderStatus={updateBusinessOrder} /> : null}
               {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsv={parseCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={deleteAddress} /> : null}
               {activeTab === "history" ? <HistoryTab orders={filteredOrders} status={historyStatus} onStatus={setHistoryStatus} onExport={exportHistory} /> : null}
               {activeTab === "analytics" ? <AnalyticsTab orders={orders} addresses={addresses} team={team} /> : null}
@@ -563,7 +620,7 @@ function BusinessKycStatusView({ loading, profile, status, rejectionReason }: { 
   );
 }
 
-function OverviewTab({ loading, profile, walletBalance, stats, orders, businessOrders, businessOrderLoading, onBusinessOrderStatus }: { loading: boolean; profile: BusinessProfile; walletBalance: number; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[]; businessOrders: BusinessOrderRow[]; businessOrderLoading: string | null; onBusinessOrderStatus: (id: string, status: string) => void }) {
+function OverviewTab({ loading, profile, walletBalance, stats, orders, businessOrders, businessOrderError, businessOrderLoading, onBusinessOrderStatus }: { loading: boolean; profile: BusinessProfile; walletBalance: number; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[]; businessOrders: BusinessOrderRow[]; businessOrderError: string | null; businessOrderLoading: string | null; onBusinessOrderStatus: (id: string, status: string) => void }) {
   if (loading) return <DashboardSkeleton />;
   const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || orders[0] || null;
   return (
@@ -580,7 +637,7 @@ function OverviewTab({ loading, profile, walletBalance, stats, orders, businessO
         transactionHref="/business/dashboard#transactions"
       />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat label="Orders today" value={String(stats.today)} /><Stat label="Spent this month" value={formatMoney(stats.monthSpend)} /><Stat label="Active" value={String(stats.active)} /><Stat label="Saved addresses" value={String(stats.addresses)} /></div>
-      <BusinessOrdersPanel orders={businessOrders} busyAction={businessOrderLoading} onStatus={onBusinessOrderStatus} />
+      <BusinessOrdersPanel orders={businessOrders} error={businessOrderError} busyAction={businessOrderLoading} onStatus={onBusinessOrderStatus} />
       <Card className="overflow-hidden p-0">
         <RoutePreview
           compact
@@ -597,7 +654,7 @@ function OverviewTab({ loading, profile, walletBalance, stats, orders, businessO
   );
 }
 
-function BusinessOrdersPanel({ orders, busyAction, onStatus }: { orders: BusinessOrderRow[]; busyAction: string | null; onStatus: (id: string, status: string) => void }) {
+function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: BusinessOrderRow[]; error: string | null; busyAction: string | null; onStatus: (id: string, status: string) => void }) {
   const statuses = [
     ["received", "Order Received"],
     ["preparing", "Preparing Order"],
@@ -606,7 +663,7 @@ function BusinessOrdersPanel({ orders, busyAction, onStatus }: { orders: Busines
   ] as const;
 
   return (
-    <Card className="p-5">
+    <Card id="marketplace-orders" className="p-5">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div>
           <h2 className="text-xl font-black text-fleet-night">Marketplace orders</h2>
@@ -614,6 +671,7 @@ function BusinessOrdersPanel({ orders, busyAction, onStatus }: { orders: Busines
         </div>
         <StatusBadge tone={orders.length ? "amber" : "neutral"}>{orders.length} orders</StatusBadge>
       </div>
+      {error ? <div className="mt-4 rounded-fleet bg-amber-50 p-3 text-sm font-bold text-amber-800">{error}</div> : null}
       <div className="mt-4 grid gap-3">
         {orders.length ? (
           orders.slice(0, 6).map((order) => (
