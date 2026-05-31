@@ -93,7 +93,7 @@ type LocalDelivery = Partial<OrderRow> & {
   source?: string;
 };
 
-const businessOrderStatuses = new Set(["received", "preparing", "packing", "ready_for_pickup", "rider_assigned"]);
+const businessOrderStatuses = new Set(["received", "preparing", "packing", "ready_for_pickup", "rider_assigned", "picked_up", "in_transit", "delivered"]);
 
 type PromotionRow = {
   id: string;
@@ -155,6 +155,7 @@ function isBusinessMarketplaceOrder(order: OrderRow) {
 }
 
 function hasLiveDelivery(order: OrderRow) {
+  if (isBusinessMarketplaceOrder(order)) return false;
   return Boolean(order.delivery_id || ["rider_assigned", "picked_up", "in_transit", "delivered"].includes(String(order.status)));
 }
 
@@ -955,7 +956,11 @@ function CustomerVendorProgress({ status, compact = false }: { status: string; c
     ["received", "Order Received"],
     ["preparing", "Preparing Order"],
     ["packing", "Packing Order"],
-    ["ready_for_pickup", "Ready for Pickup"]
+    ["ready_for_pickup", "Ready for Pickup"],
+    ["rider_assigned", "Rider Assigned"],
+    ["picked_up", "Order Picked by Dispatch"],
+    ["in_transit", "On the Way"],
+    ["delivered", "Delivered"]
   ] as const;
   const index = Math.max(0, steps.findIndex(([value]) => value === status));
   return (

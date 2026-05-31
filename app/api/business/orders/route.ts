@@ -79,6 +79,10 @@ export async function PATCH(request: Request) {
 
     const nextPatch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
     let deliveryId = typeof order.delivery_id === "string" ? order.delivery_id : null;
+    const businessPickupAddress = businessProfile.pickup_address || String(order.pickup_address || "Business pickup");
+    const customerDropoffAddress = String(order.dropoff_address || "");
+    const businessPickupContact = businessProfile.business_name || "Business pickup";
+    const marketplaceCustomerContact = String(order.customer_contact || "Marketplace customer");
 
     if (status === "ready_for_pickup" && !deliveryId) {
       const deliveryCode = String(order.order_code || `FF-BIZ-ORDER-${Date.now().toString(36).toUpperCase()}`);
@@ -86,11 +90,11 @@ export async function PATCH(request: Request) {
         .from("deliveries")
         .insert({
           delivery_code: deliveryCode,
-          customer_id: order.customer_id,
-          pickup_address: order.pickup_address || businessProfile.pickup_address || "Business pickup",
-          pickup_contact: businessProfile.business_name || "Business pickup",
-          dropoff_address: order.dropoff_address,
-          dropoff_contact: order.customer_contact || "Marketplace customer",
+          customer_id: businessProfile.user_id,
+          pickup_address: businessPickupAddress,
+          pickup_contact: businessPickupContact,
+          dropoff_address: customerDropoffAddress,
+          dropoff_contact: marketplaceCustomerContact,
           parcel_type: order.package_type || "Marketplace order",
           vehicle_type: normalizeVehicle(order.vehicle_type),
           delivery_speed: "same_day",
@@ -104,6 +108,7 @@ export async function PATCH(request: Request) {
             business_order_id: order.id,
             business_profile_id: businessProfile.id,
             business_name: businessProfile.business_name || null,
+            marketplace_customer_id: order.customer_id || null,
             marketplace_kind: order.marketplace_kind || null
           }
         })
@@ -123,6 +128,18 @@ export async function PATCH(request: Request) {
         }),
         notifyApprovedRiders(db, delivery.id, delivery.delivery_code)
       ]);
+    } else if (status === "ready_for_pickup" && deliveryId) {
+      await db
+        .from("deliveries")
+        .update({
+          customer_id: businessProfile.user_id,
+          pickup_address: businessPickupAddress,
+          pickup_contact: businessPickupContact,
+          dropoff_address: customerDropoffAddress,
+          dropoff_contact: marketplaceCustomerContact,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", deliveryId);
     }
 
     const { data: updated, error: updateError } = await db
