@@ -93,6 +93,7 @@ export async function POST(request: Request) {
     if (action === "accept") {
       const { error } = await supabase.rpc("accept_delivery_offer", { target_delivery_id: id });
       if (error) throw error;
+      await syncLinkedBusinessOrder(db, id, "rider_assigned");
       return updateResponse(db, id);
     }
 
@@ -138,6 +139,7 @@ export async function POST(request: Request) {
       body: "Rider updated this delivery."
     });
     await db.from("delivery_locations").update({ status: nextStatus, updated_at: timestamp }).eq("order_id", id);
+    await syncLinkedBusinessOrder(db, id, mapDeliveryStatusToBusinessOrder(nextStatus));
 
     return updateResponse(db, id);
 	  } catch (error) {
@@ -222,4 +224,49 @@ function mergeJobs(jobs: JobRow[]) {
     seen.add(job.id);
     return true;
   });
+}
+
+function mapDeliveryStatusToBusinessOrder(status: string) {
+  if (status === "accepted") return "rider_assigned";
+  if (status === "picked_up") return "picked_up";
+  if (status === "in_transit") return "in_transit";
+  if (status === "delivered") return "delivered";
+  return null;
+}
+
+async function syncLinkedBusinessOrder(db: SupabaseClient, deliveryId: string, status: string | null) {
+  if (!status) return;
+  const { data: delivery } = await db
+    .from("deliveries")
+    .select("id, rider_id, metadata, rider_profiles:rider_profiles!deliveries_rider_id_fkey(user_id)")
+    .eq("id", deliveryId)
+    .maybeSingle<{
+      id: string;
+      rider_id?: string | null;
+      metadata?: { business_order_id?: string } | null;
+      rider_profiles?: { user_id?: string | null } | null;
+    }>();
+  const orderId = delivery?.metadata?.business_order_id;
+  if (!orderId) return;
+  const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
+  if (delivery?.rider_profiles?.user_id) patch.rider_id = delivery.rider_profiles.user_id;
+  if (status === "delivered") patch.delivered_at = new Date().toISOString();
+  const { data: order } = await db.from("orders").update(patch).eq("id", orderId).select("id, order_code, customer_id, business_id").maybeSingle<{
+    id: string;
+    order_code?: string | null;
+    customer_id?: string | null;
+    business_id?: string | null;
+  }>();
+  const label = status === "rider_assigned" ? "Rider Assigned" : status === "picked_up" ? "Order Picked by Dispatch" : status === "in_transit" ? "On the Way" : status === "delivered" ? "Delivered" : status.replaceAll("_", " ");
+  const notifications = [order?.customer_id, order?.business_id]
+    .filter((userId): userId is string => Boolean(userId))
+    .map((userId) => ({
+      user_id: userId,
+      title: "Order status updated",
+      body: `${order?.order_code || "Order"} is ${label}.`,
+      type: "order_update",
+      channel: "in_app",
+      metadata: { order_id: order?.id, delivery_id: deliveryId, status }
+    }));
+  if (notifications.length) await db.from("notifications").insert(notifications);
 }

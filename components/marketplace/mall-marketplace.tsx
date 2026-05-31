@@ -24,6 +24,7 @@ type CartItem = {
   mallName: string;
   vendorId: string;
   vendorName: string;
+  businessId?: string;
   category: MallCategory;
   price: number;
   quantity: number;
@@ -108,6 +109,7 @@ export function MallMarketplace() {
         mallName: selectedMall.name,
         vendorId: selectedVendor.id,
         vendorName: selectedVendor.name,
+        businessId: selectedVendor.businessId,
         category: selectedVendor.category,
         price,
         quantity,

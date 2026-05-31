@@ -11,6 +11,7 @@ export type MallProduct = {
 
 export type MallStore = {
   id: string;
+  businessId?: string;
   name: string;
   category: MallCategory;
   products: MallProduct[];
@@ -166,6 +167,7 @@ function normalizeMallStore(value: unknown): MallStore | null {
   const products = Array.isArray(store.products) ? store.products.map(normalizeMallProduct).filter(Boolean) : [];
   return {
     id: text(store.id) || slug(name),
+    businessId: text(store.businessId) || undefined,
     name,
     category,
     products: products.length ? (products as MallProduct[]) : []

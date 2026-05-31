@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const PAYSTACK_INITIALIZE_URL = "https://api.paystack.co/transaction/initialize";
@@ -15,6 +16,8 @@ type CheckoutItem = {
   subtotal: number;
   productId?: string;
   productName?: string;
+  storeId?: string;
+  businessId?: string;
   mallId?: string;
   mallName?: string;
   vendorId?: string;
@@ -75,8 +78,64 @@ export async function POST(request: Request) {
     callbackUrl.searchParams.set("reference", reference);
     callbackUrl.searchParams.set("code", reference);
     const pickupAddress = Array.from(new Set(items.map((item) => item.store).filter(Boolean))).join(", ") || (payload.kind === "shopping" ? "Shopping pickup" : "Restaurant pickup");
+    const linkedBusinessIds = Array.from(new Set(items.map((item) => item.businessId).filter((id): id is string => Boolean(id))));
+    if (linkedBusinessIds.length > 1) {
+      return NextResponse.json({ error: "Checkout items from one registered business at a time." }, { status: 400 });
+    }
+    const admin = createAdminClient();
+    const linkedBusinessId = linkedBusinessIds[0] || null;
+    const linkedBusiness = linkedBusinessId && admin
+      ? await admin
+          .from("business_profiles")
+          .select("id, user_id, business_name, pickup_address, registration_status")
+          .eq("id", linkedBusinessId)
+          .maybeSingle<{ id: string; user_id: string; business_name?: string | null; pickup_address?: string | null; registration_status?: string | null }>()
+      : null;
+    const business = linkedBusiness?.data?.registration_status === "active" ? linkedBusiness.data : null;
 
     try {
+      if (business) {
+        const { data: order } = await supabase
+          .from("orders")
+          .insert({
+            order_code: reference,
+            customer_id: user.id,
+            business_id: business.user_id,
+            business_profile_id: business.id,
+            marketplace_kind: payload.kind || "restaurant",
+            items,
+            customer_contact: payload.phone || payload.email,
+            pickup_address: business.pickup_address || pickupAddress,
+            dropoff_address: payload.address,
+            package_type: payload.kind === "shopping" ? "shopping items" : "food order",
+            vehicle_type: "bike",
+            status: "received",
+            amount: expectedAmount,
+            payment_method: "card",
+            payment_status: "pending"
+          })
+          .select("id, order_code")
+          .single();
+
+        await Promise.allSettled([
+          admin?.from("notifications").insert({
+            user_id: business.user_id,
+            title: "New marketplace order",
+            body: `${reference} is waiting for your team to receive and prepare.`,
+            type: "business_order_received",
+            channel: "in_app",
+            metadata: { order_id: order?.id, order_code: reference, business_profile_id: business.id }
+          }),
+          supabase.from("notifications").insert({
+            user_id: user.id,
+            title: "Order sent to business",
+            body: `${business.business_name || "The business"} received ${reference}.`,
+            type: "order_update",
+            channel: "in_app",
+            metadata: { order_id: order?.id, order_code: reference, status: "received" }
+          })
+        ]);
+      } else {
         const { data: delivery } = await supabase.from("deliveries").insert({
           delivery_code: reference,
           customer_id: user.id,
@@ -108,6 +167,7 @@ export async function POST(request: Request) {
             body: "Fast Fleets 360 is notifying online drivers."
           });
         }
+      }
     } catch {
       // Local delivery fallback is still written in the browser before redirect.
     }

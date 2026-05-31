@@ -1346,6 +1346,7 @@ export function AdminPanel() {
 
       <RestaurantMenuSection
         restaurants={restaurantMenus}
+        businesses={adminBusinesses.filter((business: AdminBusiness) => business.registration_status === "active")}
         busyAction={busyAction}
         onKitchenChange={updateKitchen}
         onItemChange={updateKitchenItem}
@@ -1356,6 +1357,7 @@ export function AdminPanel() {
 
       <MallMenuSection
         malls={mallMenus}
+        businesses={adminBusinesses.filter((business: AdminBusiness) => business.registration_status === "active")}
         busyAction={busyAction}
         onMallChange={updateMall}
         onStoreChange={updateMallStore}
@@ -1978,6 +1980,7 @@ function CompanyTransactionSection({
 
 function RestaurantMenuSection({
   restaurants,
+  businesses,
   busyAction,
   onKitchenChange,
   onItemChange,
@@ -1986,6 +1989,7 @@ function RestaurantMenuSection({
   onSave
 }: {
   restaurants: RestaurantKitchen[];
+  businesses: AdminBusiness[];
   busyAction: string | null;
   onKitchenChange: (kitchenId: string, patch: Partial<RestaurantKitchen>) => void;
   onItemChange: (kitchenId: string, itemId: string, patch: Partial<RestaurantMenuItem>) => void;
@@ -2058,6 +2062,15 @@ function RestaurantMenuSection({
                     <input className="form-input" value={kitchen.imageUrl} onChange={(event) => onKitchenChange(kitchen.id, { imageUrl: event.target.value })} />
                   </label>
                 </div>
+                <label className="form-field">
+                  <span className="form-label">Linked business</span>
+                  <select className="form-input" value={kitchen.businessId || ""} onChange={(event) => onKitchenChange(kitchen.id, { businessId: event.target.value || undefined })}>
+                    <option value="">Unlinked</option>
+                    {businesses.map((business) => (
+                      <option key={business.id} value={business.id}>{business.business_name}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
 
@@ -2117,6 +2130,7 @@ function RestaurantMenuSection({
 
 function MallMenuSection({
   malls,
+  businesses,
   busyAction,
   onMallChange,
   onStoreChange,
@@ -2124,6 +2138,7 @@ function MallMenuSection({
   onSave
 }: {
   malls: ShoppingMall[];
+  businesses: AdminBusiness[];
   busyAction: string | null;
   onMallChange: (mallId: string, patch: Partial<ShoppingMall>) => void;
   onStoreChange: (mallId: string, storeId: string, patch: Partial<MallStore>) => void;
@@ -2190,6 +2205,15 @@ function MallMenuSection({
                         <option value="Grocery">Grocery</option>
                         <option value="Pharmacy">Pharmacy</option>
                         <option value="Fashion">Fashion</option>
+                      </select>
+                    </label>
+                    <label className="form-field md:col-span-2">
+                      <span className="form-label">Linked business</span>
+                      <select className="form-input bg-white" value={store.businessId || ""} onChange={(event) => onStoreChange(mall.id, store.id, { businessId: event.target.value || undefined })}>
+                        <option value="">Unlinked</option>
+                        {businesses.map((business) => (
+                          <option key={business.id} value={business.id}>{business.business_name}</option>
+                        ))}
                       </select>
                     </label>
                   </div>

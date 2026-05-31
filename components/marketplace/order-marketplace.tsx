@@ -27,6 +27,7 @@ type StoreItem = {
 
 export type Store = {
   id?: string;
+  businessId?: string;
   name: string;
   area: string;
   address?: string;
@@ -87,7 +88,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           .map((item) => {
             const key = itemKey(store.name, item.name);
             const quantity = quantities[key] || 0;
-            return { ...item, store: store.name, key, quantity, subtotal: quantity * item.price };
+            return { ...item, store: store.name, storeId: store.id, businessId: store.businessId, key, quantity, subtotal: quantity * item.price };
           })
           .filter((item) => item.quantity > 0)
       ),
@@ -138,7 +139,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           email,
           phone,
           address,
-          items: selectedItems.map(({ name, store, quantity, price, subtotal }) => ({ name, store, quantity, price, subtotal })),
+          items: selectedItems.map(({ name, store, storeId, businessId, quantity, price, subtotal }) => ({ name, store, storeId, businessId, quantity, price, subtotal })),
           fees: {
             platformFee: PLATFORM_CHECKOUT_FEE_NGN,
             deliveryFee

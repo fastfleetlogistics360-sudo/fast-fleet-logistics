@@ -520,25 +520,58 @@ for each row execute function public.set_updated_at();
 
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
+  order_code text,
   customer_id uuid not null references public.profiles(id) on delete cascade,
   rider_id uuid references public.profiles(id),
   business_id uuid references public.profiles(id),
+  business_profile_id uuid references public.business_profiles(id) on delete set null,
+  delivery_id uuid references public.deliveries(id) on delete set null,
+  marketplace_kind text,
+  items jsonb not null default '[]'::jsonb,
+  customer_contact text,
   pickup_address text not null,
   dropoff_address text not null,
   package_type text not null,
   vehicle_type text not null check (vehicle_type in ('any', 'bike', 'car', 'van')),
-  status text not null default 'pending' check (status in ('pending', 'assigned', 'picked_up', 'delivered', 'cancelled')),
+  status text not null default 'pending' check (status in ('pending', 'received', 'preparing', 'packing', 'ready_for_pickup', 'assigned', 'rider_assigned', 'picked_up', 'in_transit', 'delivered', 'cancelled')),
   amount numeric not null default 0,
   payment_method text not null default 'wallet',
   payment_status text not null default 'pending',
   proof_of_delivery_url text,
   created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   delivered_at timestamptz
 );
 
+alter table if exists public.orders
+  add column if not exists order_code text,
+  add column if not exists business_profile_id uuid references public.business_profiles(id) on delete set null,
+  add column if not exists delivery_id uuid references public.deliveries(id) on delete set null,
+  add column if not exists marketplace_kind text,
+  add column if not exists items jsonb not null default '[]'::jsonb,
+  add column if not exists customer_contact text,
+  add column if not exists updated_at timestamptz not null default now();
+
+do $$ begin
+  alter table public.orders drop constraint orders_status_check;
+exception when undefined_object then null;
+end $$;
+
+alter table public.orders
+  add constraint orders_status_check
+  check (status in ('pending', 'received', 'preparing', 'packing', 'ready_for_pickup', 'assigned', 'rider_assigned', 'picked_up', 'in_transit', 'delivered', 'cancelled'));
+
+drop trigger if exists orders_set_updated_at on public.orders;
+create trigger orders_set_updated_at
+before update on public.orders
+for each row execute function public.set_updated_at();
+
+create unique index if not exists orders_order_code_idx on public.orders(order_code) where order_code is not null;
 create index if not exists orders_customer_id_idx on public.orders(customer_id);
 create index if not exists orders_rider_id_idx on public.orders(rider_id);
 create index if not exists orders_business_id_idx on public.orders(business_id);
+create index if not exists orders_business_profile_id_idx on public.orders(business_profile_id);
+create index if not exists orders_delivery_id_idx on public.orders(delivery_id);
 create index if not exists orders_status_idx on public.orders(status, created_at desc);
 
 create table if not exists public.delivery_events (
@@ -2342,6 +2375,11 @@ drop policy if exists "Profile photos are public" on storage.objects;
 create policy "Profile photos are public"
   on storage.objects for select
   using (bucket_id = 'profile-photos');
+
+do $$ begin
+  alter publication supabase_realtime add table public.orders;
+exception when duplicate_object then null;
+end $$;
 
 do $$ begin
   alter publication supabase_realtime add table public.deliveries;

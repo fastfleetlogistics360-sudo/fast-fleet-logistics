@@ -9,6 +9,7 @@ export type RestaurantMenuItem = {
 
 export type RestaurantKitchen = {
   id: string;
+  businessId?: string;
   name: string;
   area: string;
   address: string;
@@ -165,6 +166,7 @@ export function normalizeRestaurantKitchens(value: unknown): RestaurantKitchen[]
 
       return {
         id: text(kitchen.id) || slug(name),
+        businessId: text(kitchen.businessId) || undefined,
         name,
         area: text(kitchen.area) || fallback.area,
         address: text(kitchen.address) || fallback.address,
