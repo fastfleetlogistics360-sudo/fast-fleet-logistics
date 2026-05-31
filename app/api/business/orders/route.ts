@@ -29,7 +29,7 @@ export async function GET() {
     const { data, error } = await db
       .from("orders")
       .select(orderSelect)
-      .eq("business_id", user.id)
+      .or(`business_profile_id.eq.${businessProfile.id},business_id.eq.${user.id}`)
       .order("created_at", { ascending: false })
       .limit(60);
     if (error) throw error;
@@ -73,7 +73,7 @@ export async function PATCH(request: Request) {
       .from("orders")
       .select(orderSelect)
       .eq("id", id)
-      .eq("business_id", user.id)
+      .or(`business_profile_id.eq.${businessProfile.id},business_id.eq.${user.id}`)
       .single<Record<string, unknown>>();
     if (orderError) throw orderError;
 
@@ -125,7 +125,13 @@ export async function PATCH(request: Request) {
       ]);
     }
 
-    const { data: updated, error: updateError } = await db.from("orders").update(nextPatch).eq("id", id).eq("business_id", user.id).select(orderSelect).single();
+    const { data: updated, error: updateError } = await db
+      .from("orders")
+      .update(nextPatch)
+      .eq("id", id)
+      .or(`business_profile_id.eq.${businessProfile.id},business_id.eq.${user.id}`)
+      .select(orderSelect)
+      .single();
     if (updateError) throw updateError;
 
     await Promise.allSettled([

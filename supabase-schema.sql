@@ -1803,6 +1803,10 @@ create policy "Orders visible to participants and admins"
     customer_id = auth.uid()
     or rider_id = auth.uid()
     or business_id = auth.uid()
+    or exists (
+      select 1 from public.business_profiles bp
+      where bp.id = business_profile_id and bp.user_id = auth.uid()
+    )
     or public.current_user_is_admin()
   );
 
@@ -1818,12 +1822,20 @@ create policy "Orders updated by assigned rider or admins"
     rider_id = auth.uid()
     or customer_id = auth.uid()
     or business_id = auth.uid()
+    or exists (
+      select 1 from public.business_profiles bp
+      where bp.id = business_profile_id and bp.user_id = auth.uid()
+    )
     or public.current_user_is_admin()
   )
   with check (
     rider_id = auth.uid()
     or customer_id = auth.uid()
     or business_id = auth.uid()
+    or exists (
+      select 1 from public.business_profiles bp
+      where bp.id = business_profile_id and bp.user_id = auth.uid()
+    )
     or public.current_user_is_admin()
   );
 

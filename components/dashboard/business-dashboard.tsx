@@ -22,6 +22,7 @@ type BusinessTab = "overview" | "dispatch" | "history" | "analytics" | "team" | 
 type BusinessKycStatus = "submitted" | "active" | "paused" | "rejected";
 
 type BusinessProfile = {
+  id?: string | null;
   business_name?: string | null;
   contact_name?: string | null;
   phone?: string | null;
@@ -180,7 +181,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         } = await supabase.auth.getUser();
         if (!user) return;
 
-        let businessQuery = supabase.from("business_profiles").select("business_name, contact_name, phone, email, industry, business_type, commission_rate, pickup_address, cac_number, registration_status, rejection_reason").eq("user_id", user.id).maybeSingle();
+        let businessQuery = supabase.from("business_profiles").select("id, business_name, contact_name, phone, email, industry, business_type, commission_rate, pickup_address, cac_number, registration_status, rejection_reason").eq("user_id", user.id).maybeSingle();
         const [businessResult, accountProfileResult, walletResult, ordersResult, businessOrdersResult, addressResult, teamResult] = await Promise.all([
           businessQuery,
           supabase.from("profiles").select("avatar_url").eq("user_id", user.id).maybeSingle(),
@@ -193,7 +194,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         if (!mounted) return;
         let nextProfile = (businessResult.data || profile) as BusinessProfile;
         if (businessResult.error) {
-          const fallback = await supabase.from("business_profiles").select("business_name, contact_name, phone, email, industry, pickup_address, cac_number, registration_status").eq("user_id", user.id).maybeSingle();
+          const fallback = await supabase.from("business_profiles").select("id, business_name, contact_name, phone, email, industry, pickup_address, cac_number, registration_status").eq("user_id", user.id).maybeSingle();
           nextProfile = (fallback.data || profile) as BusinessProfile;
         }
         setProfile({ ...nextProfile, avatar_url: (accountProfileResult.data as { avatar_url?: string | null } | null)?.avatar_url || nextProfile.avatar_url || null });
@@ -211,15 +212,18 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
           senderPhone: nextProfile.phone || "",
           pickupAddress: nextProfile.pickup_address || ""
         }));
-        const channel = supabase
-          .channel(`business-orders:${user.id}`)
-          .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `business_id=eq.${user.id}` }, () => {
-            void fetchBusinessOrders();
-          })
-          .subscribe();
-        removeOrderChannel = () => {
-          supabase.removeChannel(channel);
-        };
+        const businessProfileId = nextProfile.id;
+        if (businessProfileId) {
+          const channel = supabase
+            .channel(`business-orders:${businessProfileId}`)
+            .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `business_profile_id=eq.${businessProfileId}` }, () => {
+              void fetchBusinessOrders();
+            })
+            .subscribe();
+          removeOrderChannel = () => {
+            supabase.removeChannel(channel);
+          };
+        }
       } catch (error) {
         if (mounted) setDispatchMessage(error instanceof Error ? error.message : "Could not load business dashboard.");
       } finally {
