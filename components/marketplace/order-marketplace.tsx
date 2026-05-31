@@ -150,6 +150,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       const payload = await response.json();
       if (!response.ok || !payload.authorizationUrl) throw new Error(payload.error || "Paystack checkout failed.");
       const deliveryCode = String(payload.reference || `FFM-${Date.now()}`).toUpperCase();
+      const businessOrder = Boolean(payload.businessOrder);
       const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]");
       localStorage.setItem(
         "fastfleet.next.deliveries",
@@ -158,12 +159,14 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             delivery_code: deliveryCode,
             pickup_address: selectedItems.map((item) => item.store).filter(Boolean).join(", ") || (kind === "restaurant" ? "Restaurant pickup" : "Shopping pickup"),
             dropoff_address: address,
-            status: "searching",
+            status: payload.status || (businessOrder ? "received" : "searching"),
             vehicle_type: "bike",
             delivery_speed: "same_day",
             price_ngn: total,
             eta_minutes: 35,
-            source: `${kind}_checkout`,
+            source: businessOrder ? "business_marketplace_order" : `${kind}_checkout`,
+            marketplace_kind: kind,
+            items: selectedItems.map(({ name, store, quantity }) => ({ name, store, quantity })),
             created_at: new Date().toISOString()
           },
           ...stored

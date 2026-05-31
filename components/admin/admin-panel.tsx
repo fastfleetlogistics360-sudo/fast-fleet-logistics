@@ -1121,6 +1121,35 @@ export function AdminPanel() {
     );
   }
 
+  function addMallProduct(mallId: string, storeId: string) {
+    setMallMenus((malls) =>
+      malls.map((mall) =>
+        mall.id === mallId
+          ? {
+              ...mall,
+              stores: mall.stores.map((store) =>
+                store.id === storeId
+                  ? {
+                      ...store,
+                      products: [
+                        ...store.products,
+                        {
+                          id: `new-product-${Date.now().toString(36)}`,
+                          name: "New product",
+                          price: "ASK_PRICE",
+                          image: store.products[0]?.image || defaultShoppingMalls[0].stores[0].products[0].image,
+                          available: true
+                        }
+                      ]
+                    }
+                  : store
+              )
+            }
+          : mall
+      )
+    );
+  }
+
   async function saveMallMenus() {
     const malls = normalizeShoppingMalls(mallMenus);
     setBusyAction("malls:save");
@@ -1362,6 +1391,7 @@ export function AdminPanel() {
         onMallChange={updateMall}
         onStoreChange={updateMallStore}
         onProductChange={updateMallProduct}
+        onAddProduct={addMallProduct}
         onSave={saveMallMenus}
       />
 
@@ -2135,6 +2165,7 @@ function MallMenuSection({
   onMallChange,
   onStoreChange,
   onProductChange,
+  onAddProduct,
   onSave
 }: {
   malls: ShoppingMall[];
@@ -2143,6 +2174,7 @@ function MallMenuSection({
   onMallChange: (mallId: string, patch: Partial<ShoppingMall>) => void;
   onStoreChange: (mallId: string, storeId: string, patch: Partial<MallStore>) => void;
   onProductChange: (mallId: string, storeId: string, productId: string, patch: Partial<MallProduct>) => void;
+  onAddProduct: (mallId: string, storeId: string) => void;
   onSave: () => void;
 }) {
   const saving = busyAction === "malls:save";
@@ -2216,6 +2248,16 @@ function MallMenuSection({
                         ))}
                       </select>
                     </label>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-lg font-black text-fleet-night">{store.name} products</h3>
+                      <span className="text-sm font-bold text-slate-500">{store.products.length} products available for this vendor.</span>
+                    </div>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => onAddProduct(mall.id, store.id)}>
+                      <Plus className="h-4 w-4" />
+                      Add new product
+                    </Button>
                   </div>
                   <div className="mt-3 grid gap-3">
                     {store.products.map((product) => (

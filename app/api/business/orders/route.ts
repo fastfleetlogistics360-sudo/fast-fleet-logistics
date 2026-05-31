@@ -16,7 +16,9 @@ export async function GET() {
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in to load business orders." }, { status: 401 });
 
-    const { data: businessProfile, error: businessError } = await supabase
+    const admin = createAdminClient();
+    const db = admin || supabase;
+    const { data: businessProfile, error: businessError } = await db
       .from("business_profiles")
       .select("id, registration_status")
       .eq("user_id", user.id)
@@ -24,7 +26,7 @@ export async function GET() {
     if (businessError) throw businessError;
     if (businessProfile?.registration_status !== "active") return NextResponse.json({ orders: [] });
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("orders")
       .select(orderSelect)
       .eq("business_id", user.id)

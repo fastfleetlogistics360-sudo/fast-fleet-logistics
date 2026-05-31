@@ -93,9 +93,12 @@ export async function POST(request: Request) {
       : null;
     const business = linkedBusiness?.data?.registration_status === "active" ? linkedBusiness.data : null;
 
-    try {
-      if (business) {
-        const { data: order } = await supabase
+    if (business) {
+      try {
+        if (!admin) {
+          return NextResponse.json({ error: "Business marketplace orders are not configured. Add SUPABASE_SERVICE_ROLE_KEY in production." }, { status: 503 });
+        }
+        const { data: order, error: orderError } = await admin
           .from("orders")
           .insert({
             order_code: reference,
@@ -116,9 +119,10 @@ export async function POST(request: Request) {
           })
           .select("id, order_code")
           .single();
+        if (orderError) throw orderError;
 
         await Promise.allSettled([
-          admin?.from("notifications").insert({
+          admin.from("notifications").insert({
             user_id: business.user_id,
             title: "New marketplace order",
             body: `${reference} is waiting for your team to receive and prepare.`,
@@ -135,7 +139,11 @@ export async function POST(request: Request) {
             metadata: { order_id: order?.id, order_code: reference, status: "received" }
           })
         ]);
-      } else {
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Could not create the business marketplace order." }, { status: 500 });
+      }
+    } else {
+      try {
         const { data: delivery } = await supabase.from("deliveries").insert({
           delivery_code: reference,
           customer_id: user.id,
@@ -167,9 +175,9 @@ export async function POST(request: Request) {
             body: "Fast Fleets 360 is notifying online drivers."
           });
         }
+      } catch {
+        // Local delivery fallback is still written in the browser before redirect.
       }
-    } catch {
-      // Local delivery fallback is still written in the browser before redirect.
     }
 
     const response = await fetch(PAYSTACK_INITIALIZE_URL, {
@@ -204,7 +212,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       reference,
       authorizationUrl: paystackData.data.authorization_url,
-      accessCode: paystackData.data.access_code
+      accessCode: paystackData.data.access_code,
+      businessOrder: Boolean(business),
+      status: business ? "received" : "searching"
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Marketplace checkout failed." }, { status: 500 });

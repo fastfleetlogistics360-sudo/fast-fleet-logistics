@@ -63,11 +63,15 @@ type RiderTrackingDetails = {
 type OrderRow = {
   id: string;
   rider_id?: string | null;
+  delivery_id?: string | null;
   delivery_code: string;
   pickup_address: string;
   dropoff_address: string;
   status: OrderStatus | string;
   price_ngn: number;
+  source?: string | null;
+  marketplace_kind?: string | null;
+  items?: Array<{ name?: string; productName?: string; quantity?: number; store?: string; vendorName?: string }> | null;
   created_at: string;
   delivered_at?: string | null;
   proof_url?: string | null;
@@ -88,6 +92,8 @@ type LocalDelivery = Partial<OrderRow> & {
   estimate?: { total?: number; etaMinutes?: number };
   source?: string;
 };
+
+const businessOrderStatuses = new Set(["received", "preparing", "packing", "ready_for_pickup", "rider_assigned"]);
 
 type PromotionRow = {
   id: string;
@@ -142,6 +148,28 @@ function statusTone(status: string): "green" | "amber" | "red" | "blue" | "neutr
   if (["in_transit", "picked_up", "rider_arrived"].includes(status)) return "blue";
   if (["assigned", "accepted", "searching", "pending"].includes(status)) return "amber";
   return "neutral";
+}
+
+function isBusinessMarketplaceOrder(order: OrderRow) {
+  return order.source === "business_marketplace_order" || Boolean(order.marketplace_kind);
+}
+
+function hasLiveDelivery(order: OrderRow) {
+  return Boolean(order.delivery_id || ["rider_assigned", "picked_up", "in_transit", "delivered"].includes(String(order.status)));
+}
+
+function customerOrderLabel(status: string) {
+  const labels: Record<string, string> = {
+    received: "Order Received",
+    preparing: "Preparing Order",
+    packing: "Packing Order",
+    ready_for_pickup: "Ready for Pickup",
+    rider_assigned: "Rider Assigned",
+    picked_up: "Order Picked by Dispatch",
+    in_transit: "On the Way",
+    delivered: "Delivered"
+  };
+  return labels[status] || status.replaceAll("_", " ");
 }
 
 function greeting() {
@@ -769,6 +797,22 @@ function ProfileImage({ src, name, className }: { src?: string | null; name: str
 }
 
 function ActiveDeliveryCard({ order, onSelect }: { order: OrderRow; onSelect: () => void }) {
+  if (isBusinessMarketplaceOrder(order) && !hasLiveDelivery(order)) {
+    return (
+      <Card className="border-fleet-gold/50 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-black text-fleet-night">{order.delivery_code}</h2>
+            <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{businessOrderSummary(order)}</p>
+          </div>
+          <StatusBadge tone={statusTone(order.status)}>{customerOrderLabel(String(order.status))}</StatusBadge>
+        </div>
+        <p className="mt-4 text-sm font-semibold leading-6 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p>
+        <CustomerVendorProgress status={String(order.status)} />
+        <Button type="button" variant="secondary" className="mt-4 w-full" onClick={onSelect}>Details</Button>
+      </Card>
+    );
+  }
   const riderName = order.rider_profiles?.users?.full_name || "Assigned driver";
   const riderTag = order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Rider tag pending";
   return (
@@ -782,7 +826,7 @@ function ActiveDeliveryCard({ order, onSelect }: { order: OrderRow; onSelect: ()
             <p className="mt-1 text-[0.68rem] font-black uppercase tracking-[0.12em] text-fleet-night">{riderTag}</p>
           </div>
         </div>
-        <StatusBadge tone={statusTone(order.status)}>{order.status.replaceAll("_", " ")}</StatusBadge>
+        <StatusBadge tone={statusTone(order.status)}>{customerOrderLabel(String(order.status))}</StatusBadge>
       </div>
       <p className="mt-4 text-sm font-semibold leading-6 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -812,6 +856,8 @@ function OrdersTab({ loading, orders, filter, onFilter, onSelectOrder }: { loadi
 }
 
 function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?: boolean; onSelect: () => void }) {
+  const businessOrder = isBusinessMarketplaceOrder(order);
+  const liveDelivery = hasLiveDelivery(order);
   return (
     <article className="rounded-fleet border border-fleet-line bg-white p-4">
       <div className="flex items-start justify-between gap-3">
@@ -820,13 +866,20 @@ function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?:
           <h3 className="mt-1 text-sm font-black text-fleet-night">{order.delivery_code}</h3>
           <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p>
         </div>
-        <StatusBadge tone={statusTone(order.status)}>{order.status.replaceAll("_", " ")}</StatusBadge>
+        <StatusBadge tone={statusTone(order.status)}>{customerOrderLabel(String(order.status))}</StatusBadge>
       </div>
+      {businessOrder && !liveDelivery ? <CustomerVendorProgress status={String(order.status)} compact /> : null}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <strong className="text-sm font-black text-fleet-night">{formatMoney(order.price_ngn)}</strong>
         <div className="flex gap-2">
-          {!compact ? <LinkButton href={detailsHref(order)} size="sm" variant="secondary">View details</LinkButton> : null}
-          <LinkButton href={trackHref(order)} size="sm" variant="secondary">Live track</LinkButton>
+          {!compact ? (
+            businessOrder && !liveDelivery ? <Button type="button" size="sm" variant="secondary" onClick={onSelect}>View details</Button> : <LinkButton href={detailsHref(order)} size="sm" variant="secondary">View details</LinkButton>
+          ) : null}
+          {businessOrder && !liveDelivery ? (
+            <Button type="button" size="sm" variant="secondary" onClick={onSelect}>Status updates</Button>
+          ) : (
+            <LinkButton href={trackHref(order)} size="sm" variant="secondary">Live track</LinkButton>
+          )}
           <LinkButton href={`/book?reorder=${order.delivery_code}`} size="sm">Re-order</LinkButton>
         </div>
       </div>
@@ -837,6 +890,7 @@ function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?:
 function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange }: { order: OrderRow | null; searchCode: string; onSearchCode: (value: string) => void; onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null }) => void }) {
   const steps = ["Booked", "Rider assigned", "Picked up", "In transit", "Delivered"];
   const currentStep = order ? customerStepIndex(order.status) : 0;
+  const vendorOrder = order && isBusinessMarketplaceOrder(order) && !hasLiveDelivery(order);
   return (
     <div className="grid gap-5">
       <label className="form-field">
@@ -850,21 +904,27 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange }: { o
         <>
           <Card className="p-4">
             <h2 className="text-xl font-black text-fleet-night">{order.delivery_code}</h2>
-            <div className="mt-5 grid gap-4">
-              {steps.map((step, index) => (
-                <div key={step} className="flex items-center gap-3">
-                  <span className={cn("h-5 w-5 rounded-full border-4", index <= currentStep ? "border-fleet-navy bg-fleet-navy" : "border-slate-200 bg-white")} />
-                  <span className="text-sm font-black text-fleet-night">{step}</span>
-                </div>
-              ))}
-            </div>
+            {vendorOrder ? (
+              <CustomerVendorProgress status={String(order.status)} />
+            ) : (
+              <div className="mt-5 grid gap-4">
+                {steps.map((step, index) => (
+                  <div key={step} className="flex items-center gap-3">
+                    <span className={cn("h-5 w-5 rounded-full border-4", index <= currentStep ? "border-fleet-navy bg-fleet-navy" : "border-slate-200 bg-white")} />
+                    <span className="text-sm font-black text-fleet-night">{step}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
-          <DeliveryRouteMap
-            label="Live delivery map"
-            order={order}
-            onLiveDeliveryChange={onLiveDeliveryChange}
-          />
-          <Card className="p-4">
+          {!vendorOrder ? (
+            <DeliveryRouteMap
+              label="Live delivery map"
+              order={order}
+              onLiveDeliveryChange={onLiveDeliveryChange}
+            />
+          ) : null}
+          {!vendorOrder ? <Card className="p-4">
             <div className="flex items-center gap-3">
               <ProfileImage src={order.rider_profiles?.users?.avatar_url} name={order.rider_profiles?.users?.full_name || "Driver"} className="h-14 w-14" />
               <div>
@@ -873,7 +933,7 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange }: { o
               </div>
             </div>
             <LinkButton href={`tel:${order.rider_profiles?.users?.phone || ""}`} className="mt-4 w-full">Call driver</LinkButton>
-          </Card>
+          </Card> : null}
         </>
       ) : (
         <DashboardEmptyState title="No active order to track" body="Enter an order ID or book a delivery to see live movement." ctaLabel="Book delivery" ctaHref="/book" />
@@ -888,6 +948,38 @@ function customerStepIndex(status: string) {
   if (["picked_up"].includes(status)) return 2;
   if (["assigned", "accepted", "rider_arrived"].includes(status)) return 1;
   return 0;
+}
+
+function CustomerVendorProgress({ status, compact = false }: { status: string; compact?: boolean }) {
+  const steps = [
+    ["received", "Order Received"],
+    ["preparing", "Preparing Order"],
+    ["packing", "Packing Order"],
+    ["ready_for_pickup", "Ready for Pickup"]
+  ] as const;
+  const index = Math.max(0, steps.findIndex(([value]) => value === status));
+  return (
+    <div className={cn("grid gap-3", compact ? "mt-3" : "mt-5")}>
+      {steps.map(([value, label], stepIndex) => {
+        const active = stepIndex <= index || !businessOrderStatuses.has(status);
+        return (
+          <div key={value} className="flex items-center gap-3">
+            <span className={cn("h-4 w-4 rounded-full border-2", active ? "border-emerald-600 bg-emerald-600" : "border-slate-200 bg-white")} />
+            <span className={cn("text-xs font-black sm:text-sm", active ? "text-fleet-night" : "text-slate-400")}>{label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function businessOrderSummary(order: OrderRow) {
+  const items = Array.isArray(order.items) ? order.items : [];
+  if (!items.length) return "Marketplace order";
+  return items
+    .slice(0, 2)
+    .map((item) => `${Number(item.quantity || 1)}x ${item.name || item.productName || "Item"}`)
+    .join(", ");
 }
 
 function AccountTab({
@@ -1024,6 +1116,7 @@ function Field({ label, value, onChange, readOnly }: { label: string; value: str
 }
 
 function OrderSheet({ order, onClose, onLiveDeliveryChange }: { order: OrderRow; onClose: () => void; onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null }) => void }) {
+  const vendorOrder = isBusinessMarketplaceOrder(order) && !hasLiveDelivery(order);
   return (
     <div className="fixed inset-0 z-[120] grid place-items-end bg-fleet-night/35 p-3 sm:place-items-center">
       <Card className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto p-5">
@@ -1034,27 +1127,31 @@ function OrderSheet({ order, onClose, onLiveDeliveryChange }: { order: OrderRow;
           </div>
           <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
         </div>
-        <div className="mt-5 grid gap-3">
-          {["Booked", "Rider assigned", "Picked up", "Delivered"].map((item, index) => (
-            <div key={item} className="flex items-center gap-3 rounded-fleet bg-fleet-paper p-3">
-              <span className={cn("h-4 w-4 rounded-full", index === 0 || order.status === "delivered" || (index < 3 && !["pending", "assigned"].includes(order.status)) ? "bg-fleet-navy" : "bg-slate-200")} />
-              <span className="text-sm font-black text-fleet-night">{item}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-5 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">
+        {vendorOrder ? (
+          <CustomerVendorProgress status={String(order.status)} />
+        ) : (
+          <div className="mt-5 grid gap-3">
+            {["Booked", "Rider assigned", "Picked up", "Delivered"].map((item, index) => (
+              <div key={item} className="flex items-center gap-3 rounded-fleet bg-fleet-paper p-3">
+                <span className={cn("h-4 w-4 rounded-full", index === 0 || order.status === "delivered" || (index < 3 && !["pending", "assigned"].includes(order.status)) ? "bg-fleet-navy" : "bg-slate-200")} />
+                <span className="text-sm font-black text-fleet-night">{item}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {!vendorOrder ? <div className="mt-5 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">
           Driver: {order.rider_profiles?.users?.full_name || "Pending"} · Plate: {order.rider_profiles?.plate_number || "Pending"} · {order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Driver tag pending"}
-        </div>
-        <LinkButton href={trackHref(order)} className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night">
+        </div> : null}
+        {!vendorOrder ? <LinkButton href={trackHref(order)} className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night">
           Open live tracking
-        </LinkButton>
-        <DeliveryRouteMap
+        </LinkButton> : null}
+        {!vendorOrder ? <DeliveryRouteMap
           compact
           className="mt-4"
           label="Order live map"
           order={order}
           onLiveDeliveryChange={onLiveDeliveryChange}
-        />
+        /> : null}
         {order.proof_url ? (
           <Image src={order.proof_url} alt="Proof of delivery" width={720} height={360} unoptimized className="mt-4 max-h-64 w-full rounded-fleet object-cover" />
         ) : null}
@@ -1121,6 +1218,9 @@ function readLocalDeliveries(): OrderRow[] {
         dropoff_address: item.dropoff_address || item.dropoff || "Customer delivery address",
         status: item.status || "searching",
         price_ngn: Number(item.price_ngn || item.estimate?.total || 0),
+        source: item.source || null,
+        marketplace_kind: item.marketplace_kind || null,
+        items: item.items || null,
         created_at: item.created_at || new Date().toISOString(),
         delivered_at: item.delivered_at || null,
         proof_url: item.proof_url || null,

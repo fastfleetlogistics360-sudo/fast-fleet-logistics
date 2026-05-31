@@ -9,6 +9,9 @@ const orderSelectWithRiderTag =
 const orderSelectWithoutRiderTag =
   "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, avatar_url))";
 
+const businessOrderSelect =
+  "id, rider_id, order_code, delivery_id, marketplace_kind, items, pickup_address, dropoff_address, package_type, status, amount, created_at, updated_at, delivered_at, proof_of_delivery_url";
+
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -61,14 +64,50 @@ async function loadOrders(db: SupabaseClient, userId: string) {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  if (!result.error || !/rider_account_type/i.test(result.error.message)) return result;
+  const deliveries = !result.error || !/rider_account_type/i.test(result.error.message)
+    ? result
+    : await db
+        .from("deliveries")
+        .select(orderSelectWithoutRiderTag)
+        .eq("customer_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-  return db
-    .from("deliveries")
-    .select(orderSelectWithoutRiderTag)
+  if (deliveries.error) return deliveries;
+
+  const businessOrders = await db
+    .from("orders")
+    .select(businessOrderSelect)
     .eq("customer_id", userId)
     .order("created_at", { ascending: false })
     .limit(50);
+
+  if (businessOrders.error) return deliveries;
+
+  const deliveryCodes = new Set((deliveries.data || []).map((delivery) => String(delivery.delivery_code || "").toUpperCase()));
+  const mappedBusinessOrders = (businessOrders.data || [])
+    .filter((order) => !deliveryCodes.has(String(order.order_code || "").toUpperCase()))
+    .map((order) => ({
+      id: order.id,
+      rider_id: order.rider_id,
+      delivery_id: order.delivery_id,
+      delivery_code: String(order.order_code || order.id).toUpperCase(),
+      pickup_address: order.pickup_address,
+      dropoff_address: order.dropoff_address,
+      status: order.status,
+      price_ngn: Number(order.amount || 0),
+      created_at: order.created_at,
+      delivered_at: order.delivered_at,
+      proof_url: order.proof_of_delivery_url,
+      marketplace_kind: order.marketplace_kind,
+      items: order.items,
+      source: "business_marketplace_order"
+    }));
+
+  return {
+    ...deliveries,
+    data: [...mappedBusinessOrders, ...(deliveries.data || [])].sort((first, second) => new Date(second.created_at || 0).getTime() - new Date(first.created_at || 0).getTime())
+  };
 }
 
 function readableError(error: unknown, fallback: string) {
