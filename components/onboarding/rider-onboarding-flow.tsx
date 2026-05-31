@@ -10,41 +10,9 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { DEFAULT_OPERATION_LOCATIONS, operationLocationsForLaunchRows } from "@/lib/nigeria-locations";
 
 const steps = ["Personal", "Vehicle", "Documents", "Payout", "Review"] as const;
-
-const lgas = [
-  "Agege, Lagos",
-  "Ajeromi-Ifelodun, Lagos",
-  "Alimosho, Lagos",
-  "Amuwo-Odofin, Lagos",
-  "Apapa, Lagos",
-  "Badagry, Lagos",
-  "Epe, Lagos",
-  "Eti-Osa, Lagos",
-  "Ibeju-Lekki, Lagos",
-  "Ifako-Ijaiye, Lagos",
-  "Ikeja, Lagos",
-  "Ikorodu, Lagos",
-  "Kosofe, Lagos",
-  "Lagos Island, Lagos",
-  "Lagos Mainland, Lagos",
-  "Mushin, Lagos",
-  "Ojo, Lagos",
-  "Oshodi-Isolo, Lagos",
-  "Shomolu, Lagos",
-  "Surulere, Lagos",
-  "Abeokuta North, Ogun",
-  "Abeokuta South, Ogun",
-  "Ado-Odo/Ota, Ogun",
-  "Ewekoro, Ogun",
-  "Ifo, Ogun",
-  "Ijebu Ode, Ogun",
-  "Obafemi Owode, Ogun",
-  "Sagamu, Ogun",
-  "Yewa North, Ogun",
-  "Yewa South, Ogun"
-];
 
 const governmentIds = [
   ["nin_slip", "NIN slip"],
@@ -130,13 +98,14 @@ export function RiderOnboardingFlow() {
   const [banksLoading, setBanksLoading] = useState(true);
   const [bankMessage, setBankMessage] = useState<string | null>(null);
   const [bankLoading, setBankLoading] = useState(false);
+  const [operationLocations, setOperationLocations] = useState<string[]>([...DEFAULT_OPERATION_LOCATIONS]);
   const [docs, setDocs] = useState<Partial<Record<DocumentKey, UploadedDoc>>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState<RiderForm>({
     fullName: "",
     phone: "+234",
     email: "",
-    lga: lgas[0],
+    lga: DEFAULT_OPERATION_LOCATIONS[0],
     vehicleType: "motorcycle",
     make: "",
     model: "",
@@ -224,6 +193,10 @@ export function RiderOnboardingFlow() {
   }, []);
 
   useEffect(() => {
+    loadOperationLocations();
+  }, []);
+
+  useEffect(() => {
     const accountNumber = form.accountNumber.replace(/\D/g, "");
     if (!form.bankCode || accountNumber.length !== 10) {
       setBankMessage(null);
@@ -284,6 +257,21 @@ export function RiderOnboardingFlow() {
       setBanks([]);
     } finally {
       setBanksLoading(false);
+    }
+  }
+
+  async function loadOperationLocations() {
+    const fallback = [...DEFAULT_OPERATION_LOCATIONS];
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.from("platform_launch_states").select("state,status");
+      if (error) throw error;
+      const nextLocations = operationLocationsForLaunchRows(data);
+      setOperationLocations(nextLocations);
+      setForm((previous) => (nextLocations.includes(previous.lga) ? previous : { ...previous, lga: nextLocations[0] || fallback[0] }));
+    } catch {
+      setOperationLocations(fallback);
+      setForm((previous) => (fallback.includes(previous.lga) ? previous : { ...previous, lga: fallback[0] }));
     }
   }
 
@@ -443,7 +431,7 @@ export function RiderOnboardingFlow() {
               <label className="form-field">
                 <span className="form-label">LGA of operation</span>
                 <select className="form-input" value={form.lga} onChange={(event) => update("lga", event.target.value)}>
-                  {lgas.map((lga) => <option key={lga}>{lga}</option>)}
+                  {operationLocations.map((lga) => <option key={lga}>{lga}</option>)}
                 </select>
                 {errors.lga ? <span className="text-xs font-bold text-red-600">{errors.lga}</span> : null}
               </label>

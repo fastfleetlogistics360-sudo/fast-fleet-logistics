@@ -43,9 +43,9 @@ export async function GET(request: Request) {
     if (!rider?.id) return NextResponse.json({ jobs: [] });
 
     const dispatchVehicle = normalizeDispatchVehicle(rider.vehicle_type) || "bike";
-    if (rider.application_status === "approved" && (!rider.online || rider.vehicle_type !== dispatchVehicle)) {
-      await db.from("rider_profiles").update({ online: true, vehicle_type: dispatchVehicle }).eq("id", rider.id);
-      rider = { ...rider, online: true, vehicle_type: dispatchVehicle };
+    if (rider.application_status === "approved" && rider.vehicle_type !== dispatchVehicle) {
+      await db.from("rider_profiles").update({ vehicle_type: dispatchVehicle }).eq("id", rider.id);
+      rider = { ...rider, vehicle_type: dispatchVehicle };
     }
     const [assignedResult, availableResult] = await Promise.all([
       db.from("deliveries").select(jobSelect).eq("rider_id", rider.id).order("created_at", { ascending: false }).limit(40),
@@ -201,7 +201,7 @@ async function ensureApprovedRiderProfile(admin: NonNullable<ReturnType<typeof c
         bank_name: application.bank_name || null,
         account_number: application.account_number || null,
         account_name: application.account_name || null,
-        online: true,
+        online: false,
         reviewed_at: new Date().toISOString()
       },
       { onConflict: "user_id" }

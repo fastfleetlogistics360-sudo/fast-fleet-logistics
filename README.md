@@ -42,7 +42,7 @@ Run `supabase-schema.sql` in the Supabase SQL editor before testing live auth, o
 
 FastFleet is open for Lagos and Ogun first. During registration, users can choose any Nigerian state. Users outside live states can register, but their dashboard shows the state waitlist screen and stores their interest in `state_waitlist`.
 
-The admin panel includes every Nigerian state with a `Go live` button. When a state is launched, `platform_launch_states` is updated and users from that state automatically see the full customer or rider dashboard.
+The admin panel includes every Nigerian state with a `Go live` button. When a state is launched, `platform_launch_states` is updated and users from that state automatically see the full customer or rider dashboard. Rider registration also builds its city/LGA options from the states marked active in `platform_launch_states`.
 
 ## Wallet and Paystack
 

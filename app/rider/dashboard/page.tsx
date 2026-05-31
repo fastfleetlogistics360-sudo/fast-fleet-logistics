@@ -68,7 +68,7 @@ async function ensureDispatchProfileForApprovedRider(userId: string, application
   if (!admin) return;
 
   const dispatchVehicle = normalizeDispatchVehicle(riderProfile?.vehicle_type || application?.vehicle_type);
-  if (riderProfile?.id && riderProfile.application_status === "approved" && riderProfile.online === true && riderProfile.vehicle_type === dispatchVehicle) return;
+  if (riderProfile?.id && riderProfile.application_status === "approved" && riderProfile.vehicle_type === dispatchVehicle) return;
 
   await admin
     .from("rider_profiles")
@@ -84,7 +84,7 @@ async function ensureDispatchProfileForApprovedRider(userId: string, application
         bank_name: application?.bank_name || null,
         account_number: application?.account_number || null,
         account_name: application?.account_name || null,
-        online: true,
+        online: Boolean(riderProfile?.online),
         reviewed_at: new Date().toISOString()
       },
       { onConflict: "user_id" }

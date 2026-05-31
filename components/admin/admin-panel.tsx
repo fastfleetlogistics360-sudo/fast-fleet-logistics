@@ -720,7 +720,7 @@ export function AdminPanel() {
       setLaunchStates((current) =>
         current.map((item) => (item.state === state ? { ...item, status, launched_at: result.launched_at || item.launched_at } : item))
       );
-      setAdminMessage(`${state} is now ${launchStatusLabel(status).toLowerCase()}. Customer dashboards will adapt automatically.`);
+      setAdminMessage(`${state} is now ${launchStatusLabel(status).toLowerCase()}. Customer dashboards and rider registration cities will adapt automatically.`);
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "Could not update this state.");
     } finally {

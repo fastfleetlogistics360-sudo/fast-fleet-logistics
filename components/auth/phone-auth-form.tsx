@@ -418,7 +418,7 @@ export function PhoneAuthForm({
               </select>
             </span>
             <span className="text-xs font-bold leading-5 text-slate-500">
-              Lagos and Ogun are active now. Other states receive early-access dashboard access while rollout expands.
+              Live states are controlled from admin. Other states receive early-access dashboard access while rollout expands.
             </span>
             {fieldErrors.customerState ? <span className="text-xs font-bold text-red-600">{fieldErrors.customerState}</span> : null}
           </label>

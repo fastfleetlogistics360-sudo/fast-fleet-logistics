@@ -130,7 +130,6 @@ export async function PATCH(request: Request) {
   };
   if (operatingZone) patch.operating_zone = operatingZone;
   if (status === "approved") {
-    patch.online = true;
     patch.rider_account_type = riderAccountType;
   }
 
@@ -239,7 +238,7 @@ async function ensureRiderProfileFromApplication(
         bank_name: application.bank_name || null,
         account_number: application.account_number || null,
         account_name: application.account_name || null,
-        online: status === "approved",
+        online: false,
         reviewed_at: new Date().toISOString()
       },
       { onConflict: "user_id" }

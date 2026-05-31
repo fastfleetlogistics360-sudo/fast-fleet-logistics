@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Banknote, Bike, Clock, Home, Loader2, PackageCheck, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -93,7 +94,39 @@ const jobFields =
   "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
 
 export function RiderAccessState({ status, rejectionReason }: { status: KycStatus; rejectionReason?: string | null }) {
+  const router = useRouter();
   const rejected = status === "rejected";
+
+  useEffect(() => {
+    if (status === "approved") return;
+    let mounted = true;
+
+    async function checkRiderStatus() {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user }
+        } = await supabase.auth.getUser();
+        if (!user || !mounted) return;
+        const [{ data: profile }, { data: application }] = await Promise.all([
+          supabase.from("rider_profiles").select("application_status").eq("user_id", user.id).maybeSingle<{ application_status?: KycStatus | null }>(),
+          supabase.from("rider_applications").select("status").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle<{ status?: KycStatus | null }>()
+        ]);
+        if (!mounted) return;
+        if (profile?.application_status === "approved" || application?.status === "approved") router.refresh();
+      } catch {
+        // Keep the pending screen stable if a background status check fails.
+      }
+    }
+
+    void checkRiderStatus();
+    const timer = window.setInterval(checkRiderStatus, 15000);
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+    };
+  }, [router, status]);
+
   return (
     <section className="section-wrap py-10">
       <Card className="mx-auto max-w-2xl p-6 text-center">
@@ -441,8 +474,8 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 
 	  useEffect(() => {
 	    let mounted = true;
-    async function load() {
-      setLoading(true);
+    async function load(silent = false) {
+      if (!silent) setLoading(true);
       try {
         const supabase = createClient();
         const {
@@ -461,9 +494,10 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	        const dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || "bike";
 	        let riderId = riderData.id || null;
 	        const approved = riderData.application_status === "approved" || initialKycStatus === "approved";
-	        const effectiveOnline = approved ? true : Boolean(riderData.online);
-	        if (riderId && approved && (!riderData.online || riderData.vehicle_type !== dispatchVehicle || riderData.application_status !== "approved")) {
-	          await supabase.from("rider_profiles").update({ application_status: "approved", online: true, vehicle_type: dispatchVehicle }).eq("id", riderId);
+	        const effectiveOnline = Boolean(riderData.online);
+	        if (riderId && approved && (riderData.vehicle_type !== dispatchVehicle || riderData.application_status !== "approved")) {
+	          await supabase.from("rider_profiles").update({ application_status: "approved", vehicle_type: dispatchVehicle }).eq("id", riderId);
+	          riderData = { ...riderData, application_status: "approved", vehicle_type: dispatchVehicle };
 	        }
 	        const [jobsResult, withdrawalsResult] = await Promise.all([
 	          riderId || approved
@@ -499,20 +533,25 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
           online: effectiveOnline
         };
         setProfile(nextProfile);
-        setOnline(Boolean(nextProfile.online));
-        setOnlineSince(nextProfile.online ? new Date() : null);
+        const nextOnline = Boolean(nextProfile.online);
+        setOnline(nextOnline);
+        setOnlineSince((current) => (nextOnline ? current || new Date() : null));
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
 	        setJobs(Array.isArray(jobsResult) ? jobsResult : ((jobsResult.data || []) as JobRow[]));
         setWithdrawals((withdrawalsResult.data || []) as WithdrawalRow[]);
       } catch {
-        if (mounted) setJobs([]);
+        if (mounted && !silent) setJobs([]);
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted && !silent) setLoading(false);
       }
     }
     void load();
+    const timer = window.setInterval(() => {
+      void load(true);
+    }, 15000);
 	    return () => {
 	      mounted = false;
+	      window.clearInterval(timer);
 	    };
 	  }, []);
 
@@ -557,6 +596,10 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       return;
     }
     const nextOnline = !online;
+    if (!nextOnline && activeJob) {
+      window.alert("You can't go offline until the dispatch job has been delivered.");
+      return;
+    }
     setOnline(nextOnline);
     setOnlineSince(nextOnline ? new Date() : null);
     try {
@@ -573,6 +616,9 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	        const nextJobs = await loadRiderJobs(supabase, profile.id, dispatchVehicle, true);
 	        setJobs(nextJobs);
 	        setOfferNotice(nextJobs.some((job) => job.status === "searching") ? "New dispatch orders are available." : null);
+	      } else {
+	        setJobs((current) => current.filter((job) => job.status !== "searching"));
+	        setOfferNotice(null);
 	      }
 	    } catch (error) {
       setOnline(!nextOnline);

@@ -263,9 +263,9 @@ export function CustomerDashboard() {
 
   useEffect(() => {
     let mounted = true;
-    async function load() {
-      setLoading(true);
-      setLoadError(null);
+    async function load(silent = false) {
+      if (!silent) setLoading(true);
+      if (!silent) setLoadError(null);
       try {
         const response = await fetch("/api/customer/dashboard", { cache: "no-store" });
         const payload = (await response.json().catch(() => ({}))) as CustomerDashboardPayload;
@@ -289,20 +289,27 @@ export function CustomerDashboard() {
         const hydratedOrders = await enrichOrdersWithRiderDetails(mergedOrders);
         if (!mounted) return;
         setOrders(hydratedOrders);
+        setSelectedOrder((current) => (current ? hydratedOrders.find((order) => order.id === current.id) || current : current));
         setPromotions(payload.promotions || []);
         setAddresses(payload.addresses || []);
       } catch (error) {
         if (!mounted) return;
-        setOrders([]);
-        setPromotions([]);
-        setLoadError(error instanceof Error ? error.message : "Could not load your dashboard data.");
+        if (!silent) {
+          setOrders([]);
+          setPromotions([]);
+          setLoadError(error instanceof Error ? error.message : "Could not load your dashboard data.");
+        }
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted && !silent) setLoading(false);
       }
     }
     void load();
+    const timer = window.setInterval(() => {
+      void load(true);
+    }, 15000);
     return () => {
       mounted = false;
+      window.clearInterval(timer);
     };
   }, []);
 

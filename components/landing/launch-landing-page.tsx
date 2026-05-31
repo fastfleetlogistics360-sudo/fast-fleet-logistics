@@ -168,7 +168,7 @@ export function LaunchLandingPage() {
                 Proceed to Main Page
               </Link>
               <Link
-                href="#launch-actions"
+                href="/how-it-works"
                 className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full text-base font-black text-white transition hover:-translate-y-0.5 hover:text-fleet-gold focus:outline-none focus:ring-4 focus:ring-white/15"
               >
                 <span className="grid h-14 w-14 place-items-center rounded-full border border-white/80 bg-white/5 backdrop-blur">

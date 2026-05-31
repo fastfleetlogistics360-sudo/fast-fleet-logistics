@@ -34,6 +34,7 @@ const CookieConsent = dynamic(() => import("@/components/layout/cookie-consent")
 const navItems = [
   { href: "/main", label: "Home" },
   { href: "/book", label: "Book" },
+  { href: "/how-it-works", label: "How it works" },
   { href: "/restaurants", label: "Food" },
   { href: "/shopping-mall", label: "Mall" },
   { href: "/track", label: "Track" },

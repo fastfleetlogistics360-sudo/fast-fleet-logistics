@@ -26,7 +26,6 @@ type UploadedBusinessDoc = {
 const businessDocumentRequirements: Array<{ key: BusinessDocumentKey; label: string; accept: string; camera?: boolean }> = [
   { key: "storefront_photo", label: "Shop front / office photo", accept: "image/*", camera: true },
   { key: "cac_certificate", label: "CAC certificate", accept: "image/*,application/pdf" },
-  { key: "director_government_id", label: "Director government ID", accept: "image/*,application/pdf" },
   { key: "address_proof", label: "Proof of business address", accept: "image/*,application/pdf" }
 ];
 

@@ -212,8 +212,8 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
   useEffect(() => {
     let mounted = true;
     let removeOrderChannel: (() => void) | undefined;
-    async function load() {
-      setLoading(true);
+    async function load(silent = false, subscribeToOrders = false) {
+      if (!silent) setLoading(true);
       try {
         const supabase = createClient();
         const {
@@ -247,12 +247,15 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         setBusinessOrderError(businessOrdersResult.error);
         setAddresses((addressResult.data || []) as SavedAddress[]);
         setTeam((teamResult.members || []) as TeamMember[]);
-        setDispatch((current) => ({
-          ...current,
-          senderName: nextProfile.contact_name || "",
-          senderPhone: nextProfile.phone || "",
-          pickupAddress: nextProfile.pickup_address || ""
-        }));
+        if (!silent) {
+          setDispatch((current) => ({
+            ...current,
+            senderName: nextProfile.contact_name || "",
+            senderPhone: nextProfile.phone || "",
+            pickupAddress: nextProfile.pickup_address || ""
+          }));
+        }
+        if (!subscribeToOrders) return;
         const businessProfileId = nextProfile.id;
         const orderChannels: RealtimeChannel[] = [];
         if (businessProfileId) {
@@ -281,14 +284,18 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
           };
         }
       } catch (error) {
-        if (mounted) setDispatchMessage(error instanceof Error ? error.message : "Could not load business dashboard.");
+        if (mounted && !silent) setDispatchMessage(error instanceof Error ? error.message : "Could not load business dashboard.");
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted && !silent) setLoading(false);
       }
     }
-    void load();
+    void load(false, true);
+    const timer = window.setInterval(() => {
+      void load(true);
+    }, 15000);
     return () => {
       mounted = false;
+      window.clearInterval(timer);
       removeOrderChannel?.();
     };
   }, []);
