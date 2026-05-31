@@ -2411,7 +2411,7 @@ function RiderApprovalSection({
               <div className="mt-3 flex flex-wrap gap-2">
                 {(rider.rider_documents || []).map((doc) => (
                   <span key={doc.id} className="rounded-full bg-fleet-paper px-3 py-1 text-xs font-black capitalize text-slate-600">
-                    {doc.document_type.replaceAll("_", " ")}: {doc.status.replaceAll("_", " ")}
+                    {riderDocumentLabel(doc.document_type)}: {doc.status.replaceAll("_", " ")}
                   </span>
                 ))}
               </div>
@@ -2833,6 +2833,11 @@ function summarizeCompanyLogs(logs: CompanyTransactionLog[]) {
 
 function categoryLabel(category: CompanyTransactionCategory) {
   return companyTransactionCategories.find((item) => item.value === category)?.label || "Other";
+}
+
+function riderDocumentLabel(documentType: string) {
+  if (documentType === "vehicle_papers") return "Vehicle picture";
+  return documentType.replaceAll("_", " ");
 }
 
 function companyLogStatusTone(status: CompanyTransactionStatus): "green" | "amber" | "red" {

@@ -63,7 +63,7 @@ const vehicleTypes = [
 type StepIndex = 0 | 1 | 2 | 3 | 4;
 type RiderVehicleType = (typeof vehicleTypes)[number][0];
 type GovernmentIdType = (typeof governmentIds)[number][0];
-type DocumentKey = "profile_photo" | "government_id" | "drivers_licence" | "vehicle_registration" | "insurance_certificate" | "guarantor_letter";
+type DocumentKey = "profile_photo" | "government_id" | "drivers_licence" | "vehicle_registration" | "vehicle_papers";
 
 type UploadedDoc = {
   key: DocumentKey;
@@ -156,8 +156,7 @@ export function RiderOnboardingFlow() {
       { key: "profile_photo", label: "Profile photo", accept: "image/*", camera: true },
       { key: "government_id", label: `Government ID: ${governmentIds.find(([value]) => value === form.governmentIdType)?.[1] || "Selected ID"}`, accept: "image/*" },
       { key: "vehicle_registration", label: "Vehicle registration document", accept: "image/*,application/pdf" },
-      { key: "insurance_certificate", label: "Third-party insurance certificate", accept: "image/*,application/pdf" },
-      { key: "guarantor_letter", label: "Guarantor letter", accept: "image/*,application/pdf" }
+      { key: "vehicle_papers", label: "UPLOAD YOUR VEHICLE PICTURE", accept: "image/*", camera: true }
     ];
     if (form.governmentIdType !== "drivers_licence") {
       requirements.splice(2, 0, { key: "drivers_licence", label: "Driver's Licence", accept: "image/*" });

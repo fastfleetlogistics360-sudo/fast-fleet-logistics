@@ -4,7 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 type RiderVehicleType = "motorcycle" | "tricycle" | "car" | "van";
-type DocumentKey = "profile_photo" | "government_id" | "drivers_licence" | "vehicle_registration" | "insurance_certificate" | "guarantor_letter";
+type DocumentKey =
+  | "profile_photo"
+  | "government_id"
+  | "drivers_licence"
+  | "vehicle_registration"
+  | "vehicle_papers"
+  | "insurance_certificate"
+  | "guarantor_letter";
 
 type RiderApplicationForm = {
   fullName: string;

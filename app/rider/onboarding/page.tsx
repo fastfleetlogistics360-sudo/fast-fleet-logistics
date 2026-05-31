@@ -29,7 +29,7 @@ export default async function RiderOnboardingPage() {
           <div className="mt-5 grid gap-3">
             {[
               ["Account", "Locked rider registration and secure sign-in", ShieldCheck],
-              ["Documents", "Profile photo, ID, licence, vehicle papers, and guarantor letter", FileCheck2],
+              ["Documents", "Profile photo, ID, licence, vehicle registration, and vehicle picture", FileCheck2],
               ["Review", "Operations review before dashboard activation", Bike]
             ].map(([title, body, Icon]) => (
               <div key={String(title)} className="flex gap-3 rounded-fleet bg-fleet-paper p-3">
