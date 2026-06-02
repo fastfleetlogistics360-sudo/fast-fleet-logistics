@@ -14,7 +14,8 @@ export function LocationPermissionGate() {
   const [state, setState] = useState<GateState>("idle");
   const [message, setMessage] = useState("Fast Fleets 360 needs your location to improve delivery pricing, address suggestions, and live tracking.");
   const requestedRef = useRef(false);
-  const skip = pathname.startsWith("/admin");
+  const locationRequiredPrefixes = ["/account/orders", "/book", "/business/dashboard", "/customer/dashboard", "/dashboard", "/delivery", "/rider/dashboard", "/track"];
+  const skip = pathname.startsWith("/admin") || !locationRequiredPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
   useEffect(() => {
     if (skip || requestedRef.current) return;

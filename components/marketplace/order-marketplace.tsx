@@ -13,8 +13,7 @@ import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 import { StatusBadge } from "@/components/ui/status-badge";
-
-const deliveryFee = 1000;
+import { useMarketplaceEstimate } from "@/components/marketplace/use-marketplace-estimate";
 
 type StoreItem = {
   id?: string;
@@ -88,14 +87,40 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           .map((item) => {
             const key = itemKey(store.name, item.name);
             const quantity = quantities[key] || 0;
-            return { ...item, store: store.name, storeId: store.id, businessId: store.businessId, key, quantity, subtotal: quantity * item.price };
+            return {
+              ...item,
+              store: store.name,
+              storeAddress: store.address || store.area || store.name,
+              storeId: store.id,
+              businessId: store.businessId,
+              key,
+              quantity,
+              subtotal: quantity * item.price
+            };
           })
           .filter((item) => item.quantity > 0)
       ),
     [quantities, liveStores]
   );
+  const checkoutItems = useMemo(
+    () =>
+      selectedItems.map(({ name, store, storeAddress, storeId, businessId, quantity, price, subtotal }) => ({
+        name,
+        store,
+        storeAddress,
+        storeId,
+        businessId,
+        quantity,
+        price,
+        subtotal
+      })),
+    [selectedItems]
+  );
+  const { estimate, loading: estimateLoading, error: estimateError } = useMarketplaceEstimate({ kind, address, items: checkoutItems });
   const itemsTotal = selectedItems.reduce((sum, item) => sum + item.subtotal, 0);
-  const total = itemsTotal + PLATFORM_CHECKOUT_FEE_NGN + deliveryFee;
+  const platformFee = estimate?.platformFee ?? PLATFORM_CHECKOUT_FEE_NGN;
+  const deliveryFee = estimate?.deliveryFee ?? 0;
+  const total = estimate?.total ?? itemsTotal + platformFee;
 
   function changeQuantity(key: string, delta: number) {
     setQuantities((current) => ({ ...current, [key]: Math.max(0, (current[key] || 0) + delta) }));
@@ -128,6 +153,10 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       setMessage("Enter the delivery street address.");
       return;
     }
+    if (estimateLoading || !estimate) {
+      setMessage(estimateError || "Please wait for the delivery estimate to finish.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -139,12 +168,12 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           email,
           phone,
           address,
-          items: selectedItems.map(({ name, store, storeId, businessId, quantity, price, subtotal }) => ({ name, store, storeId, businessId, quantity, price, subtotal })),
+          items: checkoutItems,
           fees: {
-            platformFee: PLATFORM_CHECKOUT_FEE_NGN,
-            deliveryFee
+            platformFee: estimate.platformFee,
+            deliveryFee: estimate.deliveryFee
           },
-          amount: total
+          amount: estimate.total
         })
       });
       const payload = await response.json();
@@ -162,8 +191,9 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             status: payload.status || (businessOrder ? "received" : "searching"),
             vehicle_type: "bike",
             delivery_speed: "same_day",
-            price_ngn: total,
-            eta_minutes: 35,
+            price_ngn: estimate.total,
+            distance_km: estimate.distanceKm,
+            eta_minutes: estimate.etaMinutes,
             source: businessOrder ? "business_marketplace_order" : `${kind}_checkout`,
             marketplace_kind: kind,
             items: selectedItems.map(({ name, store, quantity }) => ({ name, store, quantity })),
@@ -195,7 +225,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Marketplace lane</span>
           <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Pick, pack, and dispatch.</h2>
           <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
-            Open a store, pick items with the plus button, then checkout through Paystack. Fast Fleets 360 adds {formatMoney(PLATFORM_CHECKOUT_FEE_NGN)} platform fee and {formatMoney(deliveryFee)} delivery fee automatically.
+            Open a store, pick items with the plus button, then checkout through Paystack. Fast Fleets 360 calculates delivery from pickup to your address and adds a {formatMoney(platformFee)} platform fee.
           </p>
           </div>
 
@@ -256,20 +286,21 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
 
           <div className="mt-5 grid gap-2 text-sm font-bold">
             <Summary label="Items" value={formatMoney(itemsTotal)} />
-            <Summary label="Platform fee" value={formatMoney(PLATFORM_CHECKOUT_FEE_NGN)} />
-            <Summary label="Delivery fee" value={formatMoney(deliveryFee)} />
+            <Summary label="Platform fee" value={formatMoney(platformFee)} />
+            <Summary label="Delivery fee" value={estimateLoading ? "Estimating..." : estimate ? formatMoney(deliveryFee) : "Add address"} />
+            {estimate ? <Summary label="Route distance" value={`${estimate.distanceKm.toFixed(1)} km`} /> : null}
           </div>
 
           <div className="mt-5 grid gap-3">
             <input className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email for receipt" type="email" />
             <input className="form-input" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" inputMode="tel" />
             <AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} placeholder="Enter recipient street address" />
-            <Button type="button" onClick={checkout} disabled={loading}>
+            <Button type="button" onClick={checkout} disabled={loading || estimateLoading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
               Pay with Paystack
             </Button>
           </div>
-          {message ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{message}</div> : null}
+          {message || estimateError ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{message || estimateError}</div> : null}
         </Card>
       </div>
     </section>

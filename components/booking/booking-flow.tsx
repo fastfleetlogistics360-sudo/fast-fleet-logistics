@@ -299,6 +299,7 @@ export function BookingFlow() {
             <SummaryRow label="Distance" value={`${estimate.distanceKm.toFixed(1)} km`} />
             <SummaryRow label="Vehicle" value={vehicleLabel(form.vehicle)} />
             <SummaryRow label="Speed" value={speedLabel(form.speed)} />
+            <SummaryRow label="Delivery fee" value={formatMoney(estimate.deliveryFee)} />
             <SummaryRow label="Platform fee" value={formatMoney(estimate.platformFee)} />
           </div>
         </Card>
@@ -382,11 +383,11 @@ function ChoiceGrid<T extends string>({
 function EstimatePanel({ estimate, vehicle, speed }: { estimate: ReturnType<typeof estimateFare>; vehicle: VehicleType; speed: DeliverySpeed }) {
   return (
     <div className="rounded-fleet border border-fleet-line bg-white p-5 shadow-[0_14px_36px_rgba(8,17,31,0.07)]">
-      <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Fare breakdown</span>
+      <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Fare estimate</span>
       <strong className="mt-2 block text-4xl font-black text-fleet-night">{formatMoney(estimate.total)}</strong>
       <div className="mt-5 grid gap-3">
-        <SummaryRow label="Base fare" value={formatMoney(estimate.baseFare)} />
-        <SummaryRow label="Distance fare" value={formatMoney(estimate.distanceFare)} />
+        <SummaryRow label="Delivery fee" value={formatMoney(estimate.deliveryFee)} />
+        <SummaryRow label="Platform fee" value={formatMoney(estimate.platformFee)} />
         <SummaryRow label="ETA" value={`${estimate.etaMinutes} minutes`} />
         <SummaryRow label="Route distance" value={`${estimate.distanceKm.toFixed(1)} km`} />
         <SummaryRow label="Vehicle" value={vehicleLabel(vehicle)} />

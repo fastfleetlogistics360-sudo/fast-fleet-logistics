@@ -1,6 +1,7 @@
 export type BrandPartner = {
   id: string;
   name: string;
+  description?: string;
   image: string;
   active: boolean;
 };
@@ -63,15 +64,17 @@ export function normalizeBrandPartners(value: unknown) {
     .map((partner, index) => {
       const item = partner as Partial<BrandPartner>;
       const name = String(item.name || "").trim().slice(0, 48);
+      const description = String(item.description || "").trim().slice(0, 140);
       const image = String(item.image || "").trim().slice(0, 500);
       return {
-        id: String(item.id || slugify(name) || `partner-${index + 1}`).slice(0, 72),
+        id: String(item.id || slugify(name) || slugify(description) || `partner-${index + 1}`).slice(0, 72),
         name,
+        description,
         image,
         active: item.active !== false
       };
     })
-    .filter((partner) => partner.name && isSafeImageUrl(partner.image));
+    .filter((partner) => isSafeImageUrl(partner.image));
 }
 
 function isSafeImageUrl(value: string) {

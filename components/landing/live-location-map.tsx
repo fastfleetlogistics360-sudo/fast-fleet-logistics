@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Loader2, MapPin, Navigation, Route, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
-import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
+import { estimateFareForDistance } from "@/lib/fare";
 import { formatMoney } from "@/lib/format";
 import { currentLocationUpdatedEvent, readStoredCurrentLocation, type StoredCurrentLocation } from "@/lib/location/current-location";
 
@@ -19,9 +19,6 @@ type Coordinates = {
   latitude: number;
   longitude: number;
 };
-
-const BASE_DELIVERY_FEE = 1500;
-const EXTRA_KM_FEE = 300;
 
 export function LiveLocationMap() {
   const [location, setLocation] = useState<LocationState | null>(null);
@@ -37,7 +34,7 @@ export function LiveLocationMap() {
   const pickupCoordinates = pickupUsesCurrentLocation && location ? location : parseCoordinates(pickup);
   const dropoffCoordinates = parseCoordinates(dropoff);
 
-  const pricing = useMemo(() => calculateDeliveryPrice(distanceKm), [distanceKm]);
+  const pricing = useMemo(() => estimateFareForDistance({ distanceKm, vehicle: "bike", speed: "express" }), [distanceKm]);
 
   const mapUrl = useMemo(() => {
     if (pickupCoordinates && dropoffCoordinates) {
@@ -254,7 +251,7 @@ export function LiveLocationMap() {
                 <PriceRow label="Platform fee" value={formatMoney(pricing.platformFee)} />
                 <PriceRow label="Total fee" value={formatMoney(pricing.total)} strong />
               </div>
-              <p className="mt-3 text-[0.72rem] font-bold leading-5 text-slate-500">{distanceSource}. Base fee covers the first 1 km, then adds {formatMoney(EXTRA_KM_FEE)} per extra km.</p>
+              <p className="mt-3 text-[0.72rem] font-bold leading-5 text-slate-500">{distanceSource}. Final estimate updates with the route distance.</p>
             </Card>
           </div>
         </div>
@@ -271,17 +268,6 @@ function PriceRow({ label, value, strong = false }: { label: string; value: stri
       <strong className={`text-right font-black ${strong ? "text-fleet-ember" : "text-fleet-night"}`}>{value}</strong>
     </div>
   );
-}
-
-function calculateDeliveryPrice(distanceKm: number) {
-  const billableExtraKm = Math.max(0, Math.ceil(distanceKm) - 1);
-  const deliveryFee = BASE_DELIVERY_FEE + billableExtraKm * EXTRA_KM_FEE;
-
-  return {
-    deliveryFee,
-    platformFee: PLATFORM_CHECKOUT_FEE_NGN,
-    total: deliveryFee + PLATFORM_CHECKOUT_FEE_NGN
-  };
 }
 
 function parseCoordinates(value: string): Coordinates | null {

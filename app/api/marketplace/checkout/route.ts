@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
-import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
+import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const PAYSTACK_INITIALIZE_URL = "https://api.paystack.co/transaction/initialize";
-const RESTAURANT_DELIVERY_FEE_NGN = 1000;
-const MALL_DELIVERY_FEE_NGN = 1500;
 
 type CheckoutItem = {
   name: string;
   store: string;
+  storeAddress?: string;
+  pickupAddress?: string;
+  mallLocation?: string;
   quantity: number;
   price: number;
   subtotal: number;
@@ -41,21 +42,20 @@ export async function POST(request: Request) {
     };
 
     const items = Array.isArray(payload.items) ? payload.items : [];
-    const itemsTotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
-    const isShopping = payload.kind === "shopping";
-    const platformFee = PLATFORM_CHECKOUT_FEE_NGN;
-    const deliveryFee = isShopping ? MALL_DELIVERY_FEE_NGN : RESTAURANT_DELIVERY_FEE_NGN;
-    const expectedAmount = itemsTotal + platformFee + deliveryFee;
 
     if (!payload.email || !payload.email.includes("@")) {
       return NextResponse.json({ error: "Enter a valid email address for Paystack checkout." }, { status: 400 });
     }
-    if (!items.length || expectedAmount < 1200) {
+    if (!items.length) {
       return NextResponse.json({ error: "Add at least one item before checkout." }, { status: 400 });
     }
     if (!payload.address || payload.address.trim().length < 6) {
       return NextResponse.json({ error: "Enter the delivery street address." }, { status: 400 });
     }
+    const estimate = estimateMarketplaceCheckout({ kind: payload.kind, items, address: payload.address });
+    const platformFee = estimate.platformFee;
+    const deliveryFee = estimate.deliveryFee;
+    const expectedAmount = estimate.total;
     if (Number(payload.amount) !== expectedAmount) {
       return NextResponse.json({ error: "Checkout total changed. Refresh and try again." }, { status: 400 });
     }
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     callbackUrl.searchParams.set("paid", "1");
     callbackUrl.searchParams.set("reference", reference);
     callbackUrl.searchParams.set("code", reference);
-    const pickupAddress = Array.from(new Set(items.map((item) => item.store).filter(Boolean))).join(", ") || (payload.kind === "shopping" ? "Shopping pickup" : "Restaurant pickup");
+    const pickupAddress = estimate.pickupAddress;
     const linkedBusinessIds = Array.from(new Set(items.map((item) => item.businessId).filter((id): id is string => Boolean(id))));
     if (linkedBusinessIds.length > 1) {
       return NextResponse.json({ error: "Checkout items from one registered business at a time." }, { status: 400 });
@@ -157,12 +157,15 @@ export async function POST(request: Request) {
           payment_method: "card",
           status: "searching",
           price_ngn: expectedAmount,
-          distance_km: isShopping ? 1 : 5,
-          eta_minutes: 35,
+          distance_km: estimate.distanceKm,
+          eta_minutes: estimate.etaMinutes,
           metadata: {
             source: "fastfleet_marketplace",
             kind: payload.kind,
             items,
+            delivery_fee_ngn: deliveryFee,
+            platform_fee_ngn: platformFee,
+            delivery_distance_km: estimate.distanceKm,
             paystack_reference: reference
           }
         }).select("id").single();
@@ -199,6 +202,8 @@ export async function POST(request: Request) {
           delivery_address: payload.address,
           platform_fee_ngn: platformFee,
           delivery_fee_ngn: deliveryFee,
+          delivery_distance_km: estimate.distanceKm,
+          eta_minutes: estimate.etaMinutes,
           items
         }
       })

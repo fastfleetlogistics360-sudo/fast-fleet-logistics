@@ -49,6 +49,7 @@ export interface FareEstimate {
   baseFare: number;
   distanceFare: number;
   speedMultiplier: number;
+  deliveryFee: number;
   platformFee: number;
   total: number;
   currency: "NGN";

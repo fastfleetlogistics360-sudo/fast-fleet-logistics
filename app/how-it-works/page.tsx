@@ -28,7 +28,7 @@ const steps: Array<{ title: string; body: string; icon: LucideIcon }> = [
   },
   {
     title: "Confirm Your Delivery Fee",
-    body: "Fast Fleets 360 uses transparent pricing. The base delivery fee covers the first 1km, with additional distance charged after that. A platform fee is also shown clearly, so customers know the total cost before placing an order.",
+    body: "Fast Fleets 360 shows a delivery estimate based on route distance, plus a fixed platform fee, so customers know the total cost before placing an order.",
     icon: CreditCard
   },
   {

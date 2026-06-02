@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { Bike, CircleUserRound, LogIn, Play, Store, UserPlus, X } from "lucide-react";
+import { Bike, CalendarDays, CircleUserRound, LogIn, MapPinned, Play, RadioTower, Sparkles, Store, TimerReset, UserPlus, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AppleIcon, GoogleIcon, InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from "@/lib/brand-partners";
@@ -70,14 +70,69 @@ const heroBackgroundImage = "https://images.unsplash.com/photo-1617347454431-f49
 const heroBlurDataURL =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwMjA2MDgnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yOCcvPjxjaXJjbGUgY3g9JzQnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNDgnLz48L3N2Zz4=";
 const brandLogo = "/brand/fastfleet-logo-2026-header.png";
+const softLaunchTarget = new Date("2026-08-15T00:00:00+01:00").getTime();
+
+type CountdownUnit = {
+  label: string;
+  value: string;
+};
+
+const softLaunchStates = [
+  {
+    state: "Lagos State",
+    lane: "Core city launch",
+    note: "Food, parcel, rider, and business dispatch lanes."
+  },
+  {
+    state: "Ogun State",
+    lane: "Expansion launch",
+    note: "Border-city and commercial corridor delivery coverage."
+  },
+  {
+    state: "Kwara State",
+    lane: "Partner launch",
+    note: "Early business and rider onboarding for Ilorin routes."
+  }
+];
+
+function buildCountdown(now: number | null): CountdownUnit[] {
+  if (!now) {
+    return ["Days", "Hours", "Minutes", "Seconds"].map((label) => ({ label, value: "--" }));
+  }
+
+  const remaining = Math.max(0, softLaunchTarget - now);
+  const totalSeconds = Math.floor(remaining / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [
+    { label: "Days", value: String(days).padStart(2, "0") },
+    { label: "Hours", value: String(hours).padStart(2, "0") },
+    { label: "Minutes", value: String(minutes).padStart(2, "0") },
+    { label: "Seconds", value: String(seconds).padStart(2, "0") }
+  ];
+}
 
 export function LaunchLandingPage() {
   const [authIntent, setAuthIntent] = useState<AuthIntent | null>(null);
   const [storePopup, setStorePopup] = useState(false);
   const [partners, setPartners] = useState<BrandPartner[]>(defaultBrandPartners);
+  const [countdown, setCountdown] = useState<CountdownUnit[]>(() => buildCountdown(null));
   const reduceMotion = useReducedMotion();
   const activePartners = partners.filter((partner) => partner.active);
   const partnerLoop = [...activePartners, ...activePartners];
+
+  useEffect(() => {
+    function tick() {
+      setCountdown(buildCountdown(Date.now()));
+    }
+
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,12 +201,7 @@ export function LaunchLandingPage() {
         </header>
 
         <div className="grid flex-1 content-center py-14 sm:py-16 lg:py-20">
-          <motion.div
-            className="max-w-3xl"
-            initial={reduceMotion ? false : { opacity: 0, y: 28 }}
-            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          >
+          <div className="max-w-3xl">
             <p className="text-base font-extrabold text-fleet-gold sm:text-xl">Fast. Reliable. Always.</p>
             <h1 className="mt-5 max-w-3xl text-5xl font-black leading-[0.98] tracking-normal text-white sm:text-7xl lg:text-8xl">
               Delivering More, Everyday.
@@ -177,23 +227,21 @@ export function LaunchLandingPage() {
                 How It Works
               </Link>
             </div>
-          </motion.div>
+          </div>
+
+          <SoftLaunchCounter countdown={countdown} reduceMotion={Boolean(reduceMotion)} />
         </div>
 
-        <motion.div
+        <div
           id="launch-actions"
           className="rounded-[18px] border border-white/15 bg-black/40 p-2.5 shadow-[0_18px_52px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:p-3"
-          initial={reduceMotion ? false : { opacity: 0, y: 34 }}
-          whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
         >
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {actionItems.map((item, index) => (
               <ActionItem key={item.title} item={item} index={index} onAuth={setAuthIntent} />
             ))}
           </div>
-        </motion.div>
+        </div>
 
         <div className="mx-auto mt-9 grid justify-items-center gap-7">
           <div className="flex flex-wrap items-center justify-center gap-4">
@@ -227,12 +275,20 @@ export function LaunchLandingPage() {
           <div className="relative mt-5 overflow-hidden py-2 [mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]">
             <div className="partner-marquee flex w-max gap-3">
               {partnerLoop.map((partner, index) => (
-                <div key={`${partner.name}-${index}`} className="relative h-24 w-40 shrink-0 overflow-hidden rounded-[10px] bg-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] sm:h-28 sm:w-48">
-                  <img src={partner.image} alt="" className="h-full w-full object-cover" loading="lazy" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/80 via-fleet-night/10 to-white/10" />
-                  <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/92 px-2 py-1 text-center text-sm font-black text-fleet-night shadow-[0_8px_18px_rgba(0,0,0,0.16)]">
-                    {partner.name}
-                  </span>
+                <div
+                  key={`${partner.id || partner.image}-${index}`}
+                  className="relative h-24 shrink-0 overflow-hidden rounded-[10px] bg-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] sm:h-28"
+                  style={{ width: "clamp(9rem, 42vw, 12rem)" }}
+                >
+                  <img src={partner.image} alt="" loading="lazy" style={{ display: "block", height: "100%", width: "100%", objectFit: "cover" }} />
+                  {partner.name.trim() ? (
+                    <>
+                      <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/80 via-fleet-night/10 to-white/10" />
+                      <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/92 px-2 py-1 text-center text-sm font-black text-fleet-night shadow-[0_8px_18px_rgba(0,0,0,0.16)]">
+                        {partner.name}
+                      </span>
+                    </>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -253,6 +309,33 @@ export function LaunchLandingPage() {
           }
         }
 
+        @keyframes fastfleet-calendar-flip {
+          0% {
+            opacity: 0.28;
+            transform: rotateX(-72deg) translateY(-5px);
+          }
+          58% {
+            opacity: 1;
+            transform: rotateX(9deg) translateY(0);
+          }
+          100% {
+            opacity: 1;
+            transform: rotateX(0deg) translateY(0);
+          }
+        }
+
+        @keyframes fastfleet-state-scan {
+          0%,
+          100% {
+            transform: translateX(-18%);
+            opacity: 0.34;
+          }
+          50% {
+            transform: translateX(18%);
+            opacity: 0.82;
+          }
+        }
+
         .partner-marquee {
           will-change: transform;
           animation: fastfleet-partner-marquee 28s linear infinite;
@@ -262,14 +345,104 @@ export function LaunchLandingPage() {
           animation-play-state: paused;
         }
 
+        .soft-launch-flip {
+          transform-origin: center top;
+          transform-style: preserve-3d;
+          animation: fastfleet-calendar-flip 680ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .soft-launch-state-scan {
+          animation: fastfleet-state-scan 3.8s ease-in-out infinite;
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .partner-marquee {
             animation: none;
             transform: translateX(0);
           }
+
+          .soft-launch-flip,
+          .soft-launch-state-scan {
+            animation: none;
+          }
         }
       `}</style>
     </main>
+  );
+}
+
+function SoftLaunchCounter({ countdown, reduceMotion }: { countdown: CountdownUnit[]; reduceMotion: boolean }) {
+  return (
+    <section
+      aria-label="Soft-launch countdown"
+      className="mt-10 grid max-w-6xl gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(300px,0.92fr)] lg:items-stretch"
+    >
+      <div className="min-w-0 rounded-[18px] border border-white/15 bg-black/42 p-4 shadow-[0_22px_54px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <span className="inline-flex items-center gap-2 rounded-full border border-fleet-gold/25 bg-fleet-gold/10 px-3 py-2 text-[0.68rem] font-black uppercase tracking-[0.18em] text-fleet-gold">
+            <TimerReset className="h-4 w-4" />
+            Soft-launch counter
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-2 text-xs font-black text-white/80">
+            <CalendarDays className="h-4 w-4 text-fleet-ember" />
+            August 15, 2026
+          </span>
+        </div>
+        <h2 className="mt-4 flex max-w-2xl items-start gap-2 text-2xl font-black leading-tight text-white sm:text-3xl">
+          <Sparkles className="mt-1 h-5 w-5 shrink-0 text-fleet-gold" />
+          <span>Countdown to Fast Fleets 360 soft-launch.</span>
+        </h2>
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+          {countdown.map((unit) => (
+            <FlipCalendarUnit key={unit.label} unit={unit} reduceMotion={reduceMotion} />
+          ))}
+        </div>
+      </div>
+
+      <div className="relative overflow-hidden rounded-[18px] border border-white/15 bg-white/[0.06] p-4 shadow-[0_22px_54px_rgba(0,0,0,0.22)] backdrop-blur-2xl sm:p-5">
+        <div className="soft-launch-state-scan pointer-events-none absolute inset-y-0 left-1/2 w-24 -skew-x-12 bg-gradient-to-r from-transparent via-fleet-gold/20 to-transparent" />
+        <span className="relative inline-flex items-center gap-2 rounded-full border border-fleet-ember/25 bg-fleet-ember/15 px-3 py-2 text-[0.68rem] font-black uppercase tracking-[0.18em] text-fleet-gold">
+          <MapPinned className="h-4 w-4" />
+          Proposed soft-launch states
+        </span>
+        <div className="relative mt-4 grid gap-2">
+          {softLaunchStates.map((item, index) => (
+            <motion.div
+              key={item.state}
+              className="group grid gap-1 rounded-[14px] border border-white/12 bg-black/28 p-3 transition hover:border-fleet-gold/35 hover:bg-white/[0.08]"
+              whileHover={reduceMotion ? undefined : { x: 4 }}
+              transition={{ duration: 0.48, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <span className="flex items-center justify-between gap-3">
+                <strong className="text-base font-black text-white">{item.state}</strong>
+                <RadioTower className="h-4 w-4 shrink-0 text-fleet-gold transition group-hover:text-fleet-ember" />
+              </span>
+              <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-gold">{item.lane}</span>
+              <span className="text-xs font-semibold leading-5 text-white/72">{item.note}</span>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FlipCalendarUnit({ unit, reduceMotion }: { unit: CountdownUnit; reduceMotion: boolean }) {
+  return (
+    <div className="soft-launch-calendar-card min-w-0 overflow-hidden rounded-[14px] border border-white/12 bg-[#071114]/92 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_16px_34px_rgba(0,0,0,0.2)]">
+      <div className="border-b border-white/10 bg-white/[0.05] px-3 py-2 text-center text-[0.62rem] font-black uppercase tracking-[0.18em] text-fleet-gold">
+        {unit.label}
+      </div>
+      <div className="relative grid min-h-[78px] place-items-center px-2 py-3 sm:min-h-[90px]">
+        <span className="absolute inset-x-3 top-1/2 h-px bg-white/10" />
+        <strong
+          key={`${unit.label}-${unit.value}`}
+          className={`tabular-nums text-4xl font-black leading-none text-white sm:text-5xl ${reduceMotion ? "" : "soft-launch-flip"}`}
+        >
+          {unit.value}
+        </strong>
+      </div>
+    </div>
   );
 }
 

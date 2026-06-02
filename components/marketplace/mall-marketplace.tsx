@@ -13,10 +13,7 @@ import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { cn } from "@/lib/cn";
 import { defaultShoppingMalls, mallMenuStorageKey, normalizeShoppingMalls } from "@/lib/mall-menu";
 import type { MallCategory, MallProduct, MallStore, ShoppingMall } from "@/lib/mall-menu";
-
-const MALL_DELIVERY_BASE_FEE_NGN = 1500;
-const MALL_EXTRA_DISTANCE_FEE_NGN = 300;
-const DEFAULT_DISTANCE_KM = 1;
+import { useMarketplaceEstimate } from "@/components/marketplace/use-marketplace-estimate";
 
 type CartItem = {
   productId: string;
@@ -26,6 +23,7 @@ type CartItem = {
   vendorId: string;
   vendorName: string;
   businessId?: string;
+  pickupAddress: string;
   category: MallCategory;
   price: number;
   quantity: number;
@@ -44,13 +42,22 @@ export function MallMarketplace() {
   const mallRefs = useRef<Array<HTMLElement | null>>([]);
   const reduceMotion = useReducedMotion();
 
-  const cartItems = Object.values(cart);
+  const cartItems = useMemo(() => Object.values(cart), [cart]);
+  const checkoutItems = useMemo(
+    () =>
+      cartItems.map((item) => ({
+        ...item,
+        name: item.productName,
+        store: `${item.mallName} · ${item.vendorName}`,
+        mallLocation: item.pickupAddress
+      })),
+    [cartItems]
+  );
+  const { estimate, loading: estimateLoading, error: estimateError } = useMarketplaceEstimate({ kind: "shopping", address, items: checkoutItems });
   const productsTotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
-  const deliveryFee = useMemo(() => {
-    const extraKm = Math.max(0, DEFAULT_DISTANCE_KM - 1);
-    return MALL_DELIVERY_BASE_FEE_NGN + extraKm * MALL_EXTRA_DISTANCE_FEE_NGN;
-  }, []);
-  const finalTotal = productsTotal + deliveryFee + PLATFORM_CHECKOUT_FEE_NGN;
+  const platformFee = estimate?.platformFee ?? PLATFORM_CHECKOUT_FEE_NGN;
+  const deliveryFee = estimate?.deliveryFee ?? 0;
+  const finalTotal = estimate?.total ?? productsTotal + platformFee;
 
   useEffect(() => {
     function applyStoredMalls() {
@@ -97,6 +104,7 @@ export function MallMarketplace() {
         vendorId: vendor.id,
         vendorName: vendor.name,
         businessId: vendor.businessId,
+        pickupAddress: mall.location || mall.name,
         category: vendor.category,
         price,
         quantity,
@@ -140,6 +148,10 @@ export function MallMarketplace() {
       setMessage("Enter the delivery street address.");
       return;
     }
+    if (estimateLoading || !estimate) {
+      setMessage(estimateError || "Please wait for the delivery estimate to finish.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -151,16 +163,12 @@ export function MallMarketplace() {
           email,
           phone,
           address,
-          items: cartItems.map((item) => ({
-            ...item,
-            name: item.productName,
-            store: `${item.mallName} · ${item.vendorName}`
-          })),
+          items: checkoutItems,
           fees: {
-            platformFee: PLATFORM_CHECKOUT_FEE_NGN,
-            deliveryFee
+            platformFee: estimate.platformFee,
+            deliveryFee: estimate.deliveryFee
           },
-          amount: finalTotal
+          amount: estimate.total
         })
       });
       const payload = await response.json();
@@ -178,8 +186,9 @@ export function MallMarketplace() {
             status: payload.status || (businessOrder ? "received" : "searching"),
             vehicle_type: "bike",
             delivery_speed: "same_day",
-            price_ngn: finalTotal,
-            eta_minutes: 35,
+            price_ngn: estimate.total,
+            distance_km: estimate.distanceKm,
+            eta_minutes: estimate.etaMinutes,
             source: businessOrder ? "business_marketplace_order" : "shopping_mall_checkout",
             marketplace_kind: "shopping",
             items: cartItems.map(({ productName, quantity, vendorName }) => ({ name: productName, quantity, store: vendorName })),
@@ -211,7 +220,7 @@ export function MallMarketplace() {
             <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Marketplace lane</span>
             <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Pick, pack, and dispatch.</h2>
             <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
-              Open a mall card, expand a vendor menu, then checkout through Paystack. Fast Fleets 360 adds {formatMoney(PLATFORM_CHECKOUT_FEE_NGN)} platform fee and {formatMoney(deliveryFee)} delivery fee automatically.
+              Open a mall card, expand a vendor menu, then checkout through Paystack. Fast Fleets 360 calculates delivery from pickup to your address and adds a {formatMoney(platformFee)} platform fee.
             </p>
           </div>
 
@@ -275,8 +284,9 @@ export function MallMarketplace() {
 
           <div className="mt-5 grid gap-2 text-sm font-bold">
             <Summary label="Products" value={formatMoney(productsTotal)} />
-            <Summary label="Delivery fee" value={formatMoney(deliveryFee)} />
-            <Summary label="Platform fee" value={formatMoney(PLATFORM_CHECKOUT_FEE_NGN)} />
+            <Summary label="Delivery fee" value={estimateLoading ? "Estimating..." : estimate ? formatMoney(deliveryFee) : "Add address"} />
+            <Summary label="Platform fee" value={formatMoney(platformFee)} />
+            {estimate ? <Summary label="Route distance" value={`${estimate.distanceKm.toFixed(1)} km`} /> : null}
             <Summary label="Final total" value={formatMoney(finalTotal)} strong />
           </div>
 
@@ -284,12 +294,12 @@ export function MallMarketplace() {
             <input className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email for receipt" type="email" />
             <input className="form-input" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" inputMode="tel" />
             <AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} placeholder="Enter recipient street address" />
-            <Button type="button" onClick={checkout} disabled={loading || cartItems.length === 0}>
+            <Button type="button" onClick={checkout} disabled={loading || estimateLoading || cartItems.length === 0}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
               Checkout Mall Order
             </Button>
           </div>
-          {message ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{message}</div> : null}
+          {message || estimateError ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{message || estimateError}</div> : null}
         </Card>
       </div>
     </section>

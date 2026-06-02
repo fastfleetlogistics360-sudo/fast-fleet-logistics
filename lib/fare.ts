@@ -17,6 +17,13 @@ const SPEED_MULTIPLIERS: Record<DeliverySpeed, number> = {
 
 export const PLATFORM_CHECKOUT_FEE_NGN = 500;
 
+type FareComputationInput = {
+  distanceKm: number;
+  vehicle: VehicleType;
+  speed: DeliverySpeed;
+  zone?: string;
+};
+
 function stableHash(value: string) {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -38,25 +45,45 @@ export function estimateDistanceKm(pickup: string, dropoff: string, speed: Deliv
 }
 
 export function estimateFare(input: FareInput): FareEstimate {
-  const vehicle = VEHICLE_PRICING[input.vehicle] ?? VEHICLE_PRICING.bike;
   const distanceKm = estimateDistanceKm(input.pickup, input.dropoff, input.speed);
+  return buildFareEstimate({
+    distanceKm,
+    vehicle: input.vehicle,
+    speed: input.speed,
+    zone: input.zone
+  });
+}
+
+export function estimateFareForDistance(input: Partial<FareComputationInput> & { distanceKm: number }): FareEstimate {
+  return buildFareEstimate({
+    distanceKm: Math.max(1, Math.round(input.distanceKm * 10) / 10),
+    vehicle: input.vehicle || "bike",
+    speed: input.speed || "express",
+    zone: input.zone
+  });
+}
+
+function buildFareEstimate(input: FareComputationInput): FareEstimate {
+  const vehicle = VEHICLE_PRICING[input.vehicle] ?? VEHICLE_PRICING.bike;
   const speedMultiplier = SPEED_MULTIPLIERS[input.speed] ?? 1;
   const zoneSurcharge = input.zone?.toLowerCase().includes("ogun") ? 800 : 0;
   const baseFare = vehicle.base + zoneSurcharge;
-  const distanceFare = distanceKm * vehicle.perKm;
+  const distanceFare = input.distanceKm * vehicle.perKm;
+  const deliveryFee = Math.round(((baseFare + distanceFare) * speedMultiplier) / 50) * 50;
   const platformFee = PLATFORM_CHECKOUT_FEE_NGN;
-  const total = Math.round(((baseFare + distanceFare) * speedMultiplier + platformFee) / 50) * 50;
+  const total = deliveryFee + platformFee;
   const etaMinutes = Math.max(
     16,
-    Math.round((distanceKm / vehicle.speedKmh) * 60 + (input.speed === "priority" ? 10 : 22))
+    Math.round((input.distanceKm / vehicle.speedKmh) * 60 + (input.speed === "priority" ? 10 : 22))
   );
 
   return {
-    distanceKm,
+    distanceKm: input.distanceKm,
     etaMinutes,
     baseFare,
     distanceFare,
     speedMultiplier,
+    deliveryFee,
     platformFee,
     total,
     currency: "NGN"

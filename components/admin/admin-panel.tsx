@@ -2706,13 +2706,17 @@ function SiteControlsSection({
                     />
                     Live
                   </label>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => removeBrandPartner(partner.id)} aria-label={`Remove ${partner.name}`}>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => removeBrandPartner(partner.id)} aria-label={`Remove ${partner.name || "brand partner"}`}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
                 <label className="form-field">
-                  <span className="form-label">Partner name</span>
+                  <span className="form-label">Display text (optional)</span>
                   <input className="form-input" value={partner.name} onChange={(event) => updateBrandPartner(partner.id, { name: event.target.value })} />
+                </label>
+                <label className="form-field">
+                  <span className="form-label">Description (optional)</span>
+                  <textarea className="form-input min-h-16" value={partner.description || ""} onChange={(event) => updateBrandPartner(partner.id, { description: event.target.value })} />
                 </label>
                 <label className="form-field">
                   <span className="form-label">Image URL</span>
