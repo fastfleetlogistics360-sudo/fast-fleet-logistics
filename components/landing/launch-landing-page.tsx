@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { Bike, CalendarDays, CircleUserRound, LogIn, MapPinned, Play, RadioTower, Sparkles, Store, TimerReset, UserPlus, X } from "lucide-react";
+import { Bike, CalendarDays, CircleUserRound, LogIn, MapPinned, Play, RadioTower, Store, TimerReset, UserPlus, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AppleIcon, GoogleIcon, InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from "@/lib/brand-partners";
@@ -293,7 +293,7 @@ export function LaunchLandingPage() {
               ))}
             </div>
           </div>
-          <footer className="pt-14 text-center text-sm font-semibold text-white/[0.72]">© 2025 Fast Fleets 360. All rights reserved.</footer>
+          <footer className="pt-14 text-center text-sm font-semibold text-white/[0.72]">© 2026 Fast Fleets 360. All rights reserved.</footer>
         </div>
       </section>
 
@@ -375,51 +375,48 @@ function SoftLaunchCounter({ countdown, reduceMotion }: { countdown: CountdownUn
   return (
     <section
       aria-label="Soft-launch countdown"
-      className="mt-10 grid max-w-6xl gap-4 lg:grid-cols-[minmax(0,1.08fr)_minmax(300px,0.92fr)] lg:items-stretch"
+      className="mt-8 max-w-5xl"
     >
-      <div className="min-w-0 rounded-[18px] border border-white/15 bg-black/42 p-4 shadow-[0_22px_54px_rgba(0,0,0,0.28)] backdrop-blur-2xl sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <span className="inline-flex items-center gap-2 rounded-full border border-fleet-gold/25 bg-fleet-gold/10 px-3 py-2 text-[0.68rem] font-black uppercase tracking-[0.18em] text-fleet-gold">
-            <TimerReset className="h-4 w-4" />
-            Soft-launch counter
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-2 text-xs font-black text-white/80">
-            <CalendarDays className="h-4 w-4 text-fleet-ember" />
-            August 15, 2026
-          </span>
-        </div>
-        <h2 className="mt-4 flex max-w-2xl items-start gap-2 text-2xl font-black leading-tight text-white sm:text-3xl">
-          <Sparkles className="mt-1 h-5 w-5 shrink-0 text-fleet-gold" />
-          <span>Countdown to Fast Fleets 360 soft-launch.</span>
-        </h2>
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-          {countdown.map((unit) => (
-            <FlipCalendarUnit key={unit.label} unit={unit} reduceMotion={reduceMotion} />
-          ))}
-        </div>
-      </div>
-
-      <div className="relative overflow-hidden rounded-[18px] border border-white/15 bg-white/[0.06] p-4 shadow-[0_22px_54px_rgba(0,0,0,0.22)] backdrop-blur-2xl sm:p-5">
-        <div className="soft-launch-state-scan pointer-events-none absolute inset-y-0 left-1/2 w-24 -skew-x-12 bg-gradient-to-r from-transparent via-fleet-gold/20 to-transparent" />
-        <span className="relative inline-flex items-center gap-2 rounded-full border border-fleet-ember/25 bg-fleet-ember/15 px-3 py-2 text-[0.68rem] font-black uppercase tracking-[0.18em] text-fleet-gold">
-          <MapPinned className="h-4 w-4" />
-          Proposed soft-launch states
-        </span>
-        <div className="relative mt-4 grid gap-2">
-          {softLaunchStates.map((item, index) => (
-            <motion.div
-              key={item.state}
-              className="group grid gap-1 rounded-[14px] border border-white/12 bg-black/28 p-3 transition hover:border-fleet-gold/35 hover:bg-white/[0.08]"
-              whileHover={reduceMotion ? undefined : { x: 4 }}
-              transition={{ duration: 0.48, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <span className="flex items-center justify-between gap-3">
-                <strong className="text-base font-black text-white">{item.state}</strong>
-                <RadioTower className="h-4 w-4 shrink-0 text-fleet-gold transition group-hover:text-fleet-ember" />
+      <div className="relative overflow-hidden rounded-[14px] border border-white/15 bg-black/58 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.26)] backdrop-blur-2xl sm:p-4">
+        <div className="soft-launch-state-scan pointer-events-none absolute inset-y-0 left-1/2 w-20 -skew-x-12 bg-gradient-to-r from-transparent via-fleet-gold/16 to-transparent" />
+        <div className="relative grid gap-3 lg:grid-cols-[minmax(210px,0.82fr)_minmax(0,1.18fr)] lg:items-center">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-fleet-gold/25 bg-fleet-gold/10 px-2.5 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.16em] text-fleet-gold">
+                <TimerReset className="h-3.5 w-3.5" />
+                Soft-launch
               </span>
-              <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-gold">{item.lane}</span>
-              <span className="text-xs font-semibold leading-5 text-white/72">{item.note}</span>
-            </motion.div>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.06] px-2.5 py-1.5 text-[0.68rem] font-black text-white/80">
+                <CalendarDays className="h-3.5 w-3.5 text-fleet-ember" />
+                Aug 15, 2026
+              </span>
+            </div>
+            <h2 className="mt-2 text-lg font-black leading-tight text-white sm:text-xl">Countdown to Fast Fleets 360 soft-launch</h2>
+          </div>
+
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+            {countdown.map((unit) => (
+              <CompactCountdownUnit key={unit.label} unit={unit} reduceMotion={reduceMotion} />
+            ))}
+          </div>
+        </div>
+
+        <div className="relative mt-3 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-fleet-ember/16 px-2.5 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.16em] text-fleet-gold">
+            <MapPinned className="h-3.5 w-3.5" />
+            Proposed states
+          </span>
+          {softLaunchStates.map((item, index) => (
+            <motion.span
+              key={item.state}
+              className="group inline-flex min-h-9 items-center gap-2 rounded-full border border-white/12 bg-white/[0.055] px-3 py-1.5 text-xs font-black text-white transition hover:border-fleet-gold/35 hover:bg-white/[0.1]"
+              whileHover={reduceMotion ? undefined : { y: -2 }}
+              transition={{ duration: 0.38, delay: index * 0.04, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <RadioTower className="h-3.5 w-3.5 shrink-0 text-fleet-gold transition group-hover:text-fleet-ember" />
+              <span>{item.state}</span>
+              <span className="hidden text-[0.62rem] uppercase tracking-[0.12em] text-fleet-gold sm:inline">{item.lane}</span>
+            </motion.span>
           ))}
         </div>
       </div>
@@ -427,21 +424,26 @@ function SoftLaunchCounter({ countdown, reduceMotion }: { countdown: CountdownUn
   );
 }
 
-function FlipCalendarUnit({ unit, reduceMotion }: { unit: CountdownUnit; reduceMotion: boolean }) {
+function CompactCountdownUnit({ unit, reduceMotion }: { unit: CountdownUnit; reduceMotion: boolean }) {
+  const digits = unit.value === "--" ? ["-", "-"] : unit.value.split("");
+
   return (
-    <div className="soft-launch-calendar-card min-w-0 overflow-hidden rounded-[14px] border border-white/12 bg-[#071114]/92 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_16px_34px_rgba(0,0,0,0.2)]">
-      <div className="border-b border-white/10 bg-white/[0.05] px-3 py-2 text-center text-[0.62rem] font-black uppercase tracking-[0.18em] text-fleet-gold">
+    <div className="min-w-0 text-center">
+      <div className="flex justify-center gap-1">
+        {digits.map((digit, index) => (
+          <span
+            key={`${unit.label}-${unit.value}-${index}`}
+            className={`grid h-10 min-w-7 place-items-center rounded-[7px] border border-fleet-gold/20 bg-fleet-ember text-xl font-black leading-none text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_10px_22px_rgba(239,108,0,0.24)] sm:h-11 sm:min-w-8 sm:text-2xl ${
+              reduceMotion ? "" : "soft-launch-flip"
+            }`}
+          >
+            {digit}
+          </span>
+        ))}
+      </div>
+      <span className="mt-1 block text-[0.58rem] font-black uppercase tracking-[0.14em] text-white/70 sm:text-[0.62rem]">
         {unit.label}
-      </div>
-      <div className="relative grid min-h-[78px] place-items-center px-2 py-3 sm:min-h-[90px]">
-        <span className="absolute inset-x-3 top-1/2 h-px bg-white/10" />
-        <strong
-          key={`${unit.label}-${unit.value}`}
-          className={`tabular-nums text-4xl font-black leading-none text-white sm:text-5xl ${reduceMotion ? "" : "soft-launch-flip"}`}
-        >
-          {unit.value}
-        </strong>
-      </div>
+      </span>
     </div>
   );
 }

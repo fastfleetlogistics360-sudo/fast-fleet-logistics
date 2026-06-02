@@ -60,11 +60,11 @@ const socialItems: Array<{ href: string; label: string; icon: (props: ComponentP
   { href: "https://www.tiktok.com/@fastfleets360", label: "TikTok", icon: TikTokIcon, hover: "hover:bg-black" }
 ];
 
+const siteChromeRoutes = new Set(["/main", "/how-it-works", "/privacy", "/terms", "/cookies", "/ndpr", "/support", "/offline"]);
+
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isLaunchLanding = pathname === "/";
-  const isAdminEnvironment = pathname.startsWith("/admin");
   const isDashboardEnvironment =
     pathname === "/dashboard" ||
     pathname.startsWith("/customer/dashboard") ||
@@ -72,7 +72,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
     pathname.startsWith("/rider/dashboard") ||
     pathname.startsWith("/business/dashboard");
   const usesGlobalDashboardMenu = false;
-  const hasSiteChrome = !isLaunchLanding && !isAdminEnvironment;
+  const hasSiteChrome = siteChromeRoutes.has(pathname);
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState<string | null>(null);
   const [accountRole, setAccountRole] = useState<UserRole | null>(null);
@@ -297,9 +297,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
         </aside>
       ) : null}
 
-      <main className={cn(isLaunchLanding || isAdminEnvironment ? "" : "pb-20 lg:pb-0", dashboardMenu && "lg:pl-80")}>{children}</main>
+      <main className={cn(hasSiteChrome ? "pb-20 lg:pb-0" : "", dashboardMenu && "lg:pl-80")}>{children}</main>
 
-      {isLaunchLanding || isAdminEnvironment ? null : (
+      {hasSiteChrome ? (
       <>
       <footer className="commercial-strip px-4 py-10 text-white sm:px-6">
         <div className="mx-auto grid max-w-7xl gap-8 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
@@ -389,7 +389,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
       </div>
       {!open ? <SupportWidget /> : null}
       </>
-      )}
+      ) : null}
       <CookieConsent />
     </div>
   );
