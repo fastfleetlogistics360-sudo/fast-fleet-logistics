@@ -83,6 +83,7 @@ export function WalletDashboardCard({
   }
 
   const canWithdraw = Boolean(onWithdraw) || accountKind === "rider" || accountKind === "business";
+  const showTopUp = accountKind === "customer";
   const historyHref = transactionHref || (accountKind === "rider" ? "/rider/dashboard/earnings" : accountKind === "business" ? "/business/dashboard#transactions" : "/dashboard#transactions");
 
   function openHref(href: string) {
@@ -144,7 +145,7 @@ export function WalletDashboardCard({
           </button>
         </div>
 
-        <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
+        <div className={cn("mt-6 grid gap-2 sm:gap-3", showTopUp ? "grid-cols-3" : "grid-cols-2")}>
           <Button
             type="button"
             variant="dark"
@@ -159,13 +160,15 @@ export function WalletDashboardCard({
             )}
             <span className="min-w-0 text-center">{canWithdraw ? withdrawLabel : "Track my order"}</span>
           </Button>
-          <Button type="button" variant="dark" className="min-h-12 bg-fleet-blue/35 px-2 text-xs leading-tight hover:bg-fleet-blue/45 sm:min-h-14 sm:text-base" onClick={topUp} disabled={topUpLoading || Number(amount) < 500}>
-            {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 sm:h-5 sm:w-5" />}
-            <span className="min-w-0 text-center">Top Up</span>
-          </Button>
+          {showTopUp ? (
+            <Button type="button" variant="dark" className="min-h-12 bg-fleet-blue/35 px-2 text-xs leading-tight hover:bg-fleet-blue/45 sm:min-h-14 sm:text-base" onClick={topUp} disabled={topUpLoading || Number(amount) < 500}>
+              {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 sm:h-5 sm:w-5" />}
+              <span className="min-w-0 text-center">Top Up</span>
+            </Button>
+          ) : null}
           <Button type="button" variant="dark" className="min-h-12 bg-fleet-blue/35 px-2 text-xs leading-tight hover:bg-fleet-blue/45 sm:min-h-14 sm:text-base" onClick={() => openHref(historyHref)}>
             <RefreshCw className="h-4 w-4" />
-            <span className="min-w-0 text-center">Convert</span>
+            <span className="min-w-0 text-center">History</span>
           </Button>
         </div>
 

@@ -14,6 +14,7 @@ import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-stat
 import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { RoutePreview } from "@/components/maps/route-preview";
 import { useLiveDeliveryTracking } from "@/components/realtime/use-live-delivery-tracking";
+import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -700,6 +701,7 @@ function HomeTab({
           transactionHref="/dashboard#transactions"
         />
       </div>
+      <TransactionHistory accountKind="customer" compact />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryTile label="This month" value={formatMoney(monthlySpend)} />

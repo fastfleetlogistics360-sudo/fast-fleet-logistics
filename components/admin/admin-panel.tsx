@@ -160,6 +160,9 @@ type AdminNavStats = {
 
 type AdminWithdrawal = {
   id: string;
+  transaction_id?: string;
+  source?: "withdrawal_request" | "wallet_transaction";
+  account_kind?: "rider" | "business";
   amount_ngn: number;
   bank_name: string;
   account_number: string;
@@ -171,6 +174,17 @@ type AdminWithdrawal = {
     application_status?: string | null;
     vehicle_type?: string | null;
     operating_zone?: string | null;
+    users?: {
+      full_name?: string | null;
+      phone?: string | null;
+      email?: string | null;
+    } | null;
+  } | null;
+  business_profiles?: {
+    id?: string | null;
+    business_name?: string | null;
+    registration_status?: string | null;
+    business_type?: string | null;
     users?: {
       full_name?: string | null;
       phone?: string | null;
@@ -469,9 +483,9 @@ const defaultSiteControls: SiteControls = {
   brand_partners: defaultBrandPartners,
   wallet_policy: {
     min_topup_ngn: 500,
-    min_withdrawal_ngn: 3000,
+    min_withdrawal_ngn: 2000,
     max_withdrawal_ngn: 200000,
-    payout_sla_hours: 24
+    payout_sla_hours: 10
   }
 };
 
@@ -813,9 +827,10 @@ export function AdminPanel() {
 
   async function reviewWithdrawal(id: string, status: "approved" | "rejected" | "paid") {
     const current = adminWithdrawals.find((withdrawal) => withdrawal.id === id);
+    const accountLabel = current?.account_kind === "business" ? "business" : "driver";
     const reason =
       status === "rejected"
-        ? window.prompt("Reason to show the driver in red on their withdrawal status:")?.trim()
+        ? window.prompt(`Reason to show the ${accountLabel} in red on their withdrawal status:`)?.trim()
         : "";
     if (status === "rejected" && !reason) return;
 
@@ -834,10 +849,10 @@ export function AdminPanel() {
       );
       setAdminMessage(
         status === "approved"
-          ? `${current?.account_name || "Driver"} withdrawal approved. Payout should be credited within 24 hours.`
+          ? `${current?.account_name || accountLabel} withdrawal approved. Payout should be credited within 10 business hours.`
           : status === "paid"
-            ? `${current?.account_name || "Driver"} withdrawal marked as paid.`
-            : `${current?.account_name || "Driver"} withdrawal rejected with a visible driver reason.`
+            ? `${current?.account_name || accountLabel} withdrawal marked as paid.`
+            : `${current?.account_name || accountLabel} withdrawal rejected with a visible ${accountLabel} reason.`
       );
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "Could not review withdrawal.");
@@ -1525,7 +1540,12 @@ export function AdminPanel() {
           onReview={reviewBusiness}
         />
         <DriverWithdrawalSection
-          withdrawals={adminWithdrawals}
+          withdrawals={adminWithdrawals.filter((withdrawal) => withdrawal.account_kind !== "business")}
+          busyAction={busyAction}
+          onReview={reviewWithdrawal}
+        />
+        <BusinessWithdrawalSection
+          withdrawals={adminWithdrawals.filter((withdrawal) => withdrawal.account_kind === "business")}
           busyAction={busyAction}
           onReview={reviewWithdrawal}
         />
@@ -1779,6 +1799,98 @@ function DriverWithdrawalSection({
             </article>
           );
         })}
+        {withdrawals.length === 0 ? <div className="rounded-fleet bg-fleet-paper p-5 text-sm font-bold text-slate-500">No driver withdrawal requests yet.</div> : null}
+      </div>
+    </Card>
+  );
+}
+
+function BusinessWithdrawalSection({
+  withdrawals,
+  busyAction,
+  onReview
+}: {
+  withdrawals: AdminWithdrawal[];
+  busyAction: string | null;
+  onReview: (id: string, status: "approved" | "rejected" | "paid") => void;
+}) {
+  return (
+    <Card id="business-withdrawal-review" className="scroll-mt-24 overflow-hidden">
+      <div className="flex items-center justify-between gap-4 border-b border-fleet-line p-5">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-fleet bg-fleet-night text-white">
+            <WalletCards className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-xl font-black text-fleet-night">Business withdrawal section</h2>
+            <span className="text-sm font-bold text-slate-500">Approved business KYC payouts and bank-credit review</span>
+          </div>
+        </div>
+        <StatusBadge tone="amber">{withdrawals.filter((withdrawal) => withdrawal.status === "pending").length} pending</StatusBadge>
+      </div>
+      <div className="grid gap-3 p-4">
+        {withdrawals.map((withdrawal) => {
+          const business = withdrawal.business_profiles;
+          const user = business?.users;
+          const businessName = business?.business_name || withdrawal.account_name || user?.full_name || "Business";
+          const canAct = withdrawal.status === "pending";
+          return (
+            <article key={withdrawal.id} className="rounded-fleet border border-fleet-line bg-white p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <strong className="block text-lg font-black text-fleet-night">{businessName}</strong>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                    {withdrawal.bank_name} · {withdrawal.account_number} · {withdrawal.account_name || "No account name"}
+                  </span>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                    KYC: {business?.registration_status || "active"} · Type: {business?.business_type || "business"} · {user?.email || "No email"}
+                  </span>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                    Payout window: within 10 business hours after approval
+                  </span>
+                </div>
+                <div className="text-left sm:text-right">
+                  <strong className="block text-2xl font-black text-fleet-night">{formatMoney(Number(withdrawal.amount_ngn || 0))}</strong>
+                  <StatusBadge tone={withdrawal.status === "approved" || withdrawal.status === "paid" ? "green" : withdrawal.status === "rejected" ? "red" : "amber"}>
+                    {withdrawal.status}
+                  </StatusBadge>
+                </div>
+              </div>
+              {withdrawal.rejection_reason ? (
+                <div className="mt-3 rounded-fleet bg-rose-50 p-3 text-xs font-bold leading-5 text-rose-700">{withdrawal.rejection_reason}</div>
+              ) : null}
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => onReview(withdrawal.id, "approved")}
+                  disabled={!canAct || busyAction === `withdrawal:${withdrawal.id}:approved`}
+                >
+                  Approve
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => onReview(withdrawal.id, "rejected")}
+                  disabled={!canAct || busyAction === `withdrawal:${withdrawal.id}:rejected`}
+                >
+                  Reject
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="dark"
+                  onClick={() => onReview(withdrawal.id, "paid")}
+                  disabled={withdrawal.status !== "approved" || busyAction === `withdrawal:${withdrawal.id}:paid`}
+                >
+                  Mark paid
+                </Button>
+              </div>
+            </article>
+          );
+        })}
+        {withdrawals.length === 0 ? <div className="rounded-fleet bg-fleet-paper p-5 text-sm font-bold text-slate-500">No business withdrawal requests yet.</div> : null}
       </div>
     </Card>
   );

@@ -16,6 +16,7 @@ import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-stat
 import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { RoutePreview } from "@/components/maps/route-preview";
 import type { LiveRiderLocation } from "@/components/realtime/use-live-delivery-tracking";
+import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -573,12 +574,13 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
         } = await supabase.auth.getUser();
         if (!user) return;
 
-        const [profileResult, appUserResult, latestApplicationResult, riderResult, walletResult] = await Promise.all([
+        const [profileResult, appUserResult, latestApplicationResult, riderResult, walletResult, withdrawalsResult] = await Promise.all([
           supabase.from("profiles").select("full_name, email, phone, avatar_url, lga").eq("user_id", user.id).maybeSingle(),
           supabase.from("users").select("full_name, email, phone, avatar_url, default_zone").eq("id", user.id).maybeSingle(),
           supabase.from("rider_applications").select("full_name, phone, email, lga").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("rider_profiles").select(riderProfileFields).eq("user_id", user.id).maybeSingle(),
-          supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle()
+          supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).eq("wallet_type", "rider").maybeSingle(),
+          fetch("/api/wallet/withdrawals?accountKind=rider", { cache: "no-store" }).then((response) => response.json()).catch(() => ({ withdrawals: [] }))
         ]);
 	        let riderData = (riderResult.data as RiderProfile | null) || {};
 	        let riderId = riderData.id || null;
@@ -602,14 +604,11 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	          riderId = riderData.id || null;
 	          dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || dispatchVehicle;
 	        }
-	        const [jobsResult, withdrawalsResult] = await Promise.all([
+	        const jobsResult = await (
 	          riderId || approved
 	            ? loadRiderJobs(supabase, riderId, dispatchVehicle, effectiveOnline)
-	            : Promise.resolve({ data: [] }),
-	          riderId
-	            ? supabase.from("withdrawal_requests").select("id, amount_ngn, bank_name, account_number, status, created_at").eq("rider_profile_id", riderId).order("created_at", { ascending: false }).limit(12)
 	            : Promise.resolve({ data: [] })
-	        ]);
+	        );
         if (!mounted) return;
         const profileData = (profileResult.data || {}) as RiderProfile;
         const appUserData = (appUserResult.data || {}) as RiderProfile & { default_zone?: string | null };
@@ -633,7 +632,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
         setOnlineSince((current) => (nextOnline ? current || new Date() : null));
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
 	        setJobs(Array.isArray(jobsResult) ? jobsResult : ((jobsResult.data || []) as JobRow[]));
-        setWithdrawals((withdrawalsResult.data || []) as WithdrawalRow[]);
+        setWithdrawals(Array.isArray(withdrawalsResult.withdrawals) ? withdrawalsResult.withdrawals : []);
       } catch {
         if (mounted && !silent) setJobs([]);
       } finally {
@@ -770,6 +769,20 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       if ((payload.job as JobRow)?.status === "delivered" || (payload.job as JobRow)?.status === "cancelled") {
         setTrackingActive(false);
         setTrackingMessage("Delivery tracking stopped.");
+        if ((payload.job as JobRow)?.status === "delivered") {
+          const settlementResponse = await fetch("/api/wallet/settle-delivery", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ deliveryId: job.id })
+          });
+          const settlement = (await settlementResponse.json().catch(() => ({}))) as { amount?: number; error?: string };
+          if (settlementResponse.ok && settlement.amount) {
+            setWalletBalance((current) => current + Number(settlement.amount || 0));
+            setTrackingMessage(`Delivery completed. ${formatMoney(Number(settlement.amount || 0))} was credited to your rider wallet.`);
+          } else if (!settlementResponse.ok) {
+            setTrackingMessage(settlement.error || "Delivery completed, but rider earning could not be credited yet.");
+          }
+        }
       } else {
         setTrackingMessage(`Delivery status updated to ${(payload.job as JobRow).status.replaceAll("_", " ")}.`);
       }
@@ -782,16 +795,20 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
   async function requestWithdrawal() {
     const amount = Number(withdrawalAmount);
     setWithdrawalMessage(null);
-    if (!amount || amount < 3000) {
-      setWithdrawalMessage("Enter an amount of at least NGN 3,000.");
+    if (!amount || amount < 2000) {
+      setWithdrawalMessage("Enter an amount of at least NGN 2,000.");
+      return;
+    }
+    if (amount > 200000) {
+      setWithdrawalMessage("Maximum withdrawal is NGN 200,000 per request.");
       return;
     }
     setWithdrawalLoading(true);
     try {
-      const response = await fetch("/api/rider/withdrawals", {
+      const response = await fetch("/api/wallet/withdrawals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount })
+        body: JSON.stringify({ amount, accountKind: "rider" })
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not request withdrawal.");
@@ -799,6 +816,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       setWalletBalance((current) => Math.max(0, current - amount));
       setWithdrawalMessage("Withdrawal request submitted for admin payout review.");
       setWithdrawalOpen(false);
+      setWithdrawalAmount("");
     } catch (error) {
       setWithdrawalMessage(error instanceof Error ? error.message : "Could not request withdrawal.");
     } finally {
@@ -1040,6 +1058,7 @@ function EarningsTab({ walletBalance, profile, withdrawals, onOpenWithdrawal }: 
         onWithdraw={onOpenWithdrawal}
         transactionHref="/rider/dashboard/earnings"
       />
+      <TransactionHistory accountKind="rider" />
       <Card className="p-5">
         <h2 className="text-xl font-black text-fleet-night">Last 14 days</h2>
         <div className="mt-5 flex h-48 items-end gap-2">
@@ -1122,6 +1141,7 @@ function WithdrawalModal({ amount, onAmount, profile, loading, message, onClose,
       <Card className="w-full max-w-md p-5">
         <h2 className="text-2xl font-black text-fleet-night">Request withdrawal</h2>
         <p className="mt-2 text-sm font-semibold text-slate-600">{profile.bank_name || "Bank pending"} · {profile.account_number || "Account pending"} · {profile.account_name || "Name pending"}</p>
+        <p className="mt-2 text-xs font-bold leading-5 text-slate-500">Minimum NGN 2,000. Maximum NGN 200,000 per request. Approved payouts are credited within 10 business hours.</p>
         <label className="form-field mt-5"><span className="form-label">Amount</span><input className="form-input" value={amount} onChange={(event) => onAmount(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="5000" /></label>
         {message ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-sm font-bold text-amber-800">{message}</div> : null}
         <div className="mt-5 grid gap-3 sm:grid-cols-2"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="button" disabled={loading || !amount} onClick={onSubmit}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Submit</Button></div>

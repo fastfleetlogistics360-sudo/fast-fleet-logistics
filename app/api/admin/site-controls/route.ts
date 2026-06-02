@@ -18,9 +18,9 @@ const defaultControls = {
   brand_partners: defaultBrandPartners,
   wallet_policy: {
     min_topup_ngn: 500,
-    min_withdrawal_ngn: 3000,
+    min_withdrawal_ngn: 2000,
     max_withdrawal_ngn: 200000,
-    payout_sla_hours: 24
+    payout_sla_hours: 10
   }
 };
 

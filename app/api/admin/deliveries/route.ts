@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
+import { creditRiderDeliveryWallet } from "@/lib/wallet-ledger";
 import type { DeliveryStatus } from "@/types/domain";
 
 const deliveryStatuses = new Set(["pending_payment", "searching", "accepted", "rider_arrived", "picked_up", "in_transit", "delivered", "cancelled"]);
@@ -82,6 +83,9 @@ export async function PATCH(request: Request) {
     body: "Admin updated this customer delivery timeline."
   });
   await supabase.from("delivery_locations").update({ status, updated_at: timestamp }).eq("order_id", id);
+  if (status === "delivered") {
+    await creditRiderDeliveryWallet(supabase, id);
+  }
 
   const riderProfiles = data.rider_profiles as { user_id?: string | null } | null;
   await Promise.allSettled([

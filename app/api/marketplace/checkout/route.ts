@@ -73,10 +73,10 @@ export async function POST(request: Request) {
 
     const reference = `FFM-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     const siteUrl = paymentCallbackOrigin(request);
-    const callbackUrl = new URL(`${siteUrl}/track`);
-    callbackUrl.searchParams.set("paid", "1");
+    const callbackUrl = new URL(`${siteUrl}/marketplace/callback`);
     callbackUrl.searchParams.set("reference", reference);
     callbackUrl.searchParams.set("code", reference);
+    callbackUrl.searchParams.set("returnTo", `/track?code=${encodeURIComponent(reference)}`);
     const pickupAddress = estimate.pickupAddress;
     const linkedBusinessIds = Array.from(new Set(items.map((item) => item.businessId).filter((id): id is string => Boolean(id))));
     if (linkedBusinessIds.length > 1) {

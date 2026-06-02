@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { BarChart3, Building2, Clock, Download, FileText, Home, MapPin, Menu, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards, X } from "lucide-react";
+import { BarChart3, Building2, Clock, Download, FileText, Home, Loader2, MapPin, Menu, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -12,6 +12,7 @@ import { uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
+import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
 import { RoutePreview } from "@/components/maps/route-preview";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -85,6 +86,16 @@ type TeamMember = {
   email: string;
   role: "dispatcher" | "viewer";
   status?: string;
+};
+
+type WithdrawalRow = {
+  id: string;
+  amount_ngn: number;
+  bank_name: string;
+  account_number: string;
+  account_name?: string | null;
+  status: string;
+  created_at: string;
 };
 
 type BulkRow = {
@@ -175,6 +186,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
   const [kycStatus, setKycStatus] = useState<BusinessKycStatus>(initialKycStatus);
   const [kycRejectionReason, setKycRejectionReason] = useState<string | null>(initialKycRejectionReason);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
   const [orders, setOrders] = useState<DeliveryRow[]>([]);
   const [businessOrders, setBusinessOrders] = useState<BusinessOrderRow[]>([]);
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
@@ -191,6 +203,10 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
   const [teamRole, setTeamRole] = useState<"dispatcher" | "viewer">("dispatcher");
   const [teamMessage, setTeamMessage] = useState<string | null>(null);
   const [prefs, setPrefs] = useState({ email: true, sms: true, wallet: true });
+  const [withdrawalOpen, setWithdrawalOpen] = useState(false);
+  const [withdrawalAmount, setWithdrawalAmount] = useState("");
+  const [withdrawalMessage, setWithdrawalMessage] = useState<string | null>(null);
+  const [withdrawalLoading, setWithdrawalLoading] = useState(false);
 
   const stats = useMemo(() => {
     const today = orders.filter((order) => new Date(order.created_at).toDateString() === new Date().toDateString()).length;
@@ -222,13 +238,14 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         if (!user) return;
 
         let businessQuery = supabase.from("business_profiles").select("id, business_name, contact_name, phone, email, industry, business_type, commission_rate, pickup_address, cac_number, registration_status, rejection_reason").eq("user_id", user.id).maybeSingle();
-        const [businessResult, accountProfileResult, walletResult, ordersResult, addressResult, teamResult] = await Promise.all([
+        const [businessResult, accountProfileResult, walletResult, ordersResult, addressResult, teamResult, withdrawalsResult] = await Promise.all([
           businessQuery,
           supabase.from("profiles").select("avatar_url").eq("user_id", user.id).maybeSingle(),
-          supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle(),
+          supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).eq("wallet_type", "customer").maybeSingle(),
           supabase.from("deliveries").select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, proof_url").eq("customer_id", user.id).order("created_at", { ascending: false }).limit(50),
           supabase.from("saved_addresses").select("id, label, address").eq("user_id", user.id).order("created_at", { ascending: false }),
-          fetch("/api/business/team").then((response) => response.json()).catch(() => ({ members: [] }))
+          fetch("/api/business/team").then((response) => response.json()).catch(() => ({ members: [] })),
+          fetch("/api/wallet/withdrawals?accountKind=business", { cache: "no-store" }).then((response) => response.json()).catch(() => ({ withdrawals: [] }))
         ]);
         if (!mounted) return;
         let nextProfile = (businessResult.data || profile) as BusinessProfile;
@@ -240,6 +257,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         setKycStatus(nextProfile.registration_status || initialKycStatus);
         setKycRejectionReason(nextProfile.rejection_reason || initialKycRejectionReason);
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
+        setWithdrawals(Array.isArray(withdrawalsResult.withdrawals) ? withdrawalsResult.withdrawals : []);
         setOrders(ordersResult.error ? mergeLocalDeliveries([]) : mergeLocalDeliveries((ordersResult.data || []) as DeliveryRow[]));
         const businessOrdersResult = await loadBusinessOrdersForProfile(supabase, nextProfile.id, user.id);
         if (!mounted) return;
@@ -468,6 +486,38 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
     }
   }
 
+  async function requestWithdrawal() {
+    const amount = Number(withdrawalAmount);
+    setWithdrawalMessage(null);
+    if (!amount || amount < 2000) {
+      setWithdrawalMessage("Enter an amount of at least NGN 2,000.");
+      return;
+    }
+    if (amount > 200000) {
+      setWithdrawalMessage("Maximum withdrawal is NGN 200,000 per request.");
+      return;
+    }
+    setWithdrawalLoading(true);
+    try {
+      const response = await fetch("/api/wallet/withdrawals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, accountKind: "business" })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not request withdrawal.");
+      setWithdrawals((current) => [payload.withdrawal as WithdrawalRow, ...current]);
+      setWalletBalance((current) => Math.max(0, current - amount));
+      setWithdrawalMessage("Business withdrawal request submitted for admin review.");
+      setWithdrawalOpen(false);
+      setWithdrawalAmount("");
+    } catch (error) {
+      setWithdrawalMessage(error instanceof Error ? error.message : "Could not request withdrawal.");
+    } finally {
+      setWithdrawalLoading(false);
+    }
+  }
+
   function exportHistory() {
     const csv = ["date,code,pickup,dropoff,status,cost", ...orders.map((order) => `${order.created_at},${order.delivery_code},${order.pickup_address},${order.dropoff_address},${order.status},${order.price_ngn}`)].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -513,7 +563,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
             <BusinessKycStatusView loading={loading} profile={profile} status={kycStatus} rejectionReason={kycRejectionReason} />
           ) : (
             <>
-              {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} stats={stats} orders={orders} businessOrders={businessOrders} businessOrderError={businessOrderError} businessOrderLoading={businessOrderLoading} onBusinessOrderStatus={updateBusinessOrder} /> : null}
+              {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} withdrawals={withdrawals} stats={stats} orders={orders} businessOrders={businessOrders} businessOrderError={businessOrderError} businessOrderLoading={businessOrderLoading} onOpenWithdrawal={() => setWithdrawalOpen(true)} onBusinessOrderStatus={updateBusinessOrder} /> : null}
               {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsv={parseCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={deleteAddress} /> : null}
               {activeTab === "history" ? <HistoryTab orders={filteredOrders} status={historyStatus} onStatus={setHistoryStatus} onExport={exportHistory} /> : null}
               {activeTab === "analytics" ? <AnalyticsTab orders={orders} addresses={addresses} team={team} /> : null}
@@ -523,6 +573,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
           )}
         </main>
       </div>
+      {withdrawalOpen ? <BusinessWithdrawalModal amount={withdrawalAmount} onAmount={setWithdrawalAmount} profile={profile} loading={withdrawalLoading} message={withdrawalMessage} onClose={() => setWithdrawalOpen(false)} onSubmit={requestWithdrawal} /> : null}
     </section>
   );
 }
@@ -627,7 +678,7 @@ function BusinessKycStatusView({ loading, profile, status, rejectionReason }: { 
   );
 }
 
-function OverviewTab({ loading, profile, walletBalance, stats, orders, businessOrders, businessOrderError, businessOrderLoading, onBusinessOrderStatus }: { loading: boolean; profile: BusinessProfile; walletBalance: number; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[]; businessOrders: BusinessOrderRow[]; businessOrderError: string | null; businessOrderLoading: string | null; onBusinessOrderStatus: (id: string, status: string) => void }) {
+function OverviewTab({ loading, profile, walletBalance, withdrawals, stats, orders, businessOrders, businessOrderError, businessOrderLoading, onOpenWithdrawal, onBusinessOrderStatus }: { loading: boolean; profile: BusinessProfile; walletBalance: number; withdrawals: WithdrawalRow[]; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[]; businessOrders: BusinessOrderRow[]; businessOrderError: string | null; businessOrderLoading: string | null; onOpenWithdrawal: () => void; onBusinessOrderStatus: (id: string, status: string) => void }) {
   if (loading) return <DashboardSkeleton />;
   const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || orders[0] || null;
   return (
@@ -640,9 +691,24 @@ function OverviewTab({ loading, profile, walletBalance, stats, orders, businessO
         accountKind="business"
         kycStatus={profile.registration_status === "active" ? "verified" : profile.registration_status === "rejected" ? "more_info_needed" : "pending"}
         returnTo="/business/dashboard"
-        onWithdraw={() => window.location.assign("/support?topic=business-wallet")}
+        onWithdraw={onOpenWithdrawal}
         transactionHref="/business/dashboard#transactions"
       />
+      <TransactionHistory accountKind="business" compact />
+      <Card className="p-5">
+        <h2 className="text-xl font-black text-fleet-night">Business withdrawal history</h2>
+        <div className="mt-4 grid gap-3">
+          {withdrawals.length ? withdrawals.slice(0, 5).map((item) => (
+            <div key={item.id} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3">
+              <span>
+                <strong className="block text-sm font-black text-fleet-night">{formatMoney(item.amount_ngn)}</strong>
+                <span className="text-xs font-semibold text-slate-500">{formatDateTime(item.created_at)}</span>
+              </span>
+              <StatusBadge tone={item.status === "paid" || item.status === "approved" ? "green" : item.status === "rejected" ? "red" : "amber"}>{item.status}</StatusBadge>
+            </div>
+          )) : <DashboardEmptyState title="No business withdrawals" body="Approved business wallet withdrawals will appear here." ctaLabel="Withdraw" ctaHref="/business/dashboard" />}
+        </div>
+      </Card>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat label="Orders today" value={String(stats.today)} /><Stat label="Spent this month" value={formatMoney(stats.monthSpend)} /><Stat label="Active" value={String(stats.active)} /><Stat label="Saved addresses" value={String(stats.addresses)} /></div>
       <BusinessOrdersPanel orders={businessOrders} error={businessOrderError} busyAction={businessOrderLoading} onStatus={onBusinessOrderStatus} />
       <Card className="overflow-hidden p-0">
@@ -782,6 +848,21 @@ function AnalyticsTab({ orders, addresses, team }: { orders: DeliveryRow[]; addr
 function StatusMetric({ label, value, tone }: { label: string; value: number; tone: "blue" | "green" | "red" }) {
   const color = tone === "green" ? "bg-emerald-50 text-emerald-700" : tone === "red" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700";
   return <div className={cn("rounded-fleet p-4", color)}><span className="text-xs font-black uppercase tracking-[0.12em]">{label}</span><strong className="mt-2 block text-3xl font-black">{value}</strong></div>;
+}
+
+function BusinessWithdrawalModal({ amount, onAmount, profile, loading, message, onClose, onSubmit }: { amount: string; onAmount: (value: string) => void; profile: BusinessProfile; loading: boolean; message: string | null; onClose: () => void; onSubmit: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[120] grid place-items-end bg-fleet-night/35 p-3 sm:place-items-center">
+      <Card className="w-full max-w-md p-5">
+        <h2 className="text-2xl font-black text-fleet-night">Request withdrawal</h2>
+        <p className="mt-2 text-sm font-semibold text-slate-600">Business wallet · {profile.business_name || "Business account"} · KYC approved</p>
+        <p className="mt-2 text-xs font-bold leading-5 text-slate-500">Minimum NGN 2,000. Maximum NGN 200,000 per request. Approved payouts are credited within 10 business hours.</p>
+        <label className="form-field mt-5"><span className="form-label">Amount</span><input className="form-input" value={amount} onChange={(event) => onAmount(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="5000" /></label>
+        {message ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-sm font-bold text-amber-800">{message}</div> : null}
+        <div className="mt-5 grid gap-3 sm:grid-cols-2"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="button" disabled={loading || !amount} onClick={onSubmit}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Submit</Button></div>
+      </Card>
+    </div>
+  );
 }
 
 function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessProfile; onProfile: (profile: BusinessProfile) => void; prefs: { email: boolean; sms: boolean; wallet: boolean }; onPrefs: (prefs: { email: boolean; sms: boolean; wallet: boolean }) => void }) {

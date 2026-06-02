@@ -29,7 +29,7 @@ export async function GET() {
     const [profileResult, appUserResult, walletResult, orderResult, promotionResult, addressResult] = await Promise.all([
       db.from("profiles").select("id, full_name, email, phone, avatar_url, lga, kyc_status").eq("user_id", user.id).maybeSingle(),
       db.from("users").select("default_zone").eq("id", user.id).maybeSingle(),
-      db.from("wallets").select("balance_ngn, locked_balance_ngn, balance").eq("user_id", user.id).maybeSingle(),
+      db.from("wallets").select("balance_ngn, locked_balance_ngn, balance").eq("user_id", user.id).eq("wallet_type", "customer").maybeSingle(),
       loadOrders(db, user.id),
       db.from("promotions").select("id, title, image_url, cta_label, cta_url, active").eq("active", true).order("created_at", { ascending: false }).limit(8),
       db.from("saved_addresses").select("id, label, address").eq("user_id", user.id).order("created_at", { ascending: false })

@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/wallet/daily-commission",
+      "schedule": "59 22 * * *"
+    }
+  ]
+}

@@ -1233,7 +1233,7 @@ $$;
 create table if not exists public.withdrawal_requests (
   id uuid primary key default gen_random_uuid(),
   rider_profile_id uuid not null references public.rider_profiles(id) on delete cascade,
-  amount_ngn numeric not null check (amount_ngn >= 3000 and amount_ngn <= 200000),
+  amount_ngn numeric not null check (amount_ngn >= 2000 and amount_ngn <= 200000),
   bank_name text not null,
   account_number text not null,
   account_name text,
@@ -1254,7 +1254,7 @@ alter table public.withdrawal_requests
   drop constraint if exists withdrawal_requests_amount_ngn_check;
 
 alter table public.withdrawal_requests
-  add constraint withdrawal_requests_amount_ngn_check check (amount_ngn >= 3000 and amount_ngn <= 200000);
+  add constraint withdrawal_requests_amount_ngn_check check (amount_ngn >= 2000 and amount_ngn <= 200000);
 
 drop trigger if exists withdrawal_requests_set_updated_at on public.withdrawal_requests;
 create trigger withdrawal_requests_set_updated_at
@@ -1326,8 +1326,8 @@ begin
     raise exception 'Your KYC must be approved before withdrawals are enabled';
   end if;
 
-  if next_amount_ngn < 3000 then
-    raise exception 'Minimum withdrawal is NGN 3,000';
+  if next_amount_ngn < 2000 then
+    raise exception 'Minimum withdrawal is NGN 2,000';
   end if;
 
   if next_amount_ngn > 200000 then
@@ -2284,9 +2284,9 @@ values (
     ],
     "wallet_policy": {
       "min_topup_ngn": 500,
-      "min_withdrawal_ngn": 3000,
+      "min_withdrawal_ngn": 2000,
       "max_withdrawal_ngn": 200000,
-      "payout_sla_hours": 24
+      "payout_sla_hours": 10
     }
   }'::jsonb
 )

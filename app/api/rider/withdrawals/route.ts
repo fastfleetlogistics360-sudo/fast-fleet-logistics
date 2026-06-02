@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { MIN_WITHDRAWAL_NGN } from "@/lib/wallet-ledger";
 
 export async function POST(request: Request) {
   try {
     const { amount } = (await request.json()) as { amount?: number };
     const amountNgn = Number(amount);
-    if (!Number.isFinite(amountNgn) || amountNgn < 3000) {
-      return NextResponse.json({ error: "Minimum withdrawal is NGN 3,000." }, { status: 400 });
+    if (!Number.isFinite(amountNgn) || amountNgn < MIN_WITHDRAWAL_NGN) {
+      return NextResponse.json({ error: `Minimum withdrawal is NGN ${MIN_WITHDRAWAL_NGN.toLocaleString("en-NG")}.` }, { status: 400 });
     }
 
     const supabase = await createClient();

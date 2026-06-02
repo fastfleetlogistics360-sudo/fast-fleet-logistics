@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -83,6 +84,7 @@ export async function PATCH(request: Request) {
     const customerDropoffAddress = String(order.dropoff_address || "");
     const businessPickupContact = businessProfile.business_name || "Business pickup";
     const marketplaceCustomerContact = String(order.customer_contact || "Marketplace customer");
+    const marketplaceEstimate = estimateBusinessOrderDelivery(order);
 
     if (status === "ready_for_pickup" && !deliveryId) {
       const deliveryCode = String(order.order_code || `FF-BIZ-ORDER-${Date.now().toString(36).toUpperCase()}`);
@@ -100,16 +102,20 @@ export async function PATCH(request: Request) {
           delivery_speed: "same_day",
           payment_method: "card",
           status: "searching",
-          price_ngn: Number(order.amount || 0),
-          distance_km: 5,
-          eta_minutes: 35,
+          price_ngn: marketplaceEstimate.deliveryFee,
+          distance_km: marketplaceEstimate.distanceKm,
+          eta_minutes: marketplaceEstimate.etaMinutes,
           metadata: {
             source: "business_marketplace_order",
             business_order_id: order.id,
             business_profile_id: businessProfile.id,
             business_name: businessProfile.business_name || null,
             marketplace_customer_id: order.customer_id || null,
-            marketplace_kind: order.marketplace_kind || null
+            marketplace_kind: order.marketplace_kind || null,
+            order_total_ngn: Number(order.amount || 0),
+            goods_amount_ngn: marketplaceEstimate.itemsTotal,
+            delivery_fee_ngn: marketplaceEstimate.deliveryFee,
+            platform_fee_ngn: marketplaceEstimate.platformFee
           }
         })
         .select("id, delivery_code")
@@ -173,6 +179,27 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ order: updated });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not update business order." }, { status: 500 });
+  }
+}
+
+function estimateBusinessOrderDelivery(order: Record<string, unknown>) {
+  try {
+    return estimateMarketplaceCheckout({
+      kind: order.marketplace_kind === "shopping" ? "shopping" : "restaurant",
+      items: Array.isArray(order.items) ? order.items as Parameters<typeof estimateMarketplaceCheckout>[0]["items"] : [],
+      address: String(order.dropoff_address || "")
+    });
+  } catch {
+    const amount = Math.max(0, Math.round(Number(order.amount || 0)));
+    return {
+      itemsTotal: 0,
+      pickupAddress: String(order.pickup_address || "Business pickup"),
+      distanceKm: 5,
+      etaMinutes: 35,
+      deliveryFee: amount,
+      platformFee: 0,
+      total: amount
+    };
   }
 }
 
