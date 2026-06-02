@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Banknote, Bike, Clock, Home, Loader2, PackageCheck, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards } from "lucide-react";
@@ -93,6 +93,20 @@ const tabs: Array<{ id: RiderTab; label: string; icon: LucideIcon }> = [
 const jobFields =
   "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
 
+const riderProfileFields =
+  "id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type";
+
+type RiderApplicationSnapshot = {
+  status?: KycStatus | null;
+  lga?: string | null;
+  vehicle_type?: string | null;
+  plate_number?: string | null;
+  vehicle_color?: string | null;
+  bank_name?: string | null;
+  account_number?: string | null;
+  account_name?: string | null;
+};
+
 export function RiderAccessState({ status, rejectionReason }: { status: KycStatus; rejectionReason?: string | null }) {
   const router = useRouter();
   const rejected = status === "rejected";
@@ -178,6 +192,81 @@ function normalizeDispatchVehicle(vehicleType: string | null | undefined) {
   if (vehicleType === "car" || vehicleType === "van" || vehicleType === "bike") return vehicleType;
   if (vehicleType === "motorcycle" || vehicleType === "tricycle") return "bike";
   return null;
+}
+
+async function ensureClientRiderProfile(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  options: { online?: boolean; vehicleType?: string | null } = {}
+) {
+  const { data: existing, error: existingError } = await supabase
+    .from("rider_profiles")
+    .select(riderProfileFields)
+    .eq("user_id", userId)
+    .maybeSingle<RiderProfile>();
+  if (existingError) throw existingError;
+
+  const dispatchVehicle = normalizeDispatchVehicle(options.vehicleType || existing?.vehicle_type) || "bike";
+  const onlinePatch = typeof options.online === "boolean" ? { online: options.online } : {};
+
+  if (existing?.id) {
+    const needsPatch =
+      existing.application_status !== "approved" ||
+      existing.vehicle_type !== dispatchVehicle ||
+      (typeof options.online === "boolean" && existing.online !== options.online);
+
+    if (!needsPatch) return { ...existing, vehicle_type: dispatchVehicle };
+
+    const patch = {
+      application_status: "approved" as KycStatus,
+      vehicle_type: dispatchVehicle,
+      ...onlinePatch
+    };
+    const { data, error } = await supabase
+      .from("rider_profiles")
+      .update(patch)
+      .eq("id", existing.id)
+      .select(riderProfileFields)
+      .maybeSingle<RiderProfile>();
+    if (error) throw error;
+    return data || { ...existing, ...patch };
+  }
+
+  const { data: application, error: applicationError } = await supabase
+    .from("rider_applications")
+    .select("status, lga, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<RiderApplicationSnapshot>();
+  if (applicationError) throw applicationError;
+  if (application?.status !== "approved") return null;
+
+  const applicationVehicle = normalizeDispatchVehicle(options.vehicleType || application.vehicle_type) || "bike";
+  const { data, error } = await supabase
+    .from("rider_profiles")
+    .upsert(
+      {
+        user_id: userId,
+        application_status: "approved" as KycStatus,
+        rider_account_type: "independent",
+        address: application.lga || null,
+        operating_zone: application.lga || null,
+        vehicle_type: applicationVehicle,
+        plate_number: application.plate_number || null,
+        vehicle_color: application.vehicle_color || null,
+        bank_name: application.bank_name || null,
+        account_number: application.account_number || null,
+        account_name: application.account_name || null,
+        online: typeof options.online === "boolean" ? options.online : false,
+        reviewed_at: new Date().toISOString()
+      },
+      { onConflict: "user_id" }
+    )
+    .select(riderProfileFields)
+    .maybeSingle<RiderProfile>();
+  if (error) throw error;
+  return data || null;
 }
 
 function mergeJobs(jobs: JobRow[]) {
@@ -269,6 +358,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
   const [offerNotice, setOfferNotice] = useState<string | null>(null);
   const [pickupEtaMinutes, setPickupEtaMinutes] = useState<number | null>(null);
   const [pickupEtaLoading, setPickupEtaLoading] = useState(false);
+  const desiredOnlineRef = useRef<boolean | null>(null);
 
   const incomingJob = jobs.find((job) => job.status === "searching") || null;
   const activeJob = jobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status)) || null;
@@ -487,17 +577,30 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
           supabase.from("profiles").select("full_name, email, phone, avatar_url, lga").eq("user_id", user.id).maybeSingle(),
           supabase.from("users").select("full_name, email, phone, avatar_url, default_zone").eq("id", user.id).maybeSingle(),
           supabase.from("rider_applications").select("full_name, phone, email, lga").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-          supabase.from("rider_profiles").select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type").eq("user_id", user.id).maybeSingle(),
+          supabase.from("rider_profiles").select(riderProfileFields).eq("user_id", user.id).maybeSingle(),
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).maybeSingle()
         ]);
 	        let riderData = (riderResult.data as RiderProfile | null) || {};
-	        const dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || "bike";
 	        let riderId = riderData.id || null;
 	        const approved = riderData.application_status === "approved" || initialKycStatus === "approved";
-	        const effectiveOnline = Boolean(riderData.online);
+	        if (!riderId && approved) {
+	          riderData = (await ensureClientRiderProfile(supabase, user.id, { vehicleType: riderData.vehicle_type })) || riderData;
+	          riderId = riderData.id || null;
+	        }
+	        let dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || "bike";
+	        let effectiveOnline = Boolean(riderData.online);
+	        if (silent && approved && desiredOnlineRef.current === true && !effectiveOnline) {
+	          const restored = await ensureClientRiderProfile(supabase, user.id, { online: true, vehicleType: riderData.vehicle_type });
+	          if (restored?.id) {
+	            riderData = restored;
+	            riderId = restored.id;
+	            effectiveOnline = Boolean(restored.online);
+	          }
+	        }
 	        if (riderId && approved && (riderData.vehicle_type !== dispatchVehicle || riderData.application_status !== "approved")) {
-	          await supabase.from("rider_profiles").update({ application_status: "approved", vehicle_type: dispatchVehicle }).eq("id", riderId);
-	          riderData = { ...riderData, application_status: "approved", vehicle_type: dispatchVehicle };
+	          riderData = (await ensureClientRiderProfile(supabase, user.id, { vehicleType: dispatchVehicle })) || riderData;
+	          riderId = riderData.id || null;
+	          dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || dispatchVehicle;
 	        }
 	        const [jobsResult, withdrawalsResult] = await Promise.all([
 	          riderId || approved
@@ -507,15 +610,6 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	            ? supabase.from("withdrawal_requests").select("id, amount_ngn, bank_name, account_number, status, created_at").eq("rider_profile_id", riderId).order("created_at", { ascending: false }).limit(12)
 	            : Promise.resolve({ data: [] })
 	        ]);
-	        if (!riderId && approved) {
-	          const repaired = await supabase
-	            .from("rider_profiles")
-	            .select("id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type")
-	            .eq("user_id", user.id)
-	            .maybeSingle();
-	          riderData = ((repaired.data as RiderProfile | null) || riderData);
-	          riderId = riderData.id || null;
-	        }
         if (!mounted) return;
         const profileData = (profileResult.data || {}) as RiderProfile;
         const appUserData = (appUserResult.data || {}) as RiderProfile & { default_zone?: string | null };
@@ -534,6 +628,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
         };
         setProfile(nextProfile);
         const nextOnline = Boolean(nextProfile.online);
+        desiredOnlineRef.current = nextOnline;
         setOnline(nextOnline);
         setOnlineSince((current) => (nextOnline ? current || new Date() : null));
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
@@ -600,6 +695,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       window.alert("You can't go offline until the dispatch job has been delivered.");
       return;
     }
+    desiredOnlineRef.current = nextOnline;
     setOnline(nextOnline);
     setOnlineSince(nextOnline ? new Date() : null);
     try {
@@ -607,22 +703,25 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       const {
         data: { user }
       } = await supabase.auth.getUser();
-      if (!user) return;
-        const dispatchVehicle = normalizeDispatchVehicle(profile.vehicle_type) || "bike";
-	      const { error } = await supabase.from("rider_profiles").update({ online: nextOnline, vehicle_type: dispatchVehicle }).eq("user_id", user.id);
-	      if (error) throw error;
-        setProfile((current) => ({ ...current, vehicle_type: dispatchVehicle, online: nextOnline }));
-	      if (nextOnline && profile.id) {
-	        const nextJobs = await loadRiderJobs(supabase, profile.id, dispatchVehicle, true);
-	        setJobs(nextJobs);
-	        setOfferNotice(nextJobs.some((job) => job.status === "searching") ? "New dispatch orders are available." : null);
-	      } else {
-	        setJobs((current) => current.filter((job) => job.status !== "searching"));
-	        setOfferNotice(null);
-	      }
-	    } catch (error) {
+      if (!user) throw new Error("Sign in again to update rider availability.");
+      const dispatchVehicle = normalizeDispatchVehicle(profile.vehicle_type) || "bike";
+      const updatedProfile = await ensureClientRiderProfile(supabase, user.id, { online: nextOnline, vehicleType: dispatchVehicle });
+      if (!updatedProfile?.id) throw new Error("Your approved rider profile was not found. Please contact support.");
+      setProfile((current) => ({ ...current, ...updatedProfile, vehicle_type: dispatchVehicle, online: nextOnline }));
+      if (nextOnline) {
+        const nextJobs = await loadRiderJobs(supabase, updatedProfile.id, dispatchVehicle, true);
+        setJobs(nextJobs);
+        setOfferNotice(nextJobs.some((job) => job.status === "searching") ? "New dispatch orders are available." : null);
+      } else {
+        setJobs((current) => current.filter((job) => job.status !== "searching"));
+        setOfferNotice(null);
+      }
+    } catch (error) {
+      desiredOnlineRef.current = !nextOnline;
       setOnline(!nextOnline);
       setOnlineSince(!nextOnline ? new Date() : null);
+      setProfile((current) => ({ ...current, online: !nextOnline }));
+      setOfferNotice(error instanceof Error ? error.message : "Could not update rider availability.");
     }
   }
 
