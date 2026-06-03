@@ -24,24 +24,58 @@ export function assertGeolocationReady() {
 export async function requestCurrentPosition(options: PositionOptions = {}) {
   assertGeolocationReady();
 
+  const primaryOptions: PositionOptions = {
+    enableHighAccuracy: true,
+    maximumAge: 5000,
+    timeout: 15000,
+    ...options
+  };
+
+  try {
+    return await readBrowserPosition(primaryOptions);
+  } catch (error) {
+    if (!shouldRetryWithNetworkLocation(error, primaryOptions)) throw error;
+    return readBrowserPosition({
+      enableHighAccuracy: false,
+      maximumAge: Math.max(Number(primaryOptions.maximumAge || 0), 600000),
+      timeout: Math.max(Number(primaryOptions.timeout || 0), 20000)
+    });
+  }
+}
+
+function readBrowserPosition(options: PositionOptions) {
   return new Promise<GeolocationPosition>((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      maximumAge: 5000,
-      timeout: 15000,
       ...options
     });
   });
 }
 
+function geolocationErrorCode(error: unknown) {
+  return typeof error === "object" && error && "code" in error ? Number((error as GeolocationPositionError).code) : null;
+}
+
+export function isGeolocationPermissionDenied(error: unknown) {
+  return geolocationErrorCode(error) === 1;
+}
+
+export function isGeolocationLookupUnavailable(error: unknown) {
+  const code = geolocationErrorCode(error);
+  return code === 2 || code === 3;
+}
+
+function shouldRetryWithNetworkLocation(error: unknown, options: PositionOptions) {
+  return isGeolocationLookupUnavailable(error) && options.enableHighAccuracy !== false;
+}
+
 export function geolocationErrorMessage(error: unknown) {
-  const code = typeof error === "object" && error && "code" in error ? Number((error as GeolocationPositionError).code) : null;
+  const code = geolocationErrorCode(error);
 
   if (code === 1) {
     return "Location permission was denied. Enable location access for Fast Fleets 360 to share live movement.";
   }
   if (code === 2) {
-    return "Your device could not find a reliable location. Check GPS/network signal and retry.";
+    return "Your browser could not calculate your location right now. On Mac, keep Location Services enabled for this browser, or continue and type addresses manually.";
   }
   if (code === 3) {
     return "Location lookup timed out. Fast Fleets 360 will retry shortly.";

@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle, Loader2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { geolocationErrorMessage, getLocationPermissionState, requestCurrentPosition } from "@/lib/location/geolocation";
-import { writeStoredCurrentLocation } from "@/lib/location/current-location";
+import { geolocationErrorMessage, getLocationPermissionState, isGeolocationPermissionDenied, requestCurrentPosition } from "@/lib/location/geolocation";
+import { readStoredCurrentLocation, writeStoredCurrentLocation } from "@/lib/location/current-location";
 
 type GateState = "idle" | "requesting" | "blocked" | "error" | "ready";
 
@@ -28,8 +28,7 @@ export function LocationPermissionGate() {
     try {
       const permission = await getLocationPermissionState();
       if (permission === "unsupported") {
-        setState("error");
-        setMessage("Location is not available on this browser or device.");
+        setState("ready");
         return;
       }
       if (permission === "denied") {
@@ -51,8 +50,14 @@ export function LocationPermissionGate() {
       setState("ready");
     } catch (error) {
       const nextMessage = geolocationErrorMessage(error);
+      if (!isGeolocationPermissionDenied(error)) {
+        const stored = readStoredCurrentLocation();
+        if (!stored) setMessage(nextMessage);
+        setState("ready");
+        return;
+      }
       setMessage(nextMessage);
-      setState(nextMessage.toLowerCase().includes("denied") ? "blocked" : "error");
+      setState("blocked");
     }
   }
 
@@ -64,12 +69,17 @@ export function LocationPermissionGate() {
         <span className={`grid h-12 w-12 place-items-center rounded-fleet ${state === "requesting" ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700"}`}>
           {state === "requesting" ? <Loader2 className="h-6 w-6 animate-spin" /> : <AlertTriangle className="h-6 w-6" />}
         </span>
-        <h2 className="mt-4 text-2xl font-black leading-tight text-fleet-night">Enable location access</h2>
+        <h2 className="mt-4 text-2xl font-black leading-tight text-fleet-night">{state === "blocked" ? "Location access is blocked" : "Enable location access"}</h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{message}</p>
         <Button type="button" className="mt-5 w-full" onClick={() => ensureLocation()} disabled={state === "requesting"}>
           {state === "requesting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
           Enable location
         </Button>
+        {state !== "requesting" ? (
+          <Button type="button" variant="secondary" className="mt-3 w-full" onClick={() => setState("ready")}>
+            Continue without exact location
+          </Button>
+        ) : null}
       </div>
     </div>
   );
