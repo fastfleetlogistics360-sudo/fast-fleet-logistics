@@ -63,14 +63,14 @@ export function AdvertHeroSlider({ slides: configuredSlides }: { slides?: MainHe
             src={item.image}
             alt=""
             loading={index === 0 ? "eager" : "lazy"}
-            className={`absolute inset-0 h-full w-full object-cover object-center transition-[opacity,transform] duration-1000 will-change-transform ${
+            className={`absolute inset-0 h-full w-full object-cover object-[75%_center] transition-[opacity,transform] duration-1000 will-change-transform md:object-center ${
               active === index ? "scale-100 opacity-100" : "scale-[1.02] opacity-0"
             }`}
             aria-hidden="true"
           />
         ) : null
       )}
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,17,31,0.76),rgba(8,17,31,0.48)_48%,rgba(8,17,31,0.18)),linear-gradient(180deg,rgba(8,17,31,0.08),rgba(8,17,31,0.58))]" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,17,31,0.54),rgba(8,17,31,0.28)_48%,rgba(8,17,31,0.06)),linear-gradient(180deg,rgba(8,17,31,0.02),rgba(8,17,31,0.34))]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_22%,rgba(244,166,42,0.18),transparent_32%)]" />
 
       <div className="section-wrap relative z-10 grid min-h-[calc(100svh-76px)] content-center py-12 sm:py-16">
@@ -151,22 +151,6 @@ export function AdvertHeroSlider({ slides: configuredSlides }: { slides?: MainHe
                 />
               ))}
             </div>
-          </div>
-
-          <div className="mt-8 grid max-w-3xl gap-3 sm:grid-cols-3">
-            {[
-              ["24/7", "booking"],
-              ["Live", "tracking"],
-              ["Clear", "pricing"]
-            ].map(([value, label]) => (
-              <div key={label} className="rounded-fleet border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-                <strong className="block text-2xl font-black text-white">{value}</strong>
-                <span className="mt-1 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-white/[0.82]">
-                  <PackageCheck className="h-3.5 w-3.5 text-fleet-gold" />
-                  {label}
-                </span>
-              </div>
-            ))}
           </div>
         </div>
       </div>
