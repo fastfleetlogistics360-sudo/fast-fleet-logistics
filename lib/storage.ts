@@ -51,7 +51,12 @@ export async function uploadProfilePhoto(userId: string, file: File, onProgress?
   return uploadViaApi("profile-photo", userId, compressed, undefined, onProgress);
 }
 
-type UploadKind = "profile-photo" | "rider-document" | "business-document";
+export async function uploadHeroImage(file: File, onProgress?: (progress: number) => void) {
+  const compressed = await compressImage(file, 1800, 0.82);
+  return uploadViaApi("hero-image", "admin", compressed, undefined, onProgress);
+}
+
+type UploadKind = "profile-photo" | "rider-document" | "business-document" | "hero-image";
 
 async function uploadViaApi(kind: UploadKind, userId: string, file: File, documentType?: string, onProgress?: (progress: number) => void) {
   const body = new FormData();

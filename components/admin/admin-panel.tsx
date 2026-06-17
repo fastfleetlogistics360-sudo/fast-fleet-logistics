@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -14,6 +14,7 @@ import {
   Download,
   FilePenLine,
   Globe2,
+  ImagePlus,
   LockKeyhole,
   LogOut,
   Loader2,
@@ -64,10 +65,13 @@ import {
 import {
   createMainHeroSlide,
   defaultMainHeroSlides,
+  mainHeroSlideIcons,
   mainHeroSlidesStorageKey,
   normalizeMainHeroSlides,
-  type MainHeroSlide
+  type MainHeroSlide,
+  type MainHeroSlideIcon
 } from "@/lib/main-hero-slides";
+import { uploadHeroImage } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -608,6 +612,7 @@ export function AdminPanel() {
   const [adminWithdrawals, setAdminWithdrawals] = useState<AdminWithdrawal[]>(demoWithdrawals);
   const [companyLogs, setCompanyLogs] = useState<CompanyTransactionLog[]>(demoCompanyTransactionLogs);
   const [heroSlides, setHeroSlides] = useState<MainHeroSlide[]>(defaultMainHeroSlides);
+  const [heroUploadProgress, setHeroUploadProgress] = useState<Record<string, number>>({});
   const [restaurantMenus, setRestaurantMenus] = useState<RestaurantKitchen[]>(defaultRestaurantKitchens);
   const [mallMenus, setMallMenus] = useState<ShoppingMall[]>(defaultShoppingMalls);
   const [companyLogForm, setCompanyLogForm] = useState<CompanyTransactionForm>(blankCompanyTransactionForm);
@@ -1101,6 +1106,26 @@ export function AdminPanel() {
     });
   }
 
+  async function uploadHeroSlideImage(id: string, file: File) {
+    setAdminMessage(null);
+    setHeroUploadProgress((current) => ({ ...current, [id]: 10 }));
+    try {
+      const upload = await uploadHeroImage(file, (progress) => {
+        setHeroUploadProgress((current) => ({ ...current, [id]: Math.round(progress) }));
+      });
+      updateHeroSlide(id, { image: upload.publicUrl });
+      setAdminMessage("Hero image uploaded. Save hero slides to publish it on /main.");
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "Hero image upload failed.");
+    } finally {
+      setHeroUploadProgress((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+    }
+  }
+
   async function saveHeroSlides() {
     const slides = normalizeMainHeroSlides(heroSlides);
     setBusyAction("hero-slides:save");
@@ -1474,7 +1499,9 @@ export function AdminPanel() {
       <MainHeroSlidesSection
         slides={heroSlides}
         busyAction={busyAction}
+        uploadProgress={heroUploadProgress}
         onSlideChange={updateHeroSlide}
+        onImageUpload={uploadHeroSlideImage}
         onAddSlide={addHeroSlide}
         onRemoveSlide={removeHeroSlide}
         onMoveSlide={moveHeroSlide}
@@ -2366,7 +2393,9 @@ function RestaurantMenuSection({
 function MainHeroSlidesSection({
   slides,
   busyAction,
+  uploadProgress,
   onSlideChange,
+  onImageUpload,
   onAddSlide,
   onRemoveSlide,
   onMoveSlide,
@@ -2374,7 +2403,9 @@ function MainHeroSlidesSection({
 }: {
   slides: MainHeroSlide[];
   busyAction: string | null;
+  uploadProgress: Record<string, number>;
   onSlideChange: (id: string, patch: Partial<MainHeroSlide>) => void;
+  onImageUpload: (id: string, file: File) => void | Promise<void>;
   onAddSlide: () => void;
   onRemoveSlide: (id: string) => void;
   onMoveSlide: (id: string, direction: -1 | 1) => void;
@@ -2382,6 +2413,14 @@ function MainHeroSlidesSection({
 }) {
   const saving = busyAction === "hero-slides:save";
   const editableSlides = slides.length > 0 ? slides : defaultMainHeroSlides;
+
+  function handleImageUpload(slideId: string, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) {
+      void onImageUpload(slideId, file);
+    }
+  }
 
   return (
     <Card id="main-hero" className="mt-6 scroll-mt-24 overflow-hidden">
@@ -2411,69 +2450,129 @@ function MainHeroSlidesSection({
       </div>
 
       <div className="grid gap-5 p-4">
-        {editableSlides.map((slide, index) => (
-          <article key={slide.id} className="rounded-fleet border border-fleet-line bg-white p-4">
-            <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-              <div className="overflow-hidden rounded-fleet border border-fleet-line bg-fleet-paper">
-                <img src={slide.image || defaultMainHeroSlides[0].image} alt="" className="h-44 w-full object-cover" />
-                <div className="flex items-center justify-between gap-2 p-3">
-                  <StatusBadge tone={slide.enabled ? "green" : "neutral"}>{slide.enabled ? "Live" : "Disabled"}</StatusBadge>
-                  <span className="text-xs font-black text-slate-500">Slide {index + 1}</span>
-                </div>
-              </div>
+        {editableSlides.map((slide, index) => {
+          const progress = uploadProgress[slide.id];
+          const uploading = typeof progress === "number";
 
-              <div className="grid gap-3">
-                <div className="grid gap-3 md:grid-cols-2">
+          return (
+            <article key={slide.id} className="rounded-fleet border border-fleet-line bg-white p-4">
+              <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
+                <div className="overflow-hidden rounded-fleet border border-fleet-line bg-fleet-paper">
+                  <img src={slide.image || defaultMainHeroSlides[0].image} alt="" className="h-44 w-full object-cover" />
+                  <div className="grid gap-3 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <StatusBadge tone={slide.enabled ? "green" : "neutral"}>{slide.enabled ? "Live" : "Disabled"}</StatusBadge>
+                      <span className="text-xs font-black text-slate-500">Slide {index + 1}</span>
+                    </div>
+                    <label
+                      className={`inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-fleet px-4 py-2 text-sm font-black transition ${
+                        uploading ? "bg-slate-200 text-slate-500" : "bg-fleet-night text-white shadow-fleet hover:-translate-y-0.5"
+                      }`}
+                      aria-disabled={uploading}
+                    >
+                      {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                      {uploading ? `Uploading ${progress}%` : "Upload image"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        disabled={uploading}
+                        onChange={(event) => handleImageUpload(slide.id, event)}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid gap-3">
+                  <div className="grid gap-3 md:grid-cols-[1fr_0.6fr]">
+                    <label className="form-field">
+                      <span className="form-label">Badge text</span>
+                      <input className="form-input" value={slide.badgeText} onChange={(event) => onSlideChange(slide.id, { badgeText: event.target.value })} />
+                    </label>
+                    <label className="form-field">
+                      <span className="form-label">Badge icon</span>
+                      <select className="form-input" value={slide.icon} onChange={(event) => onSlideChange(slide.id, { icon: event.target.value as MainHeroSlideIcon })}>
+                        {mainHeroSlideIcons.map((icon) => (
+                          <option key={icon} value={icon}>
+                            {icon}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <label className="form-field">
+                    <span className="form-label">Title / text</span>
+                    <input className="form-input" value={slide.title} onChange={(event) => onSlideChange(slide.id, { title: event.target.value })} />
+                  </label>
                   <label className="form-field">
                     <span className="form-label">Subtitle / subtext</span>
                     <input className="form-input" value={slide.subtitle} onChange={(event) => onSlideChange(slide.id, { subtitle: event.target.value })} />
                   </label>
                   <label className="form-field">
-                    <span className="form-label">Button label</span>
-                    <input className="form-input" value={slide.buttonLabel} onChange={(event) => onSlideChange(slide.id, { buttonLabel: event.target.value })} />
+                    <span className="form-label">Description</span>
+                    <textarea className="form-input min-h-20" value={slide.description} onChange={(event) => onSlideChange(slide.id, { description: event.target.value })} />
                   </label>
-                </div>
-                <label className="form-field">
-                  <span className="form-label">Title / text</span>
-                  <input className="form-input" value={slide.title} onChange={(event) => onSlideChange(slide.id, { title: event.target.value })} />
-                </label>
-                <label className="form-field">
-                  <span className="form-label">Description</span>
-                  <textarea className="form-input min-h-20" value={slide.description} onChange={(event) => onSlideChange(slide.id, { description: event.target.value })} />
-                </label>
-                <div className="grid gap-3 md:grid-cols-[1fr_0.85fr]">
                   <label className="form-field">
                     <span className="form-label">Slide image URL</span>
                     <input className="form-input" value={slide.image} onChange={(event) => onSlideChange(slide.id, { image: event.target.value })} placeholder="https://..." />
                   </label>
-                  <label className="form-field">
-                    <span className="form-label">Button action / link</span>
-                    <input className="form-input" value={slide.buttonHref} onChange={(event) => onSlideChange(slide.id, { buttonHref: event.target.value })} placeholder="/book" />
-                  </label>
-                </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-fleet bg-fleet-paper p-3">
-                  <label className="flex items-center gap-2 text-sm font-black text-fleet-night">
-                    <input type="checkbox" className="h-5 w-5 accent-fleet-ember" checked={slide.enabled} onChange={(event) => onSlideChange(slide.id, { enabled: event.target.checked })} />
-                    Enable slide
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" variant="secondary" onClick={() => onMoveSlide(slide.id, -1)} disabled={index === 0} aria-label={`Move ${slide.title || "slide"} up`}>
-                      <ArrowUp className="h-4 w-4" />
-                    </Button>
-                    <Button type="button" size="sm" variant="secondary" onClick={() => onMoveSlide(slide.id, 1)} disabled={index === editableSlides.length - 1} aria-label={`Move ${slide.title || "slide"} down`}>
-                      <ArrowDown className="h-4 w-4" />
-                    </Button>
-                    <Button type="button" size="sm" variant="secondary" onClick={() => onRemoveSlide(slide.id)} disabled={editableSlides.length <= 1}>
-                      <Trash2 className="h-4 w-4" />
-                      Remove
-                    </Button>
+                  <div className="grid gap-3 rounded-fleet border border-fleet-line bg-fleet-paper p-3">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="form-field">
+                        <span className="form-label">Primary button label</span>
+                        <input className="form-input bg-white" value={slide.primaryButtonLabel} onChange={(event) => onSlideChange(slide.id, { primaryButtonLabel: event.target.value })} />
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Primary button link</span>
+                        <input className="form-input bg-white" value={slide.primaryButtonHref} onChange={(event) => onSlideChange(slide.id, { primaryButtonHref: event.target.value })} placeholder="/book" />
+                      </label>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="form-field">
+                        <span className="form-label">Secondary button label</span>
+                        <input className="form-input bg-white" value={slide.secondaryButtonLabel} onChange={(event) => onSlideChange(slide.id, { secondaryButtonLabel: event.target.value })} />
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Secondary button link</span>
+                        <input className="form-input bg-white" value={slide.secondaryButtonHref} onChange={(event) => onSlideChange(slide.id, { secondaryButtonHref: event.target.value })} placeholder="/track" />
+                      </label>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="form-field">
+                        <span className="form-label">Third button label</span>
+                        <input className="form-input bg-white" value={slide.tertiaryButtonLabel} onChange={(event) => onSlideChange(slide.id, { tertiaryButtonLabel: event.target.value })} />
+                      </label>
+                      <label className="form-field">
+                        <span className="form-label">Third button link</span>
+                        <input className="form-input bg-white" value={slide.tertiaryButtonHref} onChange={(event) => onSlideChange(slide.id, { tertiaryButtonHref: event.target.value })} placeholder="/auth?account=driver" />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-fleet bg-fleet-paper p-3">
+                    <label className="flex items-center gap-2 text-sm font-black text-fleet-night">
+                      <input type="checkbox" className="h-5 w-5 accent-fleet-ember" checked={slide.enabled} onChange={(event) => onSlideChange(slide.id, { enabled: event.target.checked })} />
+                      Enable slide
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="secondary" onClick={() => onMoveSlide(slide.id, -1)} disabled={index === 0} aria-label={`Move ${slide.title || "slide"} up`}>
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => onMoveSlide(slide.id, 1)} disabled={index === editableSlides.length - 1} aria-label={`Move ${slide.title || "slide"} down`}>
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => onRemoveSlide(slide.id)} disabled={editableSlides.length <= 1}>
+                        <Trash2 className="h-4 w-4" />
+                        Remove
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
     </Card>
   );

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Bike, ChevronLeft, ChevronRight, LocateFixed, MapPinned, PackageCheck, Radar, ShieldCheck } from "lucide-react";
@@ -14,9 +13,6 @@ const iconComponents: Record<MainHeroSlideIcon, typeof PackageCheck> = {
   ShieldCheck,
   PackageCheck
 };
-
-const blurDataURL =
-  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwODExMWYnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4zNicvPjxjaXJjbGUgY3g9JzMnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNTUnLz48L3N2Zz4=";
 
 export function AdvertHeroSlider({ slides: configuredSlides }: { slides?: MainHeroSlide[] }) {
   const slides = enabledMainHeroSlides(configuredSlides);
@@ -62,32 +58,26 @@ export function AdvertHeroSlider({ slides: configuredSlides }: { slides?: MainHe
     >
       {slides.map((item, index) =>
         loadedSlides.has(index) ? (
-          <Image
+          <img
             key={`${item.id}-${item.image}`}
             src={item.image}
             alt=""
-            fill
-            priority={index === 0}
             loading={index === 0 ? "eager" : "lazy"}
-            quality={index === 0 ? 74 : 66}
-            placeholder="blur"
-            blurDataURL={blurDataURL}
-            sizes="100vw"
-            className={`absolute inset-0 object-cover object-center transition-[opacity,transform] duration-1000 will-change-transform ${
+            className={`absolute inset-0 h-full w-full object-cover object-center transition-[opacity,transform] duration-1000 will-change-transform ${
               active === index ? "scale-100 opacity-100" : "scale-[1.02] opacity-0"
             }`}
             aria-hidden="true"
           />
         ) : null
       )}
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,17,31,0.98),rgba(8,17,31,0.82)_46%,rgba(8,17,31,0.46)),linear-gradient(180deg,rgba(8,17,31,0.16),rgba(8,17,31,0.94))]" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,17,31,0.76),rgba(8,17,31,0.48)_48%,rgba(8,17,31,0.18)),linear-gradient(180deg,rgba(8,17,31,0.08),rgba(8,17,31,0.58))]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_22%,rgba(244,166,42,0.18),transparent_32%)]" />
 
       <div className="section-wrap relative z-10 grid min-h-[calc(100svh-76px)] content-center py-12 sm:py-16">
         <div className="max-w-4xl">
           <AnimatePresence mode="wait">
             <motion.div
-              key={slide.title}
+              key={`${slide.id}-${slide.title}`}
               initial={reduceMotion ? false : { opacity: 0, y: 18 }}
               animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
               exit={reduceMotion ? undefined : { opacity: 0, y: -12 }}
@@ -95,11 +85,14 @@ export function AdvertHeroSlider({ slides: configuredSlides }: { slides?: MainHe
             >
               <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-fleet-gold backdrop-blur-xl">
                 <Icon className="h-4 w-4" />
-                {slide.subtitle}
+                {slide.badgeText}
               </span>
-              <h1 className="mt-5 max-w-4xl text-4xl font-black leading-[0.96] text-white sm:text-6xl lg:text-7xl">
+              <h1 className="mt-5 max-w-4xl text-4xl font-black leading-[0.96] text-white drop-shadow-[0_3px_18px_rgba(0,0,0,0.45)] sm:text-6xl lg:text-7xl">
                 {slide.title}
               </h1>
+              <p className="mt-4 max-w-2xl text-xl font-black leading-7 text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)] sm:text-2xl">
+                {slide.subtitle}
+              </p>
               <p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-white/90 drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)] sm:text-lg">
                 {slide.description}
               </p>
@@ -112,17 +105,17 @@ export function AdvertHeroSlider({ slides: configuredSlides }: { slides?: MainHe
             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             transition={{ delay: 0.22, duration: 0.48 }}
           >
-            <LinkButton href={slide.buttonHref} size="lg">
-              {slide.buttonLabel}
+            <LinkButton href={slide.primaryButtonHref} size="lg">
+              {slide.primaryButtonLabel}
               <ArrowRight className="h-4 w-4" />
             </LinkButton>
-            <LinkButton href="/track" variant="secondary" size="lg">
+            <LinkButton href={slide.secondaryButtonHref} variant="secondary" size="lg">
               <LocateFixed className="h-4 w-4" />
-              Track Package
+              {slide.secondaryButtonLabel}
             </LinkButton>
-            <LinkButton href="/auth?account=driver" variant="dark" size="lg">
+            <LinkButton href={slide.tertiaryButtonHref} variant="dark" size="lg">
               <Bike className="h-4 w-4" />
-              Become a Rider
+              {slide.tertiaryButtonLabel}
             </LinkButton>
           </motion.div>
 
