@@ -18,6 +18,7 @@ import { RoutePreview } from "@/components/maps/route-preview";
 import type { LiveRiderLocation } from "@/components/realtime/use-live-delivery-tracking";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
+import { BackButton } from "@/components/ui/back-button";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -97,17 +98,6 @@ const jobFields =
 const riderProfileFields =
   "id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type";
 
-type RiderApplicationSnapshot = {
-  status?: KycStatus | null;
-  lga?: string | null;
-  vehicle_type?: string | null;
-  plate_number?: string | null;
-  vehicle_color?: string | null;
-  bank_name?: string | null;
-  account_number?: string | null;
-  account_name?: string | null;
-};
-
 export function RiderAccessState({ status, rejectionReason }: { status: KycStatus; rejectionReason?: string | null }) {
   const router = useRouter();
   const rejected = status === "rejected";
@@ -143,7 +133,8 @@ export function RiderAccessState({ status, rejectionReason }: { status: KycStatu
   }, [router, status]);
 
   return (
-    <section className="section-wrap py-10">
+    <section className="section-wrap pb-10 pt-4">
+      <BackButton className="mb-4" />
       <Card className="mx-auto max-w-2xl p-6 text-center">
         <span className={cn("mx-auto grid h-16 w-16 place-items-center rounded-full", rejected ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700")}>
           <ShieldAlert className="h-8 w-8" />
@@ -206,68 +197,23 @@ async function ensureClientRiderProfile(
     .eq("user_id", userId)
     .maybeSingle<RiderProfile>();
   if (existingError) throw existingError;
+  if (!existing?.id) return null;
 
   const dispatchVehicle = normalizeDispatchVehicle(options.vehicleType || existing?.vehicle_type) || "bike";
-  const onlinePatch = typeof options.online === "boolean" ? { online: options.online } : {};
+  const patch: Partial<Pick<RiderProfile, "vehicle_type" | "online">> = {};
+  if (existing.application_status === "approved" && existing.vehicle_type !== dispatchVehicle) patch.vehicle_type = dispatchVehicle as RiderProfile["vehicle_type"];
+  if (existing.application_status === "approved" && typeof options.online === "boolean" && existing.online !== options.online) patch.online = options.online;
 
-  if (existing?.id) {
-    const needsPatch =
-      existing.application_status !== "approved" ||
-      existing.vehicle_type !== dispatchVehicle ||
-      (typeof options.online === "boolean" && existing.online !== options.online);
+  if (!Object.keys(patch).length) return { ...existing, vehicle_type: dispatchVehicle };
 
-    if (!needsPatch) return { ...existing, vehicle_type: dispatchVehicle };
-
-    const patch = {
-      application_status: "approved" as KycStatus,
-      vehicle_type: dispatchVehicle,
-      ...onlinePatch
-    };
-    const { data, error } = await supabase
-      .from("rider_profiles")
-      .update(patch)
-      .eq("id", existing.id)
-      .select(riderProfileFields)
-      .maybeSingle<RiderProfile>();
-    if (error) throw error;
-    return data || { ...existing, ...patch };
-  }
-
-  const { data: application, error: applicationError } = await supabase
-    .from("rider_applications")
-    .select("status, lga, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<RiderApplicationSnapshot>();
-  if (applicationError) throw applicationError;
-  if (application?.status !== "approved") return null;
-
-  const applicationVehicle = normalizeDispatchVehicle(options.vehicleType || application.vehicle_type) || "bike";
   const { data, error } = await supabase
     .from("rider_profiles")
-    .upsert(
-      {
-        user_id: userId,
-        application_status: "approved" as KycStatus,
-        rider_account_type: "independent",
-        address: application.lga || null,
-        operating_zone: application.lga || null,
-        vehicle_type: applicationVehicle,
-        plate_number: application.plate_number || null,
-        vehicle_color: application.vehicle_color || null,
-        bank_name: application.bank_name || null,
-        account_number: application.account_number || null,
-        account_name: application.account_name || null,
-        online: typeof options.online === "boolean" ? options.online : false,
-        reviewed_at: new Date().toISOString()
-      },
-      { onConflict: "user_id" }
-    )
+    .update(patch)
+    .eq("id", existing.id)
     .select(riderProfileFields)
     .maybeSingle<RiderProfile>();
   if (error) throw error;
-  return data || null;
+  return data || { ...existing, ...patch };
 }
 
 async function fetchRiderAvailability(vehicleType?: string | null) {
@@ -855,7 +801,8 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
     <section className="min-h-screen bg-fleet-paper pb-24 lg:pb-0">
       <div className="mx-auto grid max-w-7xl lg:grid-cols-[260px_1fr]">
         <DesktopNav activeTab={activeTab} onChange={setActiveTab} />
-        <main className="min-w-0 px-4 py-5 sm:px-6 lg:py-8">
+        <main className="min-w-0 px-4 pb-5 pt-4 sm:px-6 lg:pb-8">
+          <BackButton className="mb-4" />
           <header className="mb-5 flex items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-black text-fleet-night sm:text-4xl">Ride workspace, {firstName}</h1>

@@ -249,69 +249,14 @@ export function BusinessRegistrationFlow() {
     setLoading(true);
     setMessage(null);
     try {
-      const supabase = createClient();
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setSignedIn(false);
-        return;
-      }
-
-      await supabase.from("users").upsert({
-        id: user.id,
-        full_name: form.contactName,
-        phone: form.phone,
-        email: form.email || user.email || null,
-        role: "business",
-        updated_at: new Date().toISOString()
-      });
-
-      const profilePayload = {
-        user_id: user.id,
-        business_name: form.businessName,
-        contact_name: form.contactName,
-        phone: form.phone,
-        email: form.email || user.email || null,
-        industry: form.industry,
-        business_type: form.businessType,
-        commission_rate: form.commissionRate,
-        dispatch_volume: form.dispatchVolume,
-        pickup_address: form.pickupAddress,
-        cac_number: form.cacNumber,
-        registration_status: "submitted" as const,
-        rejection_reason: null,
-        updated_at: new Date().toISOString()
-      };
-
-      let profileResult = await supabase.from("business_profiles").upsert(profilePayload, { onConflict: "user_id" }).select("id").single<{ id: string }>();
-
-      if (profileResult.error) {
-        const { cac_number: _cacNumber, rejection_reason: _rejectionReason, business_type: _businessType, commission_rate: _commissionRate, ...fallbackPayload } = profilePayload;
-        profileResult = await supabase.from("business_profiles").upsert(fallbackPayload, { onConflict: "user_id" }).select("id").single<{ id: string }>();
-      }
-
-      if (profileResult.error) throw profileResult.error;
-      const businessProfileId = profileResult.data.id;
       const uploadedDocs = Object.values(docs).filter((doc): doc is UploadedBusinessDoc => Boolean(doc?.path || doc?.url));
-      const { error: documentsError } = await supabase.from("business_documents").upsert(
-        uploadedDocs.map((doc) => ({
-          business_profile_id: businessProfileId,
-          user_id: user.id,
-          document_type: doc.key,
-          file_url: doc.url || null,
-          storage_path: doc.path || null,
-          status: "submitted" as const,
-          rejection_reason: null,
-          updated_at: new Date().toISOString()
-        })),
-        { onConflict: "business_profile_id,document_type" }
-      );
-      if (documentsError) throw documentsError;
-
-      await supabase.from("business_profiles").update({ registration_status: "submitted", rejection_reason: null, updated_at: new Date().toISOString() }).eq("id", businessProfileId);
-
+      const response = await fetch("/api/business/registration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ form, documents: uploadedDocs })
+      });
+      const result = (await response.json().catch(() => ({}))) as { error?: string; registration_status?: BusinessRegistrationStatus };
+      if (!response.ok) throw new Error(result.error || "Business KYC submission failed. Try again.");
       setRegistrationStatus("submitted");
       setRejectionReason(null);
       setSubmitted(true);

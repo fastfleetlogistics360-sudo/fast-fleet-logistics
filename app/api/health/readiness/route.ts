@@ -26,7 +26,7 @@ const criticalTables = [
   "rider_applications",
   "notifications",
   "support_tickets",
-  "wallet_transactions",
+  "transactions",
   "withdrawal_requests",
   "platform_settings",
   "platform_launch_states",

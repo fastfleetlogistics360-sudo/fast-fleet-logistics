@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -137,8 +138,9 @@ export async function POST(request: NextRequest) {
   }
 
   const now = new Date().toISOString();
+  const db = createAdminClient() || supabase;
   await Promise.allSettled([
-    supabase.from("users").upsert({
+    db.from("users").upsert({
       id: user.id,
       full_name: form.fullName,
       phone: form.phone,
@@ -148,7 +150,7 @@ export async function POST(request: NextRequest) {
       default_zone: form.lga,
       updated_at: now
     }),
-    supabase.from("profiles").upsert({
+    db.from("profiles").upsert({
       id: user.id,
       user_id: user.id,
       full_name: form.fullName,
@@ -160,7 +162,7 @@ export async function POST(request: NextRequest) {
     })
   ]);
 
-  const application = await supabase
+  const application = await db
     .from("rider_applications")
     .insert({
       user_id: user.id,
@@ -190,7 +192,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: application.error.message }, { status: 500 });
   }
 
-  const profile = await supabase
+  const profile = await db
     .from("rider_profiles")
     .upsert(
       {
@@ -215,7 +217,7 @@ export async function POST(request: NextRequest) {
   if (!profile.error) {
     await Promise.allSettled(
       documents.map((document) =>
-        supabase.from("rider_documents").insert({
+        db.from("rider_documents").insert({
           rider_profile_id: profile.data.id,
           document_type: document.key,
           file_url: document.url || null,

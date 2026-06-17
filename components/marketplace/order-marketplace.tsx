@@ -9,6 +9,7 @@ import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { normalizeRestaurantKitchens, restaurantMenuStorageKey } from "@/lib/restaurant-menu";
 import { cn } from "@/lib/cn";
 import { Button, LinkButton } from "@/components/ui/button";
+import { BackButton } from "@/components/ui/back-button";
 import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
@@ -212,6 +213,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
 
   return (
     <>
+    <BackButton className="section-wrap pb-4 pt-4" />
     <CinematicPageHero
       eyebrow={eyebrow}
       title={title}

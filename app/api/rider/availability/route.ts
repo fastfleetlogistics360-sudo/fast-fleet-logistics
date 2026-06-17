@@ -59,14 +59,14 @@ async function handleAvailability(rawVehicleType: unknown, requestedOnline?: boo
     let profile = await loadRiderProfile(db, user.id);
     const application = await loadLatestRiderApplication(db, user.id);
 
-    if (!profile && application?.status === "approved") {
-      profile = await createProfileFromApplication(db, application, rawVehicleType, requestedOnline);
+    if (!profile && admin && application?.status === "approved") {
+      profile = await createProfileFromApplication(admin, application, rawVehicleType, requestedOnline);
     }
     if (!profile?.id) {
       return NextResponse.json({ error: "Your approved rider profile was not found. Please contact support." }, { status: 404 });
     }
 
-    const promotedFromApplication = application?.status === "approved" && profile.application_status !== "approved";
+    const promotedFromApplication = Boolean(admin && application?.status === "approved" && profile.application_status !== "approved");
     const dispatchVehicle = normalizeDispatchVehicle(rawVehicleType || profile.vehicle_type || application?.vehicle_type) || "bike";
     const patch: Record<string, unknown> = {};
 

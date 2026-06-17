@@ -65,6 +65,7 @@ export interface Database {
           cac_number: string | null;
           registration_status: "submitted" | "active" | "paused" | "rejected";
           rejection_reason: string | null;
+          reviewed_by: string | null;
           reviewed_at: string | null;
           created_at: string;
           updated_at: string;

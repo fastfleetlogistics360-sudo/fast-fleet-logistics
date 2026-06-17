@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Bike,
   Building2,
   CalendarDays,
@@ -59,6 +61,13 @@ import {
   type MallStore,
   type ShoppingMall
 } from "@/lib/mall-menu";
+import {
+  createMainHeroSlide,
+  defaultMainHeroSlides,
+  mainHeroSlidesStorageKey,
+  normalizeMainHeroSlides,
+  type MainHeroSlide
+} from "@/lib/main-hero-slides";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -87,6 +96,7 @@ type AdminSectionId =
   | "delivery-timelines"
   | "withdrawal-review"
   | "company-transaction-logs"
+  | "main-hero"
   | "restaurant-menus"
   | "mall-menus"
   | "ops-control"
@@ -100,6 +110,7 @@ const adminSectionIds = new Set<string>([
   "delivery-timelines",
   "withdrawal-review",
   "company-transaction-logs",
+  "main-hero",
   "restaurant-menus",
   "mall-menus",
   "ops-control",
@@ -135,6 +146,7 @@ const adminNavGroups: Array<{
   {
     title: "Catalog",
     items: [
+      { id: "main-hero", label: "Main hero", icon: FilePenLine, count: (stats) => String(stats.heroSlides) },
       { id: "restaurant-menus", label: "Kitchens", icon: Utensils },
       { id: "mall-menus", label: "Mall stores", icon: StoreIcon }
     ]
@@ -154,6 +166,7 @@ type AdminNavStats = {
   pendingBusinesses: number;
   activeDeliveries: number;
   pendingWithdrawals: number;
+  heroSlides: number;
   openRisk: number;
   openSupport: number;
 };
@@ -594,6 +607,7 @@ export function AdminPanel() {
   const [adminDeliveries, setAdminDeliveries] = useState<AdminDelivery[]>(demoDeliveries);
   const [adminWithdrawals, setAdminWithdrawals] = useState<AdminWithdrawal[]>(demoWithdrawals);
   const [companyLogs, setCompanyLogs] = useState<CompanyTransactionLog[]>(demoCompanyTransactionLogs);
+  const [heroSlides, setHeroSlides] = useState<MainHeroSlide[]>(defaultMainHeroSlides);
   const [restaurantMenus, setRestaurantMenus] = useState<RestaurantKitchen[]>(defaultRestaurantKitchens);
   const [mallMenus, setMallMenus] = useState<ShoppingMall[]>(defaultShoppingMalls);
   const [companyLogForm, setCompanyLogForm] = useState<CompanyTransactionForm>(blankCompanyTransactionForm);
@@ -621,10 +635,11 @@ export function AdminPanel() {
       pendingBusinesses: pendingBusinessCount,
       activeDeliveries: activeDeliveryCount,
       pendingWithdrawals: pendingWithdrawalCount,
+      heroSlides: heroSlides.filter((slide) => slide.enabled).length,
       openRisk: openRiskCount,
       openSupport: openSupportCount
     }),
-    [activeDeliveryCount, openRiskCount, openSupportCount, pendingBusinessCount, pendingRiderCount, pendingWithdrawalCount]
+    [activeDeliveryCount, heroSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingRiderCount, pendingWithdrawalCount]
   );
   const companyLogSummary = useMemo(() => summarizeCompanyLogs(companyLogs), [companyLogs]);
   const filteredCompanyLogs = useMemo(() => {
@@ -648,7 +663,7 @@ export function AdminPanel() {
   async function loadAdminData() {
     setBusyAction("refresh");
     try {
-      const [statesResponse, ridersResponse, businessesResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, riskSignalsResponse, restaurantsResponse, mallsResponse] = await Promise.all([
+      const [statesResponse, ridersResponse, businessesResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, heroSlidesResponse, riskSignalsResponse, restaurantsResponse, mallsResponse] = await Promise.all([
         fetch("/api/admin/states"),
         fetch("/api/admin/riders"),
         fetch("/api/admin/businesses"),
@@ -656,6 +671,7 @@ export function AdminPanel() {
         fetch("/api/admin/withdrawals"),
         fetch("/api/admin/company-transactions"),
         fetch("/api/admin/site-controls"),
+        fetch("/api/admin/main-hero-slides"),
         fetch("/api/admin/risk-signals"),
         fetch("/api/admin/restaurants"),
         fetch("/api/admin/malls")
@@ -667,6 +683,7 @@ export function AdminPanel() {
       const withdrawalsResult = await withdrawalsResponse.json().catch(() => ({}));
       const companyLogsResult = await companyLogsResponse.json().catch(() => ({}));
       const siteControlsResult = await siteControlsResponse.json().catch(() => ({}));
+      const heroSlidesResult = await heroSlidesResponse.json().catch(() => ({}));
       const riskSignalsResult = await riskSignalsResponse.json().catch(() => ({}));
       const restaurantsResult = await restaurantsResponse.json().catch(() => ({}));
       const mallsResult = await mallsResponse.json().catch(() => ({}));
@@ -678,6 +695,7 @@ export function AdminPanel() {
         ["withdrawals", withdrawalsResponse, withdrawalsResult],
         ["company logs", companyLogsResponse, companyLogsResult],
         ["site controls", siteControlsResponse, siteControlsResult],
+        ["main hero", heroSlidesResponse, heroSlidesResult],
         ["risk/support", riskSignalsResponse, riskSignalsResult],
         ["restaurants", restaurantsResponse, restaurantsResult],
         ["malls", mallsResponse, mallsResult]
@@ -697,6 +715,10 @@ export function AdminPanel() {
         setCompanyLogs(companyLogsResult.demo && savedLogs.length > 0 ? savedLogs : companyLogsResult.logs);
       }
       if (siteControlsResult.controls) setSiteControls(normalizeSiteControls(siteControlsResult.controls));
+      if (Array.isArray(heroSlidesResult.slides)) {
+        const savedSlides = readDemoHeroSlides();
+        setHeroSlides(heroSlidesResult.demo && savedSlides.length > 0 ? savedSlides : normalizeMainHeroSlides(heroSlidesResult.slides));
+      }
       if (Array.isArray(riskSignalsResult.riskSignals)) setRiskSignals(riskSignalsResult.riskSignals);
       if (Array.isArray(riskSignalsResult.supportTickets)) setSupportTickets(riskSignalsResult.supportTickets);
       if (Array.isArray(restaurantsResult.restaurants)) {
@@ -707,8 +729,8 @@ export function AdminPanel() {
         const savedMalls = readDemoMallMenus();
         setMallMenus(mallsResult.demo && savedMalls.length > 0 ? savedMalls : normalizeShoppingMalls(mallsResult.malls));
       }
-      if (statesResult.demo || ridersResult.demo || businessesResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
-        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, business KYC, delivery timelines, withdrawals, site controls, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
+      if (statesResult.demo || ridersResult.demo || businessesResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || heroSlidesResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
+        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, business KYC, delivery timelines, withdrawals, site controls, main hero slides, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
       } else if (failedSections.length > 0) {
         setAdminMessage(`Some admin sections did not load: ${failedSections.join("; ")}`);
       }
@@ -1055,6 +1077,60 @@ export function AdminPanel() {
     window.location.hash = "company-transaction-logs";
   }
 
+  function updateHeroSlide(id: string, patch: Partial<MainHeroSlide>) {
+    setHeroSlides((slides) => slides.map((slide) => (slide.id === id ? { ...slide, ...patch } : slide)));
+  }
+
+  function addHeroSlide() {
+    setHeroSlides((slides) => [...slides, createMainHeroSlide()]);
+  }
+
+  function removeHeroSlide(id: string) {
+    setHeroSlides((slides) => (slides.length > 1 ? slides.filter((slide) => slide.id !== id) : slides));
+  }
+
+  function moveHeroSlide(id: string, direction: -1 | 1) {
+    setHeroSlides((slides) => {
+      const index = slides.findIndex((slide) => slide.id === id);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= slides.length) return slides;
+      const next = [...slides];
+      const [slide] = next.splice(index, 1);
+      next.splice(nextIndex, 0, slide);
+      return next;
+    });
+  }
+
+  async function saveHeroSlides() {
+    const slides = normalizeMainHeroSlides(heroSlides);
+    setBusyAction("hero-slides:save");
+    setAdminMessage(null);
+    try {
+      const response = await fetch("/api/admin/main-hero-slides", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slides })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not save main hero slides.");
+      const saved = normalizeMainHeroSlides(result.slides);
+      setHeroSlides(saved);
+      writeDemoHeroSlides(saved);
+      setAdminMessage("Main hero slides saved. The /main hero slider will load the updated active slides.");
+    } catch (error) {
+      const canUseLocalFallback = error instanceof TypeError || (error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY"));
+      if (!canUseLocalFallback) {
+        setAdminMessage(error instanceof Error ? error.message : "Could not save main hero slides.");
+        return;
+      }
+      setHeroSlides(slides);
+      writeDemoHeroSlides(slides);
+      setAdminMessage("Saved main hero slides in this browser using operational fallback storage. Add SUPABASE_SERVICE_ROLE_KEY in Vercel for live site-wide hero updates.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   function updateKitchen(kitchenId: string, patch: Partial<RestaurantKitchen>) {
     setRestaurantMenus((menus) => menus.map((kitchen) => (kitchen.id === kitchenId ? { ...kitchen, ...patch } : kitchen)));
   }
@@ -1344,6 +1420,13 @@ export function AdminPanel() {
           onClick={() => openAdminSection("site-controls")}
         />
         <ActionCard
+          icon={FilePenLine}
+          title="Main hero slides"
+          body="Edit /main hero images, copy, CTA links, status, and order."
+          count={`${heroSlides.filter((slide) => slide.enabled).length} active`}
+          onClick={() => openAdminSection("main-hero")}
+        />
+        <ActionCard
           icon={Utensils}
           title="Kitchen menus"
           body="Edit restaurant prices, portions, photos, and add new food items."
@@ -1386,6 +1469,16 @@ export function AdminPanel() {
         onCategoryChange={setCompanyLogCategory}
         onEdit={editCompanyLog}
         onExport={exportCompanyLogs}
+      />
+
+      <MainHeroSlidesSection
+        slides={heroSlides}
+        busyAction={busyAction}
+        onSlideChange={updateHeroSlide}
+        onAddSlide={addHeroSlide}
+        onRemoveSlide={removeHeroSlide}
+        onMoveSlide={moveHeroSlide}
+        onSave={saveHeroSlides}
       />
 
       <RestaurantMenuSection
@@ -2270,6 +2363,122 @@ function RestaurantMenuSection({
   );
 }
 
+function MainHeroSlidesSection({
+  slides,
+  busyAction,
+  onSlideChange,
+  onAddSlide,
+  onRemoveSlide,
+  onMoveSlide,
+  onSave
+}: {
+  slides: MainHeroSlide[];
+  busyAction: string | null;
+  onSlideChange: (id: string, patch: Partial<MainHeroSlide>) => void;
+  onAddSlide: () => void;
+  onRemoveSlide: (id: string) => void;
+  onMoveSlide: (id: string, direction: -1 | 1) => void;
+  onSave: () => void;
+}) {
+  const saving = busyAction === "hero-slides:save";
+  const editableSlides = slides.length > 0 ? slides : defaultMainHeroSlides;
+
+  return (
+    <Card id="main-hero" className="mt-6 scroll-mt-24 overflow-hidden">
+      <div className="flex flex-col gap-4 border-b border-fleet-line p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-fleet bg-fleet-night text-white">
+            <FilePenLine className="h-5 w-5" />
+          </span>
+          <div>
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Main page authority</span>
+            <h2 className="mt-1 text-2xl font-black text-fleet-night">/main hero slider</h2>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
+              Manage the public /main hero slides. Disabled slides stay saved for later, and the live page falls back to safe default slides if all saved data is unavailable.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={onAddSlide}>
+            <Plus className="h-4 w-4" />
+            Add slide
+          </Button>
+          <Button type="button" onClick={onSave} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save hero slides
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-5 p-4">
+        {editableSlides.map((slide, index) => (
+          <article key={slide.id} className="rounded-fleet border border-fleet-line bg-white p-4">
+            <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+              <div className="overflow-hidden rounded-fleet border border-fleet-line bg-fleet-paper">
+                <img src={slide.image || defaultMainHeroSlides[0].image} alt="" className="h-44 w-full object-cover" />
+                <div className="flex items-center justify-between gap-2 p-3">
+                  <StatusBadge tone={slide.enabled ? "green" : "neutral"}>{slide.enabled ? "Live" : "Disabled"}</StatusBadge>
+                  <span className="text-xs font-black text-slate-500">Slide {index + 1}</span>
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="form-field">
+                    <span className="form-label">Subtitle / subtext</span>
+                    <input className="form-input" value={slide.subtitle} onChange={(event) => onSlideChange(slide.id, { subtitle: event.target.value })} />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Button label</span>
+                    <input className="form-input" value={slide.buttonLabel} onChange={(event) => onSlideChange(slide.id, { buttonLabel: event.target.value })} />
+                  </label>
+                </div>
+                <label className="form-field">
+                  <span className="form-label">Title / text</span>
+                  <input className="form-input" value={slide.title} onChange={(event) => onSlideChange(slide.id, { title: event.target.value })} />
+                </label>
+                <label className="form-field">
+                  <span className="form-label">Description</span>
+                  <textarea className="form-input min-h-20" value={slide.description} onChange={(event) => onSlideChange(slide.id, { description: event.target.value })} />
+                </label>
+                <div className="grid gap-3 md:grid-cols-[1fr_0.85fr]">
+                  <label className="form-field">
+                    <span className="form-label">Slide image URL</span>
+                    <input className="form-input" value={slide.image} onChange={(event) => onSlideChange(slide.id, { image: event.target.value })} placeholder="https://..." />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Button action / link</span>
+                    <input className="form-input" value={slide.buttonHref} onChange={(event) => onSlideChange(slide.id, { buttonHref: event.target.value })} placeholder="/book" />
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-fleet bg-fleet-paper p-3">
+                  <label className="flex items-center gap-2 text-sm font-black text-fleet-night">
+                    <input type="checkbox" className="h-5 w-5 accent-fleet-ember" checked={slide.enabled} onChange={(event) => onSlideChange(slide.id, { enabled: event.target.checked })} />
+                    Enable slide
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => onMoveSlide(slide.id, -1)} disabled={index === 0} aria-label={`Move ${slide.title || "slide"} up`}>
+                      <ArrowUp className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => onMoveSlide(slide.id, 1)} disabled={index === editableSlides.length - 1} aria-label={`Move ${slide.title || "slide"} down`}>
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => onRemoveSlide(slide.id)} disabled={editableSlides.length <= 1}>
+                      <Trash2 className="h-4 w-4" />
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function MallMenuSection({
   malls,
   businesses,
@@ -3057,6 +3266,21 @@ function readDemoCompanyLogs() {
 function writeDemoCompanyLogs(logs: CompanyTransactionLog[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(companyLogStorageKey, JSON.stringify(logs));
+}
+
+function readDemoHeroSlides() {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(mainHeroSlidesStorageKey) || "[]");
+    return Array.isArray(parsed) ? normalizeMainHeroSlides(parsed) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDemoHeroSlides(slides: MainHeroSlide[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(mainHeroSlidesStorageKey, JSON.stringify(slides));
 }
 
 function readDemoRestaurantMenus() {

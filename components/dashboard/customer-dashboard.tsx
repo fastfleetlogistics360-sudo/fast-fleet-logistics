@@ -16,6 +16,7 @@ import { RoutePreview } from "@/components/maps/route-preview";
 import { useLiveDeliveryTracking } from "@/components/realtime/use-live-delivery-tracking";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
+import { BackButton } from "@/components/ui/back-button";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -424,7 +425,8 @@ export function CustomerDashboard() {
     <section className="min-h-screen bg-fleet-paper pb-24 lg:pb-0">
       <div className="mx-auto grid max-w-7xl gap-0 lg:grid-cols-[260px_1fr]">
         <DesktopNav activeTab={activeTab} onChange={setActiveTab} />
-        <main className="min-w-0 px-4 py-5 sm:px-6 lg:py-8">
+        <main className="min-w-0 px-4 pb-5 pt-4 sm:px-6 lg:pb-8">
+          <BackButton className="mb-4" />
           <DashboardHeader title={`${greetingText}, ${firstName}`} subtitle={stateIsOperational ? `${symbol} Your Fast Fleets 360 mobile workspace is ready.` : `Fast Fleets 360 early-access workspace for ${customerState}.`} />
           {activeTab === "home" && !stateIsOperational ? (
             <RolloutStateDashboard profile={profile} state={customerState} status={launchStatus} balance={balance} addresses={addresses} message={waitlistMessage} onNotify={joinStateWaitlist} />

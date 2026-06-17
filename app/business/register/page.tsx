@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { BusinessRegistrationFlow } from "@/components/onboarding/business-registration-flow";
+import { BackButton } from "@/components/ui/back-button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -10,7 +11,8 @@ export const metadata: Metadata = {
 
 export default function BusinessRegisterPage() {
   return (
-    <section className="section-wrap py-8 sm:py-12">
+    <section className="section-wrap pb-8 pt-4 sm:pb-12 sm:pt-6">
+      <BackButton className="mb-4" />
       <Suspense fallback={<BusinessRegistrationSkeleton />}>
         <BusinessRegistrationFlow />
       </Suspense>

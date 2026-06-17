@@ -15,6 +15,7 @@ import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
 import { RoutePreview } from "@/components/maps/route-preview";
+import { BackButton } from "@/components/ui/back-button";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -538,7 +539,8 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         onClose={() => setMenuOpen(false)}
       />
       <div className="mx-auto max-w-7xl">
-        <main className="min-w-0 px-4 py-5 sm:px-6 lg:py-8">
+        <main className="min-w-0 px-4 pb-5 pt-4 sm:px-6 lg:pb-8">
+          <BackButton className="mb-4" />
           <header className="mb-5 flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
               <button

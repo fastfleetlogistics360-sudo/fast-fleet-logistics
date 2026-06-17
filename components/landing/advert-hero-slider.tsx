@@ -5,48 +5,32 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Bike, ChevronLeft, ChevronRight, LocateFixed, MapPinned, PackageCheck, Radar, ShieldCheck } from "lucide-react";
 import { LinkButton } from "@/components/ui/button";
+import { enabledMainHeroSlides, type MainHeroSlide, type MainHeroSlideIcon } from "@/lib/main-hero-slides";
 
-const slides = [
-  {
-    eyebrow: "Citywide delivery",
-    title: "Fast delivery across your city",
-    copy: "Move food, documents, retail parcels, and urgent packages with riders built for same-day movement.",
-    image: "https://images.unsplash.com/photo-1580674285054-bed31e145f59?auto=format&fit=crop&w=1600&q=72",
-    icon: MapPinned
-  },
-  {
-    eyebrow: "Instant rider booking",
-    title: "Book dispatch riders instantly",
-    copy: "Set pickup and drop-off points, choose your delivery type, and get matched to nearby Fast Fleets 360 riders.",
-    image: "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1600&q=72",
-    icon: Bike
-  },
-  {
-    eyebrow: "Live tracking",
-    title: "Track your delivery live",
-    copy: "Follow rider movement, delivery status, and route updates from pickup to safe handoff.",
-    image: "https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1600&q=72",
-    icon: Radar
-  },
-  {
-    eyebrow: "Reliable package movement",
-    title: "Send packages with confidence",
-    copy: "Fast Fleets 360 keeps delivery fees clear, riders verified, and customers updated through every step.",
-    image: "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=1600&q=72",
-    icon: ShieldCheck
-  }
-];
+const iconComponents: Record<MainHeroSlideIcon, typeof PackageCheck> = {
+  MapPinned,
+  Bike,
+  Radar,
+  ShieldCheck,
+  PackageCheck
+};
 
 const blurDataURL =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwODExMWYnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4zNicvPjxjaXJjbGUgY3g9JzMnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNTUnLz48L3N2Zz4=";
 
-export function AdvertHeroSlider() {
+export function AdvertHeroSlider({ slides: configuredSlides }: { slides?: MainHeroSlide[] }) {
+  const slides = enabledMainHeroSlides(configuredSlides);
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const reduceMotion = useReducedMotion();
   const slide = slides[active];
-  const Icon = slide.icon;
+  const Icon = iconComponents[slide.icon] || PackageCheck;
   const [loadedSlides, setLoadedSlides] = useState(() => new Set([0]));
+
+  useEffect(() => {
+    if (active < slides.length) return;
+    setActive(0);
+  }, [active, slides.length]);
 
   useEffect(() => {
     setLoadedSlides((current) => {
@@ -64,7 +48,7 @@ export function AdvertHeroSlider() {
     }, 6200);
 
     return () => window.clearInterval(timer);
-  }, [paused, reduceMotion]);
+  }, [paused, reduceMotion, slides.length]);
 
   function goToOffset(offset: number) {
     setActive((value) => (value + offset + slides.length) % slides.length);
@@ -79,7 +63,7 @@ export function AdvertHeroSlider() {
       {slides.map((item, index) =>
         loadedSlides.has(index) ? (
           <Image
-            key={item.image}
+            key={`${item.id}-${item.image}`}
             src={item.image}
             alt=""
             fill
@@ -97,7 +81,7 @@ export function AdvertHeroSlider() {
         ) : null
       )}
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,17,31,0.98),rgba(8,17,31,0.82)_46%,rgba(8,17,31,0.46)),linear-gradient(180deg,rgba(8,17,31,0.16),rgba(8,17,31,0.94))]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_22%,rgba(244,166,42,0.18),transparent_32%),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[length:auto,54px_54px,54px_54px]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_22%,rgba(244,166,42,0.18),transparent_32%)]" />
 
       <div className="section-wrap relative z-10 grid min-h-[calc(100svh-76px)] content-center py-12 sm:py-16">
         <div className="max-w-4xl">
@@ -111,13 +95,13 @@ export function AdvertHeroSlider() {
             >
               <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-fleet-gold backdrop-blur-xl">
                 <Icon className="h-4 w-4" />
-                {slide.eyebrow}
+                {slide.subtitle}
               </span>
               <h1 className="mt-5 max-w-4xl text-4xl font-black leading-[0.96] text-white sm:text-6xl lg:text-7xl">
                 {slide.title}
               </h1>
               <p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-white/90 drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)] sm:text-lg">
-                {slide.copy}
+                {slide.description}
               </p>
             </motion.div>
           </AnimatePresence>
@@ -128,8 +112,8 @@ export function AdvertHeroSlider() {
             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             transition={{ delay: 0.22, duration: 0.48 }}
           >
-            <LinkButton href="/book" size="lg">
-              Book Delivery
+            <LinkButton href={slide.buttonHref} size="lg">
+              {slide.buttonLabel}
               <ArrowRight className="h-4 w-4" />
             </LinkButton>
             <LinkButton href="/track" variant="secondary" size="lg">
@@ -164,7 +148,7 @@ export function AdvertHeroSlider() {
             <div className="flex flex-wrap gap-2">
               {slides.map((item, index) => (
                 <button
-                  key={item.title}
+                  key={item.id}
                   type="button"
                   onClick={() => setActive(index)}
                   className={`h-2 rounded-full transition-all duration-300 ${

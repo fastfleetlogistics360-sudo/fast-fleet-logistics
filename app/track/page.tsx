@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 import { TrackingConsole } from "@/components/realtime/tracking-console";
+import { BackButton } from "@/components/ui/back-button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 export default function TrackPage() {
   return (
     <>
+      <BackButton className="section-wrap pb-4 pt-4" />
       <CinematicPageHero
         eyebrow="Live movement"
         title="Track every handoff from route to arrival."

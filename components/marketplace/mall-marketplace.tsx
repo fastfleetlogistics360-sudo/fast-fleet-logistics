@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ChevronDown, Loader2, MapPin, MessageCircle, Minus, Plus, ShoppingCart } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
@@ -207,6 +208,7 @@ export function MallMarketplace() {
 
   return (
     <>
+    <BackButton className="section-wrap pb-4 pt-4" />
     <CinematicPageHero
       eyebrow="Fast Fleets 360 Mall"
       title="Shop malls by store, not generic shelves."

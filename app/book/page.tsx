@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { LockKeyhole, Sparkles } from "lucide-react";
 import { BookingFlow } from "@/components/booking/booking-flow";
 import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
+import { BackButton } from "@/components/ui/back-button";
 import { LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +20,7 @@ export default async function BookPage() {
 
   return (
     <>
+      <BackButton className="section-wrap pb-4 pt-4" />
       <CinematicPageHero
         eyebrow="Dispatch command"
         title="Book a rider with delivery-grade clarity."

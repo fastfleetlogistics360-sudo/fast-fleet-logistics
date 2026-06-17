@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Bike, FileCheck2, ShieldCheck } from "lucide-react";
 import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
 import { RiderOnboardingFlow } from "@/components/onboarding/rider-onboarding-flow";
+import { BackButton } from "@/components/ui/back-button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
@@ -19,7 +20,8 @@ export default async function RiderOnboardingPage() {
 
   if (!user) {
     return (
-      <section className="section-wrap grid gap-6 py-8 sm:py-12 lg:grid-cols-[0.86fr_1.14fr]">
+      <section className="section-wrap grid gap-6 pb-8 pt-4 sm:pb-12 sm:pt-6 lg:grid-cols-[0.86fr_1.14fr]">
+        <BackButton className="lg:col-span-2" />
         <Card className="p-5">
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Rider onboarding</span>
           <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-5xl">Create your rider account.</h1>
@@ -57,7 +59,8 @@ export default async function RiderOnboardingPage() {
   }
 
   return (
-    <section className="section-wrap py-8 sm:py-12">
+    <section className="section-wrap pb-8 pt-4 sm:pb-12 sm:pt-6">
+      <BackButton className="mb-4" />
       <RiderOnboardingFlow />
     </section>
   );
