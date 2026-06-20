@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Bike, Building2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, MapPinned, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { normalizeRole, parseUserRole, roleHome, roleSignupHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import { normalizeRole, parseUserRole, roleHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import { readReturningProfile, saveReturningProfile, type ReturningProfile } from "@/lib/auth/returning-profile";
 import type { UserRole } from "@/types/domain";
 import { cn } from "@/lib/cn";
 import { initials } from "@/lib/format";
@@ -82,7 +84,9 @@ export function PhoneAuthForm({
   const requestedRole = roleFromRequest(searchParams.get("account") || searchParams.get("role"));
   const returnTo = searchParams.get("returnTo");
   const effectiveLockedRole = lockedRole || requestedRole;
-  const [mode, setMode] = useState<AuthMode>(intent || (effectiveLockedRole ? "signup" : "login"));
+  const requestedMode = searchParams.get("mode");
+  const initialMode = intent || (requestedMode === "signup" ? "signup" : requestedMode === "login" ? "login" : effectiveLockedRole ? "signup" : "login");
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [role, setRole] = useState<UserRole>(effectiveLockedRole || defaultRole);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -94,11 +98,12 @@ export function PhoneAuthForm({
   const [oauthLoading, setOauthLoading] = useState<"google" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [returningProfile, setReturningProfile] = useState<ReturningProfile | null>(null);
+  const [switchAccount, setSwitchAccount] = useState(false);
 
   const targetRoleHome = roleHome[role];
-  const signupDestination = mode === "signup" ? roleSignupHome[role] : targetRoleHome;
-  const destination = returnToOverride || returnTo || signupDestination;
-  const safeDestination = destination.startsWith("/") && !destination.startsWith("//") ? destination : targetRoleHome;
+  const destination = returnToOverride || returnTo || "/hub";
+  const safeDestination = destination.startsWith("/") && !destination.startsWith("//") ? destination : "/hub";
   const emailValid = isValidEmail(email);
   const passwordValid = password.trim().length >= 6;
   const nameValid = mode === "login" || fullName.trim().length >= 2;
@@ -122,12 +127,26 @@ export function PhoneAuthForm({
     if (error && !message) setMessage(error);
   }, [message, searchParams]);
 
+  useEffect(() => {
+    if (effectiveLockedRole || mode !== "login") return;
+    const cachedProfile = readReturningProfile();
+    setReturningProfile(cachedProfile);
+    if (cachedProfile?.email) setEmail((currentEmail) => currentEmail || cachedProfile.email || "");
+  }, [effectiveLockedRole, mode]);
+
   function redirectForRole(userRole: UserRole) {
     const nextUrl = safeDashboardRedirectForRole(safeDestination, userRole);
     window.location.assign(nextUrl);
   }
 
-  async function saveProfiles(userId: string, userRole: UserRole, fallbackEmail?: string | null, fallbackPhone?: string | null, avatarUrl?: string | null) {
+  async function saveProfiles(
+    userId: string,
+    userRole: UserRole,
+    fallbackEmail?: string | null,
+    fallbackPhone?: string | null,
+    avatarUrl?: string | null,
+    displayName?: string | null
+  ) {
     const now = new Date().toISOString();
     const supabase = createClient();
     const selectedState = userRole === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos";
@@ -135,7 +154,7 @@ export function PhoneAuthForm({
     const profilePayload = {
       id: userId,
       user_id: userId,
-      full_name: fullName.trim() || null,
+      full_name: fullName.trim() || displayName || null,
       email: email.trim() || fallbackEmail || null,
       phone: fallbackPhone || null,
       account_type: userRole,
@@ -156,6 +175,8 @@ export function PhoneAuthForm({
       }),
       supabase.from("profiles").upsert({ ...profilePayload, ...avatarPatch })
     ]);
+
+    saveReturningProfile({ fullName: profilePayload.full_name, email: profilePayload.email });
   }
 
   async function getSavedRole(userId: string, fallback: UserRole) {
@@ -194,7 +215,14 @@ export function PhoneAuthForm({
       if (result.error) throw result.error;
       if (result.data.session && result.data.user) {
         const upload = profilePhotoFile ? await uploadProfilePhoto(result.data.user.id, profilePhotoFile) : null;
-        await saveProfiles(result.data.user.id, role, result.data.user.email, result.data.user.phone, upload?.publicUrl || null);
+        await saveProfiles(
+          result.data.user.id,
+          role,
+          result.data.user.email,
+          result.data.user.phone,
+          upload?.publicUrl || null,
+          result.data.user.user_metadata?.full_name || fullName
+        );
         redirectForRole(role);
         return;
       }
@@ -219,7 +247,14 @@ export function PhoneAuthForm({
       if (result.error) throw result.error;
       if (!result.data.user) throw new Error("Login succeeded but no session was returned.");
       const userRole = await getSavedRole(result.data.user.id, normalizeRole(result.data.user.user_metadata?.account_type || result.data.user.user_metadata?.role || role));
-      await saveProfiles(result.data.user.id, userRole, result.data.user.email, result.data.user.phone);
+      await saveProfiles(
+        result.data.user.id,
+        userRole,
+        result.data.user.email,
+        result.data.user.phone,
+        null,
+        result.data.user.user_metadata?.full_name || result.data.user.user_metadata?.name || null
+      );
       redirectForRole(userRole);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login failed. Check your email and password.");
@@ -292,7 +327,85 @@ export function PhoneAuthForm({
     else await loginWithPassword();
   }
 
-  const content = (
+  const showReturningLogin = mode === "login" && Boolean(returningProfile?.email) && !switchAccount && !effectiveLockedRole;
+
+  const returningContent = returningProfile ? (
+    <div className="overflow-hidden rounded-[18px] border border-white/10 bg-[#050b13] p-5 text-white shadow-[0_24px_70px_rgba(2,6,8,0.34)] sm:p-7">
+      <div className="flex items-center gap-3">
+        <Image
+          src="/brand/fastfleet-logo-2026-header.png"
+          alt="Fast Fleets 360"
+          width={48}
+          height={48}
+          className="h-12 w-12 rounded-fleet border border-white/15 bg-white object-cover p-1"
+        />
+        <span className="grid leading-none">
+          <strong className="text-base font-black">Fast Fleets 360</strong>
+          <span className="mt-1 text-[0.62rem] font-black uppercase tracking-[0.2em] text-fleet-gold">Secure access</span>
+        </span>
+      </div>
+
+      <div className="mt-10">
+        <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-gold">Returning user</span>
+        <h1 className="mt-3 text-3xl font-black leading-tight sm:text-4xl">Welcome back, {returningProfile.firstName}</h1>
+        <p className="mt-2 text-sm font-semibold leading-6 text-white/65">Enter your password to continue securely.</p>
+      </div>
+
+      <label className="form-field mt-7">
+        <span className="form-label text-white/70">Password</span>
+        <span className="relative">
+          <input
+            className="form-input border-white/15 bg-white/10 pr-12 text-white placeholder:text-white/35 focus:border-fleet-gold focus:ring-fleet-gold/20"
+            value={password}
+            onBlur={() => setError("password", passwordValid ? null : "Use at least 6 characters.")}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              if (fieldErrors.password) setError("password", null);
+            }}
+            placeholder="Your password"
+            autoComplete="current-password"
+            type={passwordVisible ? "text" : "password"}
+          />
+          <button
+            type="button"
+            className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-fleet text-white/60 transition hover:bg-white/10 hover:text-white"
+            onClick={() => setPasswordVisible((value) => !value)}
+            aria-label={passwordVisible ? "Hide password" : "Show password"}
+          >
+            {passwordVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </span>
+        {fieldErrors.password ? <span className="text-xs font-bold text-red-300">{fieldErrors.password}</span> : null}
+      </label>
+
+      {message ? <div className="mt-5 rounded-fleet border border-amber-300/25 bg-amber-300/10 p-3 text-sm font-bold leading-6 text-amber-100">{message}</div> : null}
+
+      <div className="mt-7 grid gap-3">
+        <Button type="button" disabled={!emailValid || !passwordValid || loading} onClick={loginWithPassword} className="w-full">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+          SIGN IN
+        </Button>
+        <button type="button" onClick={resetPassword} disabled={loading} className="text-sm font-black text-fleet-gold transition hover:text-white disabled:opacity-50">
+          Forgot Password
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSwitchAccount(true);
+            setReturningProfile(null);
+            setEmail("");
+            setPassword("");
+            setMessage(null);
+          }}
+          className="text-sm font-bold text-white/60 transition hover:text-white"
+        >
+          Not {returningProfile.firstName}? Switch account
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  const standardContent = (
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -489,6 +602,9 @@ export function PhoneAuthForm({
     </>
   );
 
+  const content = showReturningLogin ? returningContent : standardContent;
+
   if (surface === "plain") return <div className={cn("p-0", className)}>{content}</div>;
+  if (showReturningLogin) return <div className={className}>{content}</div>;
   return <Card className={cn("p-4 sm:p-6", className)}>{content}</Card>;
 }

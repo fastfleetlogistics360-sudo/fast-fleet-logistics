@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
   }
 
   await upsertRoleProfile(supabase, user, accountRole);
-  return redirectWithCookies(new URL(safeDashboardRedirectForRole(redirectHints.returnTo, accountRole), request.url), cookiesToSet);
+  return redirectWithCookies(new URL(safeDashboardRedirectForRole(redirectHints.returnTo || "/hub", accountRole), request.url), cookiesToSet);
 }
 
 function parseRedirectHints(request: NextRequest) {

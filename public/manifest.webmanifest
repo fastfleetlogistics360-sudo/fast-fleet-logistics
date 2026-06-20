@@ -2,7 +2,7 @@
   "name": "Fast Fleets 360 Logistics",
   "short_name": "Fast Fleets 360",
   "description": "Same-day dispatch for customers, riders, and businesses across Lagos and Ogun.",
-  "start_url": "/main",
+  "start_url": "/hub",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",

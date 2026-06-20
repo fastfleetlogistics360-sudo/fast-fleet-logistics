@@ -21,7 +21,7 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { dashboardMenuForRole, flattenDashboardMenu } from "@/lib/dashboard-menus";
 import type { DashboardMenuItem } from "@/lib/dashboard-menus";
-import { parseUserRole, roleHome } from "@/lib/auth/roles";
+import { parseUserRole } from "@/lib/auth/roles";
 import type { UserRole } from "@/types/domain";
 import { LinkButton } from "@/components/ui/button";
 import { InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
@@ -49,7 +49,7 @@ const brandLogo = "/brand/fastfleet-logo-2026-header.png";
 const bottomItems: Array<{ href: string; label: string; icon: LucideIcon; activePaths?: string[] }> = [
   { href: "/book", label: "Book", icon: PackageCheck },
   { href: "/track", label: "Track", icon: Route },
-  { href: "/main", label: "Home", icon: LayoutDashboard, activePaths: ["/main", "/dashboard"] },
+  { href: "/hub", label: "Home", icon: LayoutDashboard, activePaths: ["/hub", "/dashboard"] },
   { href: "/rider/onboarding", label: "Rider", icon: Bike, activePaths: ["/rider/onboarding", "/rider/dashboard"] },
   { href: "/business/register", label: "Biz", icon: Building2, activePaths: ["/business/register", "/business/dashboard"] }
 ];
@@ -60,7 +60,7 @@ const socialItems: Array<{ href: string; label: string; icon: (props: ComponentP
   { href: "https://www.tiktok.com/@fastfleets360", label: "TikTok", icon: TikTokIcon, hover: "hover:bg-black" }
 ];
 
-const siteChromeRoutes = new Set(["/main", "/how-it-works", "/privacy", "/terms", "/cookies", "/ndpr", "/support", "/offline"]);
+const siteChromeRoutes = new Set(["/main", "/how-it-works", "/privacy", "/terms", "/cookies", "/ndpr", "/support", "/offline", "/services", "/updates", "/about", "/hub"]);
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -72,13 +72,14 @@ export function SiteShell({ children }: { children: ReactNode }) {
     pathname.startsWith("/rider/dashboard") ||
     pathname.startsWith("/business/dashboard");
   const usesGlobalDashboardMenu = false;
+  const isHub = pathname === "/hub";
   const hasSiteChrome = siteChromeRoutes.has(pathname);
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState<string | null>(null);
   const [accountRole, setAccountRole] = useState<UserRole | null>(null);
   const dashboardMenu = usesGlobalDashboardMenu ? dashboardMenuForRole(accountRole) : null;
   const dashboardBottomItems = dashboardMenu ? flattenDashboardMenu(dashboardMenu).filter((item) => item.href !== "__logout").slice(0, 5) : [];
-  const dashboardHomeHref = accountRole ? roleHome[accountRole] : "/choose-account-type";
+  const dashboardHomeHref = accountRole ? "/hub" : "/choose-account-type";
 
   useEffect(() => {
     try {
@@ -153,7 +154,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
+          {!isHub ? <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
             {navItems.map((item) => (
               <Link
                 key={item.href}
@@ -166,7 +167,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 {item.label}
               </Link>
             ))}
-          </nav>
+          </nav> : null}
 
           <div className="hidden items-center gap-2 lg:flex">
             <SmartWalletTopUp />
@@ -227,7 +228,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 </button>
               </div>
             </div>
-            {!dashboardMenu ? (
+            {!dashboardMenu && !isHub ? (
               <nav className="grid gap-1" aria-label="Mobile primary">
                 {navItems.map((item) => (
                   <Link
@@ -301,7 +302,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
       {hasSiteChrome ? (
       <>
-      <footer className="commercial-strip px-4 py-10 text-white sm:px-6">
+      {!isHub ? <footer className="commercial-strip px-4 py-10 text-white sm:px-6">
         <div className="mx-auto grid max-w-7xl gap-8 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
           <div>
             <div className="flex items-center gap-3">
@@ -338,9 +339,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </div>
           <FooterGroup title="Customers" links={[["Book delivery", "/book"], ["Track package", "/track"], ["Dashboard", "/dashboard"]]} />
           <FooterGroup title="Partners" links={[["Register driver", "/rider/onboarding"], ["Driver dashboard", "/rider/dashboard"], ["Register business", "/business/register"], ["Business dashboard", "/business/dashboard"]]} />
-          <FooterGroup title="Platform" links={[["Privacy", "/privacy"], ["Terms", "/terms"], ["Cookies", "/cookies"], ["NDPR", "/ndpr"], ["PWA ready", "/offline"]]} />
+          <FooterGroup title="Platform" links={[["Services", "/services"], ["Updates", "/updates"], ["About", "/about"], ["Privacy", "/privacy"], ["Terms", "/terms"], ["PWA ready", "/offline"]]} />
         </div>
-      </footer>
+      </footer> : null}
 
       {!open && !isDashboardEnvironment ? <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/15 bg-fleet-night/92 p-1 text-white shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Mobile app">
         {bottomItems.map((item) => {
@@ -384,10 +385,10 @@ export function SiteShell({ children }: { children: ReactNode }) {
         </nav>
       ) : null}
 
-      <div className="fixed right-4 top-24 z-40 hidden rounded-full border border-white/15 bg-fleet-night/90 p-2 shadow-lift backdrop-blur-xl md:block">
+      {!isHub ? <div className="fixed right-4 top-24 z-40 hidden rounded-full border border-white/15 bg-fleet-night/90 p-2 shadow-lift backdrop-blur-xl md:block">
         <Bell className="h-4 w-4 text-fleet-ember" />
-      </div>
-      {!open ? <SupportWidget /> : null}
+      </div> : null}
+      {!open && !isHub ? <SupportWidget /> : null}
       </>
       ) : null}
       <CookieConsent />

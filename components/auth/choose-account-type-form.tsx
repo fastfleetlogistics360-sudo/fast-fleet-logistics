@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Bike, Building2, Loader2, MapPinned, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { roleHome, roleSignupHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import { safeDashboardRedirectForRole } from "@/lib/auth/roles";
 import { cn } from "@/lib/cn";
 import { initials } from "@/lib/format";
 import { uploadProfilePhoto } from "@/lib/storage";
@@ -88,7 +88,7 @@ export function ChooseAccountTypeForm() {
       const failed = [metadataResult, usersResult, profilesResult].find((result) => result.status === "rejected");
       if (failed?.status === "rejected") throw failed.reason;
 
-      const destination = selected === "customer" ? returnTo || roleHome.customer : roleSignupHome[selected];
+      const destination = returnTo || "/hub";
       router.replace(safeDashboardRedirectForRole(destination, selected));
       router.refresh();
     } catch (error) {

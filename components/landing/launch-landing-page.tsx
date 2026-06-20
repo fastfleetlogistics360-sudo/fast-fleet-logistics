@@ -2,61 +2,45 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import dynamic from "next/dynamic";
-import { Suspense, useEffect, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Bike, CalendarDays, CircleUserRound, LogIn, MapPinned, Play, RadioTower, Store, TimerReset, UserPlus, X } from "lucide-react";
+import { ArrowUpRight, Bike, CalendarDays, CheckCircle2, CircleUserRound, LayoutDashboard, LogIn, MapPinned, Play, Rocket, Store, UserPlus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AppleIcon, GoogleIcon, InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
+import { saveReturningProfile } from "@/lib/auth/returning-profile";
 import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from "@/lib/brand-partners";
 
-const PhoneAuthForm = dynamic(() => import("@/components/auth/phone-auth-form").then((mod) => mod.PhoneAuthForm), {
-  ssr: false,
-  loading: () => <div className="min-h-64 animate-pulse rounded-fleet bg-white/75" />
-});
-
-type AuthIntent = "signup" | "login";
-type ActionItemConfig =
-  | {
-      title: string;
-      body: string;
-      icon: LucideIcon;
-      action: AuthIntent;
-      href?: never;
-    }
-  | {
-      title: string;
-      body: string;
-      icon: LucideIcon;
-      href: string;
-      action?: never;
-    };
+type ActionItemConfig = {
+  title: string;
+  body: string;
+  icon: LucideIcon;
+  href: string;
+};
 
 const actionItems: ActionItemConfig[] = [
   {
     title: "Sign Up",
     body: "Create an account in minutes",
     icon: UserPlus,
-    action: "signup" as const
+    href: "/auth?mode=signup&returnTo=/hub"
   },
   {
     title: "Sign In",
     body: "Access your account seamlessly",
     icon: LogIn,
-    action: "login" as const
+    href: "/auth?mode=login&returnTo=/hub"
   },
   {
     title: "Register as a Driver",
     body: "Join our network and start earning",
     icon: Bike,
-    href: "/auth?account=driver"
+    href: "/auth?account=driver&mode=signup&returnTo=/hub"
   },
   {
     title: "Register Your Business",
     body: "Grow your business with Fast Fleets 360",
     icon: Store,
-    href: "/auth?account=business"
+    href: "/auth?account=business&mode=signup&returnTo=/hub"
   }
 ];
 
@@ -70,69 +54,20 @@ const heroBackgroundImage = "https://images.unsplash.com/photo-1617347454431-f49
 const heroBlurDataURL =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwMjA2MDgnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yOCcvPjxjaXJjbGUgY3g9JzQnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNDgnLz48L3N2Zz4=";
 const brandLogo = "/brand/fastfleet-logo-2026-header.png";
-const softLaunchTarget = new Date("2026-08-15T00:00:00+01:00").getTime();
-
-type CountdownUnit = {
-  label: string;
-  value: string;
-};
 
 const softLaunchStates = [
-  {
-    state: "Lagos State",
-    lane: "Core city launch",
-    note: "Food, parcel, rider, and business dispatch lanes."
-  },
-  {
-    state: "Ogun State",
-    lane: "Expansion launch",
-    note: "Border-city and commercial corridor delivery coverage."
-  },
-  {
-    state: "Kwara State",
-    lane: "Partner launch",
-    note: "Early business and rider onboarding for Ilorin routes."
-  }
+  { state: "Lagos State" },
+  { state: "Ogun State" },
+  { state: "Kwara State" }
 ];
 
-function buildCountdown(now: number | null): CountdownUnit[] {
-  if (!now) {
-    return ["Days", "Hours", "Minutes", "Seconds"].map((label) => ({ label, value: "--" }));
-  }
-
-  const remaining = Math.max(0, softLaunchTarget - now);
-  const totalSeconds = Math.floor(remaining / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  return [
-    { label: "Days", value: String(days).padStart(2, "0") },
-    { label: "Hours", value: String(hours).padStart(2, "0") },
-    { label: "Minutes", value: String(minutes).padStart(2, "0") },
-    { label: "Seconds", value: String(seconds).padStart(2, "0") }
-  ];
-}
-
 export function LaunchLandingPage() {
-  const [authIntent, setAuthIntent] = useState<AuthIntent | null>(null);
   const [storePopup, setStorePopup] = useState(false);
   const [partners, setPartners] = useState<BrandPartner[]>(defaultBrandPartners);
-  const [countdown, setCountdown] = useState<CountdownUnit[]>(() => buildCountdown(null));
+  const [hasActiveSession, setHasActiveSession] = useState(false);
   const reduceMotion = useReducedMotion();
   const activePartners = partners.filter((partner) => partner.active);
   const partnerLoop = [...activePartners, ...activePartners];
-
-  useEffect(() => {
-    function tick() {
-      setCountdown(buildCountdown(Date.now()));
-    }
-
-    tick();
-    const timer = window.setInterval(tick, 1000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,6 +75,26 @@ export function LaunchLandingPage() {
       .then((response) => response.json())
       .then((data) => {
         if (!cancelled) setPartners(normalizeBrandPartners(data.brand_partners));
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    import("@/lib/supabase/client")
+      .then(({ createClient }) => createClient().auth.getUser())
+      .then(({ data }) => {
+        if (cancelled || !data.user) return;
+        setHasActiveSession(true);
+        saveReturningProfile({
+          fullName: data.user.user_metadata?.full_name || data.user.user_metadata?.name || null,
+          email: data.user.email || null
+        });
       })
       .catch(() => undefined);
 
@@ -182,22 +137,12 @@ export function LaunchLandingPage() {
             </span>
           </Link>
 
-          <nav className="flex items-center gap-2 sm:gap-4" aria-label="Landing account actions">
-            <button
-              type="button"
-              onClick={() => setAuthIntent("login")}
-              className="inline-flex min-h-11 items-center justify-center rounded-[10px] border border-white/70 bg-white/5 px-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-fleet-night focus:outline-none focus:ring-4 focus:ring-white/20 sm:min-h-14 sm:px-8 sm:text-base"
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuthIntent("signup")}
-              className="inline-flex min-h-11 items-center justify-center rounded-[10px] border border-fleet-ember bg-fleet-ember px-4 text-sm font-black text-white shadow-[0_0_32px_rgba(239,108,0,0.34)] transition hover:-translate-y-0.5 hover:bg-[#f47e18] focus:outline-none focus:ring-4 focus:ring-fleet-gold/25 sm:min-h-14 sm:px-8 sm:text-base"
-            >
-              Sign Up
-            </button>
-          </nav>
+          {hasActiveSession ? (
+            <Link href="/hub" className="inline-flex min-h-11 items-center gap-2 rounded-fleet border border-white/20 bg-white/10 px-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-fleet-night focus:outline-none focus:ring-4 focus:ring-white/20">
+              <LayoutDashboard className="h-4 w-4" />
+              Open App
+            </Link>
+          ) : null}
         </header>
 
         <div className="grid flex-1 content-center py-14 sm:py-16 lg:py-20">
@@ -229,7 +174,7 @@ export function LaunchLandingPage() {
             </div>
           </div>
 
-          <SoftLaunchCounter countdown={countdown} reduceMotion={Boolean(reduceMotion)} />
+          <LaunchStatusPanels reduceMotion={Boolean(reduceMotion)} />
         </div>
 
         <div
@@ -238,7 +183,7 @@ export function LaunchLandingPage() {
         >
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {actionItems.map((item, index) => (
-              <ActionItem key={item.title} item={item} index={index} onAuth={setAuthIntent} />
+              <ActionItem key={item.title} item={item} index={index} />
             ))}
           </div>
         </div>
@@ -297,7 +242,6 @@ export function LaunchLandingPage() {
         </div>
       </section>
 
-      {authIntent ? <AuthModal intent={authIntent} onClose={() => setAuthIntent(null)} /> : null}
       {storePopup ? <ComingSoonModal onClose={() => setStorePopup(false)} /> : null}
       <style jsx global>{`
         @keyframes fastfleet-partner-marquee {
@@ -306,33 +250,6 @@ export function LaunchLandingPage() {
           }
           to {
             transform: translateX(0);
-          }
-        }
-
-        @keyframes fastfleet-calendar-flip {
-          0% {
-            opacity: 0.28;
-            transform: rotateX(-72deg) translateY(-5px);
-          }
-          58% {
-            opacity: 1;
-            transform: rotateX(9deg) translateY(0);
-          }
-          100% {
-            opacity: 1;
-            transform: rotateX(0deg) translateY(0);
-          }
-        }
-
-        @keyframes fastfleet-state-scan {
-          0%,
-          100% {
-            transform: translateX(-18%);
-            opacity: 0.34;
-          }
-          50% {
-            transform: translateX(18%);
-            opacity: 0.82;
           }
         }
 
@@ -345,117 +262,62 @@ export function LaunchLandingPage() {
           animation-play-state: paused;
         }
 
-        .soft-launch-flip {
-          transform-origin: center top;
-          transform-style: preserve-3d;
-          animation: fastfleet-calendar-flip 680ms cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
-
-        .soft-launch-state-scan {
-          animation: fastfleet-state-scan 3.8s ease-in-out infinite;
-        }
-
         @media (prefers-reduced-motion: reduce) {
           .partner-marquee {
             animation: none;
             transform: translateX(0);
           }
 
-          .soft-launch-flip,
-          .soft-launch-state-scan {
-            animation: none;
-          }
         }
       `}</style>
     </main>
   );
 }
 
-function SoftLaunchCounter({ countdown, reduceMotion }: { countdown: CountdownUnit[]; reduceMotion: boolean }) {
+function LaunchStatusPanels({ reduceMotion }: { reduceMotion: boolean }) {
   return (
-    <section
-      aria-label="Soft-launch countdown"
-      className="mt-8 max-w-5xl"
-    >
-      <div className="relative overflow-hidden rounded-[14px] border border-white/15 bg-black/58 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.26)] backdrop-blur-2xl sm:p-4">
-        <div className="soft-launch-state-scan pointer-events-none absolute inset-y-0 left-1/2 w-20 -skew-x-12 bg-gradient-to-r from-transparent via-fleet-gold/16 to-transparent" />
-        <div className="relative grid gap-3 lg:grid-cols-[minmax(210px,0.82fr)_minmax(0,1.18fr)] lg:items-center">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full border border-fleet-gold/25 bg-fleet-gold/10 px-2.5 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.16em] text-fleet-gold">
-                <TimerReset className="h-3.5 w-3.5" />
-                Soft-launch
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.06] px-2.5 py-1.5 text-[0.68rem] font-black text-white/80">
-                <CalendarDays className="h-3.5 w-3.5 text-fleet-ember" />
-                Aug 15, 2026
-              </span>
-            </div>
-            <h2 className="mt-2 text-lg font-black leading-tight text-white sm:text-xl">Countdown to Fast Fleets 360 soft-launch</h2>
-          </div>
-
-          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-            {countdown.map((unit) => (
-              <CompactCountdownUnit key={unit.label} unit={unit} reduceMotion={reduceMotion} />
-            ))}
-          </div>
+    <section className="mt-8 grid max-w-5xl gap-3 sm:grid-cols-2" aria-label="Launch and marketplace availability">
+      <motion.article
+        initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+        className="overflow-hidden rounded-fleet border border-white/15 bg-white/[0.09] p-4 shadow-[0_16px_40px_rgba(0,0,0,0.26)] backdrop-blur-xl"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-fleet-gold"><Rocket className="h-4 w-4" /> Launch Status</span>
+          <CalendarDays className="h-4 w-4 text-fleet-ember" />
         </div>
-
-        <div className="relative mt-3 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-fleet-ember/16 px-2.5 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.16em] text-fleet-gold">
-            <MapPinned className="h-3.5 w-3.5" />
-            Proposed states
-          </span>
-          {softLaunchStates.map((item, index) => (
-            <motion.span
-              key={item.state}
-              className="group inline-flex min-h-9 items-center gap-2 rounded-full border border-white/12 bg-white/[0.055] px-3 py-1.5 text-xs font-black text-white transition hover:border-fleet-gold/35 hover:bg-white/[0.1]"
-              whileHover={reduceMotion ? undefined : { y: -2 }}
-              transition={{ duration: 0.38, delay: index * 0.04, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <RadioTower className="h-3.5 w-3.5 shrink-0 text-fleet-gold transition group-hover:text-fleet-ember" />
-              <span>{item.state}</span>
-              <span className="hidden text-[0.62rem] uppercase tracking-[0.12em] text-fleet-gold sm:inline">{item.lane}</span>
-            </motion.span>
-          ))}
+        <strong className="mt-4 block text-xl font-black text-white">Soft Launch Scheduled</strong>
+        <span className="mt-1 block text-sm font-black text-fleet-gold">August 2026</span>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {softLaunchStates.map((item) => <span key={item.state} className="rounded-full border border-white/12 bg-black/15 px-2.5 py-1 text-[0.68rem] font-bold text-white/80">{item.state}</span>)}
         </div>
-      </div>
+        <Link href="/updates#launch" className="mt-5 inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:text-fleet-gold">Learn More <ArrowUpRight className="h-4 w-4" /></Link>
+      </motion.article>
+
+      <motion.article
+        initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+        transition={{ duration: 0.32, delay: 0.07, ease: [0.22, 1, 0.36, 1] }}
+        className="rounded-fleet border border-white/15 bg-[#07131f]/95 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.26)]"
+      >
+        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-fleet-gold"><Store className="h-4 w-4" /> Marketplace Onboarding</div>
+        <strong className="mt-4 block text-xl font-black text-white">2 Partners Onboarded</strong>
+        <div className="mt-3 grid gap-1 text-xs font-bold text-fleet-mint"><span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Nectar &amp; Greens</span><span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> FarmFresh by V-A.V</span></div>
+        <div className="mt-4 flex items-end justify-between gap-3"><span className="text-sm font-black text-white">28 Marketplace Slots Available</span><span className="text-[0.65rem] font-black uppercase tracking-[0.12em] text-white/60">2 / 30 Filled</span></div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><span className="block h-full w-[6.67%] rounded-full bg-fleet-leaf" /></div>
+        <div className="mt-3 flex items-center justify-between gap-3 text-[0.68rem] font-bold text-white/65"><span>Onboarding ends: Aug 10, 2026</span><Link href="/business/register" className="text-fleet-gold transition hover:text-white">Reserve Your Slot</Link></div>
+      </motion.article>
     </section>
-  );
-}
-
-function CompactCountdownUnit({ unit, reduceMotion }: { unit: CountdownUnit; reduceMotion: boolean }) {
-  const digits = unit.value === "--" ? ["-", "-"] : unit.value.split("");
-
-  return (
-    <div className="min-w-0 text-center">
-      <div className="flex justify-center gap-1">
-        {digits.map((digit, index) => (
-          <span
-            key={`${unit.label}-${unit.value}-${index}`}
-            className={`grid h-10 min-w-7 place-items-center rounded-[7px] border border-fleet-gold/20 bg-fleet-ember text-xl font-black leading-none text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_10px_22px_rgba(239,108,0,0.24)] sm:h-11 sm:min-w-8 sm:text-2xl ${
-              reduceMotion ? "" : "soft-launch-flip"
-            }`}
-          >
-            {digit}
-          </span>
-        ))}
-      </div>
-      <span className="mt-1 block text-[0.58rem] font-black uppercase tracking-[0.14em] text-white/70 sm:text-[0.62rem]">
-        {unit.label}
-      </span>
-    </div>
   );
 }
 
 function ActionItem({
   item,
-  index,
-  onAuth
+  index
 }: {
   item: ActionItemConfig;
   index: number;
-  onAuth: (intent: AuthIntent) => void;
 }) {
   const Icon = item.icon;
   const content = (
@@ -472,23 +334,11 @@ function ActionItem({
   const classes =
     "group relative flex min-h-[96px] items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.035] p-3 text-left transition hover:-translate-y-0.5 hover:border-fleet-gold/30 hover:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20 sm:min-h-[104px] md:border-0 md:bg-transparent";
 
-  if (item.href) {
-    return (
-      <Link href={item.href} className={classes}>
-        {index > 0 ? <span className="absolute bottom-6 left-0 top-6 hidden w-px bg-white/16 md:block" /> : null}
-        {content}
-      </Link>
-    );
-  }
-
-  const authAction = item.action;
-  if (!authAction) return null;
-
   return (
-    <button type="button" onClick={() => onAuth(authAction)} className={classes}>
+    <Link href={item.href} className={classes}>
       {index > 0 ? <span className="absolute bottom-6 left-0 top-6 hidden w-px bg-white/16 md:block" /> : null}
       {content}
-    </button>
+    </Link>
   );
 }
 
@@ -528,55 +378,5 @@ function ComingSoonModal({ onClose }: { onClose: () => void }) {
         </button>
       </motion.div>
     </div>
-  );
-}
-
-function AuthModal({ intent, onClose }: { intent: AuthIntent; onClose: () => void }) {
-  const [mounted, setMounted] = useState(false);
-  const title = intent === "signup" ? "Create your Fast Fleets 360 account" : "Sign in to Fast Fleets 360";
-  const description =
-    intent === "signup"
-      ? "Sign up with email, choose your access type, and continue into Fast Fleets 360."
-      : "Enter your email and password to return to your delivery workspace.";
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
-
-  return createPortal(
-    <motion.div
-      className="fixed inset-0 z-[160] grid place-items-center bg-fleet-night/70 px-3 py-8 backdrop-blur-sm"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
-      <motion.div
-        className="relative max-h-[58vh] w-[calc(100vw-28px)] max-w-[560px] overflow-hidden rounded-[28px] border border-fleet-gold/40 bg-[#fffdf4] shadow-[0_28px_90px_rgba(0,0,0,0.38)] sm:max-h-[680px]"
-        initial={{ opacity: 0, y: 24, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 16, scale: 0.98 }}
-        transition={{ duration: 0.24, ease: "easeOut" }}
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 z-10 inline-grid h-11 w-11 place-items-center rounded-full border border-fleet-line bg-white text-fleet-night shadow-lift transition hover:-translate-y-0.5"
-          aria-label="Close auth card"
-        >
-          <X className="h-5 w-5" />
-        </button>
-        <div className="max-h-[58vh] overflow-y-auto px-5 pb-5 pt-6 sm:max-h-[680px] sm:px-7 sm:pb-7">
-          <Suspense fallback={<div className="min-h-64 animate-pulse rounded-fleet bg-white/70" />}>
-            <PhoneAuthForm surface="plain" title={title} description={description} intent={intent} />
-          </Suspense>
-        </div>
-      </motion.div>
-    </motion.div>,
-    document.body
   );
 }

@@ -34,6 +34,7 @@ export function parseUserRole(value: unknown): UserRole | null {
 
 export function safeDashboardRedirectForRole(value: string | null | undefined, role: UserRole) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return roleHome[role];
+  if (value === "/hub") return "/hub";
   if (role === "admin") return value.startsWith("/admin") ? value : roleHome.admin;
   if (role === "rider") return value.startsWith("/rider/dashboard") || value.startsWith("/rider/onboarding") ? value : roleHome.rider;
   if (role === "business") return value.startsWith("/business/dashboard") || value.startsWith("/business/register") ? value : roleHome.business;

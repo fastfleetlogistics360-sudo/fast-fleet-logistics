@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
   }
 
   await upsertRoleProfile(supabase, user, accountRole);
-  return redirectWithCookies(new URL(safeDashboardRedirectForRole(requestedReturnTo, accountRole), request.url), cookiesToSet);
+  return redirectWithCookies(new URL(safeDashboardRedirectForRole(requestedReturnTo || "/hub", accountRole), request.url), cookiesToSet);
 }
 
 function redirectToAuth(request: NextRequest, returnTo: string | null, error: string) {
