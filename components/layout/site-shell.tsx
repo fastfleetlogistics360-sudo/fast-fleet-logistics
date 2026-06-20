@@ -74,6 +74,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
   const usesGlobalDashboardMenu = false;
   const isHub = pathname === "/hub";
   const hasSiteChrome = siteChromeRoutes.has(pathname);
+  const hasPageHeader = hasSiteChrome && !isHub;
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState<string | null>(null);
   const [accountRole, setAccountRole] = useState<UserRole | null>(null);
@@ -136,7 +137,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={cn("min-h-screen text-fleet-ink", hasSiteChrome ? "site-canvas" : "bg-fleet-paper")}>
-      {hasSiteChrome ? (
+      {hasPageHeader ? (
       <header className="sticky top-0 z-50 border-b border-white/10 bg-fleet-night/90 text-white shadow-[0_18px_50px_rgba(8,17,31,0.22)] backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/" className="flex min-w-0 items-center gap-3" aria-label="Fast Fleets 360 home">
@@ -205,7 +206,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
       </header>
       ) : null}
 
-      {hasSiteChrome && open ? (
+      {hasPageHeader && open ? (
         <div className="fixed inset-0 z-[80] bg-fleet-night/20 backdrop-blur-sm lg:hidden" role="presentation" onClick={() => setOpen(false)}>
           <div
             id="mobile-site-menu"

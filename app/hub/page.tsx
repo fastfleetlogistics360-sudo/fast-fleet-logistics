@@ -17,8 +17,8 @@ export default async function HubPage() {
   if (!user) redirect("/auth?returnTo=/hub");
 
   const [{ data: profile }, { data: account }] = await Promise.all([
-    supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>(),
-    supabase.from("users").select("full_name, email").eq("id", user.id).maybeSingle<{ full_name?: string | null; email?: string | null }>()
+    supabase.from("profiles").select("account_type, avatar_url").eq("user_id", user.id).maybeSingle<{ account_type?: string | null; avatar_url?: string | null }>(),
+    supabase.from("users").select("full_name, email, avatar_url").eq("id", user.id).maybeSingle<{ full_name?: string | null; email?: string | null; avatar_url?: string | null }>()
   ]);
 
   const role = parseUserRole(profile?.account_type || user.user_metadata?.account_type || user.user_metadata?.role);
@@ -29,6 +29,7 @@ export default async function HubPage() {
       role={role}
       fullName={account?.full_name || user.user_metadata?.full_name || user.user_metadata?.name || null}
       email={account?.email || user.email || null}
+      avatarUrl={account?.avatar_url || profile?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || null}
     />
   );
 }

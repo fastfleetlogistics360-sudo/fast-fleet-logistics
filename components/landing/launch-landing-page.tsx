@@ -7,7 +7,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight, Bike, CalendarDays, CheckCircle2, CircleUserRound, LayoutDashboard, LogIn, MapPinned, Play, Rocket, Store, UserPlus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AppleIcon, GoogleIcon, InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
-import { saveReturningProfile } from "@/lib/auth/returning-profile";
+import { readReturningProfile, saveReturningProfile } from "@/lib/auth/returning-profile";
 import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from "@/lib/brand-partners";
 
 type ActionItemConfig = {
@@ -61,6 +61,12 @@ const softLaunchStates = [
   { state: "Kwara State" }
 ];
 
+function isInstalledApp() {
+  if (typeof window === "undefined") return false;
+  const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
+  return window.matchMedia("(display-mode: standalone)").matches || navigatorWithStandalone.standalone === true;
+}
+
 export function LaunchLandingPage() {
   const [storePopup, setStorePopup] = useState(false);
   const [partners, setPartners] = useState<BrandPartner[]>(defaultBrandPartners);
@@ -85,16 +91,25 @@ export function LaunchLandingPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const launchedAsInstalledApp = isInstalledApp();
 
     import("@/lib/supabase/client")
       .then(({ createClient }) => createClient().auth.getUser())
       .then(({ data }) => {
-        if (cancelled || !data.user) return;
-        setHasActiveSession(true);
-        saveReturningProfile({
-          fullName: data.user.user_metadata?.full_name || data.user.user_metadata?.name || null,
-          email: data.user.email || null
-        });
+        if (cancelled) return;
+        if (data.user) {
+          setHasActiveSession(true);
+          saveReturningProfile({
+            fullName: data.user.user_metadata?.full_name || data.user.user_metadata?.name || null,
+            email: data.user.email || null
+          });
+          if (launchedAsInstalledApp) window.location.replace("/hub");
+          return;
+        }
+
+        if (launchedAsInstalledApp && readReturningProfile()) {
+          window.location.replace("/auth?mode=login&returnTo=/hub");
+        }
       })
       .catch(() => undefined);
 

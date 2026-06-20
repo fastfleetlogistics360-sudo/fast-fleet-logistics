@@ -1,5 +1,5 @@
-const CACHE_NAME = "fastfleet-shell-v9";
-const PAGES_CACHE = "fastfleet-pages-v9";
+const CACHE_NAME = "fastfleet-shell-v10";
+const PAGES_CACHE = "fastfleet-pages-v10";
 const OFFLINE_QUEUE = "fastfleet-offline-bookings-v1";
 const APP_SHELL = [
   "/",
