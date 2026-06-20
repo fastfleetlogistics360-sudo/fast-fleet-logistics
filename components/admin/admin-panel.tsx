@@ -71,11 +71,19 @@ import {
   type MainHeroSlide,
   type MainHeroSlideIcon
 } from "@/lib/main-hero-slides";
+import {
+  createHubPromotionSlide,
+  defaultHubPromotionSlides,
+  hubPromotionSlidesStorageKey,
+  normalizeHubPromotionSlides,
+  type HubPromotionSlide
+} from "@/lib/hub-promotion-slides";
 import { uploadHeroImage } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { HubPromotionSlidesSection } from "@/components/admin/hub-promotion-slides-section";
 
 const heatmap: Array<[string, number]> = [
   ["Lekki", 96],
@@ -101,6 +109,7 @@ type AdminSectionId =
   | "withdrawal-review"
   | "company-transaction-logs"
   | "main-hero"
+  | "hub-promotions"
   | "restaurant-menus"
   | "mall-menus"
   | "ops-control"
@@ -115,6 +124,7 @@ const adminSectionIds = new Set<string>([
   "withdrawal-review",
   "company-transaction-logs",
   "main-hero",
+  "hub-promotions",
   "restaurant-menus",
   "mall-menus",
   "ops-control",
@@ -151,6 +161,7 @@ const adminNavGroups: Array<{
     title: "Catalog",
     items: [
       { id: "main-hero", label: "Main hero", icon: FilePenLine, count: (stats) => String(stats.heroSlides) },
+      { id: "hub-promotions", label: "Hub promotions", icon: FilePenLine, count: (stats) => String(stats.hubPromotions) },
       { id: "restaurant-menus", label: "Kitchens", icon: Utensils },
       { id: "mall-menus", label: "Mall stores", icon: StoreIcon }
     ]
@@ -171,6 +182,7 @@ type AdminNavStats = {
   activeDeliveries: number;
   pendingWithdrawals: number;
   heroSlides: number;
+  hubPromotions: number;
   openRisk: number;
   openSupport: number;
 };
@@ -613,6 +625,8 @@ export function AdminPanel() {
   const [companyLogs, setCompanyLogs] = useState<CompanyTransactionLog[]>(demoCompanyTransactionLogs);
   const [heroSlides, setHeroSlides] = useState<MainHeroSlide[]>(defaultMainHeroSlides);
   const [heroUploadProgress, setHeroUploadProgress] = useState<Record<string, number>>({});
+  const [hubPromotionSlides, setHubPromotionSlides] = useState<HubPromotionSlide[]>(defaultHubPromotionSlides);
+  const [hubPromotionUploadProgress, setHubPromotionUploadProgress] = useState<Record<string, number>>({});
   const [restaurantMenus, setRestaurantMenus] = useState<RestaurantKitchen[]>(defaultRestaurantKitchens);
   const [mallMenus, setMallMenus] = useState<ShoppingMall[]>(defaultShoppingMalls);
   const [companyLogForm, setCompanyLogForm] = useState<CompanyTransactionForm>(blankCompanyTransactionForm);
@@ -641,10 +655,11 @@ export function AdminPanel() {
       activeDeliveries: activeDeliveryCount,
       pendingWithdrawals: pendingWithdrawalCount,
       heroSlides: heroSlides.filter((slide) => slide.enabled).length,
+      hubPromotions: hubPromotionSlides.filter((slide) => slide.enabled).length,
       openRisk: openRiskCount,
       openSupport: openSupportCount
     }),
-    [activeDeliveryCount, heroSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingRiderCount, pendingWithdrawalCount]
+    [activeDeliveryCount, heroSlides, hubPromotionSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingRiderCount, pendingWithdrawalCount]
   );
   const companyLogSummary = useMemo(() => summarizeCompanyLogs(companyLogs), [companyLogs]);
   const filteredCompanyLogs = useMemo(() => {
@@ -668,7 +683,7 @@ export function AdminPanel() {
   async function loadAdminData() {
     setBusyAction("refresh");
     try {
-      const [statesResponse, ridersResponse, businessesResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, heroSlidesResponse, riskSignalsResponse, restaurantsResponse, mallsResponse] = await Promise.all([
+      const [statesResponse, ridersResponse, businessesResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, heroSlidesResponse, hubPromotionSlidesResponse, riskSignalsResponse, restaurantsResponse, mallsResponse] = await Promise.all([
         fetch("/api/admin/states"),
         fetch("/api/admin/riders"),
         fetch("/api/admin/businesses"),
@@ -677,6 +692,7 @@ export function AdminPanel() {
         fetch("/api/admin/company-transactions"),
         fetch("/api/admin/site-controls"),
         fetch("/api/admin/main-hero-slides"),
+        fetch("/api/admin/hub-promotion-slides"),
         fetch("/api/admin/risk-signals"),
         fetch("/api/admin/restaurants"),
         fetch("/api/admin/malls")
@@ -689,6 +705,7 @@ export function AdminPanel() {
       const companyLogsResult = await companyLogsResponse.json().catch(() => ({}));
       const siteControlsResult = await siteControlsResponse.json().catch(() => ({}));
       const heroSlidesResult = await heroSlidesResponse.json().catch(() => ({}));
+      const hubPromotionSlidesResult = await hubPromotionSlidesResponse.json().catch(() => ({}));
       const riskSignalsResult = await riskSignalsResponse.json().catch(() => ({}));
       const restaurantsResult = await restaurantsResponse.json().catch(() => ({}));
       const mallsResult = await mallsResponse.json().catch(() => ({}));
@@ -701,6 +718,7 @@ export function AdminPanel() {
         ["company logs", companyLogsResponse, companyLogsResult],
         ["site controls", siteControlsResponse, siteControlsResult],
         ["main hero", heroSlidesResponse, heroSlidesResult],
+        ["Hub promotions", hubPromotionSlidesResponse, hubPromotionSlidesResult],
         ["risk/support", riskSignalsResponse, riskSignalsResult],
         ["restaurants", restaurantsResponse, restaurantsResult],
         ["malls", mallsResponse, mallsResult]
@@ -724,6 +742,10 @@ export function AdminPanel() {
         const savedSlides = readDemoHeroSlides();
         setHeroSlides(heroSlidesResult.demo && savedSlides.length > 0 ? savedSlides : normalizeMainHeroSlides(heroSlidesResult.slides));
       }
+      if (Array.isArray(hubPromotionSlidesResult.slides)) {
+        const savedSlides = readDemoHubPromotionSlides();
+        setHubPromotionSlides(hubPromotionSlidesResult.demo && savedSlides.length > 0 ? savedSlides : normalizeHubPromotionSlides(hubPromotionSlidesResult.slides));
+      }
       if (Array.isArray(riskSignalsResult.riskSignals)) setRiskSignals(riskSignalsResult.riskSignals);
       if (Array.isArray(riskSignalsResult.supportTickets)) setSupportTickets(riskSignalsResult.supportTickets);
       if (Array.isArray(restaurantsResult.restaurants)) {
@@ -734,8 +756,8 @@ export function AdminPanel() {
         const savedMalls = readDemoMallMenus();
         setMallMenus(mallsResult.demo && savedMalls.length > 0 ? savedMalls : normalizeShoppingMalls(mallsResult.malls));
       }
-      if (statesResult.demo || ridersResult.demo || businessesResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || heroSlidesResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
-        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, business KYC, delivery timelines, withdrawals, site controls, main hero slides, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
+      if (statesResult.demo || ridersResult.demo || businessesResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
+        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, business KYC, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
       } else if (failedSections.length > 0) {
         setAdminMessage(`Some admin sections did not load: ${failedSections.join("; ")}`);
       }
@@ -1156,6 +1178,80 @@ export function AdminPanel() {
     }
   }
 
+  function updateHubPromotionSlide(id: string, patch: Partial<HubPromotionSlide>) {
+    setHubPromotionSlides((slides) => slides.map((slide) => (slide.id === id ? { ...slide, ...patch } : slide)));
+  }
+
+  function addHubPromotionSlide() {
+    setHubPromotionSlides((slides) => [...slides, createHubPromotionSlide()]);
+  }
+
+  function removeHubPromotionSlide(id: string) {
+    setHubPromotionSlides((slides) => (slides.length > 1 ? slides.filter((slide) => slide.id !== id) : slides));
+  }
+
+  function moveHubPromotionSlide(id: string, direction: -1 | 1) {
+    setHubPromotionSlides((slides) => {
+      const index = slides.findIndex((slide) => slide.id === id);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= slides.length) return slides;
+      const next = [...slides];
+      const [slide] = next.splice(index, 1);
+      next.splice(nextIndex, 0, slide);
+      return next;
+    });
+  }
+
+  async function uploadHubPromotionImage(id: string, file: File) {
+    setAdminMessage(null);
+    setHubPromotionUploadProgress((current) => ({ ...current, [id]: 10 }));
+    try {
+      const upload = await uploadHeroImage(file, (progress) => {
+        setHubPromotionUploadProgress((current) => ({ ...current, [id]: Math.round(progress) }));
+      });
+      updateHubPromotionSlide(id, { image: upload.publicUrl });
+      setAdminMessage("Hub promotion image uploaded. Save Hub promotions to publish it on /hub.");
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "Hub promotion image upload failed.");
+    } finally {
+      setHubPromotionUploadProgress((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+    }
+  }
+
+  async function saveHubPromotionSlides() {
+    const slides = normalizeHubPromotionSlides(hubPromotionSlides);
+    setBusyAction("hub-promotions:save");
+    setAdminMessage(null);
+    try {
+      const response = await fetch("/api/admin/hub-promotion-slides", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slides })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not save Hub promotions.");
+      const saved = normalizeHubPromotionSlides(result.slides);
+      setHubPromotionSlides(saved);
+      writeDemoHubPromotionSlides(saved);
+      setAdminMessage("Hub promotions saved. The /hub carousel will load the updated active slides.");
+    } catch (error) {
+      const canUseLocalFallback = error instanceof TypeError || (error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY"));
+      if (!canUseLocalFallback) {
+        setAdminMessage(error instanceof Error ? error.message : "Could not save Hub promotions.");
+        return;
+      }
+      setHubPromotionSlides(slides);
+      writeDemoHubPromotionSlides(slides);
+      setAdminMessage("Saved Hub promotions in this browser using operational fallback storage. Add SUPABASE_SERVICE_ROLE_KEY in Vercel for live site-wide Hub promotions.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   function updateKitchen(kitchenId: string, patch: Partial<RestaurantKitchen>) {
     setRestaurantMenus((menus) => menus.map((kitchen) => (kitchen.id === kitchenId ? { ...kitchen, ...patch } : kitchen)));
   }
@@ -1452,6 +1548,13 @@ export function AdminPanel() {
           onClick={() => openAdminSection("main-hero")}
         />
         <ActionCard
+          icon={FilePenLine}
+          title="Hub promotions"
+          body="Edit /hub carousel images, copy, destinations, status, and order."
+          count={`${hubPromotionSlides.filter((slide) => slide.enabled).length} active`}
+          onClick={() => openAdminSection("hub-promotions")}
+        />
+        <ActionCard
           icon={Utensils}
           title="Kitchen menus"
           body="Edit restaurant prices, portions, photos, and add new food items."
@@ -1506,6 +1609,18 @@ export function AdminPanel() {
         onRemoveSlide={removeHeroSlide}
         onMoveSlide={moveHeroSlide}
         onSave={saveHeroSlides}
+      />
+
+      <HubPromotionSlidesSection
+        slides={hubPromotionSlides}
+        busyAction={busyAction}
+        uploadProgress={hubPromotionUploadProgress}
+        onSlideChange={updateHubPromotionSlide}
+        onImageUpload={uploadHubPromotionImage}
+        onAddSlide={addHubPromotionSlide}
+        onRemoveSlide={removeHubPromotionSlide}
+        onMoveSlide={moveHubPromotionSlide}
+        onSave={saveHubPromotionSlides}
       />
 
       <RestaurantMenuSection
@@ -3380,6 +3495,21 @@ function readDemoHeroSlides() {
 function writeDemoHeroSlides(slides: MainHeroSlide[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(mainHeroSlidesStorageKey, JSON.stringify(slides));
+}
+
+function readDemoHubPromotionSlides() {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(hubPromotionSlidesStorageKey) || "[]");
+    return Array.isArray(parsed) ? normalizeHubPromotionSlides(parsed) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDemoHubPromotionSlides(slides: HubPromotionSlide[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(hubPromotionSlidesStorageKey, JSON.stringify(slides));
 }
 
 function readDemoRestaurantMenus() {

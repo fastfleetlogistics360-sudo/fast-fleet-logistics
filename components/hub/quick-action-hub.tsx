@@ -3,17 +3,31 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { BellRing, BookOpenText, Compass, Headphones, LayoutDashboard, MapPinned, ShoppingBag, Store, Truck } from "lucide-react";
+import { ArrowRight, BellRing, BookOpenText, Box, Compass, CreditCard, Headphones, LayoutDashboard, MapPinned, PackageCheck, ShoppingBag, Store, Truck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { UserRole } from "@/types/domain";
+import type { HubPromotionSlide } from "@/lib/hub-promotion-slides";
 import { roleHome } from "@/lib/auth/roles";
 import { saveReturningProfile } from "@/lib/auth/returning-profile";
+import { HubPromotionCarousel } from "@/components/hub/hub-promotion-carousel";
 
 type HubAction = {
   title: string;
   href: string;
   icon: LucideIcon;
   tone: "navy" | "green" | "orange" | "blue" | "pink";
+};
+
+type HubShortcut = {
+  title: string;
+  href: string;
+  icon: LucideIcon;
+};
+
+type HubGlance = {
+  title: string;
+  href: string;
+  items: Array<{ label: string; value: string; helper: string }>;
 };
 
 function firstName(fullName: string | null, email: string | null) {
@@ -31,19 +45,52 @@ function avatarInitials(fullName: string | null, email: string | null) {
     .join("");
 }
 
+function shortcutsForRole(role: UserRole): HubShortcut[] {
+  if (role === "rider") {
+    return [
+      { title: "My Orders", href: "/rider/dashboard/delivery-history", icon: Box },
+      { title: "Payment Methods", href: "/rider/dashboard/withdrawals", icon: CreditCard },
+      { title: "Help Center", href: "/support", icon: Headphones }
+    ];
+  }
+
+  if (role === "business") {
+    return [
+      { title: "My Orders", href: "/business/dashboard#orders", icon: Box },
+      { title: "Saved Addresses", href: "/business/dashboard#addresses", icon: MapPinned },
+      { title: "Payment Methods", href: "/business/dashboard#wallet", icon: CreditCard },
+      { title: "Help Center", href: "/support", icon: Headphones }
+    ];
+  }
+
+  if (role === "admin") return [{ title: "Help Center", href: "/support", icon: Headphones }];
+
+  return [
+    { title: "My Orders", href: "/customer/dashboard#orders", icon: Box },
+    { title: "Saved Addresses", href: "/customer/dashboard#addresses", icon: MapPinned },
+    { title: "Payment Methods", href: "/customer/dashboard#wallet", icon: CreditCard },
+    { title: "Help Center", href: "/support", icon: Headphones }
+  ];
+}
+
 export function QuickActionHub({
   role,
   fullName,
   email,
-  avatarUrl
+  avatarUrl,
+  promotionSlides,
+  glance
 }: {
   role: UserRole;
   fullName: string | null;
   email: string | null;
   avatarUrl: string | null;
+  promotionSlides: HubPromotionSlide[];
+  glance: HubGlance;
 }) {
   const reduceMotion = useReducedMotion();
   const name = firstName(fullName, email);
+  const shortcuts = shortcutsForRole(role);
 
   useEffect(() => {
     saveReturningProfile({ fullName: fullName || name, email });
@@ -97,8 +144,13 @@ export function QuickActionHub({
           </Link>
         </motion.section>
 
+        <HubPromotionCarousel slides={promotionSlides} />
+
         <section className="mt-5 rounded-[16px] bg-white p-3 shadow-[0_8px_22px_rgba(8,17,31,0.06)] sm:mt-6 sm:p-4" aria-labelledby="quick-actions-title">
-          <h2 id="quick-actions-title" className="px-1 pb-3 text-sm font-black text-fleet-night">Quick Actions</h2>
+          <div className="flex items-center justify-between gap-3 px-1 pb-3">
+            <h2 id="quick-actions-title" className="text-base font-black text-fleet-night">Quick Actions</h2>
+            <Link href="/services" className="inline-flex items-center gap-1 text-sm font-black text-[#1677df] transition hover:text-fleet-ember">All Services <ArrowRight className="h-4 w-4" /></Link>
+          </div>
           <div className="grid grid-cols-4 gap-x-1 gap-y-4 sm:gap-x-3 sm:gap-y-5">
             {actions.map((action, index) => {
               const Icon = action.icon;
@@ -120,6 +172,40 @@ export function QuickActionHub({
                 </motion.div>
               );
             })}
+          </div>
+        </section>
+
+        {shortcuts.length ? (
+          <section className="mt-7" aria-labelledby="quick-shortcuts-title">
+            <h2 id="quick-shortcuts-title" className="text-lg font-black text-fleet-night">Quick Shortcuts</h2>
+            <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto pb-1">
+              {shortcuts.map((shortcut) => {
+                const Icon = shortcut.icon;
+                return (
+                  <Link key={shortcut.title} href={shortcut.href} className="flex min-h-14 min-w-[164px] items-center gap-3 rounded-fleet bg-white px-3 text-sm font-black text-fleet-night shadow-[0_6px_18px_rgba(8,17,31,0.06)] transition hover:-translate-y-0.5 hover:text-fleet-ember focus:outline-none focus:ring-4 focus:ring-fleet-gold/20">
+                    <Icon className="h-5 w-5 shrink-0 text-fleet-navy" />
+                    <span className="min-w-0 flex-1 whitespace-nowrap">{shortcut.title}</span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" />
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="mt-7 overflow-hidden rounded-[18px] bg-[linear-gradient(120deg,#0b1d3a,#0f3460)] p-5 text-white shadow-[0_12px_28px_rgba(8,17,31,0.14)] sm:p-6" aria-labelledby="glance-title">
+          <div className="flex items-center justify-between gap-4">
+            <h2 id="glance-title" className="text-lg font-black">{glance.title}</h2>
+            <Link href={glance.href} className="inline-flex items-center gap-1 text-sm font-black text-[#53a4ff] transition hover:text-white">View all <ArrowRight className="h-4 w-4" /></Link>
+          </div>
+          <div className="mt-5 grid grid-cols-3 gap-3">
+            {glance.items.map((item) => (
+              <div key={item.label} className="min-w-0">
+                <span className="block text-xs font-bold text-white/65">{item.label}</span>
+                <strong className="mt-2 block truncate text-xl font-black sm:text-2xl">{item.value}</strong>
+                <span className="mt-1 block text-xs font-semibold text-white/65">{item.helper}</span>
+              </div>
+            ))}
           </div>
         </section>
       </div>

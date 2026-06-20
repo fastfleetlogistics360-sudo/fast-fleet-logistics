@@ -501,11 +501,11 @@ function DesktopNav({ activeTab, onChange }: { activeTab: CustomerTab; onChange:
 
 function MobileTabs({ activeTab, onChange }: { activeTab: CustomerTab; onChange: (tab: CustomerTab) => void }) {
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-fleet border border-fleet-line bg-white/95 p-1 shadow-glow backdrop-blur lg:hidden">
+    <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-fleet border border-fleet-line bg-white p-1 shadow-glow lg:hidden">
       {tabs.map((tab) => {
         const Icon = tab.icon;
         return (
-          <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("grid min-h-14 place-items-center rounded-fleet text-[0.7rem] font-black", activeTab === tab.id ? "bg-fleet-navy text-white" : "text-slate-500")}>
+          <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("grid min-h-14 place-items-center rounded-fleet text-[0.7rem] font-black", activeTab === tab.id ? "bg-[#eaf3ff] text-[#1677df]" : "text-slate-500")}>
             <Icon className="h-4 w-4" />
             {tab.label}
           </button>

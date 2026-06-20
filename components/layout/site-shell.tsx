@@ -74,7 +74,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
   const usesGlobalDashboardMenu = false;
   const isHub = pathname === "/hub";
   const hasSiteChrome = siteChromeRoutes.has(pathname);
-  const hasPageHeader = hasSiteChrome && !isHub;
+  const hasPageHeader = hasSiteChrome;
   const [open, setOpen] = useState(false);
   const [accountName, setAccountName] = useState<string | null>(null);
   const [accountRole, setAccountRole] = useState<UserRole | null>(null);
@@ -229,7 +229,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 </button>
               </div>
             </div>
-            {!dashboardMenu && !isHub ? (
+            {!dashboardMenu ? (
               <nav className="grid gap-1" aria-label="Mobile primary">
                 {navItems.map((item) => (
                   <Link
@@ -344,7 +344,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         </div>
       </footer> : null}
 
-      {!open && !isDashboardEnvironment ? <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/15 bg-fleet-night/92 p-1 text-white shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Mobile app">
+      {!open && !isDashboardEnvironment ? <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-fleet-line bg-white p-1 text-fleet-night shadow-glow lg:hidden" aria-label="Mobile app">
         {bottomItems.map((item) => {
           const Icon = item.icon;
           const active = item.activePaths ? item.activePaths.some((path) => pathname === path) : pathname === item.href;
@@ -353,8 +353,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
               key={item.href}
               href={item.href}
               className={cn(
-                "grid min-h-14 place-items-center rounded-fleet px-1 text-[0.68rem] font-black text-white/60 transition",
-                active && "bg-white/15 text-white"
+                "grid min-h-14 place-items-center rounded-fleet px-1 text-[0.68rem] font-black text-slate-500 transition",
+                active && "bg-[#eaf3ff] text-[#1677df]"
               )}
             >
               <Icon className="h-4 w-4" />
@@ -365,7 +365,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
       </nav> : null}
 
       {!open && isDashboardEnvironment && dashboardBottomItems.length ? (
-        <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-white/15 bg-fleet-night/92 p-1 text-white shadow-glow backdrop-blur-2xl lg:hidden" aria-label="Dashboard mobile menu">
+        <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-fleet-line bg-white p-1 text-fleet-night shadow-glow lg:hidden" aria-label="Dashboard mobile menu">
           {dashboardBottomItems.map((item) => {
             const Icon = item.icon;
             const active = isMenuItemActive(pathname, item.href);
@@ -374,8 +374,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "grid min-h-14 place-items-center rounded-fleet px-1 text-center text-[0.62rem] font-black text-white/60 transition",
-                  active && "bg-white/15 text-white"
+                  "grid min-h-14 place-items-center rounded-fleet px-1 text-center text-[0.62rem] font-black text-slate-500 transition",
+                  active && "bg-[#eaf3ff] text-[#1677df]"
                 )}
               >
                 <Icon className="h-4 w-4" />
