@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, BellRing, BookOpenText, Box, Compass, CreditCard, Headphones, LayoutDashboard, MapPinned, PackageCheck, ShoppingBag, Store, Truck } from "lucide-react";
+import { ArrowRight, BellRing, BookOpenText, Compass, Headphones, LayoutDashboard, MapPinned, PackageCheck, ShoppingBag, Store, Truck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { UserRole } from "@/types/domain";
 import type { HubPromotionSlide } from "@/lib/hub-promotion-slides";
@@ -16,12 +16,6 @@ type HubAction = {
   href: string;
   icon: LucideIcon;
   tone: "navy" | "green" | "orange" | "blue" | "pink";
-};
-
-type HubShortcut = {
-  title: string;
-  href: string;
-  icon: LucideIcon;
 };
 
 type HubGlance = {
@@ -45,34 +39,6 @@ function avatarInitials(fullName: string | null, email: string | null) {
     .join("");
 }
 
-function shortcutsForRole(role: UserRole): HubShortcut[] {
-  if (role === "rider") {
-    return [
-      { title: "My Orders", href: "/rider/dashboard/delivery-history", icon: Box },
-      { title: "Payment Methods", href: "/rider/dashboard/withdrawals", icon: CreditCard },
-      { title: "Help Center", href: "/support", icon: Headphones }
-    ];
-  }
-
-  if (role === "business") {
-    return [
-      { title: "My Orders", href: "/business/dashboard#orders", icon: Box },
-      { title: "Saved Addresses", href: "/business/dashboard#addresses", icon: MapPinned },
-      { title: "Payment Methods", href: "/business/dashboard#wallet", icon: CreditCard },
-      { title: "Help Center", href: "/support", icon: Headphones }
-    ];
-  }
-
-  if (role === "admin") return [{ title: "Help Center", href: "/support", icon: Headphones }];
-
-  return [
-    { title: "My Orders", href: "/customer/dashboard#orders", icon: Box },
-    { title: "Saved Addresses", href: "/customer/dashboard#addresses", icon: MapPinned },
-    { title: "Payment Methods", href: "/customer/dashboard#wallet", icon: CreditCard },
-    { title: "Help Center", href: "/support", icon: Headphones }
-  ];
-}
-
 export function QuickActionHub({
   role,
   fullName,
@@ -90,7 +56,6 @@ export function QuickActionHub({
 }) {
   const reduceMotion = useReducedMotion();
   const name = firstName(fullName, email);
-  const shortcuts = shortcutsForRole(role);
 
   useEffect(() => {
     saveReturningProfile({ fullName: fullName || name, email });
@@ -174,24 +139,6 @@ export function QuickActionHub({
             })}
           </div>
         </section>
-
-        {shortcuts.length ? (
-          <section className="mt-7" aria-labelledby="quick-shortcuts-title">
-            <h2 id="quick-shortcuts-title" className="text-lg font-black text-fleet-night">Quick Shortcuts</h2>
-            <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto pb-1">
-              {shortcuts.map((shortcut) => {
-                const Icon = shortcut.icon;
-                return (
-                  <Link key={shortcut.title} href={shortcut.href} className="flex min-h-14 min-w-[164px] items-center gap-3 rounded-fleet bg-white px-3 text-sm font-black text-fleet-night shadow-[0_6px_18px_rgba(8,17,31,0.06)] transition hover:-translate-y-0.5 hover:text-fleet-ember focus:outline-none focus:ring-4 focus:ring-fleet-gold/20">
-                    <Icon className="h-5 w-5 shrink-0 text-fleet-navy" />
-                    <span className="min-w-0 flex-1 whitespace-nowrap">{shortcut.title}</span>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" />
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
 
         <section className="mt-7 overflow-hidden rounded-[18px] bg-[linear-gradient(120deg,#0b1d3a,#0f3460)] p-5 text-white shadow-[0_12px_28px_rgba(8,17,31,0.14)] sm:p-6" aria-labelledby="glance-title">
           <div className="flex items-center justify-between gap-4">
