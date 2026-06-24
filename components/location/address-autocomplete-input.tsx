@@ -122,9 +122,9 @@ export function AddressAutocompleteInput({
   }
 
   return (
-    <label ref={wrapperRef} className="form-field relative">
+    <label ref={wrapperRef} className="form-field">
       <span className="form-label">{label}</span>
-      <span className="relative">
+      <div className="relative">
         <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input
           id={inputId}
@@ -138,23 +138,23 @@ export function AddressAutocompleteInput({
           placeholder={placeholder}
           autoComplete="street-address"
         />
-      </span>
-      {open && predictions.length ? (
-        <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_18px_44px_rgba(8,17,31,0.16)]">
-          {predictions.map((prediction) => (
-            <button
-              key={prediction.placeId}
-              type="button"
-              className="block w-full px-4 py-3 text-left transition hover:bg-fleet-paper focus:bg-fleet-paper focus:outline-none"
-              onClick={() => selectPrediction(prediction)}
-            >
-              <strong className="block text-sm font-black text-fleet-night">{prediction.mainText}</strong>
-              {prediction.secondaryText ? <span className="mt-1 block text-xs font-semibold text-slate-500">{prediction.secondaryText}</span> : null}
-            </button>
-          ))}
-          <span className="block border-t border-fleet-line px-4 py-2 text-right text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Powered by Google</span>
-        </div>
-      ) : null}
+        {open && predictions.length ? (
+          <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+            {predictions.map((prediction) => (
+              <button
+                key={prediction.placeId}
+                type="button"
+                className="block w-full cursor-pointer border-b border-gray-100 px-4 py-3 text-left text-sm text-gray-800 last:border-0 hover:bg-orange-50 focus:bg-orange-50 focus:outline-none"
+                onClick={() => selectPrediction(prediction)}
+              >
+                <strong className="block font-black text-fleet-night">{prediction.mainText}</strong>
+                {prediction.secondaryText ? <span className="mt-1 block text-xs font-semibold text-slate-500">{prediction.secondaryText}</span> : null}
+              </button>
+            ))}
+            <span className="block border-t border-fleet-line px-4 py-2 text-right text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Powered by Google</span>
+          </div>
+        ) : null}
+      </div>
     </label>
   );
 }
