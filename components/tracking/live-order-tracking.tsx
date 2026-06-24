@@ -586,8 +586,11 @@ function loadGoogleMaps() {
       const script = document.createElement("script");
       script.dataset.fastfleetGoogleMaps = "true";
       script.async = true;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsKey)}`;
-      script.onload = () => resolve((window as any).google);
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsKey)}&libraries=places`;
+      script.onload = () => {
+        script.dataset.fastfleetGoogleMapsLoaded = "true";
+        resolve((window as any).google);
+      };
       script.onerror = reject;
       document.head.appendChild(script);
     });

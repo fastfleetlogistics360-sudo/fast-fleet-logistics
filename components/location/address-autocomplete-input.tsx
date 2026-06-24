@@ -25,7 +25,14 @@ type AddressAutocompleteInputProps = {
 };
 
 const browserGoogleMapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-let googlePlacesPromise: Promise<any> | null = null;
+const manualAddressEntryMessage = "Address search unavailable, please type your address manually.";
+
+type GooglePlacesLoadState = {
+  google: any;
+  isLoaded: boolean;
+};
+
+let googlePlacesPromise: Promise<GooglePlacesLoadState> | null = null;
 
 export function AddressAutocompleteInput({
   label,
@@ -54,33 +61,25 @@ export function AddressAutocompleteInput({
       setLoading(true);
       setHint(null);
       try {
-        const browserPredictions = await fetchBrowserAddressPredictions(value, currentLocation);
-        setPredictions(browserPredictions);
-        setOpen(true);
-        return;
-      } catch {
-        // Fall back to the server endpoint for deployments that provide an unrestricted server Places key.
-      }
+        const { google, isLoaded } = await loadGooglePlaces();
 
-      try {
-        const params = new URLSearchParams({ input: value, sessionToken });
-        if (currentLocation) {
-          params.set("latitude", String(currentLocation.latitude));
-          params.set("longitude", String(currentLocation.longitude));
-        }
-
-        const response = await fetch(`/api/maps/address-autocomplete?${params.toString()}`, { cache: "no-store" });
-        const data = (await response.json()) as { predictions?: AddressPrediction[]; error?: string };
-        if (!response.ok) {
-          setHint(data.error || "Address suggestions are unavailable right now.");
-          setPredictions([]);
+        if (isLoaded) {
+          const browserPredictions = await fetchBrowserAddressPredictions(value, currentLocation, google);
+          setPredictions(browserPredictions);
+          setOpen(true);
           return;
         }
-        setPredictions(Array.isArray(data.predictions) ? data.predictions : []);
+
+        // The Maps script finished loading without the legacy Places library. Only in
+        // this confirmed-missing case may the server endpoint be used as a fallback.
+        const fallbackPredictions = await fetchServerAddressPredictions(value, currentLocation, sessionToken);
+        setPredictions(fallbackPredictions);
         setOpen(true);
-      } catch {
+      } catch (error) {
+        console.error("Google browser address search failed:", error);
         setPredictions([]);
-        setHint("Address suggestions are unavailable right now.");
+        setOpen(false);
+        setHint(manualAddressEntryMessage);
       } finally {
         setLoading(false);
       }
@@ -162,9 +161,21 @@ export function AddressAutocompleteInput({
   );
 }
 
-async function fetchBrowserAddressPredictions(value: string, currentLocation: { latitude: number; longitude: number } | null): Promise<AddressPrediction[]> {
-  const google = await loadGooglePlaces();
-  const service = new google.maps.places.AutocompleteService();
+async function fetchBrowserAddressPredictions(
+  value: string,
+  currentLocation: { latitude: number; longitude: number } | null,
+  google: any
+): Promise<AddressPrediction[]> {
+  // Do not create a legacy Places service while the Maps JavaScript API is still loading.
+  if (!google?.maps?.places) throw new Error("Google Places library is not loaded.");
+
+  let service: any;
+  try {
+    service = new google.maps.places.AutocompleteService();
+  } catch (error) {
+    console.error("Unable to create Google Places AutocompleteService:", error);
+    throw new Error(manualAddressEntryMessage);
+  }
   const request: Record<string, unknown> = {
     input: value,
     componentRestrictions: { country: "ng" },
@@ -200,7 +211,9 @@ async function fetchBrowserAddressPredictions(value: string, currentLocation: { 
 }
 
 async function fetchBrowserPlaceDetails(placeId: string): Promise<PlaceDetails> {
-  const google = await loadGooglePlaces();
+  const { google, isLoaded } = await loadGooglePlaces();
+  if (!isLoaded || !google?.maps?.places) throw new Error("Google Places library is not loaded.");
+
   const service = new google.maps.places.PlacesService(document.createElement("div"));
 
   return new Promise((resolve, reject) => {
@@ -219,53 +232,73 @@ async function fetchBrowserPlaceDetails(placeId: string): Promise<PlaceDetails> 
   });
 }
 
-async function loadGooglePlaces() {
+async function fetchServerAddressPredictions(
+  value: string,
+  currentLocation: { latitude: number; longitude: number } | null,
+  sessionToken: string
+): Promise<AddressPrediction[]> {
+  const params = new URLSearchParams({ input: value, sessionToken });
+  if (currentLocation) {
+    params.set("latitude", String(currentLocation.latitude));
+    params.set("longitude", String(currentLocation.longitude));
+  }
+
+  const response = await fetch(`/api/maps/address-autocomplete?${params.toString()}`, { cache: "no-store" });
+  const data = (await response.json()) as { predictions?: AddressPrediction[] };
+  if (!response.ok) throw new Error("Server address autocomplete failed.");
+  return Array.isArray(data.predictions) ? data.predictions : [];
+}
+
+async function loadGooglePlaces(): Promise<GooglePlacesLoadState> {
   if (typeof window === "undefined") throw new Error("Google Places is only available in the browser.");
 
   const existingGoogle = (window as any).google;
-  if (existingGoogle?.maps?.places) return existingGoogle;
-  if (existingGoogle?.maps?.importLibrary) {
-    await existingGoogle.maps.importLibrary("places");
-    if ((window as any).google?.maps?.places) return (window as any).google;
+  const existingScript = document.querySelector<HTMLScriptElement>("script[data-fastfleet-google-maps]");
+  if (existingScript && existingScript.dataset.fastfleetGoogleMapsLoaded !== "true") {
+    return waitForGooglePlacesScript(existingScript);
   }
+
+  if (existingGoogle?.maps) return loadPlacesFromGoogle(existingGoogle);
   if (!browserGoogleMapsKey) throw new Error("Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable address suggestions.");
 
+  const script = document.createElement("script");
+  script.dataset.fastfleetGoogleMaps = "true";
+  script.async = true;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(browserGoogleMapsKey)}&libraries=places`;
+  document.head.appendChild(script);
+
+  return waitForGooglePlacesScript(script);
+}
+
+function waitForGooglePlacesScript(script: HTMLScriptElement): Promise<GooglePlacesLoadState> {
   if (!googlePlacesPromise) {
     googlePlacesPromise = new Promise((resolve, reject) => {
       const finish = async () => {
         try {
+          script.dataset.fastfleetGoogleMapsLoaded = "true";
           const google = (window as any).google;
-          if (google?.maps?.importLibrary && !google.maps.places) await google.maps.importLibrary("places");
-          if (google?.maps?.places) {
-            resolve(google);
-            return;
-          }
-          reject(new Error("Google Places library did not load."));
+          if (!google?.maps) throw new Error("Google Maps script finished without loading Maps.");
+          resolve(await loadPlacesFromGoogle(google));
         } catch (error) {
           reject(error);
         }
       };
 
-      const existingScript = document.querySelector<HTMLScriptElement>("script[data-fastfleet-google-maps]");
-      if (existingScript) {
-        if ((window as any).google?.maps) {
-          void finish();
-          return;
-        }
-        existingScript.addEventListener("load", () => void finish(), { once: true });
-        existingScript.addEventListener("error", () => reject(new Error("Google Maps script failed to load.")), { once: true });
-        return;
-      }
-
-      const script = document.createElement("script");
-      script.dataset.fastfleetGoogleMaps = "true";
-      script.async = true;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(browserGoogleMapsKey)}&libraries=places`;
-      script.onload = () => void finish();
-      script.onerror = () => reject(new Error("Google Maps script failed to load."));
-      document.head.appendChild(script);
+      script.addEventListener("load", () => void finish(), { once: true });
+      script.addEventListener("error", () => reject(new Error("Google Maps script failed to load.")), { once: true });
     });
   }
 
   return googlePlacesPromise;
+}
+
+async function loadPlacesFromGoogle(google: any): Promise<GooglePlacesLoadState> {
+  if (!google?.maps) return { google, isLoaded: false };
+  if (!google.maps.places && google.maps.importLibrary) await google.maps.importLibrary("places");
+
+  const loadedGoogle = (window as any).google;
+  return {
+    google: loadedGoogle,
+    isLoaded: Boolean(loadedGoogle?.maps?.places)
+  };
 }
