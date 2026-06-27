@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Loader2, MapPin, Navigation, Route, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
@@ -30,6 +30,9 @@ export function LiveLocationMap() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [locationMessage, setLocationMessage] = useState("Detecting your address...");
   const [currentAddress, setCurrentAddress] = useState("");
+  const [mapReady, setMapReady] = useState(false);
+  const mapFrameRef = useRef<HTMLDivElement>(null);
+  const refreshedLocationRef = useRef(false);
 
   const pickupCoordinates = pickupUsesCurrentLocation && location ? location : parseCoordinates(pickup);
   const dropoffCoordinates = parseCoordinates(dropoff);
@@ -82,27 +85,70 @@ export function LiveLocationMap() {
   }, []);
 
   useEffect(() => {
-    if (!location || !navigator.geolocation) return;
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        setLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy
-        });
+    const node = mapFrameRef.current;
+    if (!node) return;
+
+    if (!("IntersectionObserver" in window)) {
+      setMapReady(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setMapReady(true);
+        observer.disconnect();
       },
-      () => undefined,
-      { enableHighAccuracy: true, maximumAge: 8000, timeout: 15000 }
+      { rootMargin: "360px 0px" }
     );
-    return () => navigator.geolocation.clearWatch(watchId);
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!location || refreshedLocationRef.current || !navigator.geolocation) return;
+    refreshedLocationRef.current = true;
+    let cancelled = false;
+
+    const cancelIdleWork = scheduleIdleWork(() => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (cancelled) return;
+          const nextLocation = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          };
+          setLocation((current) => {
+            if (!current) return nextLocation;
+            const movedKm = haversineDistanceKm(current, nextLocation);
+            const accuracyImproved = Boolean(nextLocation.accuracy && current.accuracy && nextLocation.accuracy + 15 < current.accuracy);
+            if (movedKm < 0.08 && !accuracyImproved) return current;
+            return nextLocation;
+          });
+        },
+        () => undefined,
+        { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 }
+      );
+    });
+
+    return () => {
+      cancelled = true;
+      cancelIdleWork();
+    };
   }, [location]);
 
   useEffect(() => {
+    const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      updateDistance();
+      void updateDistance(controller.signal);
     }, 650);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
   }, [currentAddress, dropoff, pickup, pickupUsesCurrentLocation, location?.latitude, location?.longitude]);
 
   function applyStoredLocation(stored: StoredCurrentLocation) {
@@ -116,7 +162,7 @@ export function LiveLocationMap() {
     setPickup((current) => (current.trim() ? current : stored.address));
   }
 
-  async function updateDistance() {
+  async function updateDistance(signal?: AbortSignal) {
     const origin = pickupUsesCurrentLocation ? (currentAddress || pickup.trim()) : pickup.trim();
     const destination = dropoffCoordinates ? formatCoordinates(dropoffCoordinates) : dropoff.trim();
 
@@ -136,17 +182,19 @@ export function LiveLocationMap() {
     setRouteLoading(true);
     try {
       const params = new URLSearchParams({ origin, destination });
-      const response = await fetch(`/api/maps/distance?${params.toString()}`);
+      const response = await fetch(`/api/maps/distance?${params.toString()}`, { signal });
       if (!response.ok) throw new Error("Route distance service could not complete this estimate");
       const payload = (await response.json()) as { distanceKm?: number; source?: string };
       if (typeof payload.distanceKm !== "number") throw new Error("Route distance estimate could not be completed");
+      if (signal?.aborted) return;
       setDistanceKm(Math.max(1, roundDistance(payload.distanceKm)));
       setDistanceSource("Calculated with route distance");
     } catch {
+      if (signal?.aborted) return;
       setDistanceKm(fallbackDistance(origin, destination));
       setDistanceSource("Estimated with Fast Fleets 360 fallback routing");
     } finally {
-      setRouteLoading(false);
+      if (!signal?.aborted) setRouteLoading(false);
     }
   }
 
@@ -206,8 +254,8 @@ export function LiveLocationMap() {
           </Card>
 
           <div className="grid gap-4">
-            <div className="relative min-h-[300px] overflow-hidden rounded-fleet border border-white/70 bg-white/70 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-xl sm:min-h-[390px]">
-              {mapUrl ? (
+            <div ref={mapFrameRef} className="relative min-h-[300px] overflow-hidden rounded-fleet border border-white/70 bg-white/70 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-xl sm:min-h-[390px]">
+              {mapReady && mapUrl ? (
                 <iframe
                   title="Your Location live map"
                   src={mapUrl}
@@ -306,6 +354,16 @@ function roundDistance(value: number) {
 function fallbackDistance(origin: string, destination: string) {
   const seed = stableHash(`${origin}|${destination}`);
   return Math.max(1, roundDistance(1 + (seed % 90) / 10));
+}
+
+function scheduleIdleWork(callback: () => void) {
+  if (typeof window.requestIdleCallback === "function" && typeof window.cancelIdleCallback === "function") {
+    const handle = window.requestIdleCallback(callback, { timeout: 1600 });
+    return () => window.cancelIdleCallback(handle);
+  }
+
+  const timer = globalThis.setTimeout(callback, 800);
+  return () => globalThis.clearTimeout(timer);
 }
 
 function stableHash(value: string) {

@@ -83,32 +83,58 @@ export function SiteShell({ children }: { children: ReactNode }) {
   const dashboardHomeHref = accountRole ? "/hub" : "/choose-account-type";
 
   useEffect(() => {
-    try {
-      const supabase = createClient();
-      supabase.auth.getUser().then(async ({ data }) => {
-        if (!data.user) {
-          setAccountName(null);
-          setAccountRole(null);
-          return;
-        }
-        const [{ data: profile }, { data: appUser }] = await Promise.all([
-          supabase.from("profiles").select("account_type").eq("user_id", data.user.id).maybeSingle<{ account_type?: string | null }>(),
-          supabase.from("users").select("full_name, email").eq("id", data.user.id).maybeSingle<{ full_name?: string | null; email?: string | null }>()
-        ]);
-        const role = parseUserRole(profile?.account_type);
-        setAccountRole(role);
-        setAccountName(appUser?.full_name || appUser?.email || data.user.email || data.user.phone || "Account");
-        if (isDashboardEnvironment && !role) router.replace("/choose-account-type");
-      });
-      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-        setAccountName(session?.user?.user_metadata?.full_name || session?.user?.email || session?.user?.phone || null);
-        if (!session?.user) setAccountRole(null);
-      });
-      return () => listener.subscription.unsubscribe();
-    } catch {
+    let cancelled = false;
+    let cleanupAuthListener: (() => void) | undefined;
+
+    function clearAccount() {
+      if (cancelled) return;
       setAccountName(null);
       setAccountRole(null);
     }
+
+    function loadAccount() {
+      if (cancelled) return;
+
+      try {
+        const supabase = createClient();
+        void supabase.auth
+          .getUser()
+          .then(async ({ data }) => {
+            if (cancelled) return;
+            if (!data.user) {
+              clearAccount();
+              return;
+            }
+            const [{ data: profile }, { data: appUser }] = await Promise.all([
+              supabase.from("profiles").select("account_type").eq("user_id", data.user.id).maybeSingle<{ account_type?: string | null }>(),
+              supabase.from("users").select("full_name, email").eq("id", data.user.id).maybeSingle<{ full_name?: string | null; email?: string | null }>()
+            ]);
+            if (cancelled) return;
+            const role = parseUserRole(profile?.account_type);
+            setAccountRole(role);
+            setAccountName(appUser?.full_name || appUser?.email || data.user.email || data.user.phone || "Account");
+            if (isDashboardEnvironment && !role) router.replace("/choose-account-type");
+          })
+          .catch(() => clearAccount());
+        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+          if (cancelled) return;
+          setAccountName(session?.user?.user_metadata?.full_name || session?.user?.email || session?.user?.phone || null);
+          if (!session?.user) setAccountRole(null);
+        });
+        cleanupAuthListener = () => listener.subscription.unsubscribe();
+        if (cancelled) cleanupAuthListener();
+      } catch {
+        clearAccount();
+      }
+    }
+
+    const cancelScheduledLoad = isDashboardEnvironment ? runNow(loadAccount) : scheduleIdleWork(loadAccount);
+
+    return () => {
+      cancelled = true;
+      cancelScheduledLoad();
+      cleanupAuthListener?.();
+    };
   }, [isDashboardEnvironment, router]);
 
   useEffect(() => {
@@ -464,6 +490,21 @@ function shortMenuLabel(label: string) {
   if (label === "Available Jobs") return "Jobs";
   if (label === "Active Delivery") return "Active";
   return label.replace(" / ", "\n");
+}
+
+function runNow(callback: () => void) {
+  callback();
+  return () => undefined;
+}
+
+function scheduleIdleWork(callback: () => void) {
+  if (typeof window.requestIdleCallback === "function" && typeof window.cancelIdleCallback === "function") {
+    const handle = window.requestIdleCallback(callback, { timeout: 1800 });
+    return () => window.cancelIdleCallback(handle);
+  }
+
+  const timer = globalThis.setTimeout(callback, 900);
+  return () => globalThis.clearTimeout(timer);
 }
 
 function FooterGroup({ title, links }: { title: string; links: Array<[string, string]> }) {

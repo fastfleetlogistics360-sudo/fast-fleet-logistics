@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState, type UIEvent } from "react";
+import { useEffect, useRef, useState, type UIEvent } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
@@ -32,19 +32,37 @@ export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children
   const dark = surface === "dark";
   const [activeCard, setActiveCard] = useState(0);
   const cardRefs = useRef<Array<HTMLElement | null>>([]);
+  const activeCardRef = useRef(0);
+  const scrollFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) window.cancelAnimationFrame(scrollFrameRef.current);
+    };
+  }, []);
+
+  function updateActiveCard(index: number) {
+    const nextIndex = Math.max(0, Math.min(cards.length - 1, index));
+    if (activeCardRef.current === nextIndex) return;
+    activeCardRef.current = nextIndex;
+    setActiveCard(nextIndex);
+  }
 
   function handleScroll(event: UIEvent<HTMLDivElement>) {
     const node = event.currentTarget;
-    const firstCard = cardRefs.current[0];
-    if (!firstCard) return;
-    const gap = 12;
-    const nextIndex = Math.round(node.scrollLeft / (firstCard.offsetWidth + gap));
-    setActiveCard(Math.max(0, Math.min(cards.length - 1, nextIndex)));
+    if (scrollFrameRef.current !== null) return;
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      const firstCard = cardRefs.current[0];
+      if (!firstCard) return;
+      const gap = 12;
+      updateActiveCard(Math.round(node.scrollLeft / (firstCard.offsetWidth + gap)));
+    });
   }
 
   function goToCard(index: number) {
     cardRefs.current[index]?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", inline: "start", block: "nearest" });
-    setActiveCard(index);
+    updateActiveCard(index);
   }
 
   return (
@@ -97,14 +115,10 @@ export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children
                     blurDataURL={cardBlurDataURL}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/18 via-transparent to-white/5" />
-                  <motion.span
-                    className="absolute left-2 top-2 inline-flex items-center gap-2 rounded-fleet bg-fleet-ember px-2.5 py-1.5 text-[0.64rem] font-black uppercase tracking-[0.12em] text-white shadow-[0_10px_22px_rgba(239,108,0,0.24)]"
-                    animate={reduceMotion ? undefined : { y: [0, -3, 0] }}
-                    transition={{ duration: 3, delay: index * 0.18, repeat: Infinity, ease: "easeInOut" }}
-                  >
+                  <span className="absolute left-2 top-2 inline-flex items-center gap-2 rounded-fleet bg-fleet-ember px-2.5 py-1.5 text-[0.64rem] font-black uppercase tracking-[0.12em] text-white shadow-[0_10px_22px_rgba(239,108,0,0.24)] transition-transform duration-300 group-hover:-translate-y-0.5 group-focus:-translate-y-0.5">
                     <Icon className="h-3.5 w-3.5" />
                     {card.label}
-                  </motion.span>
+                  </span>
                 </div>
 
                 <div className="p-3">

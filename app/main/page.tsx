@@ -4,7 +4,7 @@ import { AdvertHeroSlider } from "@/components/landing/advert-hero-slider";
 import { mainHeroSlidesSettingsKey, normalizeMainHeroSlides } from "@/lib/main-hero-slides";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 const LiveLocationMap = nextDynamic(() => import("@/components/landing/live-location-map").then((mod) => mod.LiveLocationMap), {
   loading: () => <div className="h-[520px] bg-white" />

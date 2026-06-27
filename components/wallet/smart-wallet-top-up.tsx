@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CreditCard, Loader2, Wallet, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { WalletType } from "@/types/domain";
@@ -17,32 +17,40 @@ export function SmartWalletTopUp({ compact = false, className }: SmartWalletTopU
   const [amount, setAmount] = useState("10000");
   const [walletType, setWalletType] = useState<Extract<WalletType, "customer" | "rider">>("customer");
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const walletLabel = useMemo(() => (walletType === "rider" ? "driver earnings wallet" : "customer wallet"), [walletType]);
 
-  useEffect(() => {
+  async function ensureWalletAccess() {
+    if (signedIn !== null) return signedIn;
+
+    setCheckingAuth(true);
     try {
       const supabase = createClient();
-      supabase.auth.getUser().then(async ({ data }) => {
-        if (!data.user) {
-          setSignedIn(false);
-          return;
-        }
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
+        setSignedIn(false);
+        return false;
+      }
 
-        setSignedIn(true);
-        const { data: profile } = await supabase.from("users").select("role").eq("id", data.user.id).maybeSingle();
-        setWalletType(profile?.role === "rider" ? "rider" : "customer");
-      });
+      setSignedIn(true);
+      const { data: profile } = await supabase.from("users").select("role").eq("id", data.user.id).maybeSingle();
+      setWalletType(profile?.role === "rider" ? "rider" : "customer");
+      return true;
     } catch {
       setSignedIn(false);
+      return false;
+    } finally {
+      setCheckingAuth(false);
     }
-  }, []);
+  }
 
-  function openTopUp() {
+  async function openTopUp() {
     setMessage(null);
-    if (signedIn === false) {
+    const hasAccess = await ensureWalletAccess();
+    if (!hasAccess) {
       window.location.assign("/auth");
       return;
     }
@@ -76,8 +84,8 @@ export function SmartWalletTopUp({ compact = false, className }: SmartWalletTopU
 
   return (
     <>
-      <Button type="button" variant="dark" size={compact ? "md" : "md"} className={cn(compact && "w-full", className)} onClick={openTopUp}>
-        <Wallet className="h-4 w-4" />
+      <Button type="button" variant="dark" size={compact ? "md" : "md"} className={cn(compact && "w-full", className)} onClick={openTopUp} disabled={checkingAuth}>
+        {checkingAuth ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
         Top up wallet
       </Button>
 

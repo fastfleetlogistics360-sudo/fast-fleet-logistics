@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Bike, ChevronLeft, ChevronRight, LocateFixed, MapPinned, PackageCheck, Radar, ShieldCheck } from "lucide-react";
 import { LinkButton } from "@/components/ui/button";
@@ -15,7 +15,7 @@ const iconComponents: Record<MainHeroSlideIcon, typeof PackageCheck> = {
 };
 
 export function AdvertHeroSlider({ slides: configuredSlides }: { slides?: MainHeroSlide[] }) {
-  const slides = enabledMainHeroSlides(configuredSlides);
+  const slides = useMemo(() => enabledMainHeroSlides(configuredSlides), [configuredSlides]);
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const reduceMotion = useReducedMotion();
@@ -63,7 +63,7 @@ export function AdvertHeroSlider({ slides: configuredSlides }: { slides?: MainHe
             src={item.image}
             alt=""
             loading={index === 0 ? "eager" : "lazy"}
-            className={`absolute inset-0 h-full w-full object-cover object-[75%_center] transition-[opacity,transform] duration-1000 will-change-transform md:object-center ${
+            className={`absolute inset-0 h-full w-full object-cover object-[75%_center] transition-[opacity,transform] duration-1000 md:object-center ${
               active === index ? "scale-100 opacity-100" : "scale-[1.02] opacity-0"
             }`}
             aria-hidden="true"

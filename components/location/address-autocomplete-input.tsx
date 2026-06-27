@@ -50,6 +50,7 @@ export function AddressAutocompleteInput({
     }
 
     let cancelled = false;
+    const controller = new AbortController();
 
     async function getPredictions() {
       const currentLocation = readStoredCurrentLocation();
@@ -62,8 +63,8 @@ export function AddressAutocompleteInput({
           setOpen(true);
           return;
         } catch (error) {
-          console.error("Google browser address search failed:", error);
           if (cancelled) return;
+          console.error("Google browser address search failed:", error);
           setPredictions([]);
           setOpen(false);
           return;
@@ -71,21 +72,26 @@ export function AddressAutocompleteInput({
       }
 
       try {
-        const fallbackPredictions = await fetchServerAddressPredictions(value, currentLocation, sessionToken);
+        const fallbackPredictions = await fetchServerAddressPredictions(value, currentLocation, sessionToken, controller.signal);
         if (cancelled) return;
         setPredictions(fallbackPredictions);
         setOpen(true);
       } catch (error) {
+        if (cancelled || controller.signal.aborted) return;
         console.error("Server address autocomplete failed:", error);
-        if (cancelled) return;
         setPredictions([]);
         setOpen(false);
       }
     }
 
-    void getPredictions();
+    const timer = window.setTimeout(() => {
+      void getPredictions();
+    }, 260);
+
     return () => {
       cancelled = true;
+      controller.abort();
+      window.clearTimeout(timer);
     };
   }, [selectedPlaceId, sessionToken, value]);
 
@@ -224,7 +230,8 @@ async function fetchBrowserPlaceDetails(placeId: string): Promise<PlaceDetails> 
 async function fetchServerAddressPredictions(
   value: string,
   currentLocation: { latitude: number; longitude: number } | null,
-  sessionToken: string
+  sessionToken: string,
+  signal?: AbortSignal
 ): Promise<AddressPrediction[]> {
   const params = new URLSearchParams({ input: value, sessionToken });
   if (currentLocation) {
@@ -232,7 +239,7 @@ async function fetchServerAddressPredictions(
     params.set("longitude", String(currentLocation.longitude));
   }
 
-  const response = await fetch(`/api/maps/address-autocomplete?${params.toString()}`, { cache: "no-store" });
+  const response = await fetch(`/api/maps/address-autocomplete?${params.toString()}`, { cache: "no-store", signal });
   const data = (await response.json()) as { predictions?: AddressPrediction[] };
   if (!response.ok) throw new Error("Server address autocomplete failed.");
   return Array.isArray(data.predictions) ? data.predictions : [];

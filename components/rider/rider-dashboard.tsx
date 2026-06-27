@@ -810,9 +810,35 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
             </div>
             <NotificationBell />
           </header>
-	          {activeTab === "home" ? <HomeTab loading={loading} online={online} elapsed={elapsed} onToggleOnline={toggleOnline} todayEarnings={todayEarnings} profile={profile} incomingJob={incomingJob} incomingExpires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} activeJob={activeJob} recentTrips={recentTrips} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} offerNotice={offerNotice} onStartTracking={startDeliveryTracking} onStopTracking={stopDeliveryTracking} onProofFile={setProofFile} onRespond={respondToJob} onAdvance={advanceJob} /> : null}
+          {activeTab === "home" ? (
+            <HomeTab
+              loading={loading}
+              online={online}
+              elapsed={elapsed}
+              onToggleOnline={toggleOnline}
+              walletBalance={walletBalance}
+              profile={profile}
+              incomingJob={incomingJob}
+              incomingExpires={incomingExpires}
+              pickupEtaMinutes={pickupEtaMinutes}
+              pickupEtaLoading={pickupEtaLoading}
+              activeJob={activeJob}
+              recentTrips={recentTrips}
+              proofFile={proofFile}
+              liveLocation={liveLocation}
+              trackingActive={trackingActive}
+              trackingMessage={trackingMessage}
+              offerNotice={offerNotice}
+              onOpenWithdrawal={() => setWithdrawalOpen(true)}
+              onStartTracking={startDeliveryTracking}
+              onStopTracking={stopDeliveryTracking}
+              onProofFile={setProofFile}
+              onRespond={respondToJob}
+              onAdvance={advanceJob}
+            />
+          ) : null}
           {activeTab === "jobs" ? <JobsTab loading={loading} jobs={jobs} online={online} onToggleOnline={toggleOnline} /> : null}
-          {activeTab === "earnings" ? <EarningsTab walletBalance={walletBalance} profile={profile} withdrawals={withdrawals} onOpenWithdrawal={() => setWithdrawalOpen(true)} /> : null}
+          {activeTab === "earnings" ? <EarningsTab todayEarnings={todayEarnings} withdrawals={withdrawals} /> : null}
           {activeTab === "account" ? <AccountTab profile={profile} onProfile={setProfile} kycStatus={profile.application_status || initialKycStatus} prefs={prefs} onPrefs={setPrefs} /> : null}
         </main>
       </div>
@@ -851,10 +877,21 @@ function MobileTabs({ activeTab, onChange }: { activeTab: RiderTab; onChange: (t
   );
 }
 
-function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, recentTrips, proofFile, liveLocation, trackingActive, trackingMessage, offerNotice, onStartTracking, onStopTracking, onProofFile, onRespond, onAdvance }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; todayEarnings: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; recentTrips: JobRow[]; proofFile: File | null; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onStartTracking: () => void; onStopTracking: () => void; onProofFile: (file: File | null) => void; onRespond: (job: JobRow, accepted: boolean) => void; onAdvance: (job: JobRow) => void }) {
+function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, recentTrips, proofFile, liveLocation, trackingActive, trackingMessage, offerNotice, onOpenWithdrawal, onStartTracking, onStopTracking, onProofFile, onRespond, onAdvance }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; walletBalance: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; recentTrips: JobRow[]; proofFile: File | null; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onOpenWithdrawal: () => void; onStartTracking: () => void; onStopTracking: () => void; onProofFile: (file: File | null) => void; onRespond: (job: JobRow, accepted: boolean) => void; onAdvance: (job: JobRow) => void }) {
   if (loading) return <DashboardSkeleton />;
   return (
     <div className="grid gap-5">
+      <WalletDashboardCard
+        userName={profile.full_name?.trim().split(/\s+/)[0] || "Rider"}
+        balance={walletBalance}
+        walletType="rider"
+        accountKind="rider"
+        kycStatus={(profile.application_status || "approved") === "approved" ? "verified" : "pending"}
+        returnTo="/rider/dashboard"
+        onWithdraw={onOpenWithdrawal}
+        transactionHref="/rider/dashboard#transactions"
+      />
+      <TransactionHistory accountKind="rider" />
       <Card className="p-5">
         <button type="button" onClick={onToggleOnline} className={cn("flex w-full items-center justify-between rounded-fleet p-5 text-left transition", online ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600")}>
           <span><strong className="block text-2xl font-black">{online ? "Go offline" : "Go online"}</strong><span className="text-sm font-bold">{online ? `Online for ${elapsed}` : "Paused from dispatch"}</span></span>
@@ -862,13 +899,12 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, todayEarnings, prof
         </button>
         <RiderAccountTypeCard accountType={profile.rider_account_type} />
       </Card>
-	      <div className="grid grid-cols-3 gap-3">
-	        <Stat label="Trips" value={String(profile.completed_deliveries || recentTrips.length)} />
-	        <Stat label="Today" value={formatMoney(todayEarnings)} />
-	        <Stat label="Rating" value={(profile.rating || 4.9).toFixed(1)} />
-	      </div>
-	      {offerNotice ? <div className="rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-800">{offerNotice}</div> : null}
-	      {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
+      <div className="grid grid-cols-2 gap-3">
+        <Stat label="Trips" value={String(profile.completed_deliveries || recentTrips.length)} />
+        <Stat label="Rating" value={(profile.rating || 4.9).toFixed(1)} />
+      </div>
+      {offerNotice ? <div className="rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-800">{offerNotice}</div> : null}
+      {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
       {activeJob ? <ActiveJob job={activeJob} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} onStartTracking={onStartTracking} onStopTracking={onStopTracking} onProofFile={onProofFile} onAdvance={onAdvance} /> : null}
       <Card className="overflow-hidden p-0">
         <RoutePreview
@@ -1014,23 +1050,16 @@ function JobsTab({ loading, jobs, online, onToggleOnline }: { loading: boolean; 
   );
 }
 
-function EarningsTab({ walletBalance, profile, withdrawals, onOpenWithdrawal }: { walletBalance: number; profile: RiderProfile; withdrawals: WithdrawalRow[]; onOpenWithdrawal: () => void }) {
+function EarningsTab({ todayEarnings, withdrawals }: { todayEarnings: number; withdrawals: WithdrawalRow[] }) {
   const settledWithdrawals = withdrawals.slice(0, 14).map((item) => Number(item.amount_ngn || 0));
   const chartValues = settledWithdrawals.length ? settledWithdrawals : [0];
   const max = Math.max(...chartValues, 1);
   return (
     <div className="grid gap-5">
-      <WalletDashboardCard
-        userName={profile.full_name?.trim().split(/\s+/)[0] || "Rider"}
-        balance={walletBalance}
-        walletType="rider"
-        accountKind="rider"
-        kycStatus={(profile.application_status || "approved") === "approved" ? "verified" : "pending"}
-        returnTo="/rider/dashboard"
-        onWithdraw={onOpenWithdrawal}
-        transactionHref="/rider/dashboard/earnings"
-      />
-      <TransactionHistory accountKind="rider" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Stat label="Today" value={formatMoney(todayEarnings)} />
+        <Stat label="Withdrawal records" value={String(withdrawals.length)} />
+      </div>
       <Card className="p-5">
         <h2 className="text-xl font-black text-fleet-night">Last 14 days</h2>
         <div className="mt-5 flex h-48 items-end gap-2">
