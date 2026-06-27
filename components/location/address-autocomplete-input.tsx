@@ -15,6 +15,7 @@ type AddressPrediction = {
   description: string;
   mainText: string;
   secondaryText: string;
+  source?: "google" | "local";
 };
 
 type PlaceDetails = {
@@ -41,46 +42,47 @@ export function AddressAutocompleteInput({
   const [predictions, setPredictions] = useState<AddressPrediction[]>([]);
   const [open, setOpen] = useState(false);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
-  const wrapperRef = useRef<HTMLLabelElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const hasGooglePredictions = predictions.some((prediction) => prediction.source !== "local");
 
   useEffect(() => {
-    if (value.trim().length < 3 || selectedPlaceId) {
+    const query = value.trim();
+    if (query.length < 3 || selectedPlaceId) {
       setPredictions([]);
       return;
     }
 
     let cancelled = false;
     const controller = new AbortController();
+    const currentLocation = readStoredCurrentLocation();
+    const localPredictions = buildLocalAddressPredictions(query, currentLocation);
+    setPredictions(localPredictions);
+    setOpen(true);
 
     async function getPredictions() {
-      const currentLocation = readStoredCurrentLocation();
-
       if (window.google && window.google.maps && window.google.maps.places) {
         try {
-          const browserPredictions = await fetchBrowserAddressPredictions(value, currentLocation, window.google);
+          const browserPredictions = await fetchBrowserAddressPredictions(query, currentLocation, window.google);
           if (cancelled) return;
-          setPredictions(browserPredictions);
+          setPredictions(mergePredictions(browserPredictions, localPredictions));
           setOpen(true);
-          return;
+          if (browserPredictions.length) return;
         } catch (error) {
           if (cancelled) return;
           console.error("Google browser address search failed:", error);
-          setPredictions([]);
-          setOpen(false);
-          return;
         }
       }
 
       try {
-        const fallbackPredictions = await fetchServerAddressPredictions(value, currentLocation, sessionToken, controller.signal);
+        const fallbackPredictions = await fetchServerAddressPredictions(query, currentLocation, sessionToken, controller.signal);
         if (cancelled) return;
-        setPredictions(fallbackPredictions);
+        setPredictions(mergePredictions(fallbackPredictions, localPredictions));
         setOpen(true);
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
         console.error("Server address autocomplete failed:", error);
-        setPredictions([]);
-        setOpen(false);
+        setPredictions(localPredictions);
+        setOpen(true);
       }
     }
 
@@ -109,6 +111,8 @@ export function AddressAutocompleteInput({
     setOpen(false);
     onChange(prediction.description);
 
+    if (prediction.source === "local") return;
+
     try {
       const browserDetails = await fetchBrowserPlaceDetails(prediction.placeId);
       if (browserDetails.address) onChange(browserDetails.address);
@@ -128,8 +132,8 @@ export function AddressAutocompleteInput({
   }
 
   return (
-    <label ref={wrapperRef} className="form-field">
-      <span className="form-label">{label}</span>
+    <div ref={wrapperRef} className="form-field">
+      <label htmlFor={inputId} className="form-label">{label}</label>
       <div className="relative">
         <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input
@@ -145,23 +149,30 @@ export function AddressAutocompleteInput({
           autoComplete="street-address"
         />
         {open && predictions.length ? (
-          <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+          <div className="absolute left-0 right-0 top-full z-[120] mt-2 max-h-80 overflow-y-auto rounded-2xl border border-fleet-line bg-white shadow-[0_18px_48px_rgba(8,17,31,0.16)]">
             {predictions.map((prediction) => (
               <button
                 key={prediction.placeId}
                 type="button"
-                className="block w-full cursor-pointer border-b border-gray-100 px-4 py-3 text-left text-sm text-gray-800 last:border-0 hover:bg-orange-50 focus:bg-orange-50 focus:outline-none"
+                className="flex w-full cursor-pointer items-start gap-3 border-b border-gray-100 px-4 py-3 text-left text-sm text-gray-800 last:border-0 hover:bg-orange-50 focus:bg-orange-50 focus:outline-none"
                 onClick={() => selectPrediction(prediction)}
               >
-                <strong className="block font-black text-fleet-night">{prediction.mainText}</strong>
-                {prediction.secondaryText ? <span className="mt-1 block text-xs font-semibold text-slate-500">{prediction.secondaryText}</span> : null}
+                <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-50 text-slate-500">
+                  <MapPin className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <strong className="block font-black text-fleet-night">
+                    <HighlightedAddress text={prediction.mainText} query={value} />
+                  </strong>
+                  {prediction.secondaryText ? <span className="mt-1 block text-xs font-semibold text-slate-500">{prediction.secondaryText}</span> : null}
+                </span>
               </button>
             ))}
-            <span className="block border-t border-fleet-line px-4 py-2 text-right text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Powered by Google</span>
+            <span className="block border-t border-fleet-line px-4 py-2 text-right text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">{hasGooglePredictions ? "Powered by Google" : "Suggested addresses"}</span>
           </div>
         ) : null}
       </div>
-    </label>
+    </div>
   );
 }
 
@@ -198,7 +209,8 @@ async function fetchBrowserAddressPredictions(
           placeId: prediction.place_id,
           description: prediction.description,
           mainText: prediction.structured_formatting?.main_text || prediction.description,
-          secondaryText: prediction.structured_formatting?.secondary_text || ""
+          secondaryText: prediction.structured_formatting?.secondary_text || "",
+          source: "google" as const
         }))
       );
     });
@@ -242,5 +254,59 @@ async function fetchServerAddressPredictions(
   const response = await fetch(`/api/maps/address-autocomplete?${params.toString()}`, { cache: "no-store", signal });
   const data = (await response.json()) as { predictions?: AddressPrediction[] };
   if (!response.ok) throw new Error("Server address autocomplete failed.");
-  return Array.isArray(data.predictions) ? data.predictions : [];
+  return Array.isArray(data.predictions) ? data.predictions.map((prediction) => ({ ...prediction, source: "google" as const })) : [];
+}
+
+function HighlightedAddress({ text, query }: { text: string; query: string }) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return text;
+  const index = text.toLowerCase().indexOf(normalizedQuery);
+  if (index < 0) return text;
+
+  return (
+    <>
+      {text.slice(0, index)}
+      <span className="text-emerald-700">{text.slice(index, index + normalizedQuery.length)}</span>
+      {text.slice(index + normalizedQuery.length)}
+    </>
+  );
+}
+
+function mergePredictions(primary: AddressPrediction[], fallback: AddressPrediction[]) {
+  const seen = new Set<string>();
+  return [...primary, ...fallback]
+    .filter((prediction) => {
+      const key = prediction.description.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 6);
+}
+
+function buildLocalAddressPredictions(value: string, currentLocation: { latitude: number; longitude: number; address?: string } | null): AddressPrediction[] {
+  const base = titleCase(cleanAddressSeed(value));
+  if (!base) return [];
+  const hasStreetSuffix = /\b(st|street|road|rd|avenue|ave|close|crescent|drive|dr|lane|ln)\b/i.test(base);
+  const stems = hasStreetSuffix ? [base] : [`${base} Street`, `${base} St`, `${base} Road`, `${base} Close`, `${base} Avenue`];
+  const areas = currentLocation?.address ? ["Near your current location", "Lagos, Nigeria", "Ogun, Nigeria"] : ["Lagos, Nigeria", "Alagbado, Lagos", "Agege, Nigeria", "Ota, Ogun"];
+
+  return stems.slice(0, 5).map((mainText, index) => ({
+    placeId: `local-address-${index}-${mainText.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    description: `${mainText}, ${areas[index % areas.length]}`,
+    mainText,
+    secondaryText: areas[index % areas.length],
+    source: "local" as const
+  }));
+}
+
+function cleanAddressSeed(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/,\s*$/g, "");
+}
+
+function titleCase(value: string) {
+  return value.replace(/\b([a-z])/gi, (letter) => letter.toUpperCase());
 }
