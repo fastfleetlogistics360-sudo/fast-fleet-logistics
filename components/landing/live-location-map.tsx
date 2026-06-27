@@ -20,6 +20,8 @@ type Coordinates = {
   longitude: number;
 };
 
+const googleMapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
 export function LiveLocationMap() {
   const [location, setLocation] = useState<LocationState | null>(null);
   const [pickup, setPickup] = useState("");
@@ -40,35 +42,16 @@ export function LiveLocationMap() {
   const pricing = useMemo(() => estimateFareForDistance({ distanceKm, vehicle: "bike", speed: "express" }), [distanceKm]);
 
   const mapUrl = useMemo(() => {
-    if (pickupCoordinates && dropoffCoordinates) {
-      const origin = `${pickupCoordinates.latitude},${pickupCoordinates.longitude}`;
-      const destination = `${dropoffCoordinates.latitude},${dropoffCoordinates.longitude}`;
-      return `https://maps.google.com/maps?saddr=${encodeURIComponent(origin)}&daddr=${encodeURIComponent(destination)}&output=embed`;
+    const origin = pickupCoordinates ? formatCoordinates(pickupCoordinates) : pickup.trim();
+    const destination = dropoffCoordinates ? formatCoordinates(dropoffCoordinates) : dropoff.trim();
+
+    if (googleMapsKey && origin.length > 3 && destination.length > 3) {
+      return googleDirectionsEmbedUrl(origin, destination);
     }
 
-    if (pickupCoordinates && dropoff.trim().length > 3) {
-      const origin = `${pickupCoordinates.latitude},${pickupCoordinates.longitude}`;
-      return `https://maps.google.com/maps?saddr=${encodeURIComponent(origin)}&daddr=${encodeURIComponent(dropoff)}&output=embed`;
-    }
-
-    if (pickupCoordinates) {
-      const query = `${pickupCoordinates.latitude},${pickupCoordinates.longitude}`;
-      return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`;
-    }
-
-    if (pickup.trim().length > 3 && dropoff.trim().length > 3) {
-      return `https://maps.google.com/maps?saddr=${encodeURIComponent(pickup)}&daddr=${encodeURIComponent(dropoff)}&output=embed`;
-    }
-
-    if (pickup.trim().length > 3) {
-      return `https://maps.google.com/maps?q=${encodeURIComponent(pickup)}&z=16&output=embed`;
-    }
-
-    if (dropoff.trim().length > 3) {
-      return `https://maps.google.com/maps?q=${encodeURIComponent(dropoff)}&z=13&output=embed`;
-    }
-
-    return null;
+    const focus = destination.length > 3 ? destination : origin;
+    if (!focus || focus.length <= 3) return null;
+    return googlePlaceEmbedUrl(focus, pickupCoordinates && destination.length <= 3 ? 16 : 13);
   }, [dropoff, dropoffCoordinates, pickup, pickupCoordinates]);
 
   useEffect(() => {
@@ -207,7 +190,7 @@ export function LiveLocationMap() {
     <section className="bg-white py-7 sm:py-10">
       <div className="section-wrap">
         <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr] lg:items-stretch">
-          <Card className="overflow-hidden p-4">
+          <Card className="relative z-20 !overflow-visible p-4">
             <div>
               <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Your Location</span>
               <h2 className="mt-2 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Where should we pick up from?</h2>
@@ -330,6 +313,22 @@ function parseCoordinates(value: string): Coordinates | null {
 
 function formatCoordinates(coordinates: Coordinates) {
   return `${coordinates.latitude},${coordinates.longitude}`;
+}
+
+function googleDirectionsEmbedUrl(origin: string, destination: string) {
+  const params = new URLSearchParams({
+    key: googleMapsKey || "",
+    origin,
+    destination,
+    mode: "driving",
+    units: "metric"
+  });
+
+  return `https://www.google.com/maps/embed/v1/directions?${params.toString()}`;
+}
+
+function googlePlaceEmbedUrl(query: string, zoom: number) {
+  return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=${zoom}&output=embed`;
 }
 
 function haversineDistanceKm(origin: Coordinates, destination: Coordinates) {
