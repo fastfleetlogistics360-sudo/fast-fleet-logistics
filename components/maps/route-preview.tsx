@@ -22,7 +22,9 @@ export function RoutePreview({
   riderLocation?: LiveRiderLocation | null;
 }) {
   const progress = statusProgress(status);
-  const mapUrl = googleMapsKey ? googleDirectionsUrl(pickupAddress, dropoffAddress) : null;
+  const origin = usableMapAddress(pickupAddress);
+  const destination = usableMapAddress(dropoffAddress);
+  const mapUrl = mapPreviewUrl(origin, destination);
 
   if (mapUrl) {
     return (
@@ -71,6 +73,23 @@ function googleDirectionsUrl(origin: string, destination: string) {
   });
 
   return `https://www.google.com/maps/embed/v1/directions?${params.toString()}`;
+}
+
+function googlePlaceUrl(query: string) {
+  return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=13&output=embed`;
+}
+
+function mapPreviewUrl(origin: string, destination: string) {
+  if (googleMapsKey && origin && destination) return googleDirectionsUrl(origin, destination);
+  const focus = destination || origin;
+  return focus ? googlePlaceUrl(focus) : null;
+}
+
+function usableMapAddress(value?: string) {
+  const address = value?.trim() || "";
+  if (address.length < 4) return "";
+  if (/^current detected address$/i.test(address)) return "";
+  return address;
 }
 
 function statusProgress(status?: string) {

@@ -147,7 +147,7 @@ export function BookingFlow() {
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-      <Card className="p-4 sm:p-6">
+      <Card className="relative z-20 !overflow-visible p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Book delivery</span>
