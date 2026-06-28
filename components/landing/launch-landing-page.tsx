@@ -134,7 +134,7 @@ export function LaunchLandingPage() {
       />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_34%,rgba(244,126,24,0.16),transparent_30%),linear-gradient(90deg,rgba(2,6,8,0.94),rgba(2,6,8,0.70)_45%,rgba(2,6,8,0.35)),linear-gradient(180deg,rgba(2,6,8,0.22),rgba(2,6,8,0.98)_74%,#020608)]" />
 
-      <section className="section-wrap relative z-10 flex min-h-screen flex-col px-4 pb-8 pt-6 sm:px-6 lg:pb-10 lg:pt-7">
+      <section className="section-wrap relative z-10 flex min-h-screen flex-col px-4 pb-7 pt-5 sm:px-6 lg:pb-9 lg:pt-6">
         <header className="flex items-center justify-between gap-4">
           <Link href="/" className="group flex min-w-0 items-center gap-3" aria-label="Fast Fleets 360 landing home">
             <Image
@@ -142,47 +142,59 @@ export function LaunchLandingPage() {
               alt="Fast Fleets 360 Logistics"
               width={56}
               height={56}
-              className="h-11 w-11 rounded-full border border-white/20 bg-white object-cover p-1 shadow-[0_16px_34px_rgba(0,0,0,0.28)] transition group-hover:-translate-y-0.5"
+              className="h-10 w-10 rounded-full border border-white/20 bg-white object-cover p-1 shadow-[0_14px_30px_rgba(0,0,0,0.24)] transition group-hover:-translate-y-0.5"
               priority
               sizes="56px"
             />
             <span className="grid leading-none">
-              <strong className="text-lg font-black italic tracking-[0.02em] text-white sm:text-2xl">Fast Fleets 360</strong>
-              <span className="mt-1 text-[0.58rem] font-black uppercase tracking-[0.42em] text-fleet-gold sm:text-[0.64rem]">Logistics</span>
+              <strong className="text-base font-black italic tracking-[0.02em] text-white sm:text-xl">Fast Fleets 360</strong>
+              <span className="mt-1 text-[0.56rem] font-black uppercase tracking-[0.34em] text-fleet-gold sm:text-[0.6rem]">Logistics</span>
             </span>
           </Link>
 
           {hasActiveSession ? (
-            <Link href="/hub" className="inline-flex min-h-11 items-center gap-2 rounded-fleet border border-white/20 bg-white/10 px-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-fleet-night focus:outline-none focus:ring-4 focus:ring-white/20">
+            <Link href="/hub" className="inline-flex min-h-10 items-center gap-2 rounded-[14px] border border-white/20 bg-white/10 px-3.5 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-fleet-night focus:outline-none focus:ring-4 focus:ring-white/20">
               <LayoutDashboard className="h-4 w-4" />
               Open App
             </Link>
           ) : null}
         </header>
 
-        <div className="grid flex-1 content-center py-14 sm:py-16 lg:py-20">
+        <div className="grid flex-1 content-center py-10 sm:py-12 lg:py-14">
           <div className="max-w-3xl">
-            <p className="text-base font-extrabold text-fleet-gold sm:text-xl">Fast. Reliable. Always.</p>
-            <h1 className="mt-5 max-w-3xl text-5xl font-black leading-[0.98] tracking-normal text-white sm:text-7xl lg:text-8xl">
+            <p className="text-sm font-extrabold text-fleet-gold sm:text-base">Fast. Reliable. Always.</p>
+            <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[0.98] tracking-normal text-white sm:text-6xl lg:text-7xl">
               Delivering More, Everyday.
             </h1>
-            <p className="mt-6 max-w-2xl text-base font-semibold leading-8 text-white/85 sm:text-xl">
+            <p className="mt-5 max-w-2xl text-sm font-semibold leading-7 text-white/[0.85] sm:text-lg">
               Fast Fleets 360 connects people, businesses and communities through fast, safe and reliable delivery.
             </p>
-            <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:items-center">
+
+            <div
+              id="launch-actions"
+              className="mt-6 rounded-[20px] border border-white/[0.15] bg-black/[0.36] p-2.5 shadow-[0_18px_52px_rgba(0,0,0,0.30)] backdrop-blur-2xl"
+            >
+              <div className="grid grid-cols-2 gap-2">
+                {actionItems.map((item) => (
+                  <ActionItem key={item.title} item={item} />
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Link
                 href="/main"
-                className="inline-flex min-h-14 items-center justify-center gap-3 rounded-fleet bg-fleet-ember px-7 text-base font-black text-white shadow-[0_0_38px_rgba(239,108,0,0.35)] transition hover:-translate-y-0.5 hover:bg-[#f47e18] focus:outline-none focus:ring-4 focus:ring-fleet-gold/25"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-fleet-ember px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(239,108,0,0.24)] transition hover:-translate-y-0.5 hover:bg-[#f47e18] focus:outline-none focus:ring-4 focus:ring-fleet-gold/25"
               >
-                <CircleUserRound className="h-5 w-5" />
+                <CircleUserRound className="h-4 w-4" />
                 Proceed to Main Page
               </Link>
               <Link
                 href="/how-it-works"
-                className="inline-flex min-h-14 items-center justify-center gap-3 rounded-full text-base font-black text-white transition hover:-translate-y-0.5 hover:text-fleet-gold focus:outline-none focus:ring-4 focus:ring-white/15"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full text-sm font-black text-white transition hover:-translate-y-0.5 hover:text-fleet-gold focus:outline-none focus:ring-4 focus:ring-white/[0.15]"
               >
-                <span className="grid h-14 w-14 place-items-center rounded-full border border-white/80 bg-white/5 backdrop-blur">
-                  <Play className="h-5 w-5 fill-white text-white" />
+                <span className="grid h-11 w-11 place-items-center rounded-full border border-white/70 bg-white/5 backdrop-blur">
+                  <Play className="h-4 w-4 fill-white text-white" />
                 </span>
                 How It Works
               </Link>
@@ -191,19 +203,7 @@ export function LaunchLandingPage() {
 
           <LaunchStatusPanels reduceMotion={Boolean(reduceMotion)} />
         </div>
-
-        <div
-          id="launch-actions"
-          className="rounded-[18px] border border-white/15 bg-black/40 p-2.5 shadow-[0_18px_52px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:p-3"
-        >
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {actionItems.map((item, index) => (
-              <ActionItem key={item.title} item={item} index={index} />
-            ))}
-          </div>
-        </div>
-
-        <div className="mx-auto mt-9 grid justify-items-center gap-7">
+        <div className="mx-auto mt-8 grid justify-items-center gap-6">
           <div className="flex flex-wrap items-center justify-center gap-4">
             <StoreBadge icon={<AppleIcon className="h-8 w-8" />} eyebrow="Download on the" label="App Store" onClick={() => setStorePopup(true)} />
             <StoreBadge icon={<GoogleIcon className="h-8 w-8" />} eyebrow="GET IT ON" label="Google Play" onClick={() => setStorePopup(true)} />
@@ -229,7 +229,7 @@ export function LaunchLandingPage() {
         </div>
       </section>
 
-      <section className="relative z-10 bg-black/84 px-4 py-10 sm:px-6">
+      <section className="relative z-10 bg-black/[0.84] px-4 py-10 sm:px-6">
         <div className="mx-auto max-w-7xl overflow-hidden">
           <h2 className="text-center text-sm font-black uppercase tracking-normal text-fleet-gold">OUR BRAND PARTNERS</h2>
           <div className="relative mt-5 overflow-hidden py-2 [mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]">
@@ -244,7 +244,7 @@ export function LaunchLandingPage() {
                   {partner.name.trim() ? (
                     <>
                       <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/80 via-fleet-night/10 to-white/10" />
-                      <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/92 px-2 py-1 text-center text-sm font-black text-fleet-night shadow-[0_8px_18px_rgba(0,0,0,0.16)]">
+                      <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/[0.92] px-2 py-1 text-center text-sm font-black text-fleet-night shadow-[0_8px_18px_rgba(0,0,0,0.16)]">
                         {partner.name}
                       </span>
                     </>
@@ -291,67 +291,64 @@ export function LaunchLandingPage() {
 
 function LaunchStatusPanels({ reduceMotion }: { reduceMotion: boolean }) {
   return (
-    <section className="mt-8 grid max-w-5xl gap-3 sm:grid-cols-2" aria-label="Launch and marketplace availability">
+    <section className="mt-7 grid max-w-4xl gap-3 sm:grid-cols-2" aria-label="Launch and marketplace availability">
       <motion.article
         initial={reduceMotion ? false : { opacity: 0, y: 12 }}
         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
         transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-        className="overflow-hidden rounded-fleet border border-white/15 bg-white/[0.09] p-4 shadow-[0_16px_40px_rgba(0,0,0,0.26)] backdrop-blur-xl"
+        className="overflow-hidden rounded-[18px] border border-white/[0.15] bg-white/[0.09] p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.22)] backdrop-blur-xl"
       >
         <div className="flex items-center justify-between gap-3">
           <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-fleet-gold"><Rocket className="h-4 w-4" /> Launch Status</span>
           <CalendarDays className="h-4 w-4 text-fleet-ember" />
         </div>
-        <strong className="mt-4 block text-xl font-black text-white">Soft Launch Scheduled</strong>
+        <strong className="mt-3 block text-lg font-black text-white">Soft Launch Scheduled</strong>
         <span className="mt-1 block text-sm font-black text-fleet-gold">August 2026</span>
         <div className="mt-4 flex flex-wrap gap-2">
-          {softLaunchStates.map((item) => <span key={item.state} className="rounded-full border border-white/12 bg-black/15 px-2.5 py-1 text-[0.68rem] font-bold text-white/80">{item.state}</span>)}
+          {softLaunchStates.map((item) => <span key={item.state} className="rounded-full border border-white/[0.12] bg-black/[0.15] px-2.5 py-1 text-[0.68rem] font-bold text-white/80">{item.state}</span>)}
         </div>
-        <Link href="/updates#launch" className="mt-5 inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:text-fleet-gold">Learn More <ArrowUpRight className="h-4 w-4" /></Link>
+        <Link href="/updates#launch" className="mt-4 inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:text-fleet-gold">Learn More <ArrowUpRight className="h-4 w-4" /></Link>
       </motion.article>
 
       <motion.article
         initial={reduceMotion ? false : { opacity: 0, y: 12 }}
         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
         transition={{ duration: 0.32, delay: 0.07, ease: [0.22, 1, 0.36, 1] }}
-        className="rounded-fleet border border-white/15 bg-[#07131f]/95 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.26)]"
+        className="rounded-[18px] border border-white/[0.15] bg-[#07131f]/95 p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.22)]"
       >
         <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-fleet-gold"><Store className="h-4 w-4" /> Marketplace Onboarding</div>
-        <strong className="mt-4 block text-xl font-black text-white">2 Partners Onboarded</strong>
+        <strong className="mt-3 block text-lg font-black text-white">2 Partners Onboarded</strong>
         <div className="mt-3 grid gap-1 text-xs font-bold text-fleet-mint"><span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Nectar &amp; Greens</span><span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> FarmFresh by V-A.V</span></div>
         <div className="mt-4 flex items-end justify-between gap-3"><span className="text-sm font-black text-white">28 Marketplace Slots Available</span><span className="text-[0.65rem] font-black uppercase tracking-[0.12em] text-white/60">2 / 30 Filled</span></div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><span className="block h-full w-[6.67%] rounded-full bg-fleet-leaf" /></div>
-        <div className="mt-3 flex items-center justify-between gap-3 text-[0.68rem] font-bold text-white/65"><span>Onboarding ends: Aug 10, 2026</span><Link href="/business/register" className="text-fleet-gold transition hover:text-white">Reserve Your Slot</Link></div>
+        <div className="mt-3 flex items-center justify-between gap-3 text-[0.68rem] font-bold text-white/[0.65]"><span>Onboarding ends: Aug 10, 2026</span><Link href="/business/register" className="text-fleet-gold transition hover:text-white">Reserve Your Slot</Link></div>
       </motion.article>
     </section>
   );
 }
 
 function ActionItem({
-  item,
-  index
+  item
 }: {
   item: ActionItemConfig;
-  index: number;
 }) {
   const Icon = item.icon;
   const content = (
     <>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-fleet-ember/20 text-fleet-gold shadow-[0_0_22px_rgba(239,108,0,0.16)] sm:h-11 sm:w-11">
-        <Icon className="h-5 w-5" />
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fleet-ember/20 text-fleet-gold shadow-[0_0_22px_rgba(239,108,0,0.14)] sm:h-10 sm:w-10">
+        <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0">
-        <strong className="block text-sm font-black leading-tight text-white sm:text-base">{item.title}</strong>
-        <span className="mt-1 block text-[0.72rem] font-semibold leading-5 text-white/[0.72] sm:text-xs">{item.body}</span>
+        <strong className="block text-sm font-black leading-tight text-white">{item.title}</strong>
+        <span className="mt-1 block text-[0.7rem] font-semibold leading-5 text-white/[0.72]">{item.body}</span>
       </span>
     </>
   );
   const classes =
-    "group relative flex min-h-[96px] items-center gap-3 rounded-[14px] border border-white/10 bg-white/[0.035] p-3 text-left transition hover:-translate-y-0.5 hover:border-fleet-gold/30 hover:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20 sm:min-h-[104px] md:border-0 md:bg-transparent";
+    "group relative flex min-h-[82px] items-center gap-2.5 rounded-[16px] border border-white/10 bg-white/[0.045] p-2.5 text-left transition hover:-translate-y-0.5 hover:border-fleet-gold/30 hover:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20";
 
   return (
     <Link href={item.href} className={classes}>
-      {index > 0 ? <span className="absolute bottom-6 left-0 top-6 hidden w-px bg-white/16 md:block" /> : null}
       {content}
     </Link>
   );
@@ -362,12 +359,12 @@ function StoreBadge({ icon, eyebrow, label, onClick }: { icon: ReactNode; eyebro
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex min-h-16 min-w-[230px] items-center justify-center gap-3 rounded-[10px] border border-white/70 bg-black px-5 text-white shadow-[0_16px_40px_rgba(0,0,0,0.26)] transition hover:-translate-y-0.5 hover:border-fleet-gold focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
+      className="inline-flex min-h-14 min-w-[205px] items-center justify-center gap-3 rounded-[12px] border border-white/70 bg-black px-4 text-white shadow-[0_14px_34px_rgba(0,0,0,0.22)] transition hover:-translate-y-0.5 hover:border-fleet-gold focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
     >
       {icon}
       <span className="grid text-left leading-none">
         <span className="text-[0.68rem] font-black uppercase tracking-normal text-white/80">{eyebrow}</span>
-        <strong className="mt-1 text-2xl font-black">{label}</strong>
+        <strong className="mt-1 text-xl font-black">{label}</strong>
       </span>
     </button>
   );

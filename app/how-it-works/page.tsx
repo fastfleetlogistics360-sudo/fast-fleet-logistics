@@ -81,7 +81,7 @@ export default function HowItWorksPage() {
           <h1 className="mt-4 max-w-4xl text-5xl font-black leading-none text-white sm:text-7xl">
             City delivery made simple, fast, and reliable.
           </h1>
-          <p className="mt-6 max-w-3xl text-base font-semibold leading-8 text-white/82 sm:text-xl">
+          <p className="mt-6 max-w-3xl text-base font-semibold leading-8 text-white/[0.82] sm:text-xl">
             Fast Fleets 360 Logistics makes city delivery simple, fast, and reliable for customers, riders, restaurants, mall vendors, and businesses across Lagos and Ogun.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">

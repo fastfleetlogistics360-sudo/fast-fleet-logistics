@@ -136,13 +136,13 @@ function AudienceCtaSection() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <section className="overflow-hidden bg-[linear-gradient(135deg,rgb(var(--fleet-night)),rgb(var(--fleet-navy))_58%,rgb(12,82,92))] py-9 text-white sm:py-12">
+    <section className="overflow-hidden bg-fleet-night py-8 text-white sm:py-10">
       <div className="section-wrap">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-3xl">
             <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-gold">Move with Fast Fleets 360</span>
-            <h2 className="mt-3 text-3xl font-black leading-tight sm:text-5xl">One delivery page for customers, riders, and businesses.</h2>
-            <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/[0.88] sm:text-base">
+            <h2 className="mt-3 text-2xl font-black leading-tight sm:text-4xl">One delivery page for customers, riders, and businesses.</h2>
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-white/[0.88]">
               Book a delivery, start rider onboarding, or create a business dispatch account without leaving the Fast Fleets 360 flow.
             </p>
           </div>
@@ -152,7 +152,7 @@ function AudienceCtaSection() {
           </LinkButton>
         </div>
 
-        <div className="mt-6 grid gap-3 lg:grid-cols-3">
+        <div className="mt-5 grid gap-3 lg:grid-cols-3">
           {ctaCards.map((card, index) => (
             <ActionCard key={card.title} card={card} index={index} reduceMotion={Boolean(reduceMotion)} />
           ))}
@@ -175,7 +175,7 @@ function ActionCard({
 
   return (
     <motion.article
-      className="group relative overflow-hidden rounded-fleet border border-white/25 bg-white/78 text-fleet-night shadow-[0_14px_34px_rgba(0,0,0,0.2)] backdrop-blur-2xl"
+      className="group relative overflow-hidden rounded-[18px] border border-white/25 bg-white/[0.82] text-fleet-night shadow-[0_14px_34px_rgba(0,0,0,0.16)] backdrop-blur-2xl"
       initial={reduceMotion ? false : { opacity: 0, y: 28, scale: 0.97 }}
       whileInView={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
       whileHover={reduceMotion ? undefined : { y: -5 }}
@@ -184,32 +184,31 @@ function ActionCard({
     >
       <div className="relative aspect-[16/9] overflow-hidden bg-fleet-paper">
         <Image src={card.image} alt="" fill className="object-cover object-center transition duration-700 group-hover:scale-[1.04]" sizes="(min-width: 1024px) 33vw, 100vw" quality={62} loading="lazy" placeholder="blur" blurDataURL={sectionBlurDataURL} />
-        <span className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-fleet bg-fleet-ember px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-white shadow-[0_10px_22px_rgba(239,108,0,0.24)]">
+        <span className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-[12px] bg-fleet-ember px-2.5 py-1.5 text-[0.68rem] font-black uppercase tracking-[0.11em] text-white shadow-[0_10px_22px_rgba(239,108,0,0.20)]">
           <Icon className="h-4 w-4" />
           {card.label}
         </span>
       </div>
       <div className="p-3.5">
-        <h3 className="text-xl font-black leading-tight">{card.title}</h3>
+        <h3 className="text-lg font-black leading-tight">{card.title}</h3>
         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{card.body}</p>
         <LinkButton href={card.href} className="mt-4 w-full">
           {card.cta}
           <ArrowRight className="h-4 w-4" />
         </LinkButton>
       </div>
-      <div className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-0 bg-gradient-to-r from-fleet-ember via-fleet-gold to-fleet-leaf transition duration-300 group-hover:scale-x-100" />
     </motion.article>
   );
 }
 
 function AppComingSoonSection() {
   return (
-    <section className="defer-render bg-white py-9 sm:py-12">
+    <section className="defer-render bg-white py-8 sm:py-10">
       <div className="section-wrap">
         <div className="smart-card-grid grid gap-4 rounded-fleet border border-white/70 bg-white/70 p-4 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-2xl sm:p-5 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Mobile app</span>
-            <h2 className="mt-3 text-3xl font-black leading-tight text-fleet-night sm:text-5xl">Fast Fleets 360 mobile app access is expanding</h2>
+            <h2 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Fast Fleets 360 mobile app access is expanding</h2>
             <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
               The web platform is live today while native app access rolls out across customer, rider, and business operations.
             </p>

@@ -544,7 +544,7 @@ function RolloutStateDashboard({
           <div className="relative z-10 grid min-h-[360px] content-end p-5 sm:p-7">
             <StatusBadge tone="amber">Launching Soon</StatusBadge>
             <h2 className="mt-4 max-w-3xl text-3xl font-black leading-tight sm:text-5xl">Fast Fleets 360 is preparing operations in {state}</h2>
-            <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/78">
+            <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-white/[0.78]">
               We&apos;re currently active in Lagos and Ogun State as part of our phased rollout strategy.
               Your account has already been successfully created, and you&apos;ll be among the first users notified once operations begin in your area.
             </p>

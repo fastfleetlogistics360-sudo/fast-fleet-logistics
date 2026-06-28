@@ -29,10 +29,7 @@ html {
 body {
   margin: 0;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background:
-    radial-gradient(circle at 18% -8%, rgba(244, 166, 42, 0.18), transparent 28rem),
-    radial-gradient(circle at 92% 12%, rgba(15, 52, 96, 0.16), transparent 30rem),
-    rgb(var(--fleet-paper));
+  background: rgb(var(--fleet-paper));
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
@@ -59,10 +56,9 @@ svg {
 
 .hero-surface {
   background:
-    linear-gradient(115deg, rgba(8, 17, 31, 0.98), rgba(15, 52, 96, 0.94) 58%, rgba(239, 108, 0, 0.82)),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-  background-size: auto, 38px 38px, 38px 38px;
+    radial-gradient(circle at 84% 20%, rgba(244, 166, 42, 0.15), transparent 24rem),
+    linear-gradient(115deg, rgba(8, 17, 31, 0.98), rgba(15, 52, 96, 0.96));
+  background-size: auto;
 }
 
 .map-grid {
@@ -75,9 +71,8 @@ svg {
 
 .wallet-card-grid {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 56px 56px;
+    radial-gradient(circle at 90% 0%, rgba(255, 255, 255, 0.08), transparent 18rem);
+  background-size: auto;
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -94,30 +89,27 @@ svg {
 }
 
 .form-label {
-  @apply text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-600;
+  @apply text-[0.64rem] font-black uppercase tracking-[0.14em] text-slate-600;
 }
 
 .form-input {
-  @apply min-h-11 w-full rounded-fleet border border-fleet-line/90 bg-white/95 px-3 text-sm font-bold text-fleet-night outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition placeholder:text-slate-400 focus:border-fleet-gold focus:ring-4 focus:ring-fleet-gold/20;
+  @apply min-h-10 w-full rounded-[14px] border border-fleet-line/90 bg-white/95 px-3 text-[0.84rem] font-bold text-fleet-night outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition placeholder:text-slate-400 focus:border-fleet-gold focus:ring-4 focus:ring-fleet-gold/20;
 }
 
 .form-textarea {
-  @apply min-h-24 w-full rounded-fleet border border-fleet-line/90 bg-white/95 px-3 py-3 text-sm font-bold text-fleet-night outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition placeholder:text-slate-400 focus:border-fleet-gold focus:ring-4 focus:ring-fleet-gold/20;
+  @apply min-h-20 w-full rounded-[14px] border border-fleet-line/90 bg-white/95 px-3 py-3 text-[0.84rem] font-bold text-fleet-night outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition placeholder:text-slate-400 focus:border-fleet-gold focus:ring-4 focus:ring-fleet-gold/20;
 }
 
 .section-wrap {
-  @apply mx-auto max-w-7xl px-4 sm:px-6;
+  @apply mx-auto max-w-6xl px-4 sm:px-6;
 }
 
 .site-canvas {
   background:
-    linear-gradient(180deg, rgba(8, 17, 31, 0.08), transparent 18rem),
-    radial-gradient(circle at 12% 7rem, rgba(244, 166, 42, 0.18), transparent 24rem),
-    radial-gradient(circle at 93% 18rem, rgba(15, 52, 96, 0.18), transparent 26rem),
-    linear-gradient(90deg, rgba(15, 52, 96, 0.045) 1px, transparent 1px),
-    linear-gradient(rgba(15, 52, 96, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 8% 3rem, rgba(244, 126, 24, 0.09), transparent 24rem),
+    radial-gradient(circle at 92% 12rem, rgba(15, 52, 96, 0.08), transparent 26rem),
     rgb(var(--fleet-paper));
-  background-size: auto, auto, auto, 56px 56px, 56px 56px, auto;
+  background-size: auto;
 }
 
 .cinematic-hero {
@@ -135,11 +127,9 @@ svg {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(135deg, rgba(244, 166, 42, 0.11), transparent 32%),
-    linear-gradient(90deg, rgba(15, 52, 96, 0.055) 1px, transparent 1px),
-    linear-gradient(rgba(15, 52, 96, 0.04) 1px, transparent 1px);
-  background-size: auto, 38px 38px, 38px 38px;
-  opacity: 0.9;
+    radial-gradient(circle at 96% 0%, rgba(244, 126, 24, 0.10), transparent 16rem);
+  background-size: auto;
+  opacity: 1;
 }
 
 .transport-panel > * {
@@ -149,17 +139,15 @@ svg {
 
 .commercial-strip {
   background:
-    linear-gradient(90deg, rgba(8, 17, 31, 0.96), rgba(15, 52, 96, 0.92), rgba(239, 108, 0, 0.86)),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-  background-size: auto, 48px 48px;
+    radial-gradient(circle at 92% 10%, rgba(244, 126, 24, 0.16), transparent 24rem),
+    linear-gradient(90deg, rgba(8, 17, 31, 0.98), rgba(15, 52, 96, 0.94));
+  background-size: auto;
 }
 
 .smart-card-grid {
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.76)),
-    linear-gradient(90deg, rgba(15, 52, 96, 0.055) 1px, transparent 1px),
-    linear-gradient(rgba(15, 52, 96, 0.04) 1px, transparent 1px);
-  background-size: auto, 34px 34px, 34px 34px;
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.82));
+  background-size: auto;
 }
 
 .contrast-on-image {
@@ -180,7 +168,7 @@ svg {
 }
 
 .transport-panel .form-input {
-  min-height: 2.65rem;
+  min-height: 2.5rem;
 }
 
 .transport-panel .form-textarea {

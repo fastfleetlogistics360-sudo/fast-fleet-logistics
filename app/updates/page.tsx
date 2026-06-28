@@ -22,27 +22,27 @@ export default function UpdatesPage() {
         body="A simple home for the announcements that shape the Fast Fleets 360 rollout."
         image="https://images.unsplash.com/photo-1551830820-330a71b99659?auto=format&fit=crop&w=2200&q=84"
       />
-      <section id="launch" className="section-wrap py-10 sm:py-14">
-        <div className="mx-auto max-w-4xl border-l-2 border-fleet-gold pl-5 sm:pl-8">
-          {updates.map((update, index) => {
+      <section id="launch" className="section-wrap py-8 sm:py-10">
+        <div className="mx-auto grid max-w-4xl gap-3">
+          {updates.map((update) => {
             const Icon = update.icon;
             return (
-              <article key={update.title} className={index ? "mt-8 border-t border-fleet-line pt-8" : ""}>
+              <article key={update.title} className="rounded-[20px] border border-white/80 bg-white/[0.90] p-4 shadow-[0_16px_42px_rgba(8,17,31,0.08)] ring-1 ring-fleet-line/35 backdrop-blur-2xl">
                 <div className="flex items-start gap-4">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-fleet bg-fleet-navy text-white"><Icon className="h-5 w-5" /></span>
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-fleet-navy text-white"><Icon className="h-4 w-4" /></span>
                   <div>
                     <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">{update.date}</span>
-                    <h2 className="mt-1 text-2xl font-black text-fleet-night">{update.title}</h2>
-                    <p className="mt-2 max-w-2xl text-sm font-semibold leading-7 text-slate-600">{update.body}</p>
+                    <h2 className="mt-1 text-xl font-black text-fleet-night">{update.title}</h2>
+                    <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">{update.body}</p>
                   </div>
                 </div>
               </article>
             );
           })}
         </div>
-        <div className="mx-auto mt-10 flex max-w-4xl flex-wrap gap-3 pl-5 sm:pl-8">
-          <Link href="/business/register" className="inline-flex min-h-11 items-center gap-2 rounded-fleet bg-fleet-ember px-4 text-sm font-black text-white transition hover:bg-[#f47e18]">Reserve a marketplace slot <ArrowUpRight className="h-4 w-4" /></Link>
-          <Link href="/rider/onboarding" className="inline-flex min-h-11 items-center gap-2 rounded-fleet border border-fleet-line bg-white px-4 text-sm font-black text-fleet-night transition hover:border-fleet-gold">Become a rider <ArrowUpRight className="h-4 w-4" /></Link>
+        <div className="mx-auto mt-6 flex max-w-4xl flex-wrap gap-3">
+          <Link href="/business/register" className="inline-flex min-h-10 items-center gap-2 rounded-[14px] bg-fleet-ember px-4 text-sm font-black text-white transition hover:bg-[#f47e18]">Reserve a marketplace slot <ArrowUpRight className="h-4 w-4" /></Link>
+          <Link href="/rider/onboarding" className="inline-flex min-h-10 items-center gap-2 rounded-[14px] border border-fleet-line bg-white px-4 text-sm font-black text-fleet-night transition hover:border-fleet-gold">Become a rider <ArrowUpRight className="h-4 w-4" /></Link>
         </div>
       </section>
     </>

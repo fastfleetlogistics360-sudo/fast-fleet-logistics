@@ -187,13 +187,13 @@ export function LiveLocationMap() {
   const bookingHref = bookingParams.toString() ? `/book?${bookingParams.toString()}` : "/book";
 
   return (
-    <section className="bg-white py-7 sm:py-10">
+    <section className="bg-white py-6 sm:py-8">
       <div className="section-wrap">
         <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr] lg:items-stretch">
           <Card className="relative z-20 !overflow-visible p-4">
             <div>
-              <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Your Location</span>
-              <h2 className="mt-2 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Where should we pick up from?</h2>
+              <span className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-fleet-ember">Your Location</span>
+              <h2 className="mt-2 text-2xl font-black leading-tight text-fleet-night sm:text-3xl">Where should we pick up from?</h2>
               <p className="mt-2 max-w-xl text-xs font-semibold leading-5 text-slate-600 sm:text-sm">
                 Start with your live location, add a drop-off, and see the delivery distance and fee before booking.
               </p>
@@ -218,7 +218,7 @@ export function LiveLocationMap() {
               />
 
               <div className="grid gap-2">
-                <Link href={bookingHref} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-fleet border border-transparent bg-fleet-ember px-4 text-sm font-extrabold text-white shadow-[0_16px_32px_rgba(239,108,0,0.2)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#f47e18] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20">
+                <Link href={bookingHref} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border border-transparent bg-fleet-ember px-4 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(239,108,0,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#f47e18] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20">
                   Book Delivery
                   <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -237,7 +237,7 @@ export function LiveLocationMap() {
           </Card>
 
           <div className="grid gap-4">
-            <div ref={mapFrameRef} className="relative min-h-[300px] overflow-hidden rounded-fleet border border-white/70 bg-white/70 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-xl sm:min-h-[390px]">
+            <div ref={mapFrameRef} className="relative min-h-[280px] overflow-hidden rounded-[20px] border border-white/70 bg-white/70 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-xl sm:min-h-[360px]">
               {mapReady && mapUrl ? (
                 <iframe
                   title="Your Location live map"
@@ -269,7 +269,7 @@ export function LiveLocationMap() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Auto price estimate</span>
-                  <strong className="mt-1 block text-3xl font-black text-fleet-night">{formatMoney(pricing.total)}</strong>
+                  <strong className="mt-1 block text-2xl font-black text-fleet-night">{formatMoney(pricing.total)}</strong>
                 </div>
                 <span className="inline-flex items-center gap-2 rounded-full bg-fleet-night px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-white">
                   {routeLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 text-fleet-gold" />}

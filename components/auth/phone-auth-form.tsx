@@ -330,32 +330,32 @@ export function PhoneAuthForm({
   const showReturningLogin = mode === "login" && Boolean(returningProfile?.email) && !switchAccount && !effectiveLockedRole;
 
   const returningContent = returningProfile ? (
-    <div className="overflow-hidden rounded-[18px] border border-white/10 bg-[#050b13] p-5 text-white shadow-[0_24px_70px_rgba(2,6,8,0.34)] sm:p-7">
-      <div className="flex items-center gap-3">
+    <>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <StatusBadge tone="blue">Returning user</StatusBadge>
+          <h1 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-3xl">Welcome back, {returningProfile.firstName}</h1>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Enter your password to continue securely.</p>
+        </div>
         <Image
           src="/brand/fastfleet-logo-2026-header.png"
           alt="Fast Fleets 360"
-          width={48}
-          height={48}
-          className="h-12 w-12 rounded-fleet border border-white/15 bg-white object-cover p-1"
+          width={44}
+          height={44}
+          className="hidden h-11 w-11 rounded-[14px] border border-fleet-line bg-white object-cover p-1 shadow-[0_12px_26px_rgba(8,17,31,0.08)] sm:block"
         />
-        <span className="grid leading-none">
-          <strong className="text-base font-black">Fast Fleets 360</strong>
-          <span className="mt-1 text-[0.62rem] font-black uppercase tracking-[0.2em] text-fleet-gold">Secure access</span>
-        </span>
       </div>
 
-      <div className="mt-10">
-        <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-gold">Returning user</span>
-        <h1 className="mt-3 text-3xl font-black leading-tight sm:text-4xl">Welcome back, {returningProfile.firstName}</h1>
-        <p className="mt-2 text-sm font-semibold leading-6 text-white/65">Enter your password to continue securely.</p>
+      <div className="mt-5 rounded-[18px] border border-fleet-line/70 bg-white/80 p-3 shadow-[0_12px_28px_rgba(8,17,31,0.06)]">
+        <span className="text-[0.64rem] font-black uppercase tracking-[0.14em] text-slate-500">Signed in as</span>
+        <strong className="mt-1 block truncate text-sm font-black text-fleet-night">{returningProfile.email}</strong>
       </div>
 
-      <label className="form-field mt-7">
-        <span className="form-label text-white/70">Password</span>
+      <label className="form-field mt-5">
+        <span className="form-label">Password</span>
         <span className="relative">
           <input
-            className="form-input border-white/15 bg-white/10 pr-12 text-white placeholder:text-white/35 focus:border-fleet-gold focus:ring-fleet-gold/20"
+            className="form-input pr-12"
             value={password}
             onBlur={() => setError("password", passwordValid ? null : "Use at least 6 characters.")}
             onChange={(event) => {
@@ -368,25 +368,25 @@ export function PhoneAuthForm({
           />
           <button
             type="button"
-            className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-fleet text-white/60 transition hover:bg-white/10 hover:text-white"
+            className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-[12px] text-slate-500 transition hover:bg-fleet-paper hover:text-fleet-night"
             onClick={() => setPasswordVisible((value) => !value)}
             aria-label={passwordVisible ? "Hide password" : "Show password"}
           >
             {passwordVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </span>
-        {fieldErrors.password ? <span className="text-xs font-bold text-red-300">{fieldErrors.password}</span> : null}
+        {fieldErrors.password ? <span className="text-xs font-bold text-red-600">{fieldErrors.password}</span> : null}
       </label>
 
-      {message ? <div className="mt-5 rounded-fleet border border-amber-300/25 bg-amber-300/10 p-3 text-sm font-bold leading-6 text-amber-100">{message}</div> : null}
+      {message ? <div className="mt-5 rounded-[14px] border border-amber-200 bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800">{message}</div> : null}
 
-      <div className="mt-7 grid gap-3">
-        <Button type="button" disabled={!emailValid || !passwordValid || loading} onClick={loginWithPassword} className="w-full">
+      <div className="mt-6 grid gap-3">
+        <Button type="button" disabled={!emailValid || !passwordValid || loading} onClick={loginWithPassword} className="w-full bg-fleet-navy hover:bg-fleet-night">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-          SIGN IN
+          Sign in
         </Button>
-        <button type="button" onClick={resetPassword} disabled={loading} className="text-sm font-black text-fleet-gold transition hover:text-white disabled:opacity-50">
-          Forgot Password
+        <button type="button" onClick={resetPassword} disabled={loading} className="text-sm font-black text-fleet-navy transition hover:text-fleet-ember disabled:opacity-50">
+          Forgot password
         </button>
         <button
           type="button"
@@ -397,12 +397,12 @@ export function PhoneAuthForm({
             setPassword("");
             setMessage(null);
           }}
-          className="text-sm font-bold text-white/60 transition hover:text-white"
+          className="text-sm font-bold text-slate-500 transition hover:text-fleet-night"
         >
           Not {returningProfile.firstName}? Switch account
         </button>
       </div>
-    </div>
+    </>
   ) : null;
 
   const standardContent = (
@@ -410,7 +410,7 @@ export function PhoneAuthForm({
       <div className="flex items-start justify-between gap-4">
         <div>
           <StatusBadge tone="blue">{mode === "signup" ? "Account registration" : "Secure sign-in"}</StatusBadge>
-          <h1 className="mt-3 text-3xl font-black leading-tight text-fleet-night sm:text-4xl">{title}</h1>
+          <h1 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-3xl">{title}</h1>
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{description}</p>
           {effectiveLockedRole ? (
             <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-fleet-navy px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white">
@@ -419,17 +419,17 @@ export function PhoneAuthForm({
             </div>
           ) : null}
         </div>
-        <span className="hidden h-12 w-12 place-items-center rounded-fleet bg-fleet-navy text-white sm:grid">
+        <span className="hidden h-11 w-11 place-items-center rounded-[14px] bg-fleet-navy text-white sm:grid">
           <ShieldCheck className="h-5 w-5" />
         </span>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-2 rounded-fleet bg-fleet-paper p-1">
+      <div className="mt-5 grid grid-cols-2 gap-2 rounded-[14px] bg-fleet-paper p-1">
         {(["login", "signup"] as const).map((option) => (
           <button
             key={option}
             type="button"
-            className={cn("rounded-fleet px-3 py-2 text-sm font-black transition", mode === option ? "bg-white text-fleet-night shadow-lift" : "text-slate-500")}
+            className={cn("rounded-[12px] px-3 py-2 text-sm font-black transition", mode === option ? "bg-white text-fleet-night shadow-[0_10px_24px_rgba(8,17,31,0.08)]" : "text-slate-500")}
             onClick={() => {
               setMode(option);
               setMessage(null);
@@ -450,7 +450,7 @@ export function PhoneAuthForm({
                 key={option.role}
                 type="button"
                 className={cn(
-                  "rounded-fleet border p-3 text-left transition",
+                  "rounded-[16px] border p-3 text-left transition",
                   selected ? "border-fleet-navy bg-fleet-navy text-white shadow-lift" : "border-fleet-line bg-white text-fleet-night hover:border-fleet-gold"
                 )}
                 onClick={() => {
@@ -489,8 +489,8 @@ export function PhoneAuthForm({
         {mode === "signup" ? (
           <label className="form-field">
             <span className="form-label">Profile picture</span>
-            <span className="flex items-center gap-3 rounded-fleet border border-fleet-line bg-white p-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-fleet-navy text-sm font-black text-white">
+              <span className="flex items-center gap-3 rounded-[16px] border border-fleet-line bg-white p-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-fleet-navy text-sm font-black text-white">
                 {profilePhotoFile ? <UserRound className="h-5 w-5" /> : initials(fullName || "User")}
               </span>
               <span className="min-w-0 flex-1 text-sm font-bold text-slate-600">{profilePhotoFile?.name || "Upload a clear face photo for account identity."}</span>
@@ -581,7 +581,7 @@ export function PhoneAuthForm({
         </label>
       </div>
 
-      {message ? <div className="mt-5 rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800">{message}</div> : null}
+      {message ? <div className="mt-5 rounded-[14px] border border-amber-200 bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800">{message}</div> : null}
 
       <div className="mt-6 grid gap-3">
         <Button type="button" disabled={!canSubmit || loading} onClick={handleSubmit} className="w-full bg-fleet-navy hover:bg-fleet-night">
@@ -605,6 +605,5 @@ export function PhoneAuthForm({
   const content = showReturningLogin ? returningContent : standardContent;
 
   if (surface === "plain") return <div className={cn("p-0", className)}>{content}</div>;
-  if (showReturningLogin) return <div className={className}>{content}</div>;
-  return <Card className={cn("p-4 sm:p-6", className)}>{content}</Card>;
+  return <Card className={cn("p-4 sm:p-5", className)}>{content}</Card>;
 }

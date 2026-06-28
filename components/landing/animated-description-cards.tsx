@@ -66,7 +66,7 @@ export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children
   }
 
   return (
-    <section className={dark ? "defer-render overflow-hidden bg-fleet-night py-9 text-white sm:py-12" : "defer-render overflow-hidden bg-white py-9 text-fleet-night sm:py-12"}>
+    <section className={dark ? "defer-render overflow-hidden bg-fleet-night py-8 text-white sm:py-10" : "defer-render overflow-hidden bg-white py-8 text-fleet-night sm:py-10"}>
       <div className="section-wrap">
         <motion.div
           className="max-w-3xl"
@@ -75,13 +75,13 @@ export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
         >
-          <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-gold">{eyebrow}</span>
-          <h2 className={`mt-3 text-2xl font-black leading-tight sm:text-5xl ${dark ? "text-white" : "text-fleet-night"}`}>{title}</h2>
-          <p className={`mt-4 max-w-2xl text-sm font-semibold leading-7 sm:text-base ${dark ? "text-white/[0.86]" : "text-slate-600"}`}>{body}</p>
+          <span className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-fleet-gold">{eyebrow}</span>
+          <h2 className={`mt-3 text-2xl font-black leading-tight sm:text-4xl ${dark ? "text-white" : "text-fleet-night"}`}>{title}</h2>
+          <p className={`mt-3 max-w-2xl text-sm font-semibold leading-6 ${dark ? "text-white/[0.86]" : "text-slate-600"}`}>{body}</p>
         </motion.div>
 
         <div
-          className="-mx-4 mt-7 flex snap-x gap-3 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-[repeat(auto-fit,minmax(190px,1fr))] lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden"
+          className="-mx-4 mt-6 flex snap-x gap-3 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:-mx-6 sm:px-6 lg:mx-0 lg:grid lg:grid-cols-[repeat(auto-fit,minmax(190px,1fr))] lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden"
           onScroll={handleScroll}
         >
           {cards.map((card, index) => {
@@ -93,7 +93,7 @@ export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children
                 ref={(node) => {
                   cardRefs.current[index] = node;
                 }}
-                className="group relative w-[min(68vw,240px)] shrink-0 snap-start overflow-hidden rounded-fleet border border-white/70 bg-white/76 text-fleet-night shadow-[0_12px_28px_rgba(0,0,0,0.14)] outline-none backdrop-blur-2xl lg:w-auto"
+                className="group relative w-[min(68vw,228px)] shrink-0 snap-start overflow-hidden rounded-[18px] border border-white/70 bg-white/[0.82] text-fleet-night shadow-[0_12px_28px_rgba(0,0,0,0.10)] outline-none backdrop-blur-2xl lg:w-auto"
                 initial={reduceMotion ? false : { opacity: 0, y: 28, scale: 0.97 }}
                 whileInView={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
                 whileHover={reduceMotion ? undefined : { y: -5 }}
@@ -114,19 +114,17 @@ export function AnimatedDescriptionCards({ eyebrow, title, body, cards, children
                     placeholder="blur"
                     blurDataURL={cardBlurDataURL}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/18 via-transparent to-white/5" />
-                  <span className="absolute left-2 top-2 inline-flex items-center gap-2 rounded-fleet bg-fleet-ember px-2.5 py-1.5 text-[0.64rem] font-black uppercase tracking-[0.12em] text-white shadow-[0_10px_22px_rgba(239,108,0,0.24)] transition-transform duration-300 group-hover:-translate-y-0.5 group-focus:-translate-y-0.5">
+                  <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/[0.18] via-transparent to-white/5" />
+                  <span className="absolute left-2 top-2 inline-flex items-center gap-2 rounded-[12px] bg-fleet-ember px-2.5 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.11em] text-white shadow-[0_10px_22px_rgba(239,108,0,0.20)] transition-transform duration-300 group-hover:-translate-y-0.5 group-focus:-translate-y-0.5">
                     <Icon className="h-3.5 w-3.5" />
                     {card.label}
                   </span>
                 </div>
 
                 <div className="p-3">
-                  <h3 className="text-base font-black leading-tight text-fleet-night sm:text-lg">{card.title}</h3>
-                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 sm:text-sm sm:leading-6">{card.body}</p>
+                  <h3 className="text-base font-black leading-tight text-fleet-night">{card.title}</h3>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{card.body}</p>
                 </div>
-
-                <div className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-0 bg-gradient-to-r from-fleet-ember via-fleet-gold to-fleet-leaf transition duration-300 group-hover:scale-x-100 group-focus:scale-x-100" />
               </motion.article>
             );
           })}
