@@ -1515,9 +1515,10 @@ Daily commission route:
 
 - `app/api/wallet/daily-commission/route.ts`
 
-Important constants:
+Commission basis:
 
-- `COMMISSION_MIN_BALANCE_NGN = 5000`
+- Daily commission is calculated from new earnings credited on the Lagos business date, not from the full wallet balance.
+- If new earnings are zero, no commission is deducted.
 - Rider commission:
   - independent: 10 percent
   - fastfleets360: 5 percent

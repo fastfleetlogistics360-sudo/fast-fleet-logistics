@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  COMMISSION_MIN_BALANCE_NGN,
   ensureWallet,
   riderCommissionRate
 } from "@/lib/wallet-ledger";
@@ -10,6 +9,7 @@ type CommissionResult = {
   accountKind: "business" | "rider";
   accountId: string;
   amount: number;
+  earnings: number;
   rate: number;
   status: "deducted" | "skipped";
   reason?: string;
@@ -38,7 +38,7 @@ async function runDailyCommission(request: Request) {
 
     return NextResponse.json({
       runDate,
-      minimumBalance: COMMISSION_MIN_BALANCE_NGN,
+      commissionBasis: "new_earnings",
       results: [...businessResults, ...riderResults]
     });
   } catch (error) {
@@ -74,7 +74,7 @@ async function deductBusinessCommissions(db: NonNullable<ReturnType<typeof creat
   for (const business of businesses || []) {
     const rate = Number(business.commission_rate || 0);
     if (!business.user_id || rate <= 0) {
-      results.push({ accountKind: "business", accountId: business.id, amount: 0, rate, status: "skipped", reason: "No commission rate" });
+      results.push({ accountKind: "business", accountId: business.id, amount: 0, earnings: 0, rate, status: "skipped", reason: "No commission rate" });
       continue;
     }
     const result = await deductCommission(db, {
@@ -147,8 +147,14 @@ async function deductCommission(
 ): Promise<CommissionResult> {
   const wallet = await ensureWallet(db, input.userId, input.walletType);
   const balance = Number(wallet.balance_ngn || 0);
-  if (balance < COMMISSION_MIN_BALANCE_NGN) {
-    return { accountKind: input.accountKind, accountId: input.accountId, amount: 0, rate: input.rate, status: "skipped", reason: "Balance below commission threshold" };
+  const earnings = await newEarningsForDate(db, {
+    accountKind: input.accountKind,
+    walletId: wallet.id,
+    runDate: input.runDate
+  });
+
+  if (earnings <= 0) {
+    return { accountKind: input.accountKind, accountId: input.accountId, amount: 0, earnings, rate: input.rate, status: "skipped", reason: "No new earnings for date" };
   }
 
   const { data: existing } = await db
@@ -157,12 +163,13 @@ async function deductCommission(
     .eq("provider_reference", input.reference)
     .maybeSingle<{ id: string }>();
   if (existing?.id) {
-    return { accountKind: input.accountKind, accountId: input.accountId, amount: 0, rate: input.rate, status: "skipped", reason: "Already deducted for date" };
+    return { accountKind: input.accountKind, accountId: input.accountId, amount: 0, earnings, rate: input.rate, status: "skipped", reason: "Already deducted for date" };
   }
 
-  const amount = Math.max(0, Math.round((balance * input.rate) / 100));
+  const calculatedAmount = Math.max(0, Math.round((earnings * input.rate) / 100));
+  const amount = Math.min(calculatedAmount, Math.max(0, Math.round(balance)));
   if (amount <= 0) {
-    return { accountKind: input.accountKind, accountId: input.accountId, amount: 0, rate: input.rate, status: "skipped", reason: "Calculated commission is zero" };
+    return { accountKind: input.accountKind, accountId: input.accountId, amount: 0, earnings, rate: input.rate, status: "skipped", reason: "Calculated commission is zero" };
   }
 
   const { error: insertError } = await db.from("transactions").insert({
@@ -172,7 +179,12 @@ async function deductCommission(
     status: "successful",
     provider: "daily_commission",
     provider_reference: input.reference,
-    metadata: input.metadata
+    metadata: {
+      ...input.metadata,
+      earnings_amount_ngn: earnings,
+      calculated_commission_ngn: calculatedAmount,
+      charged_commission_ngn: amount
+    }
   });
   if (insertError) throw insertError;
 
@@ -184,9 +196,55 @@ async function deductCommission(
       body: `NGN ${amount.toLocaleString("en-NG")} was deducted from your ${input.accountKind} wallet for today's commission.`,
       type: "commission",
       channel: "in_app",
-      metadata: { ...input.metadata, amount_ngn: amount }
+      metadata: { ...input.metadata, amount_ngn: amount, earnings_amount_ngn: earnings }
     })
   ]);
 
-  return { accountKind: input.accountKind, accountId: input.accountId, amount, rate: input.rate, status: "deducted" };
+  return { accountKind: input.accountKind, accountId: input.accountId, amount, earnings, rate: input.rate, status: "deducted" };
+}
+
+async function newEarningsForDate(
+  db: NonNullable<ReturnType<typeof createAdminClient>>,
+  input: {
+    accountKind: "business" | "rider";
+    walletId: string;
+    runDate: string;
+  }
+) {
+  const { startIso, endIso } = lagosBusinessDayRange(input.runDate);
+  let query = db
+    .from("transactions")
+    .select("amount_ngn, transaction_type, provider, metadata")
+    .eq("wallet_id", input.walletId)
+    .eq("status", "successful")
+    .gte("created_at", startIso)
+    .lt("created_at", endIso)
+    .limit(1000);
+
+  if (input.accountKind === "rider") {
+    query = query.eq("transaction_type", "rider_earning");
+  } else {
+    query = query.eq("transaction_type", "wallet_funding").eq("provider", "business_order_checkout");
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return (data || [])
+    .filter((transaction) => {
+      const metadata = metadataRecord(transaction.metadata);
+      if (input.accountKind === "business") return metadata.account_kind === "business";
+      return metadata.account_kind === "rider" || transaction.transaction_type === "rider_earning";
+    })
+    .reduce((sum, transaction) => sum + Math.max(0, Number(transaction.amount_ngn || 0)), 0);
+}
+
+function lagosBusinessDayRange(runDate: string) {
+  const start = new Date(`${runDate}T00:00:00+01:00`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+function metadataRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }

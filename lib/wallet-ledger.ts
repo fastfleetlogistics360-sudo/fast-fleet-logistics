@@ -3,7 +3,6 @@ import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
 
 export const MIN_WITHDRAWAL_NGN = 2000;
 export const MAX_WITHDRAWAL_NGN = 200000;
-export const COMMISSION_MIN_BALANCE_NGN = 5000;
 export const PAYOUT_SLA_HOURS = 10;
 
 export type WalletAccountKind = "customer" | "rider" | "business";

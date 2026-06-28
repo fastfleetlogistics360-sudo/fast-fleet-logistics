@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, ChevronDown, Eye, EyeOff, Loader2, Minus, PackageSearch, Plus, RefreshCw, UserRound } from "lucide-react";
+import { Check, ChevronDown, Eye, EyeOff, Loader2, Minus, PackageSearch, Plus, RefreshCw, WalletCards } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { walletKycLabel, type WalletKycStatus } from "@/lib/kyc";
@@ -52,10 +52,11 @@ export function WalletDashboardCard({
   const amount = topUpAmount ?? localAmount;
   const kycTone =
     kycStatus === "verified"
-      ? "bg-fleet-leaf/15 text-fleet-mint"
+      ? "border-emerald-300/25 bg-emerald-400/15 text-emerald-300"
       : kycStatus === "more_info_needed"
-        ? "bg-fleet-ember/20 text-fleet-gold"
-        : "bg-white/10 text-white/75";
+        ? "border-amber-200/25 bg-amber-300/15 text-amber-200"
+        : "border-white/10 bg-white/10 text-white/75";
+  const cardLabel = accountKind === "business" ? "Business wallet" : accountKind === "rider" ? "Rider wallet" : "Customer wallet";
 
   async function topUp() {
     const amountNgn = Number(amount);
@@ -91,93 +92,99 @@ export function WalletDashboardCard({
   }
 
   return (
-    <section className={cn("w-full max-w-full overflow-hidden rounded-fleet bg-fleet-navy p-4 text-white shadow-[0_24px_70px_rgba(15,52,96,0.32)] sm:p-6", compact ? "sm:p-5" : "sm:p-7")}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-4 border-white/85 bg-fleet-gold text-fleet-night shadow-[0_14px_30px_rgba(0,0,0,0.16)] sm:h-16 sm:w-16">
-            <UserRound className="h-7 w-7 sm:h-8 sm:w-8" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="break-words text-2xl font-black leading-tight sm:text-4xl">
-              Hey <span className="font-semibold">{userName || "there"}</span>, <span aria-hidden="true">👋</span>
-            </h2>
-            <div className="mt-2 flex items-center gap-2">
-              <span className="text-xl font-black sm:text-2xl">KYC</span>
-              <span className={cn("rounded-fleet px-3 py-1.5 text-sm font-black", kycTone)}>{walletKycLabel(kycStatus)}</span>
-            </div>
-          </div>
-        </div>
-        <button
-          type="button"
-          className="relative grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white/5 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] sm:h-20 sm:w-20"
-          aria-label="Wallet notifications"
-        >
-          <Bell className="h-6 w-6" />
-          <span className="absolute right-4 top-4 h-3 w-3 rounded-full bg-fleet-mint" />
-        </button>
-      </div>
+    <section className="w-full max-w-full overflow-hidden" aria-label={`${cardLabel} for ${userName || "account"}`}>
+      <div className={cn("relative overflow-hidden rounded-[24px] bg-[#061f3d] p-5 text-white shadow-[0_24px_70px_rgba(8,31,61,0.28)] sm:p-6", compact ? "sm:p-5" : "sm:p-7")}>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(255,255,255,0.14),transparent_30%),linear-gradient(135deg,rgba(8,41,78,0.94),rgba(2,19,42,0.98))]" />
+        <div className="pointer-events-none absolute -right-14 -top-14 h-36 w-36 rounded-full bg-fleet-blue/30 blur-2xl" />
+        <WalletIllustration />
 
-      <div className="wallet-card-grid mt-6 rounded-fleet border border-white/5 bg-fleet-night/24 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-5">
-        <div className="grid gap-5 sm:grid-cols-[1fr_auto] sm:items-start">
-          <div className="min-w-0">
-            <span className="text-sm font-black text-white/80 sm:text-base">Available Balance</span>
-            <div className="mt-3 flex items-center gap-3">
-              <strong className="min-w-0 break-words text-3xl font-black sm:text-5xl">{showBalance ? formatMoney(balance) : "NGN •••••"}</strong>
+        <div className="relative z-10 min-w-0 pr-24 sm:pr-40">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-white/85">KYC Status</span>
+            <span className={cn("inline-flex items-center gap-1.5 rounded-[10px] border px-3 py-1 text-sm font-black", kycTone)}>
+              {walletKycLabel(kycStatus)}
+              {kycStatus === "verified" ? <Check className="h-3.5 w-3.5" /> : null}
+            </span>
+          </div>
+
+          <div className="mt-8 sm:mt-10">
+            <span className="text-sm font-semibold text-white/85">Available Balance</span>
+            <div className="mt-2 flex min-w-0 items-center gap-3">
+              <strong className="min-w-0 break-words text-[2rem] font-black leading-none tracking-normal sm:text-5xl">{showBalance ? formatMoney(balance) : "NGN •••••"}</strong>
               <button
                 type="button"
                 onClick={() => setShowBalance((value) => !value)}
-                className="grid h-9 w-9 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white/75 transition hover:bg-white/10 hover:text-white"
                 aria-label={showBalance ? "Hide balance" : "Show balance"}
               >
-                {showBalance ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                {showBalance ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
               </button>
             </div>
             {lockedBalance > 0 ? <p className="mt-2 text-xs font-bold text-white/75">{showBalance ? formatMoney(lockedBalance) : "NGN •••"} locked</p> : null}
           </div>
+
           <button
             type="button"
-            className="inline-flex min-h-12 items-center justify-center gap-3 rounded-fleet bg-fleet-night/80 px-4 text-base font-black text-white shadow-[0_16px_36px_rgba(0,0,0,0.22)] sm:min-w-40 sm:text-lg"
+            className="mt-5 inline-flex min-h-11 items-center justify-center gap-3 rounded-[14px] border border-white/10 bg-[#04172f]/85 px-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(0,0,0,0.22)]"
             aria-label="Currency NGN"
           >
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-fleet-leaf">NG</span>
+            <span className="flex h-6 w-6 overflow-hidden rounded-full ring-2 ring-white/10" aria-hidden="true">
+              <span className="flex-1 bg-emerald-500" />
+              <span className="flex-1 bg-white" />
+              <span className="flex-1 bg-emerald-500" />
+            </span>
             NGN
-            <ChevronDown className="h-5 w-5" />
+            <ChevronDown className="h-4 w-4" />
           </button>
         </div>
-
-        <div className={cn("mt-6 grid gap-2 sm:gap-3", showTopUp ? "grid-cols-3" : "grid-cols-2")}>
-          <Button
-            type="button"
-            variant="dark"
-            className="min-h-12 bg-fleet-blue/35 px-2 text-xs leading-tight hover:bg-fleet-blue/45 sm:min-h-14 sm:text-base"
-            onClick={canWithdraw ? onWithdraw : () => openHref(trackHref)}
-            disabled={canWithdraw ? withdrawLoading || withdrawDisabled || !onWithdraw : false}
-          >
-            {canWithdraw ? (
-              withdrawLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Minus className="h-4 w-4 sm:h-5 sm:w-5" />
-            ) : (
-              <PackageSearch className="h-4 w-4 sm:h-5 sm:w-5" />
-            )}
-            <span className="min-w-0 text-center">{canWithdraw ? withdrawLabel : "Track my order"}</span>
-          </Button>
-          {showTopUp ? (
-            <Button type="button" variant="dark" className="min-h-12 bg-fleet-blue/35 px-2 text-xs leading-tight hover:bg-fleet-blue/45 sm:min-h-14 sm:text-base" onClick={topUp} disabled={topUpLoading || Number(amount) < 500}>
-              {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 sm:h-5 sm:w-5" />}
-              <span className="min-w-0 text-center">Top Up</span>
-            </Button>
-          ) : null}
-          <Button type="button" variant="dark" className="min-h-12 bg-fleet-blue/35 px-2 text-xs leading-tight hover:bg-fleet-blue/45 sm:min-h-14 sm:text-base" onClick={() => openHref(historyHref)}>
-            <RefreshCw className="h-4 w-4" />
-            <span className="min-w-0 text-center">History</span>
-          </Button>
-        </div>
-
-        {message || notice ? (
-          <div className="mt-4 rounded-fleet bg-fleet-gold/15 p-3 text-xs font-bold leading-5 text-fleet-gold">
-            {message || notice}
-          </div>
-        ) : null}
       </div>
+
+      <div className={cn("mt-4 grid gap-3", showTopUp ? "grid-cols-3" : "grid-cols-2")}>
+        <Button
+          type="button"
+          variant={canWithdraw ? "primary" : "secondary"}
+          className="min-h-12 rounded-[16px] px-2 text-xs leading-tight sm:min-h-14 sm:text-base"
+          onClick={canWithdraw ? onWithdraw : () => openHref(trackHref)}
+          disabled={canWithdraw ? withdrawLoading || withdrawDisabled || !onWithdraw : false}
+        >
+          {canWithdraw ? (
+            withdrawLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Minus className="h-4 w-4 sm:h-5 sm:w-5" />
+          ) : (
+            <PackageSearch className="h-4 w-4 sm:h-5 sm:w-5" />
+          )}
+          <span className="min-w-0 text-center">{canWithdraw ? withdrawLabel : "Track my order"}</span>
+        </Button>
+        {showTopUp ? (
+          <Button type="button" variant="secondary" className="min-h-12 rounded-[16px] px-2 text-xs leading-tight sm:min-h-14 sm:text-base" onClick={topUp} disabled={topUpLoading || Number(amount) < 500}>
+            {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 sm:h-5 sm:w-5" />}
+            <span className="min-w-0 text-center">Top Up</span>
+          </Button>
+        ) : null}
+        <Button type="button" variant="secondary" className="min-h-12 rounded-[16px] px-2 text-xs leading-tight sm:min-h-14 sm:text-base" onClick={() => openHref(historyHref)}>
+          <RefreshCw className="h-4 w-4" />
+          <span className="min-w-0 text-center">History</span>
+        </Button>
+      </div>
+
+      {message || notice ? (
+        <div className="mt-4 rounded-fleet bg-fleet-gold/15 p-3 text-xs font-bold leading-5 text-amber-800">
+          {message || notice}
+        </div>
+      ) : null}
     </section>
+  );
+}
+
+function WalletIllustration() {
+  return (
+    <div className="pointer-events-none absolute right-3 top-1/2 z-0 h-28 w-32 -translate-y-1/2 sm:right-6 sm:h-32 sm:w-40" aria-hidden="true">
+      <div className="absolute right-8 top-1 h-20 w-24 rotate-[-10deg] rounded-[18px] bg-[linear-gradient(135deg,#ffb142,#f47e18)] shadow-[0_18px_28px_rgba(0,0,0,0.28)] sm:right-10 sm:h-24 sm:w-28" />
+      <div className="absolute right-0 top-6 h-24 w-28 rounded-[20px] border border-white/15 bg-[linear-gradient(135deg,#173657,#0c223f)] shadow-[0_18px_42px_rgba(0,0,0,0.35)] sm:h-28 sm:w-32">
+        <WalletCards className="absolute left-5 top-8 h-9 w-9 text-white/10 sm:left-6 sm:top-10 sm:h-10 sm:w-10" />
+        <div className="absolute -right-3 top-9 h-11 w-14 rounded-[15px] border border-white/15 bg-[#102a48] shadow-[0_12px_26px_rgba(0,0,0,0.28)]">
+          <span className="absolute right-4 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-fleet-blue/70" />
+        </div>
+      </div>
+    </div>
   );
 }
