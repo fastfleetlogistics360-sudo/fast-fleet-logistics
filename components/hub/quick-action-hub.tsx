@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, BellRing, BookOpenText, Compass, Headphones, LayoutDashboard, MapPinned, PackageCheck, ShoppingBag, Store, Truck } from "lucide-react";
+import { ArrowRight, BellRing, BookOpenText, Compass, Headphones, LayoutDashboard, MapPinned, PackageCheck, ShoppingBag, Store, Truck, Utensils } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { UserRole } from "@/types/domain";
 import type { HubPromotionSlide } from "@/lib/hub-promotion-slides";
@@ -63,7 +63,8 @@ export function QuickActionHub({
 
   const actions: HubAction[] = [
     { title: "Dashboard", href: roleHome[role], icon: LayoutDashboard, tone: "navy" },
-    { title: "Marketplace", href: "/shopping-mall", icon: ShoppingBag, tone: "green" },
+    { title: "Mall", href: "/shopping-mall", icon: ShoppingBag, tone: "green" },
+    { title: "Restaurants", href: "/restaurants", icon: Utensils, tone: "orange" },
     { title: "Book a Delivery", href: "/book", icon: Truck, tone: "orange" },
     { title: "Track a Delivery", href: "/track", icon: MapPinned, tone: "blue" },
     { title: "Explore Services", href: "/services", icon: Compass, tone: "blue" },

@@ -143,6 +143,8 @@ const fallbackProfile: ProfileRow = {
 
 const operationalStatuses = new Set<LaunchStateStatus>(["active", "live"]);
 const riderVisibleStatuses = new Set(["accepted", "rider_arrived", "picked_up", "in_transit"]);
+const customerPanelClass = "rounded-[24px] border-white/80 bg-white/[0.92] shadow-[0_22px_55px_rgba(8,17,31,0.10)] ring-1 ring-fleet-line/35 backdrop-blur-2xl";
+const customerSoftPanelClass = "rounded-[22px] border border-white/80 bg-white/[0.86] shadow-[0_16px_42px_rgba(8,17,31,0.08)] ring-1 ring-fleet-line/30 backdrop-blur-2xl";
 
 function statusTone(status: string): "green" | "amber" | "red" | "blue" | "neutral" {
   if (status === "delivered") return "green";
@@ -253,7 +255,7 @@ export function CustomerDashboard() {
   const firstName = profile.full_name?.trim().split(/\s+/)[0] || "there";
   const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || null;
   const trackedOrder = orders.find((order) => order.delivery_code.toLowerCase() === searchCode.trim().toLowerCase()) || activeOrder;
-  const { text: greetingText, symbol } = greeting();
+  const { text: greetingText } = greeting();
   const balance = Number(wallet.balance_ngn ?? wallet.balance ?? 0);
   const customerState = normalizeState(profile.lga || profile.default_zone) || "Lagos";
   const stateIsOperational = operationalStatuses.has(normalizeLaunchStatus(launchStatus));
@@ -422,17 +424,17 @@ export function CustomerDashboard() {
   }
 
   return (
-    <section className="min-h-screen bg-fleet-paper pb-24 lg:pb-0">
+    <section className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(244,126,24,0.12),transparent_30%),linear-gradient(180deg,#f8fafc,#eef3f8)] pb-24 lg:pb-0">
       <div className="mx-auto grid max-w-7xl gap-0 lg:grid-cols-[260px_1fr]">
         <DesktopNav activeTab={activeTab} onChange={setActiveTab} />
-        <main className="min-w-0 px-4 pb-5 pt-4 sm:px-6 lg:pb-8">
+        <main className="min-w-0 px-4 pb-5 pt-4 sm:px-6 lg:pb-8 lg:pt-6">
           <BackButton className="mb-4" />
-          <DashboardHeader title={`${greetingText}, ${firstName}`} subtitle={stateIsOperational ? `${symbol} Your Fast Fleets 360 mobile workspace is ready.` : `Fast Fleets 360 early-access workspace for ${customerState}.`} />
+          <DashboardHeader title={`${greetingText}, ${firstName}`} subtitle={stateIsOperational ? "" : `Fast Fleets 360 early-access workspace for ${customerState}.`} />
           {activeTab === "home" && !stateIsOperational ? (
             <RolloutStateDashboard profile={profile} state={customerState} status={launchStatus} balance={balance} addresses={addresses} message={waitlistMessage} onNotify={joinStateWaitlist} />
           ) : null}
           {activeTab === "home" && stateIsOperational ? (
-            <HomeTab loading={loading} profile={profile} balance={balance} lockedBalance={Number(wallet.locked_balance_ngn || 0)} activeOrder={activeOrder} orders={orders} addresses={addresses} promotions={promotions} loadError={loadError} onSelectOrder={setSelectedOrder} onLiveDeliveryChange={handleLiveDeliveryChange} />
+            <HomeTab loading={loading} profile={profile} balance={balance} lockedBalance={Number(wallet.locked_balance_ngn || 0)} orders={orders} addresses={addresses} promotions={promotions} loadError={loadError} />
           ) : null}
           {activeTab === "orders" && !stateIsOperational ? <RestrictedOperationsPreview state={customerState} status={launchStatus} /> : null}
           {activeTab === "orders" && stateIsOperational ? (
@@ -465,12 +467,12 @@ export function CustomerDashboard() {
   );
 }
 
-function DashboardHeader({ title, subtitle }: { title: string; subtitle: string }) {
+function DashboardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <header className="mb-5 flex items-center justify-between gap-4">
+    <header className={cn("mb-5 flex items-center justify-between gap-4 p-4 sm:p-5", customerPanelClass)}>
       <div>
         <h1 className="text-2xl font-black text-fleet-night sm:text-4xl">{title}</h1>
-        <p className="mt-1 text-sm font-semibold text-slate-600">{subtitle}</p>
+        {subtitle ? <p className="mt-1 text-sm font-semibold text-slate-600">{subtitle}</p> : null}
       </div>
       <NotificationBell />
     </header>
@@ -479,8 +481,8 @@ function DashboardHeader({ title, subtitle }: { title: string; subtitle: string 
 
 function DesktopNav({ activeTab, onChange }: { activeTab: CustomerTab; onChange: (tab: CustomerTab) => void }) {
   return (
-    <aside className="sticky top-0 hidden h-screen border-r border-fleet-line bg-white p-4 lg:block">
-      <div className="rounded-fleet bg-fleet-navy p-4 text-white">
+    <aside className="sticky top-0 hidden h-screen border-r border-white/70 bg-white/70 p-4 backdrop-blur-2xl lg:block">
+      <div className="rounded-[24px] bg-[linear-gradient(135deg,#08111f,#0f3460)] p-4 text-white shadow-[0_18px_42px_rgba(8,17,31,0.20)]">
         <span className="text-xl font-black">Fast Fleets 360</span>
         <p className="mt-1 text-xs font-semibold text-white/70">Customer app</p>
       </div>
@@ -488,7 +490,7 @@ function DesktopNav({ activeTab, onChange }: { activeTab: CustomerTab; onChange:
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
-            <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("flex items-center gap-3 rounded-fleet px-3 py-3 text-sm font-black", activeTab === tab.id ? "bg-fleet-navy text-white" : "text-slate-600 hover:bg-fleet-paper")}>
+            <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("flex items-center gap-3 rounded-[18px] px-3 py-3 text-sm font-black transition", activeTab === tab.id ? "bg-fleet-navy text-white shadow-[0_14px_30px_rgba(8,17,31,0.18)]" : "text-slate-600 hover:bg-white hover:shadow-[0_12px_28px_rgba(8,17,31,0.08)]")}>
               <Icon className="h-4 w-4" />
               {tab.label}
             </button>
@@ -501,11 +503,11 @@ function DesktopNav({ activeTab, onChange }: { activeTab: CustomerTab; onChange:
 
 function MobileTabs({ activeTab, onChange }: { activeTab: CustomerTab; onChange: (tab: CustomerTab) => void }) {
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-fleet border border-fleet-line bg-white p-1 shadow-glow lg:hidden">
+    <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-[24px] border border-white/80 bg-white/90 p-1.5 shadow-[0_18px_48px_rgba(8,17,31,0.18)] backdrop-blur-2xl lg:hidden">
       {tabs.map((tab) => {
         const Icon = tab.icon;
         return (
-          <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("grid min-h-14 place-items-center rounded-fleet text-[0.7rem] font-black", activeTab === tab.id ? "bg-[#eaf3ff] text-[#1677df]" : "text-slate-500")}>
+          <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("grid min-h-14 place-items-center rounded-[18px] text-[0.7rem] font-black transition", activeTab === tab.id ? "bg-[#eaf3ff] text-[#1677df] shadow-[inset_0_0_0_1px_rgba(22,119,223,0.10)]" : "text-slate-500")}>
             <Icon className="h-4 w-4" />
             {tab.label}
           </button>
@@ -656,25 +658,19 @@ function HomeTab({
   profile,
   balance,
   lockedBalance,
-  activeOrder,
   orders,
   addresses,
   promotions,
-  loadError,
-  onSelectOrder,
-  onLiveDeliveryChange
+  loadError
 }: {
   loading: boolean;
   profile: ProfileRow;
   balance: number;
   lockedBalance: number;
-  activeOrder: OrderRow | null;
   orders: OrderRow[];
   addresses: SavedAddress[];
   promotions: PromotionRow[];
   loadError: string | null;
-  onSelectOrder: (order: OrderRow) => void;
-  onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null }) => void;
 }) {
   if (loading) return <DashboardSkeleton />;
   const completedOrders = orders.filter((order) => order.status === "delivered");
@@ -686,10 +682,9 @@ function HomeTab({
       return createdAt.getMonth() === now.getMonth() && createdAt.getFullYear() === now.getFullYear();
     })
     .reduce((sum, order) => sum + Number(order.price_ngn || 0), 0);
-  const lastCompletedOrder = completedOrders[0] || orders[0] || null;
   return (
     <div className="grid gap-5">
-      {loadError ? <div className="rounded-fleet bg-red-50 p-3 text-sm font-bold text-red-700">{loadError}</div> : null}
+      {loadError ? <div className="rounded-[18px] border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-700 shadow-[0_12px_28px_rgba(185,28,28,0.08)]">{loadError}</div> : null}
       <div id="wallet">
         <WalletDashboardCard
           userName={profile.full_name?.trim().split(/\s+/)[0] || "there"}
@@ -699,11 +694,9 @@ function HomeTab({
           accountKind="customer"
           kycStatus={profile.kyc_status === "approved" ? "verified" : profile.kyc_status === "rejected" ? "more_info_needed" : "pending"}
           returnTo="/dashboard"
-          onWithdraw={() => window.location.assign("/support?topic=wallet-withdrawal")}
           transactionHref="/dashboard#transactions"
         />
       </div>
-      <TransactionHistory accountKind="customer" compact />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryTile label="This month" value={formatMoney(monthlySpend)} />
@@ -712,45 +705,7 @@ function HomeTab({
         <SummaryTile label="Saved places" value={String(addresses.length)} />
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          ["Book", "/book"],
-          ["Track", "/track"],
-          ["Food", "/restaurants"],
-          ["Mall", "/shopping-mall"]
-        ].map(([label, href]) => (
-          <LinkButton key={label} href={href} variant="secondary" className="min-h-16 px-2 text-xs">
-            {label}
-          </LinkButton>
-        ))}
-      </div>
-
-      {activeOrder ? <ActiveDeliveryCard order={activeOrder} onSelect={() => onSelectOrder(activeOrder)} /> : <DashboardEmptyState title="No active delivery" body="Book your first delivery and live rider updates will appear here." ctaLabel="Book delivery" ctaHref="/book" />}
-
-      <Card className="overflow-hidden p-0">
-        <DeliveryRouteMap
-          compact
-          className="rounded-none border-0"
-          label="Customer live map"
-          order={activeOrder}
-          onLiveDeliveryChange={onLiveDeliveryChange}
-        />
-      </Card>
-
-      {lastCompletedOrder ? (
-        <Card className="p-4">
-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Quick re-order</p>
-              <h2 className="mt-1 text-lg font-black text-fleet-night">{lastCompletedOrder.pickup_address} to {lastCompletedOrder.dropoff_address}</h2>
-              <p className="mt-1 text-sm font-semibold text-slate-600">{formatMoney(lastCompletedOrder.price_ngn)} · {lastCompletedOrder.delivery_code}</p>
-            </div>
-            <LinkButton href={`/book?reorder=${lastCompletedOrder.delivery_code}`} className="shrink-0">Re-order</LinkButton>
-          </div>
-        </Card>
-      ) : null}
-
-      <section>
+      <section className={cn("overflow-hidden p-4 sm:p-5", customerSoftPanelClass)}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-xl font-black text-fleet-night">Promotions</h2>
           <StatusBadge tone="blue">{promotions.length} live</StatusBadge>
@@ -758,37 +713,32 @@ function HomeTab({
         {promotions.length ? (
           <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto">
             {promotions.map((promotion) => (
-              <Card key={promotion.id} className="min-w-[82%] snap-start p-4 sm:min-w-[360px]">
-                <div className="h-28 rounded-fleet bg-[linear-gradient(135deg,rgba(15,52,96,0.95),rgba(21,163,107,0.85))]" />
+              <Card key={promotion.id} className="min-w-[82%] snap-start overflow-hidden rounded-[22px] border-white/80 bg-white/90 p-4 shadow-[0_16px_42px_rgba(8,17,31,0.10)] sm:min-w-[360px]">
+                <div className="relative h-28 overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,rgba(15,52,96,0.96),rgba(244,126,24,0.72))]">
+                  <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/15 blur-xl" />
+                  <div className="absolute bottom-3 left-3 rounded-full border border-white/20 bg-white/12 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.14em] text-white">Fast Fleets</div>
+                </div>
                 <h3 className="mt-4 text-lg font-black text-fleet-night">{promotion.title}</h3>
                 <LinkButton href={promotion.cta_url || "/book"} size="sm" className="mt-4">{promotion.cta_label || "Open"}</LinkButton>
               </Card>
             ))}
           </div>
         ) : (
-          <DashboardEmptyState title="No promotions yet" body="Fresh offers will appear here when Fast Fleets 360 publishes them." ctaLabel="Book delivery" ctaHref="/book" icon={<Bell className="h-7 w-7" />} />
+          <DashboardEmptyState title="No promotions yet" body="Fresh offers will appear here when Fast Fleets 360 publishes them." ctaLabel="View updates" ctaHref="/updates" icon={<Bell className="h-7 w-7" />} />
         )}
       </section>
 
-      <section>
-        <h2 className="mb-3 text-xl font-black text-fleet-night">Recent orders</h2>
-        {orders.length ? (
-          <div className="grid gap-3">
-            {orders.slice(0, 5).map((order) => <OrderRowCard key={order.id} order={order} onSelect={() => onSelectOrder(order)} compact />)}
-          </div>
-        ) : (
-          <DashboardEmptyState title="No orders yet" body="Your completed and active deliveries will appear here after booking." ctaLabel="Book delivery" ctaHref="/book" />
-        )}
-      </section>
+      <TransactionHistory accountKind="customer" compact />
     </div>
   );
 }
 
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="p-3">
-      <p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <strong className="mt-2 block text-lg font-black text-fleet-night">{value}</strong>
+    <Card className="relative overflow-hidden rounded-[22px] border-white/80 bg-white/[0.92] p-4 shadow-[0_16px_42px_rgba(8,17,31,0.08)]">
+      <div className="absolute right-0 top-0 h-16 w-16 rounded-bl-[36px] bg-[linear-gradient(135deg,rgba(244,126,24,0.16),rgba(15,52,96,0.08))]" />
+      <p className="relative text-[0.68rem] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <strong className="relative mt-2 block text-xl font-black text-fleet-night">{value}</strong>
     </Card>
   );
 }
@@ -808,54 +758,13 @@ function ProfileImage({ src, name, className }: { src?: string | null; name: str
   return <span className={cn("grid shrink-0 place-items-center rounded-full bg-fleet-navy font-black text-white", className)}>{initials(name)}</span>;
 }
 
-function ActiveDeliveryCard({ order, onSelect }: { order: OrderRow; onSelect: () => void }) {
-  if (isBusinessMarketplaceOrder(order) && !hasLiveDelivery(order)) {
-    return (
-      <Card className="border-fleet-gold/50 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-black text-fleet-night">{order.delivery_code}</h2>
-            <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{businessOrderSummary(order)}</p>
-          </div>
-          <StatusBadge tone={statusTone(order.status)}>{customerOrderLabel(String(order.status))}</StatusBadge>
-        </div>
-        <p className="mt-4 text-sm font-semibold leading-6 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p>
-        <CustomerVendorProgress status={String(order.status)} />
-        <Button type="button" variant="secondary" className="mt-4 w-full" onClick={onSelect}>Details</Button>
-      </Card>
-    );
-  }
-  const riderName = order.rider_profiles?.users?.full_name || "Assigned driver";
-  const riderTag = order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Rider tag pending";
-  return (
-    <Card className="animate-pulseSoft border-fleet-navy/30 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <ProfileImage src={order.rider_profiles?.users?.avatar_url} name={riderName} className="h-12 w-12 text-sm" />
-          <div>
-            <h2 className="text-lg font-black text-fleet-night">{riderName}</h2>
-            <p className="text-xs font-bold text-slate-500">{order.rider_profiles?.plate_number || "Plate pending"} · {order.rider_profiles?.vehicle_type || "bike"}</p>
-            <p className="mt-1 text-[0.68rem] font-black uppercase tracking-[0.12em] text-fleet-night">{riderTag}</p>
-          </div>
-        </div>
-        <StatusBadge tone={statusTone(order.status)}>{customerOrderLabel(String(order.status))}</StatusBadge>
-      </div>
-      <p className="mt-4 text-sm font-semibold leading-6 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <LinkButton href={trackHref(order)} className="w-full bg-fleet-navy hover:bg-fleet-night">Live track</LinkButton>
-        <LinkButton href={detailsHref(order)} variant="secondary" className="w-full">Details</LinkButton>
-      </div>
-    </Card>
-  );
-}
-
 function OrdersTab({ loading, orders, filter, onFilter, onSelectOrder }: { loading: boolean; orders: OrderRow[]; filter: "all" | "active" | "delivered" | "cancelled"; onFilter: (filter: "all" | "active" | "delivered" | "cancelled") => void; onSelectOrder: (order: OrderRow) => void }) {
   if (loading) return <DashboardSkeleton />;
   return (
     <div className="grid gap-4">
-      <div className="no-scrollbar flex gap-2 overflow-x-auto">
+      <div className={cn("no-scrollbar flex gap-2 overflow-x-auto p-2", customerSoftPanelClass)}>
         {(["all", "active", "delivered", "cancelled"] as const).map((item) => (
-          <button key={item} type="button" onClick={() => onFilter(item)} className={cn("rounded-full px-4 py-2 text-sm font-black capitalize", filter === item ? "bg-fleet-navy text-white" : "bg-white text-slate-600")}>{item}</button>
+          <button key={item} type="button" onClick={() => onFilter(item)} className={cn("rounded-full px-4 py-2 text-sm font-black capitalize transition", filter === item ? "bg-fleet-navy text-white shadow-[0_12px_26px_rgba(8,17,31,0.18)]" : "bg-white/80 text-slate-600 hover:bg-white")}>{item}</button>
         ))}
       </div>
       {orders.length ? (
@@ -871,7 +780,7 @@ function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?:
   const businessOrder = isBusinessMarketplaceOrder(order);
   const liveDelivery = hasLiveDelivery(order);
   return (
-    <article className="rounded-fleet border border-fleet-line bg-white p-4">
+    <article className="rounded-[22px] border border-white/80 bg-white/[0.92] p-4 shadow-[0_16px_42px_rgba(8,17,31,0.08)] ring-1 ring-fleet-line/30 backdrop-blur-2xl">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold text-slate-500">{formatDateTime(order.created_at)}</p>
@@ -905,7 +814,7 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange }: { o
   const vendorOrder = order && isBusinessMarketplaceOrder(order) && !hasLiveDelivery(order);
   return (
     <div className="grid gap-5">
-      <label className="form-field">
+      <label className={cn("form-field p-4", customerSoftPanelClass)}>
         <span className="form-label">Enter order ID</span>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -914,7 +823,7 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange }: { o
       </label>
       {order ? (
         <>
-          <Card className="p-4">
+          <Card className={cn("p-5", customerPanelClass)}>
             <h2 className="text-xl font-black text-fleet-night">{order.delivery_code}</h2>
             {vendorOrder ? (
               <CustomerVendorProgress status={String(order.status)} />
@@ -936,7 +845,7 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange }: { o
               onLiveDeliveryChange={onLiveDeliveryChange}
             />
           ) : null}
-          {!vendorOrder ? <Card className="p-4">
+          {!vendorOrder ? <Card className={cn("p-5", customerPanelClass)}>
             <div className="flex items-center gap-3">
               <ProfileImage src={order.rider_profiles?.users?.avatar_url} name={order.rider_profiles?.users?.full_name || "Driver"} className="h-14 w-14" />
               <div>
@@ -987,15 +896,6 @@ function CustomerVendorProgress({ status, compact = false }: { status: string; c
       })}
     </div>
   );
-}
-
-function businessOrderSummary(order: OrderRow) {
-  const items = Array.isArray(order.items) ? order.items : [];
-  if (!items.length) return "Marketplace order";
-  return items
-    .slice(0, 2)
-    .map((item) => `${Number(item.quantity || 1)}x ${item.name || item.productName || "Item"}`)
-    .join(", ");
 }
 
 function AccountTab({
@@ -1056,7 +956,7 @@ function AccountTab({
 
   return (
     <div className="grid gap-5">
-      <Card className="p-5">
+      <Card className={cn("p-5", customerPanelClass)}>
         <div className="flex items-center gap-4">
           <ProfileImage src={profile.avatar_url} name={profile.full_name || "Fast Fleets 360 Customer"} className="h-16 w-16 text-lg" />
           <div>
@@ -1085,7 +985,7 @@ function AccountTab({
         {message ? <div className="mt-3 rounded-fleet bg-emerald-50 p-3 text-sm font-bold text-emerald-700">{message}</div> : null}
         <Button type="button" disabled={saving} className="mt-5 w-full bg-fleet-navy hover:bg-fleet-night" onClick={onSaveProfile}>Save profile</Button>
       </Card>
-      <Card className="p-5">
+      <Card className={cn("p-5", customerPanelClass)}>
         <h2 className="text-xl font-black text-fleet-night">Saved addresses</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-[0.7fr_1fr_auto]">
           <input className="form-input" value={addressDraft.label} onChange={(event) => onAddressDraft({ ...addressDraft, label: event.target.value })} placeholder="Home" />
@@ -1101,7 +1001,7 @@ function AccountTab({
           )) : <DashboardEmptyState title="No saved addresses" body="Add home, office, or favourite pickup points." ctaLabel="Book delivery" ctaHref="/book" />}
         </div>
       </Card>
-      <Card className="p-5">
+      <Card className={cn("p-5", customerPanelClass)}>
         <h2 className="text-xl font-black text-fleet-night">Notification preferences</h2>
         <div className="mt-4 grid gap-3">
           {(["sms", "email", "push"] as const).map((key) => (
@@ -1112,7 +1012,7 @@ function AccountTab({
           ))}
         </div>
       </Card>
-      <Card className="p-5">
+      <Card className={cn("p-5", customerPanelClass)}>
         <div className="grid gap-3 sm:grid-cols-2">
           <AccountDeletionButton />
           <Button type="button" variant="secondary" onClick={onSignOut}>Sign out</Button>
