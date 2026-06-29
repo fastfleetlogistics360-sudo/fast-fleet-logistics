@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { BarChart3, Building2, Clock, Download, FileText, Home, Loader2, MapPin, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards } from "lucide-react";
+import { BarChart3, Building2, Clock, Download, FileText, Home, LayoutDashboard, Loader2, MapPin, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
+import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
 import { uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
@@ -34,6 +36,7 @@ type BusinessProfile = {
   industry?: string | null;
   business_type?: string | null;
   commission_rate?: number | null;
+  default_zone?: string | null;
   pickup_address?: string | null;
   cac_number?: string | null;
   registration_status?: BusinessKycStatus | null;
@@ -229,9 +232,10 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         if (!user) return;
 
         let businessQuery = supabase.from("business_profiles").select("id, business_name, contact_name, phone, email, industry, business_type, commission_rate, pickup_address, cac_number, registration_status, rejection_reason").eq("user_id", user.id).maybeSingle();
-        const [businessResult, accountProfileResult, walletResult, ordersResult, addressResult, teamResult, withdrawalsResult] = await Promise.all([
+        const [businessResult, accountProfileResult, appUserResult, walletResult, ordersResult, addressResult, teamResult, withdrawalsResult] = await Promise.all([
           businessQuery,
           supabase.from("profiles").select("avatar_url").eq("user_id", user.id).maybeSingle(),
+          supabase.from("users").select("default_zone").eq("id", user.id).maybeSingle<{ default_zone?: string | null }>(),
           supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).eq("wallet_type", "customer").maybeSingle(),
           supabase.from("deliveries").select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, proof_url").eq("customer_id", user.id).order("created_at", { ascending: false }).limit(50),
           supabase.from("saved_addresses").select("id, label, address").eq("user_id", user.id).order("created_at", { ascending: false }),
@@ -244,9 +248,12 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
           const fallback = await supabase.from("business_profiles").select("id, business_name, contact_name, phone, email, industry, pickup_address, cac_number, registration_status").eq("user_id", user.id).maybeSingle();
           nextProfile = (fallback.data || profile) as BusinessProfile;
         }
-        setProfile({ ...nextProfile, avatar_url: (accountProfileResult.data as { avatar_url?: string | null } | null)?.avatar_url || nextProfile.avatar_url || null });
-        setKycStatus(nextProfile.registration_status || initialKycStatus);
+        const nextState = normalizeState((appUserResult.data as { default_zone?: string | null } | null)?.default_zone) || null;
+        const nextKycStatus = nextProfile.registration_status || initialKycStatus;
+        setProfile({ ...nextProfile, default_zone: nextState, avatar_url: (accountProfileResult.data as { avatar_url?: string | null } | null)?.avatar_url || nextProfile.avatar_url || null });
+        setKycStatus(nextKycStatus);
         setKycRejectionReason(nextProfile.rejection_reason || initialKycRejectionReason);
+        if (!silent && nextKycStatus === "active" && !nextState) setActiveTab("account");
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
         setWithdrawals(Array.isArray(withdrawalsResult.withdrawals) ? withdrawalsResult.withdrawals : []);
         setOrders(ordersResult.error ? mergeLocalDeliveries([]) : mergeLocalDeliveries((ordersResult.data || []) as DeliveryRow[]));
@@ -557,7 +564,11 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
 
 function BusinessMobileTabs({ activeTab, onChange, disabled = false }: { activeTab: BusinessTab; onChange: (tab: BusinessTab) => void; disabled?: boolean }) {
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-50 mx-auto grid max-w-3xl grid-cols-6 gap-1 rounded-[24px] border border-fleet-line bg-white/95 p-2 shadow-glow backdrop-blur" aria-label="Business dashboard navigation">
+    <nav className="fixed inset-x-3 bottom-3 z-50 mx-auto grid max-w-3xl grid-cols-7 gap-1 rounded-[24px] border border-fleet-line bg-white/95 p-2 shadow-glow backdrop-blur" aria-label="Business dashboard navigation">
+      <Link href="/hub" className="grid min-h-14 place-items-center rounded-[18px] px-1 py-2 text-[0.62rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper">
+        <LayoutDashboard className="mb-1 h-4 w-4" />
+        <span className="max-w-full truncate">Hub</span>
+      </Link>
       {tabs.map((tab) => {
         const Icon = tab.icon;
         return (
@@ -822,7 +833,11 @@ function BusinessWithdrawalModal({ amount, onAmount, profile, loading, message, 
 
 function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessProfile; onProfile: (profile: BusinessProfile) => void; prefs: { email: boolean; sms: boolean; wallet: boolean }; onPrefs: (prefs: { email: boolean; sms: boolean; wallet: boolean }) => void }) {
   const [photoLoading, setPhotoLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [photoMessage, setPhotoMessage] = useState<string | null>(profile.avatar_url ? null : "Upload a business profile picture for your account.");
+  const selectedState = normalizeState(profile.default_zone);
+  const missingState = !selectedState;
 
   async function handleProfilePhoto(file: File | null) {
     if (!file) return;
@@ -848,7 +863,112 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
     }
   }
 
-  return <div className="grid gap-5"><Card className="p-5"><div className="flex items-center gap-4"><ProfileImage src={profile.avatar_url} name={profile.business_name || "Business"} className="h-16 w-16 rounded-fleet text-lg" /><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">{profile.business_type || profile.industry || "Business type not set"} · Commission {Number(profile.commission_rate || 0).toFixed(0)}%</p><label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">{photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}<input className="sr-only" type="file" accept="image/*" onChange={(event) => handleProfilePhoto(event.target.files?.[0] || null)} /></label></div></div>{photoMessage ? <div className="mt-4 rounded-fleet bg-fleet-paper p-3 text-xs font-bold leading-5 text-slate-600">{photoMessage}</div> : null}<div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Business name" value={profile.business_name || ""} onChange={(value) => onProfile({ ...profile, business_name: value })} /><Field label="Address" value={profile.pickup_address || ""} onChange={(value) => onProfile({ ...profile, pickup_address: value })} /><Field label="CAC number" value={profile.cac_number || ""} onChange={(value) => onProfile({ ...profile, cac_number: value })} /><Field label="Business type" value={profile.business_type || profile.industry || ""} onChange={(value) => onProfile({ ...profile, business_type: value, industry: value })} /><Field label="Contact person" value={profile.contact_name || ""} onChange={(value) => onProfile({ ...profile, contact_name: value })} /><Field label="Contact phone" value={profile.phone || ""} onChange={(value) => onProfile({ ...profile, phone: value })} /></div></Card><Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Notification preferences</h2><div className="mt-4 grid gap-3">{(["email", "sms", "wallet"] as const).map((key) => <label key={key} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black capitalize text-fleet-night">{key}<input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={prefs[key]} onChange={(event) => onPrefs({ ...prefs, [key]: event.target.checked })} /></label>)}</div></Card><Card className="p-5"><AccountDeletionButton /><Button type="button" variant="secondary" className="mt-3 w-full" onClick={async () => { const supabase = createClient(); await supabase.auth.signOut(); window.location.assign("/auth"); }}>Sign out</Button></Card></div>;
+  async function saveProfile() {
+    setProfileSaving(true);
+    setProfileMessage(null);
+    try {
+      const response = await fetch("/api/business/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          business_name: profile.business_name,
+          pickup_address: profile.pickup_address,
+          state: profile.default_zone,
+          cac_number: profile.cac_number,
+          business_type: profile.business_type || profile.industry,
+          contact_name: profile.contact_name,
+          phone: profile.phone,
+          email: profile.email
+        })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { profile?: BusinessProfile; error?: string };
+      if (!response.ok) throw new Error(payload.error || "Could not save business profile.");
+      onProfile({ ...profile, ...(payload.profile || {}), default_zone: normalizeState(payload.profile?.default_zone || profile.default_zone) });
+      setProfileMessage("Business profile saved.");
+    } catch (error) {
+      setProfileMessage(error instanceof Error ? error.message : "Could not save business profile.");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-5">
+      {missingState ? (
+        <Card className="border-amber-200 bg-amber-50 p-5">
+          <h2 className="text-xl font-black text-amber-900">Select your business state</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-amber-800">
+            Add the state where this business operates, then save your profile. This helps riders in the correct state receive your ready-for-pickup orders.
+          </p>
+        </Card>
+      ) : null}
+      <Card className="p-5">
+        <div className="flex items-center gap-4">
+          <ProfileImage src={profile.avatar_url} name={profile.business_name || "Business"} className="h-16 w-16 rounded-fleet text-lg" />
+          <div>
+            <h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2>
+            <p className="text-sm font-semibold text-slate-500">
+              {profile.business_type || profile.industry || "Business type not set"} · Commission {Number(profile.commission_rate || 0).toFixed(0)}%
+            </p>
+            <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">
+              {photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}
+              <input className="sr-only" type="file" accept="image/*" onChange={(event) => handleProfilePhoto(event.target.files?.[0] || null)} />
+            </label>
+          </div>
+        </div>
+        {photoMessage ? <div className="mt-4 rounded-fleet bg-fleet-paper p-3 text-xs font-bold leading-5 text-slate-600">{photoMessage}</div> : null}
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <Field label="Business name" value={profile.business_name || ""} onChange={(value) => onProfile({ ...profile, business_name: value })} />
+          <label className="form-field">
+            <span className="form-label">Business state</span>
+            <select className="form-input" value={selectedState} onChange={(event) => onProfile({ ...profile, default_zone: event.target.value })}>
+              <option value="">Select state</option>
+              {NIGERIAN_STATES.map((state) => (
+                <option key={state} value={state}>{state}</option>
+              ))}
+            </select>
+          </label>
+          <Field label="Address" value={profile.pickup_address || ""} onChange={(value) => onProfile({ ...profile, pickup_address: value })} />
+          <Field label="CAC number" value={profile.cac_number || ""} onChange={(value) => onProfile({ ...profile, cac_number: value })} />
+          <Field label="Business type" value={profile.business_type || profile.industry || ""} onChange={(value) => onProfile({ ...profile, business_type: value, industry: value })} />
+          <Field label="Contact person" value={profile.contact_name || ""} onChange={(value) => onProfile({ ...profile, contact_name: value })} />
+          <Field label="Contact phone" value={profile.phone || ""} onChange={(value) => onProfile({ ...profile, phone: value })} />
+          <Field label="Contact email" value={profile.email || ""} onChange={(value) => onProfile({ ...profile, email: value })} />
+        </div>
+        {profileMessage ? <div className="mt-4 rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-600">{profileMessage}</div> : null}
+        <Button type="button" className="mt-5 w-full" onClick={saveProfile} disabled={profileSaving || missingState}>
+          {profileSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Save profile
+        </Button>
+      </Card>
+      <Card className="p-5">
+        <h2 className="text-xl font-black text-fleet-night">Notification preferences</h2>
+        <div className="mt-4 grid gap-3">
+          {(["email", "sms", "wallet"] as const).map((key) => (
+            <label key={key} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black capitalize text-fleet-night">
+              {key}
+              <input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={prefs[key]} onChange={(event) => onPrefs({ ...prefs, [key]: event.target.checked })} />
+            </label>
+          ))}
+        </div>
+      </Card>
+      <Card className="p-5">
+        <AccountDeletionButton />
+        <Button
+          type="button"
+          variant="secondary"
+          className="mt-3 w-full"
+          onClick={async () => {
+            const supabase = createClient();
+            await supabase.auth.signOut();
+            window.location.assign("/auth");
+          }}
+        >
+          Sign out
+        </Button>
+      </Card>
+    </div>
+  );
 }
 
 function ProfileImage({ src, name, className }: { src?: string | null; name: string; className?: string }) {

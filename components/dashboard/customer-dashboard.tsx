@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Bell, Clock3, Home, LockKeyhole, MapPin, PackageCheck, Radar, Search, ShieldCheck, Sparkles, UserRound, Wallet } from "lucide-react";
+import Link from "next/link";
+import { Bell, Clock3, Home, LayoutDashboard, LockKeyhole, MapPin, PackageCheck, Radar, Search, ShieldCheck, Sparkles, UserRound, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -504,7 +505,11 @@ function DesktopNav({ activeTab, onChange }: { activeTab: CustomerTab; onChange:
 
 function MobileTabs({ activeTab, onChange }: { activeTab: CustomerTab; onChange: (tab: CustomerTab) => void }) {
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-[24px] border border-white/80 bg-white/90 p-1.5 shadow-[0_18px_48px_rgba(8,17,31,0.18)] backdrop-blur-2xl lg:hidden">
+    <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-[24px] border border-white/80 bg-white/90 p-1.5 shadow-[0_18px_48px_rgba(8,17,31,0.18)] backdrop-blur-2xl lg:hidden">
+      <Link href="/hub" className="grid min-h-14 place-items-center rounded-[18px] text-[0.7rem] font-black text-slate-500 transition">
+        <LayoutDashboard className="h-4 w-4" />
+        Hub
+      </Link>
       {tabs.map((tab) => {
         const Icon = tab.icon;
         return (

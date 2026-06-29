@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizeState } from "@/lib/launch-states";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,6 +22,7 @@ type BusinessRegistrationPayload = {
     commissionRate: number;
     industry: string;
     dispatchVolume: string;
+    state: string;
     pickupAddress: string;
     cacNumber: string;
   };
@@ -65,6 +67,7 @@ function parsePayload(value: unknown): BusinessRegistrationPayload | null {
       commissionRate: Number(form.commissionRate || 0),
       industry: readString(form, "industry", 120) || businessType,
       dispatchVolume: readString(form, "dispatchVolume", 120),
+      state: normalizeState(readString(form, "state", 80)),
       pickupAddress: readString(form, "pickupAddress", 260),
       cacNumber: readString(form, "cacNumber", 80)
     },
@@ -77,7 +80,7 @@ export async function POST(request: Request) {
   if (!payload) return NextResponse.json({ error: "Invalid business registration payload." }, { status: 400 });
 
   const { form, documents } = payload;
-  if (form.businessName.length < 3 || form.contactName.length < 2 || form.phone.length < 10 || form.pickupAddress.length < 5 || form.cacNumber.length < 4) {
+  if (form.businessName.length < 3 || form.contactName.length < 2 || form.phone.length < 10 || !form.state || form.pickupAddress.length < 5 || form.cacNumber.length < 4) {
     return NextResponse.json({ error: "Complete the business details before submitting KYC." }, { status: 400 });
   }
   if (requiredBusinessDocumentKeys.some((key) => !documents.some((document) => document.key === key))) {
@@ -102,6 +105,7 @@ export async function POST(request: Request) {
     phone: form.phone,
     email: form.email || user.email || null,
     role: "business",
+    default_zone: form.state,
     updated_at: now
   });
 

@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Banknote, Bike, Clock, Home, Loader2, PackageCheck, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards } from "lucide-react";
+import { Banknote, Bike, Clock, Home, LayoutDashboard, Loader2, PackageCheck, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -878,7 +879,11 @@ function DesktopNav({ activeTab, onChange }: { activeTab: RiderTab; onChange: (t
 
 function MobileTabs({ activeTab, onChange }: { activeTab: RiderTab; onChange: (tab: RiderTab) => void }) {
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-fleet border border-fleet-line bg-white p-1 shadow-glow lg:hidden">
+    <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-fleet border border-fleet-line bg-white p-1 shadow-glow lg:hidden">
+      <Link href="/hub" className="grid min-h-14 place-items-center rounded-fleet text-[0.7rem] font-black text-slate-500">
+        <LayoutDashboard className="h-4 w-4" />
+        Hub
+      </Link>
       {tabs.map((tab) => {
         const Icon = tab.icon;
         return <button key={tab.id} type="button" onClick={() => onChange(tab.id)} className={cn("grid min-h-14 place-items-center rounded-fleet text-[0.7rem] font-black", activeTab === tab.id ? "bg-[#eaf3ff] text-[#1677df]" : "text-slate-500")}><Icon className="h-4 w-4" />{tab.label}</button>;

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { normalizeState } from "@/lib/launch-states";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
+import { extractNigerianState } from "@/lib/location/state-matching";
 import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -89,9 +91,9 @@ export async function POST(request: Request) {
     const linkedBusiness = linkedBusinessId && admin
       ? await admin
           .from("business_profiles")
-          .select("id, user_id, business_name, pickup_address, registration_status")
+          .select("id, user_id, business_name, pickup_address, registration_status, users:users!business_profiles_user_id_fkey(default_zone)")
           .eq("id", linkedBusinessId)
-          .maybeSingle<{ id: string; user_id: string; business_name?: string | null; pickup_address?: string | null; registration_status?: string | null }>()
+          .maybeSingle<{ id: string; user_id: string; business_name?: string | null; pickup_address?: string | null; registration_status?: string | null; users?: { default_zone?: string | null } | null }>()
       : null;
     const business = linkedBusiness?.data?.registration_status === "active" ? linkedBusiness.data : null;
 
@@ -110,7 +112,7 @@ export async function POST(request: Request) {
             marketplace_kind: payload.kind || "restaurant",
             items,
             customer_contact: payload.phone || payload.email,
-            pickup_address: business.pickup_address || pickupAddress,
+            pickup_address: appendStateToAddress(business.pickup_address || pickupAddress, normalizeState(business.users?.default_zone)),
             dropoff_address: address,
             package_type: payload.kind === "shopping" ? "shopping items" : "food order",
             vehicle_type: "bike",
@@ -226,4 +228,10 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Marketplace checkout failed." }, { status: 500 });
   }
+}
+
+function appendStateToAddress(address: string, state: string) {
+  const normalizedState = normalizeState(state);
+  if (!normalizedState) return address;
+  return extractNigerianState(address) === normalizedState ? address : `${address}, ${normalizedState}`;
 }

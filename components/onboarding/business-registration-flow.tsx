@@ -5,6 +5,7 @@ import type { ChangeEvent, DragEvent } from "react";
 import { Building2, Camera, CheckCircle2, FileUp, Loader2, PackageCheck, Store, UsersRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadBusinessDocument } from "@/lib/storage";
+import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -59,6 +60,7 @@ export function BusinessRegistrationFlow() {
     commissionRate: commissionByBusinessType.Restaurant,
     industry: "Restaurant",
     dispatchVolume: "10 - 30 weekly deliveries",
+    state: "",
     pickupAddress: "",
     cacNumber: ""
   });
@@ -68,6 +70,7 @@ export function BusinessRegistrationFlow() {
       form.businessName.trim().length > 2 &&
       form.contactName.trim().length > 1 &&
       form.phone.trim().length >= 10 &&
+      Boolean(normalizeState(form.state)) &&
       form.pickupAddress.trim().length > 4 &&
       form.cacNumber.trim().length > 3 &&
       businessDocumentRequirements.every((requirement) => Boolean(docs[requirement.key]?.path || docs[requirement.key]?.url)),
@@ -107,6 +110,7 @@ export function BusinessRegistrationFlow() {
               }> | null;
             }>()
             .then(async ({ data: business, error }) => {
+              const appUserResult = await supabase.from("users").select("default_zone").eq("id", data.user.id).maybeSingle<{ default_zone?: string | null }>();
               if (error) {
                 const fallback = await supabase
                   .from("business_profiles")
@@ -135,6 +139,7 @@ export function BusinessRegistrationFlow() {
                 commissionRate: Number(business.commission_rate ?? commissionByBusinessType[business.business_type || current.businessType]),
                 industry: business.industry || business.business_type || current.industry,
                 dispatchVolume: business.dispatch_volume || current.dispatchVolume,
+                state: normalizeState(appUserResult.data?.default_zone) || current.state,
                 pickupAddress: business.pickup_address || current.pickupAddress,
                 cacNumber: business.cac_number || current.cacNumber
               }));
@@ -192,6 +197,7 @@ export function BusinessRegistrationFlow() {
       businessName: form.businessName.trim().length > 2 ? "" : "Enter the registered business name.",
       contactName: form.contactName.trim().length > 1 ? "" : "Enter the contact person.",
       phone: form.phone.trim().length >= 10 ? "" : "Enter a valid phone number.",
+      state: normalizeState(form.state) ? "" : "Select the state where this business operates.",
       pickupAddress: form.pickupAddress.trim().length > 4 ? "" : "Enter the default pickup address.",
       businessType: form.businessType ? "" : "Select the business type.",
       cacNumber: form.cacNumber.trim().length > 3 ? "" : "Enter the CAC registration number."
@@ -376,6 +382,16 @@ export function BusinessRegistrationFlow() {
           <Field label="Phone number" value={form.phone} error={errors.phone} onChange={(value) => update("phone", value)} placeholder="+234..." />
           <Field label="Email" value={form.email} onChange={(value) => update("email", value)} placeholder="ops@business.com" />
           <Field label="CAC registration number" value={form.cacNumber} error={errors.cacNumber} onChange={(value) => update("cacNumber", value)} placeholder="RC 1234567 / BN 1234567" />
+          <label className="form-field">
+            <span className="form-label">Business operating state</span>
+            <select className="form-input" value={form.state} onChange={(event) => update("state", event.target.value)}>
+              <option value="">Select state</option>
+              {NIGERIAN_STATES.map((state) => (
+                <option key={state} value={state}>{state}</option>
+              ))}
+            </select>
+            {errors.state ? <span className="text-xs font-bold text-red-600">{errors.state}</span> : null}
+          </label>
           <label className="form-field">
             <span className="form-label">Select Business Type</span>
             <select className="form-input" value={form.businessType} onChange={(event) => updateBusinessType(event.target.value)}>

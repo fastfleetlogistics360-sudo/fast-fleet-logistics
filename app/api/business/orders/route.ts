@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
+import { normalizeState } from "@/lib/launch-states";
+import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -62,12 +64,16 @@ export async function PATCH(request: Request) {
     const db = admin;
     const { data: businessProfile, error: businessError } = await db
       .from("business_profiles")
-      .select("id, user_id, business_name, pickup_address, registration_status")
+      .select("id, user_id, business_name, pickup_address, registration_status, users:users!business_profiles_user_id_fkey(default_zone)")
       .eq("user_id", user.id)
-      .maybeSingle<{ id: string; user_id: string; business_name?: string | null; pickup_address?: string | null; registration_status?: string | null }>();
+      .maybeSingle<{ id: string; user_id: string; business_name?: string | null; pickup_address?: string | null; registration_status?: string | null; users?: { default_zone?: string | null } | null }>();
     if (businessError) throw businessError;
     if (businessProfile?.registration_status !== "active") {
       return NextResponse.json({ error: "Business KYC must be approved before managing orders." }, { status: 403 });
+    }
+    const businessState = normalizeState(businessProfile.users?.default_zone);
+    if (status === "ready_for_pickup" && !businessState) {
+      return NextResponse.json({ error: "Select and save your business state from Account before marking orders ready for pickup." }, { status: 400 });
     }
 
     const { data: order, error: orderError } = await db
@@ -80,7 +86,7 @@ export async function PATCH(request: Request) {
 
     const nextPatch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
     let deliveryId = typeof order.delivery_id === "string" ? order.delivery_id : null;
-    const businessPickupAddress = businessProfile.pickup_address || String(order.pickup_address || "Business pickup");
+    const businessPickupAddress = appendStateToAddress(businessProfile.pickup_address || String(order.pickup_address || "Business pickup"), businessState);
     const customerDropoffAddress = String(order.dropoff_address || "");
     const businessPickupContact = businessProfile.business_name || "Business pickup";
     const marketplaceCustomerContact = String(order.customer_contact || "Marketplace customer");
@@ -132,7 +138,7 @@ export async function PATCH(request: Request) {
           title: "Ready for pickup",
           body: "Business marked this order ready. Fast Fleets 360 is finding a courier."
         }),
-        notifyApprovedRiders(db, delivery.id, delivery.delivery_code)
+        notifyApprovedRiders(db, delivery.id, delivery.delivery_code, businessPickupAddress)
       ]);
     } else if (status === "ready_for_pickup" && deliveryId) {
       await db
@@ -208,15 +214,22 @@ function normalizeVehicle(value: unknown) {
   return vehicle === "car" || vehicle === "van" ? vehicle : "bike";
 }
 
-async function notifyApprovedRiders(db: SupabaseClient, deliveryId: string, deliveryCode: string) {
+function appendStateToAddress(address: string, state: string) {
+  const normalizedState = normalizeState(state);
+  if (!normalizedState) return address;
+  return extractNigerianState(address) === normalizedState ? address : `${address}, ${normalizedState}`;
+}
+
+async function notifyApprovedRiders(db: SupabaseClient, deliveryId: string, deliveryCode: string, pickupAddress: string) {
   const { data: riders } = await db
     .from("rider_profiles")
-    .select("user_id")
+    .select("user_id, operating_zone, address")
     .eq("application_status", "approved")
     .eq("online", true)
     .limit(25);
 
   const rows = (riders || [])
+    .filter((rider) => pickupMatchesRiderState(pickupAddress, rider.operating_zone || rider.address))
     .map((rider) => rider.user_id)
     .filter(Boolean)
     .map((userId) => ({
