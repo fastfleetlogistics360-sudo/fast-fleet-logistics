@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { BarChart3, Building2, Clock, Download, FileText, Home, Loader2, MapPin, Menu, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards, X } from "lucide-react";
+import { BarChart3, Building2, Clock, Download, FileText, Home, Loader2, MapPin, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -181,7 +181,6 @@ function estimatePrice(form: DispatchForm) {
 
 export function BusinessDashboard({ initialKycStatus = "active", initialKycRejectionReason = null }: { initialKycStatus?: BusinessKycStatus; initialKycRejectionReason?: string | null }) {
   const [activeTab, setActiveTab] = useState<BusinessTab>("overview");
-  const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<BusinessProfile>({ business_name: "Fast Fleets 360 Business", contact_name: "Operations", phone: "+2348012345678" });
   const [kycStatus, setKycStatus] = useState<BusinessKycStatus>(initialKycStatus);
@@ -216,15 +215,6 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
     return { today, monthSpend, active, addresses: addresses.length };
   }, [addresses.length, orders]);
   const filteredOrders = historyStatus === "all" ? orders : orders.filter((order) => order.status === historyStatus);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [menuOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -530,28 +520,12 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
   }
 
   return (
-    <section className="min-h-screen bg-fleet-paper pb-24 lg:pb-0">
-      <BusinessMenuDrawer
-        open={menuOpen}
-        activeTab={activeTab}
-        onChange={setActiveTab}
-        disabled={kycStatus !== "active"}
-        onClose={() => setMenuOpen(false)}
-      />
+    <section className="min-h-screen bg-fleet-paper pb-24">
       <div className="mx-auto max-w-7xl">
         <main className="min-w-0 px-4 pb-5 pt-4 sm:px-6 lg:pb-8">
           <BackButton className="mb-4" />
           <header className="mb-5 flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
-              <button
-                type="button"
-                className="mt-1 inline-grid h-11 w-11 shrink-0 place-items-center rounded-fleet border border-fleet-line bg-white text-fleet-night shadow-lift transition hover:border-fleet-gold"
-                aria-label="Open business app menu"
-                aria-expanded={menuOpen}
-                onClick={() => setMenuOpen(true)}
-              >
-                <Menu className="h-5 w-5" />
-              </button>
               <div className="min-w-0">
                 <h1 className="text-2xl font-black text-fleet-night sm:text-4xl">{profile.business_name || "Business dashboard"}</h1>
                 <p className="mt-1 text-sm font-semibold text-slate-600">
@@ -575,58 +549,37 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
           )}
         </main>
       </div>
+      <BusinessMobileTabs activeTab={activeTab} onChange={setActiveTab} disabled={kycStatus !== "active"} />
       {withdrawalOpen ? <BusinessWithdrawalModal amount={withdrawalAmount} onAmount={setWithdrawalAmount} profile={profile} loading={withdrawalLoading} message={withdrawalMessage} onClose={() => setWithdrawalOpen(false)} onSubmit={requestWithdrawal} /> : null}
     </section>
   );
 }
 
-function BusinessMenuDrawer({ open, activeTab, onChange, disabled = false, onClose }: { open: boolean; activeTab: BusinessTab; onChange: (tab: BusinessTab) => void; disabled?: boolean; onClose: () => void }) {
-  if (!open) return null;
+function BusinessMobileTabs({ activeTab, onChange, disabled = false }: { activeTab: BusinessTab; onChange: (tab: BusinessTab) => void; disabled?: boolean }) {
   return (
-    <div className="fixed inset-0 z-[90] bg-fleet-night/25 backdrop-blur-sm" role="presentation" onClick={onClose}>
-      <aside
-        className="absolute bottom-3 left-3 top-3 w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto rounded-fleet border border-fleet-line bg-white p-4 shadow-glow"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Fast Fleets 360 business app menu"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3 rounded-fleet bg-fleet-navy p-4 text-white">
-          <div>
-            <span className="text-xl font-black">Fast Fleets 360</span>
-            <p className="mt-1 text-xs font-semibold text-white/70">Business app</p>
-          </div>
-          <button type="button" className="inline-grid h-10 w-10 place-items-center rounded-fleet border border-white/15 bg-white/10 text-white" onClick={onClose} aria-label="Close business app menu">
-            <X className="h-5 w-5" />
+    <nav className="fixed inset-x-3 bottom-3 z-50 mx-auto grid max-w-3xl grid-cols-6 gap-1 rounded-[24px] border border-fleet-line bg-white/95 p-2 shadow-glow backdrop-blur" aria-label="Business dashboard navigation">
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => {
+              if (!disabled) onChange(tab.id);
+            }}
+            disabled={disabled}
+            className={cn(
+              "grid min-h-14 place-items-center rounded-[18px] px-1 py-2 text-[0.62rem] font-black leading-none transition",
+              activeTab === tab.id && !disabled ? "bg-sky-50 text-fleet-blue ring-1 ring-sky-100" : "text-slate-500 hover:bg-fleet-paper",
+              disabled && "cursor-not-allowed opacity-45 hover:bg-transparent"
+            )}
+          >
+            <Icon className="mb-1 h-4 w-4" />
+            <span className="max-w-full truncate">{tab.label}</span>
           </button>
-        </div>
-        <nav className="mt-5 grid gap-2">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  if (disabled) return;
-                  onChange(tab.id);
-                  onClose();
-                }}
-                disabled={disabled}
-                className={cn(
-                  "flex items-center gap-3 rounded-fleet px-3 py-3 text-sm font-black transition",
-                  activeTab === tab.id && !disabled ? "bg-fleet-navy text-white" : "text-slate-600 hover:bg-fleet-paper",
-                  disabled && "cursor-not-allowed opacity-45 hover:bg-transparent"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
-    </div>
+        );
+      })}
+    </nav>
   );
 }
 

@@ -53,7 +53,7 @@ const socialItems = [
 const heroBackgroundImage = "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1500&q=70";
 const heroBlurDataURL =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwMjA2MDgnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yOCcvPjxjaXJjbGUgY3g9JzQnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNDgnLz48L3N2Zz4=";
-const brandLogo = "/brand/fastfleet-logo-2026-header.png";
+const brandLogo = "/brand/fastfleet-logo-2026.png?v=20260629";
 
 const softLaunchStates = [
   { state: "Lagos State" },
@@ -142,7 +142,7 @@ export function LaunchLandingPage() {
               alt="Fast Fleets 360 Logistics"
               width={56}
               height={56}
-              className="h-10 w-10 rounded-full border border-white/20 bg-white object-cover p-1 shadow-[0_14px_30px_rgba(0,0,0,0.24)] transition group-hover:-translate-y-0.5"
+              className="h-10 w-10 rounded-full border border-white/20 bg-white object-contain p-1 shadow-[0_14px_30px_rgba(0,0,0,0.24)] transition group-hover:-translate-y-0.5"
               priority
               sizes="56px"
             />

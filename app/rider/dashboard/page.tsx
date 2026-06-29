@@ -28,6 +28,8 @@ type RiderProfileStatusRow = {
   suspension_reason?: string | null;
   vehicle_type?: string | null;
   online?: boolean | null;
+  operating_zone?: string | null;
+  address?: string | null;
 };
 
 export default async function RiderDashboardPage() {
@@ -50,7 +52,7 @@ export default async function RiderDashboardPage() {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle<RiderStatusRow>(),
-    supabase.from("rider_profiles").select("id, application_status, suspension_reason, vehicle_type, online").eq("user_id", user.id).maybeSingle<RiderProfileStatusRow>()
+    supabase.from("rider_profiles").select("id, application_status, suspension_reason, vehicle_type, online, operating_zone, address").eq("user_id", user.id).maybeSingle<RiderProfileStatusRow>()
   ]);
 
   const rawStatus = applicationResult.data?.status || riderProfileResult.data?.application_status || "pending_review";
@@ -68,7 +70,8 @@ async function ensureDispatchProfileForApprovedRider(userId: string, application
   if (!admin) return;
 
   const dispatchVehicle = normalizeDispatchVehicle(riderProfile?.vehicle_type || application?.vehicle_type);
-  if (riderProfile?.id && riderProfile.application_status === "approved" && riderProfile.vehicle_type === dispatchVehicle) return;
+  const operatingZone = riderProfile?.operating_zone || riderProfile?.address || application?.lga || null;
+  if (riderProfile?.id && riderProfile.application_status === "approved" && riderProfile.vehicle_type === dispatchVehicle && riderProfile.operating_zone) return;
 
   await admin
     .from("rider_profiles")
@@ -76,8 +79,8 @@ async function ensureDispatchProfileForApprovedRider(userId: string, application
       {
         user_id: userId,
         application_status: "approved" as RiderApplicationStatus,
-        address: application?.lga || null,
-        operating_zone: application?.lga || null,
+        address: operatingZone,
+        operating_zone: operatingZone,
         vehicle_type: dispatchVehicle,
         plate_number: application?.plate_number || null,
         vehicle_color: application?.vehicle_color || null,

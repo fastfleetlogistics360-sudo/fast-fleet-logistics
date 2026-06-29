@@ -44,7 +44,7 @@ const navItems = [
   { href: "/support", label: "Support" }
 ];
 
-const brandLogo = "/brand/fastfleet-logo-2026-header.png";
+const brandLogo = "/brand/fastfleet-logo-2026.png?v=20260629";
 
 const bottomItems: Array<{ href: string; label: string; icon: LucideIcon; activePaths?: string[] }> = [
   { href: "/book", label: "Book", icon: PackageCheck },
@@ -172,7 +172,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
               alt="Fast Fleets 360 Logistics"
               width={46}
               height={46}
-              className="h-10 w-10 rounded-[14px] border border-fleet-line object-cover shadow-[0_12px_28px_rgba(8,17,31,0.08)]"
+              className="h-10 w-10 rounded-[14px] border border-fleet-line bg-white object-contain p-1 shadow-[0_12px_28px_rgba(8,17,31,0.08)]"
               priority
             />
             <span className="grid leading-none">
@@ -338,7 +338,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 alt="Fast Fleets 360 Logistics"
                 width={42}
                 height={42}
-                className="h-10 w-10 rounded-fleet object-cover"
+                className="h-10 w-10 rounded-fleet bg-white object-contain p-1"
               />
               <strong className="text-lg font-black">Fast Fleets 360 Logistics</strong>
             </div>

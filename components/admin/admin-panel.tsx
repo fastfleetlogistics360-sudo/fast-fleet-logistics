@@ -42,8 +42,10 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from "@/lib/brand-partners";
+import { DEFAULT_FARE_CONFIG, fareSpeedTypes, fareVehicleTypes, normalizeFareConfig, speedLabel, vehicleLabel, type FareConfig } from "@/lib/fare";
 import { defaultLaunchStateRecords, launchStatusLabel, rememberLiveState } from "@/lib/launch-states";
 import type { LaunchStateRecord } from "@/lib/launch-states";
+import type { DeliverySpeed, VehicleType } from "@/types/domain";
 import { formatMoney } from "@/lib/format";
 import { riderReviewLabel } from "@/lib/kyc";
 import { normalizeRiderAccountType, riderAccountTypeLabel, riderAccountTypes, type RiderAccountType } from "@/lib/rider-account-type";
@@ -310,6 +312,7 @@ type SiteControls = {
     max_withdrawal_ngn: number;
     payout_sla_hours: number;
   };
+  fare_config: FareConfig;
 };
 
 type RiskSignal = {
@@ -515,7 +518,8 @@ const defaultSiteControls: SiteControls = {
     min_withdrawal_ngn: 2000,
     max_withdrawal_ngn: 200000,
     payout_sla_hours: 10
-  }
+  },
+  fare_config: DEFAULT_FARE_CONFIG
 };
 
 function normalizeSiteControls(value: unknown): SiteControls {
@@ -527,7 +531,8 @@ function normalizeSiteControls(value: unknown): SiteControls {
     wallet_policy: {
       ...defaultSiteControls.wallet_policy,
       ...(controls.wallet_policy || {})
-    }
+    },
+    fare_config: normalizeFareConfig(controls.fare_config)
   };
 }
 
@@ -640,7 +645,6 @@ export function AdminPanel() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [activeAdminSection, setActiveAdminSection] = useState<AdminSectionId>("overview");
-  const [pricing, setPricing] = useState({ surge: "1.15", commission: "18", bikeBase: "1800" });
   const liveStates = useMemo(() => launchStates.filter((state) => state.status === "active" || state.status === "live").length, [launchStates]);
   const pendingRiderCount = useMemo(() => adminRiders.filter((rider) => !["approved", "rejected"].includes(rider.application_status)).length, [adminRiders]);
   const pendingBusinessCount = useMemo(() => adminBusinesses.filter((business) => business.registration_status === "submitted").length, [adminBusinesses]);
@@ -942,12 +946,51 @@ export function AdminPanel() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Could not save site controls.");
       setSiteControls(normalizeSiteControls(result.controls || siteControls));
-      setAdminMessage("Site controls saved. Platform switches and policy settings are ready for your live app to read.");
+      setAdminMessage("Site controls saved. Platform switches, wallet policy, and booking fare settings are ready for your live app to read.");
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "Could not save site controls.");
     } finally {
       setBusyAction(null);
     }
+  }
+
+  function updateFareVehicle(vehicle: VehicleType, patch: Partial<FareConfig["vehicles"][VehicleType]>) {
+    setSiteControls((current) => {
+      const fareConfig = normalizeFareConfig(current.fare_config);
+      return {
+        ...current,
+        fare_config: {
+          ...fareConfig,
+          vehicles: {
+            ...fareConfig.vehicles,
+            [vehicle]: {
+              ...fareConfig.vehicles[vehicle],
+              ...patch
+            }
+          }
+        }
+      };
+    });
+  }
+
+  function updateFareMultiplier(speed: DeliverySpeed, value: number) {
+    setSiteControls((current) => {
+      const fareConfig = normalizeFareConfig(current.fare_config);
+      return {
+        ...current,
+        fare_config: {
+          ...fareConfig,
+          speedMultipliers: {
+            ...fareConfig.speedMultipliers,
+            [speed]: value
+          }
+        }
+      };
+    });
+  }
+
+  function updateFareConfig(patch: Partial<Pick<FareConfig, "platformFee" | "ogunSurcharge">>) {
+    setSiteControls((current) => ({ ...current, fare_config: { ...normalizeFareConfig(current.fare_config), ...patch } }));
   }
 
   async function resolveRiskSignal(id: string) {
@@ -1682,16 +1725,38 @@ export function AdminPanel() {
             <div>
               <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Pricing authority</span>
               <h2 className="mt-1 text-2xl font-black text-fleet-night">Fare controls</h2>
+              <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">These values power the live /book delivery estimate and checkout validation.</p>
             </div>
             <SlidersHorizontal className="h-5 w-5 text-fleet-ember" />
           </div>
-          <div className="mt-5 grid gap-3">
-            <AdminInput label="Bike base fare" value={pricing.bikeBase} onChange={(value) => setPricing((current) => ({ ...current, bikeBase: value }))} />
-            <AdminInput label="Surge multiplier" value={pricing.surge} onChange={(value) => setPricing((current) => ({ ...current, surge: value }))} />
-            <AdminInput label="Commission percent" value={pricing.commission} onChange={(value) => setPricing((current) => ({ ...current, commission: value }))} />
+          <div className="mt-5 grid gap-4">
+            <div className="grid gap-3">
+              {fareVehicleTypes.map((vehicle) => (
+                <div key={vehicle} className="rounded-fleet border border-fleet-line bg-fleet-paper p-3">
+                  <strong className="text-sm font-black text-fleet-night">{vehicleLabel(vehicle)}</strong>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <AdminNumberInput label="Base fare" value={siteControls.fare_config.vehicles[vehicle].base} onChange={(value) => updateFareVehicle(vehicle, { base: value })} />
+                    <AdminNumberInput label="Fee per km" value={siteControls.fare_config.vehicles[vehicle].perKm} onChange={(value) => updateFareVehicle(vehicle, { perKm: value })} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-fleet border border-fleet-line bg-white p-3">
+              <strong className="text-sm font-black text-fleet-night">Speed multipliers</strong>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {fareSpeedTypes.map((speed) => (
+                  <AdminNumberInput key={speed} label={speedLabel(speed)} value={siteControls.fare_config.speedMultipliers[speed]} onChange={(value) => updateFareMultiplier(speed, value)} />
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AdminNumberInput label="Platform fee" value={siteControls.fare_config.platformFee} onChange={(value) => updateFareConfig({ platformFee: value })} />
+              <AdminNumberInput label="Ogun surcharge" value={siteControls.fare_config.ogunSurcharge} onChange={(value) => updateFareConfig({ ogunSurcharge: value })} />
+            </div>
           </div>
-          <Button type="button" className="mt-4 w-full">
-            Save pricing draft
+          <Button type="button" className="mt-4 w-full" onClick={saveSiteControls} disabled={busyAction === "site-controls:save"}>
+            {busyAction === "site-controls:save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save live fare settings
           </Button>
         </Card>
 
@@ -3396,7 +3461,7 @@ function AdminInput({ label, value, onChange }: { label: string; value: string; 
   return (
     <label className="form-field">
       <span className="form-label">{label}</span>
-      <input className="form-input" value={value} onChange={(event) => onChange(event.target.value)} inputMode="decimal" />
+      <input className="form-input" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
@@ -3405,7 +3470,7 @@ function AdminNumberInput({ label, value, onChange }: { label: string; value: nu
   return (
     <label className="form-field">
       <span className="form-label">{label}</span>
-      <input className="form-input" value={String(value)} onChange={(event) => onChange(Number(event.target.value || 0))} inputMode="numeric" />
+      <input className="form-input" value={String(value)} onChange={(event) => onChange(Number(event.target.value || 0))} inputMode="decimal" />
     </label>
   );
 }

@@ -7,8 +7,9 @@ import { PwaRegister } from "@/components/layout/pwa-register";
 
 export const runtime = "nodejs";
 
-const brandLogo = "/brand/fastfleet-logo-2026.png";
-const brandIcon = "/brand/fastfleet-logo-2026-header.png";
+const assetVersion = "20260629";
+const brandLogo = `/brand/fastfleet-logo-2026.png?v=${assetVersion}`;
+const brandIcon = `/icons/icon-192.png?v=${assetVersion}`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://fastfleet.com.ng"),
@@ -44,10 +45,10 @@ export const metadata: Metadata = {
     title: "Fast Fleets 360 Logistics",
     description: "Fast dispatch, verified riders, wallet payments, and live delivery tracking."
   },
-  manifest: "/manifest.webmanifest",
+  manifest: `/manifest.webmanifest?v=${assetVersion}`,
   icons: {
     icon: brandIcon,
-    apple: "/icons/icon-180.png"
+    apple: `/icons/icon-180.png?v=${assetVersion}`
   },
   appleWebApp: {
     capable: true,
@@ -70,8 +71,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Fast Fleets 360" />
-        <link rel="apple-touch-icon" href="/icons/icon-180.png" />
-        <link rel="apple-touch-startup-image" href="/splash/splash-1170x2532.png" />
+        <link rel="apple-touch-icon" href={`/icons/icon-180.png?v=${assetVersion}`} />
+        <link rel="apple-touch-startup-image" href={`/splash/splash-1170x2532.png?v=${assetVersion}`} />
       </head>
       <body>
         <PwaRegister />

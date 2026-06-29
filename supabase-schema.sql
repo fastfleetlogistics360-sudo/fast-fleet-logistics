@@ -1217,17 +1217,9 @@ begin
   where status = 'searching'
     and rider_id is null
     and vehicle_type = target_rider.vehicle_type
-  order by
-    case
-      when target_rider.operating_zone is not null
-       and (
-        pickup_address ilike '%' || split_part(target_rider.operating_zone, ' ', 1) || '%'
-        or dropoff_address ilike '%' || split_part(target_rider.operating_zone, ' ', 1) || '%'
-       )
-      then 0
-      else 1
-    end,
-    created_at asc
+    and coalesce(target_rider.operating_zone, target_rider.address) is not null
+    and pickup_address ilike '%' || coalesce(nullif(trim(split_part(coalesce(target_rider.operating_zone, target_rider.address), ',', 2)), ''), trim(coalesce(target_rider.operating_zone, target_rider.address))) || '%'
+  order by created_at asc
   limit 1
   for update skip locked;
 
@@ -1293,6 +1285,12 @@ begin
 
   if target_delivery.vehicle_type <> target_rider.vehicle_type then
     raise exception 'This dispatch order needs a different vehicle type';
+  end if;
+
+  if coalesce(target_rider.operating_zone, target_rider.address) is null
+    or target_delivery.pickup_address not ilike '%' || coalesce(nullif(trim(split_part(coalesce(target_rider.operating_zone, target_rider.address), ',', 2)), ''), trim(coalesce(target_rider.operating_zone, target_rider.address))) || '%'
+  then
+    raise exception 'This pickup is outside your registered rider state';
   end if;
 
   update public.deliveries
@@ -2485,6 +2483,23 @@ values (
       "min_withdrawal_ngn": 2000,
       "max_withdrawal_ngn": 200000,
       "payout_sla_hours": 10
+    },
+    "fare_config": {
+      "vehicles": {
+        "bike": { "base": 1800, "perKm": 240, "speedKmh": 31, "label": "Bike" },
+        "car": { "base": 3600, "perKm": 360, "speedKmh": 25, "label": "Car" },
+        "van": { "base": 7200, "perKm": 620, "speedKmh": 20, "label": "Van" }
+      },
+      "speedMultipliers": {
+        "standard": 1,
+        "same_day": 1.14,
+        "express": 1.32,
+        "priority": 1.68,
+        "scheduled": 1.08,
+        "interstate": 1.92
+      },
+      "platformFee": 500,
+      "ogunSurcharge": 800
     }
   }'::jsonb
 )

@@ -338,11 +338,11 @@ export function PhoneAuthForm({
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Enter your password to continue securely.</p>
         </div>
         <Image
-          src="/brand/fastfleet-logo-2026-header.png"
+          src="/brand/fastfleet-logo-2026.png?v=20260629"
           alt="Fast Fleets 360"
           width={44}
           height={44}
-          className="hidden h-11 w-11 rounded-[14px] border border-fleet-line bg-white object-cover p-1 shadow-[0_12px_26px_rgba(8,17,31,0.08)] sm:block"
+          className="hidden h-11 w-11 rounded-[14px] border border-fleet-line bg-white object-contain p-1 shadow-[0_12px_26px_rgba(8,17,31,0.08)] sm:block"
         />
       </div>
 

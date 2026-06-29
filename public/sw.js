@@ -1,14 +1,14 @@
-const CACHE_NAME = "fastfleet-shell-v11";
-const PAGES_CACHE = "fastfleet-pages-v11";
+const CACHE_NAME = "fastfleet-shell-v12";
+const PAGES_CACHE = "fastfleet-pages-v12";
 const OFFLINE_QUEUE = "fastfleet-offline-bookings-v1";
 const APP_SHELL = [
   "/",
   "/offline",
-  "/manifest.webmanifest",
-  "/brand/fastfleet-logo-2026-header.png",
-  "/icons/icon-180.png",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png"
+  "/manifest.webmanifest?v=20260629",
+  "/brand/fastfleet-logo-2026.png?v=20260629",
+  "/icons/icon-180.png?v=20260629",
+  "/icons/icon-192.png?v=20260629",
+  "/icons/icon-512.png?v=20260629"
 ];
 
 self.addEventListener("install", (event) => {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import type { DeliveryStatus } from "@/types/domain";
 
 const statusFlow: Record<string, DeliveryStatus> = {
@@ -16,6 +17,7 @@ const jobSelect =
 
 type JobRow = {
   id: string;
+  pickup_address?: string | null;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -33,9 +35,9 @@ export async function GET(request: Request) {
     const db = admin || supabase;
     let { data: rider, error: riderError } = await db
       .from("rider_profiles")
-      .select("id, vehicle_type, online, application_status")
+      .select("id, vehicle_type, online, application_status, operating_zone, address")
       .eq("user_id", user.id)
-      .maybeSingle<{ id: string; vehicle_type?: string | null; online?: boolean | null; application_status?: string | null }>();
+      .maybeSingle<{ id: string; vehicle_type?: string | null; online?: boolean | null; application_status?: string | null; operating_zone?: string | null; address?: string | null }>();
     if (riderError) throw riderError;
     if (!rider?.id && admin) {
       rider = await ensureApprovedRiderProfile(admin, user.id);
@@ -47,25 +49,29 @@ export async function GET(request: Request) {
       await db.from("rider_profiles").update({ vehicle_type: dispatchVehicle }).eq("id", rider.id);
       rider = { ...rider, vehicle_type: dispatchVehicle };
     }
+    const riderState = extractNigerianState(rider.operating_zone || rider.address);
+    const availableQuery = includeAvailable && rider.online && rider.application_status === "approved" && riderState
+      ? db
+          .from("deliveries")
+          .select(jobSelect)
+          .eq("status", "searching")
+          .is("rider_id", null)
+          .eq("vehicle_type", dispatchVehicle)
+          .ilike("pickup_address", `%${riderState}%`)
+          .order("created_at", { ascending: true })
+          .limit(20)
+      : Promise.resolve({ data: [] });
+
     const [assignedResult, availableResult] = await Promise.all([
       db.from("deliveries").select(jobSelect).eq("rider_id", rider.id).order("created_at", { ascending: false }).limit(40),
-      includeAvailable && rider.online && rider.application_status === "approved"
-        ? db
-            .from("deliveries")
-            .select(jobSelect)
-            .eq("status", "searching")
-            .is("rider_id", null)
-            .eq("vehicle_type", dispatchVehicle)
-            .order("created_at", { ascending: true })
-            .limit(20)
-        : Promise.resolve({ data: [] })
+      availableQuery
     ]);
 
     if (assignedResult.error) throw assignedResult.error;
     if ("error" in availableResult && availableResult.error) throw availableResult.error;
 
     const assigned = ((assignedResult.data || []) as JobRow[]).filter(Boolean);
-    const available = (((availableResult as { data?: JobRow[] }).data || []) as JobRow[]).filter((job) => !isRejectedByRider(job, rider.id));
+    const available = (((availableResult as { data?: JobRow[] }).data || []) as JobRow[]).filter((job) => !isRejectedByRider(job, rider.id) && pickupMatchesRiderState(job.pickup_address, rider.operating_zone || rider.address));
     return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load rider jobs." }, { status: 500 });
@@ -91,6 +97,8 @@ export async function POST(request: Request) {
     const db = admin || supabase;
 
     if (action === "accept") {
+      const stateCheck = await canRiderAcceptPickupState(db, user.id, id);
+      if (!stateCheck.ok) return NextResponse.json({ error: stateCheck.error }, { status: 403 });
       const { error } = await supabase.rpc("accept_delivery_offer", { target_delivery_id: id });
       if (error) throw error;
       await syncLinkedBusinessOrder(db, id, "rider_assigned");
@@ -206,10 +214,34 @@ async function ensureApprovedRiderProfile(admin: NonNullable<ReturnType<typeof c
       },
       { onConflict: "user_id" }
     )
-    .select("id, vehicle_type, online, application_status")
-    .maybeSingle<{ id: string; vehicle_type?: string | null; online?: boolean | null; application_status?: string | null }>();
+    .select("id, vehicle_type, online, application_status, operating_zone, address")
+    .maybeSingle<{ id: string; vehicle_type?: string | null; online?: boolean | null; application_status?: string | null; operating_zone?: string | null; address?: string | null }>();
 
   return data || null;
+}
+
+async function canRiderAcceptPickupState(db: SupabaseClient, userId: string, deliveryId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const [{ data: rider, error: riderError }, { data: delivery, error: deliveryError }] = await Promise.all([
+    db
+      .from("rider_profiles")
+      .select("operating_zone, address")
+      .eq("user_id", userId)
+      .maybeSingle<{ operating_zone?: string | null; address?: string | null }>(),
+    db
+      .from("deliveries")
+      .select("pickup_address")
+      .eq("id", deliveryId)
+      .maybeSingle<{ pickup_address?: string | null }>()
+  ]);
+
+  if (riderError) throw riderError;
+  if (deliveryError) throw deliveryError;
+  const riderZone = rider?.operating_zone || rider?.address || "";
+  if (!extractNigerianState(riderZone)) return { ok: false, error: "Your rider operating state is missing. Update your rider profile before accepting jobs." };
+  if (!pickupMatchesRiderState(delivery?.pickup_address, riderZone)) {
+    return { ok: false, error: "This pickup is outside your registered rider state." };
+  }
+  return { ok: true };
 }
 
 function isRejectedByRider(job: JobRow, riderId: string | null | undefined) {

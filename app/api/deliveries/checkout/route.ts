@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { estimateFare } from "@/lib/fare";
+import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Choose a valid vehicle and delivery speed." }, { status: 400 });
     }
 
+    const fareConfig = await loadFareConfig();
     const estimate = estimateFare({
       pickup,
       dropoff,
@@ -53,7 +55,7 @@ export async function POST(request: Request) {
       speed,
       scheduledAt: payload.scheduledAt || "",
       zone: `${pickup} ${dropoff}`
-    });
+    }, fareConfig);
 
     if (Number(payload.total || 0) !== estimate.total) {
       return NextResponse.json({ error: "Delivery total changed. Review the estimate and try again." }, { status: 400 });

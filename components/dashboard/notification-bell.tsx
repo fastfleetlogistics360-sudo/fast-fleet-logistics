@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Bell, CheckCheck, Loader2, Megaphone, WalletCards, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -34,7 +35,12 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const unreadCount = useMemo(() => notifications.filter(isUnread).length, [notifications]);
+
+  useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -118,6 +124,79 @@ export function NotificationBell() {
     }
   }
 
+  const notificationPanel = open ? (
+    <div className="fixed inset-0 z-[240] bg-fleet-night/35" role="dialog" aria-modal="true">
+      <aside className="ml-auto grid h-full w-full max-w-md grid-rows-[auto_1fr] bg-white shadow-glow">
+        <div className="flex items-center justify-between gap-3 border-b border-fleet-line p-4">
+          <div>
+            <h2 className="text-xl font-black text-fleet-night">Notifications</h2>
+            <p className="text-xs font-bold text-slate-500">{unreadCount} unread</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" variant="secondary" disabled={!unreadCount} onClick={markAllRead}>
+              <CheckCheck className="h-4 w-4" />
+              Read all
+            </Button>
+            <button type="button" aria-label="Close notifications" className="grid h-10 w-10 place-items-center rounded-fleet bg-fleet-paper text-fleet-night" onClick={() => setOpen(false)}>
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+        <div className="overflow-y-auto p-4">
+          {loading ? (
+            <div className="grid gap-3">
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+            </div>
+          ) : notifications.length ? (
+            <div className="grid gap-3">
+              {notifications.map((notification) => {
+                const Icon = iconFor(notification.type);
+                const unread = isUnread(notification);
+                return (
+                  <button
+                    key={notification.id}
+                    type="button"
+                    onClick={() => void handleNotificationClick(notification)}
+                    className={cn(
+                      "flex gap-3 rounded-fleet border p-3 text-left transition hover:border-fleet-gold",
+                      unread ? "border-fleet-navy bg-sky-50" : "border-fleet-line bg-white"
+                    )}
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-fleet bg-white text-fleet-navy">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span>
+                      <strong className="block text-sm font-black text-fleet-night">{notification.title}</strong>
+                      <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">{notification.body}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid min-h-80 place-items-center rounded-fleet border border-dashed border-fleet-line bg-fleet-paper p-6 text-center">
+              <div>
+                <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-white text-fleet-navy shadow-lift">
+                  <Bell className="h-7 w-7" />
+                </span>
+                <h3 className="mt-4 text-lg font-black text-fleet-night">No notifications yet</h3>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Delivery, payment, and system updates will appear here.</p>
+              </div>
+            </div>
+          )}
+          {loading ? (
+            <div className="mt-4 flex items-center gap-2 text-xs font-bold text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading notifications
+            </div>
+          ) : null}
+        </div>
+      </aside>
+    </div>
+  ) : null;
+
   return (
     <>
       <button
@@ -134,78 +213,7 @@ export function NotificationBell() {
         ) : null}
       </button>
 
-      {open ? (
-        <div className="fixed inset-0 z-[120] bg-fleet-night/35" role="dialog" aria-modal="true">
-          <aside className="ml-auto grid h-full w-full max-w-md grid-rows-[auto_1fr] bg-white shadow-glow">
-            <div className="flex items-center justify-between gap-3 border-b border-fleet-line p-4">
-              <div>
-                <h2 className="text-xl font-black text-fleet-night">Notifications</h2>
-                <p className="text-xs font-bold text-slate-500">{unreadCount} unread</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button type="button" size="sm" variant="secondary" disabled={!unreadCount} onClick={markAllRead}>
-                  <CheckCheck className="h-4 w-4" />
-                  Read all
-                </Button>
-                <button type="button" aria-label="Close notifications" className="grid h-10 w-10 place-items-center rounded-fleet bg-fleet-paper text-fleet-night" onClick={() => setOpen(false)}>
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-            <div className="overflow-y-auto p-4">
-              {loading ? (
-                <div className="grid gap-3">
-                  <Skeleton className="h-20" />
-                  <Skeleton className="h-20" />
-                  <Skeleton className="h-20" />
-                </div>
-              ) : notifications.length ? (
-                <div className="grid gap-3">
-                  {notifications.map((notification) => {
-                    const Icon = iconFor(notification.type);
-                    const unread = isUnread(notification);
-                    return (
-                      <button
-                        key={notification.id}
-                        type="button"
-                        onClick={() => void handleNotificationClick(notification)}
-                        className={cn(
-                          "flex gap-3 rounded-fleet border p-3 text-left transition hover:border-fleet-gold",
-                          unread ? "border-fleet-navy bg-sky-50" : "border-fleet-line bg-white"
-                        )}
-                      >
-                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-fleet bg-white text-fleet-navy">
-                          <Icon className="h-5 w-5" />
-                        </span>
-                        <span>
-                          <strong className="block text-sm font-black text-fleet-night">{notification.title}</strong>
-                          <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">{notification.body}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="grid min-h-80 place-items-center rounded-fleet border border-dashed border-fleet-line bg-fleet-paper p-6 text-center">
-                  <div>
-                    <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-white text-fleet-navy shadow-lift">
-                      <Bell className="h-7 w-7" />
-                    </span>
-                    <h3 className="mt-4 text-lg font-black text-fleet-night">No notifications yet</h3>
-                    <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Delivery, payment, and system updates will appear here.</p>
-                  </div>
-                </div>
-              )}
-              {loading ? (
-                <div className="mt-4 flex items-center gap-2 text-xs font-bold text-slate-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading notifications
-                </div>
-              ) : null}
-            </div>
-          </aside>
-        </div>
-      ) : null}
+      {notificationPanel && portalTarget ? createPortal(notificationPanel, portalTarget) : notificationPanel}
     </>
   );
 }

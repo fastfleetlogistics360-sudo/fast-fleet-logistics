@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { defaultBrandPartners, normalizeBrandPartners } from "@/lib/brand-partners";
+import { DEFAULT_FARE_CONFIG, normalizeFareConfig } from "@/lib/fare";
+import { siteControlsSettingsKey } from "@/lib/fare-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import type { Json } from "@/lib/supabase/types";
-
-const settingsKey = "admin_site_controls";
 
 const defaultControls = {
   bookings_enabled: true,
@@ -21,7 +21,8 @@ const defaultControls = {
     min_withdrawal_ngn: 2000,
     max_withdrawal_ngn: 200000,
     payout_sla_hours: 10
-  }
+  },
+  fare_config: DEFAULT_FARE_CONFIG
 };
 
 export async function GET() {
@@ -35,12 +36,13 @@ export async function GET() {
     return NextResponse.json(missingServiceResponse("site controls"), { status: 503 });
   }
 
-  const { data, error } = await supabase.from("platform_settings").select("value").eq("key", settingsKey).maybeSingle();
+  const { data, error } = await supabase.from("platform_settings").select("value").eq("key", siteControlsSettingsKey).maybeSingle();
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ controls: { ...defaultControls, ...(data?.value as object | null) } });
+  const value = (data?.value || {}) as Record<string, unknown>;
+  return NextResponse.json({ controls: { ...defaultControls, ...value, fare_config: normalizeFareConfig(value.fare_config) } });
 }
 
 export async function PUT(request: Request) {
@@ -58,7 +60,7 @@ export async function PUT(request: Request) {
 
   const { data, error } = await supabase
     .from("platform_settings")
-    .upsert({ key: settingsKey, value: parsed.controls as Json, updated_at: new Date().toISOString() }, { onConflict: "key" })
+    .upsert({ key: siteControlsSettingsKey, value: parsed.controls as Json, updated_at: new Date().toISOString() }, { onConflict: "key" })
     .select("value")
     .single();
 
@@ -89,7 +91,8 @@ function parseControls(body: Record<string, unknown>): { controls: typeof defaul
       min_withdrawal_ngn: clampMoney(walletPolicy.min_withdrawal_ngn, 1000, 1000000, defaultControls.wallet_policy.min_withdrawal_ngn),
       max_withdrawal_ngn: clampMoney(walletPolicy.max_withdrawal_ngn, 1000, 5000000, defaultControls.wallet_policy.max_withdrawal_ngn),
       payout_sla_hours: clampMoney(walletPolicy.payout_sla_hours, 1, 168, defaultControls.wallet_policy.payout_sla_hours)
-    }
+    },
+    fare_config: normalizeFareConfig(body.fare_config)
   };
 
   if (controls.wallet_policy.max_withdrawal_ngn < controls.wallet_policy.min_withdrawal_ngn) {

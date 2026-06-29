@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { geolocationErrorMessage, getLocationPermissionState, requestCurrentPosition } from "@/lib/location/geolocation";
+import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
 import { uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
@@ -39,6 +40,8 @@ type RiderProfile = {
   email?: string | null;
   avatar_url?: string | null;
   lga?: string | null;
+  operating_zone?: string | null;
+  address?: string | null;
   vehicle_type?: string | null;
   plate_number?: string | null;
   vehicle_color?: string | null;
@@ -67,6 +70,8 @@ type JobRow = {
   eta_minutes?: number | null;
   created_at?: string | null;
   proof_url?: string | null;
+  rider_id?: string | null;
+  vehicle_type?: string | null;
   metadata?: Record<string, unknown> | null;
   users?: {
     full_name?: string | null;
@@ -96,7 +101,7 @@ const jobFields =
   "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
 
 const riderProfileFields =
-  "id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type";
+  "id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, operating_zone, address";
 
 export function RiderAccessState({ status, rejectionReason }: { status: KycStatus; rejectionReason?: string | null }) {
   const router = useRouter();
@@ -153,7 +158,7 @@ export function RiderAccessState({ status, rejectionReason }: { status: KycStatu
   );
 }
 
-async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId: string | null, vehicleType: string | null | undefined, includeAvailable: boolean) {
+async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId: string | null, vehicleType: string | null | undefined, includeAvailable: boolean, riderZone?: string | null) {
   try {
     const response = await fetch(`/api/rider/jobs?includeAvailable=${includeAvailable ? "1" : "0"}`, { cache: "no-store" });
     const payload = (await response.json().catch(() => ({}))) as { jobs?: JobRow[] };
@@ -162,21 +167,23 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
     // Fall back to the browser Supabase client below when the API is unavailable in local preview.
   }
   if (!riderId) return [] as JobRow[];
+  const riderState = extractNigerianState(riderZone);
   const [assignedResult, availableResult] = await Promise.all([
     supabase.from("deliveries").select(jobFields).eq("rider_id", riderId).order("created_at", { ascending: false }).limit(40),
-    includeAvailable && vehicleType
+    includeAvailable && vehicleType && riderState
       ? supabase
           .from("deliveries")
           .select(jobFields)
           .eq("status", "searching")
           .is("rider_id", null)
           .eq("vehicle_type", vehicleType)
+          .ilike("pickup_address", `%${riderState}%`)
           .order("created_at", { ascending: true })
           .limit(20)
       : Promise.resolve({ data: [] })
   ]);
   const assigned = ((assignedResult.data || []) as JobRow[]).filter(Boolean);
-  const available = ((availableResult.data || []) as JobRow[]).filter((job) => !isRejectedByRider(job, riderId));
+  const available = ((availableResult.data || []) as JobRow[]).filter((job) => !isRejectedByRider(job, riderId) && pickupMatchesRiderState(job.pickup_address, riderZone));
   return mergeJobs([...available, ...assigned]);
 }
 
@@ -550,6 +557,9 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
           fetch("/api/wallet/withdrawals?accountKind=rider", { cache: "no-store" }).then((response) => response.json()).catch(() => ({ withdrawals: [] }))
         ]);
 	        let riderData = (riderResult.data as RiderProfile | null) || {};
+        const profileData = (profileResult.data || {}) as RiderProfile;
+        const appUserData = (appUserResult.data || {}) as RiderProfile & { default_zone?: string | null };
+        const applicationData = (latestApplicationResult.data || {}) as RiderProfile;
 	        let riderId = riderData.id || null;
 	        const approved = riderData.application_status === "approved" || initialKycStatus === "approved";
 	        if (!riderId && approved) {
@@ -571,15 +581,13 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	          riderId = riderData.id || null;
 	          dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || dispatchVehicle;
 	        }
+        const riderZone = riderData.operating_zone || riderData.address || riderData.lga || applicationData.lga || appUserData.default_zone || profileData.lga || null;
 	        const jobsResult = await (
 	          riderId || approved
-	            ? loadRiderJobs(supabase, riderId, dispatchVehicle, effectiveOnline)
+	            ? loadRiderJobs(supabase, riderId, dispatchVehicle, effectiveOnline, riderZone)
 	            : Promise.resolve({ data: [] })
 	        );
         if (!mounted) return;
-        const profileData = (profileResult.data || {}) as RiderProfile;
-        const appUserData = (appUserResult.data || {}) as RiderProfile & { default_zone?: string | null };
-        const applicationData = (latestApplicationResult.data || {}) as RiderProfile;
         const nextProfile = {
           ...profileData,
           ...riderData,
@@ -587,7 +595,9 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
           phone: profileData.phone || appUserData.phone || applicationData.phone || user.phone || null,
           email: profileData.email || appUserData.email || applicationData.email || user.email || null,
           avatar_url: profileData.avatar_url || appUserData.avatar_url || null,
-          lga: profileData.lga || applicationData.lga || appUserData.default_zone || "Lagos",
+          lga: profileData.lga || riderZone || "Lagos",
+          operating_zone: riderData.operating_zone || riderZone,
+          address: riderData.address || null,
           application_status: approved ? "approved" : riderData.application_status,
           vehicle_type: dispatchVehicle,
           online: onlineMutationRef.current && desiredOnlineRef.current !== null ? desiredOnlineRef.current : effectiveOnline
@@ -623,7 +633,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	    const dispatchVehicle = normalizeDispatchVehicle(profile.vehicle_type) || "bike";
 
 	    async function refreshAvailableJobs() {
-	      const nextJobs = await loadRiderJobs(supabase, profile.id || null, dispatchVehicle, true);
+	      const nextJobs = await loadRiderJobs(supabase, profile.id || null, dispatchVehicle, true, profile.operating_zone || profile.address || profile.lga);
 	      if (!mounted) return;
 	      setJobs((current) => {
 	        const nextIds = new Set(nextJobs.map((job) => job.id));
@@ -677,7 +687,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       desiredOnlineRef.current = nextOnline;
       setProfile((current) => ({ ...current, ...updatedProfile, vehicle_type: dispatchVehicle, online: nextOnline }));
       if (nextOnline) {
-        const nextJobs = await loadRiderJobs(supabase, updatedProfile.id, dispatchVehicle, true);
+        const nextJobs = await loadRiderJobs(supabase, updatedProfile.id, dispatchVehicle, true, updatedProfile.operating_zone || updatedProfile.address || profile.operating_zone || profile.address || profile.lga);
         setJobs(nextJobs);
         setOfferNotice(nextJobs.some((job) => job.status === "searching") ? "New dispatch orders are available." : null);
       } else {

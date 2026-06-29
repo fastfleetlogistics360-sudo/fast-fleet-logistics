@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, CreditCard, Loader2, MapPin, Package, Truck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { estimateFare, speedLabel, vehicleLabel } from "@/lib/fare";
+import { DEFAULT_FARE_CONFIG, estimateFare, normalizeFareConfig, speedLabel, vehicleLabel, type FareConfig } from "@/lib/fare";
 import { formatMoney } from "@/lib/format";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -49,6 +49,7 @@ export function BookingFlow() {
   const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pickupAutofillEnabled, setPickupAutofillEnabled] = useState(() => !searchParams.get("pickup")?.trim());
+  const [fareConfig, setFareConfig] = useState<FareConfig>(DEFAULT_FARE_CONFIG);
   const [form, setForm] = useState({
     pickup: sanitizeAddressText(searchParams.get("pickup") || ""),
     pickupContact: "",
@@ -73,9 +74,9 @@ export function BookingFlow() {
         speed: form.speed,
         scheduledAt: form.scheduledAt,
         zone: `${pickup} ${dropoff}`
-      });
+      }, fareConfig);
     },
-    [form]
+    [fareConfig, form]
   );
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -100,6 +101,20 @@ export function BookingFlow() {
     window.addEventListener(currentLocationUpdatedEvent, handleLocationUpdate);
     return () => window.removeEventListener(currentLocationUpdatedEvent, handleLocationUpdate);
   }, [pickupAutofillEnabled]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/site-controls", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!cancelled) setFareConfig(normalizeFareConfig(data.fare_config));
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function next() {
     setCurrent((value) => Math.min(value + 1, steps.length - 1));
