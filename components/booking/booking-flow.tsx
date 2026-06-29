@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, CreditCard, Loader2, MapPin, Package, Truck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -12,6 +12,8 @@ import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { RoutePreview } from "@/components/maps/route-preview";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { sanitizeAddressText, isUsableAddressText } from "@/lib/location/address-formatting";
+import { currentLocationUpdatedEvent, readStoredCurrentLocation, type StoredCurrentLocation } from "@/lib/location/current-location";
 
 const steps = [
   "Pickup",
@@ -46,10 +48,11 @@ export function BookingFlow() {
   const [loading, setLoading] = useState(false);
   const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pickupAutofillEnabled, setPickupAutofillEnabled] = useState(() => !searchParams.get("pickup")?.trim());
   const [form, setForm] = useState({
-    pickup: searchParams.get("pickup") || "",
+    pickup: sanitizeAddressText(searchParams.get("pickup") || ""),
     pickupContact: "",
-    dropoff: searchParams.get("dropoff") || "",
+    dropoff: sanitizeAddressText(searchParams.get("dropoff") || ""),
     dropoffContact: "",
     parcel: "Retail parcel",
     vehicle: "bike" as VehicleType,
@@ -60,21 +63,43 @@ export function BookingFlow() {
   });
 
   const estimate = useMemo(
-    () =>
-      estimateFare({
-        pickup: form.pickup,
-        dropoff: form.dropoff,
+    () => {
+      const pickup = sanitizeAddressText(form.pickup);
+      const dropoff = sanitizeAddressText(form.dropoff);
+      return estimateFare({
+        pickup,
+        dropoff,
         vehicle: form.vehicle,
         speed: form.speed,
         scheduledAt: form.scheduledAt,
-        zone: `${form.pickup} ${form.dropoff}`
-      }),
+        zone: `${pickup} ${dropoff}`
+      });
+    },
     [form]
   );
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
   }
+
+  useEffect(() => {
+    if (!pickupAutofillEnabled) return;
+
+    function applyCurrentPickup(location: StoredCurrentLocation | null) {
+      const address = sanitizeAddressText(location?.address || "");
+      if (!isUsableAddressText(address)) return;
+      setForm((previous) => (previous.pickup.trim() ? previous : { ...previous, pickup: address }));
+    }
+
+    applyCurrentPickup(readStoredCurrentLocation());
+
+    function handleLocationUpdate(event: Event) {
+      applyCurrentPickup((event as CustomEvent<StoredCurrentLocation>).detail || null);
+    }
+
+    window.addEventListener(currentLocationUpdatedEvent, handleLocationUpdate);
+    return () => window.removeEventListener(currentLocationUpdatedEvent, handleLocationUpdate);
+  }, [pickupAutofillEnabled]);
 
   function next() {
     setCurrent((value) => Math.min(value + 1, steps.length - 1));
@@ -94,6 +119,8 @@ export function BookingFlow() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          pickup: sanitizeAddressText(form.pickup),
+          dropoff: sanitizeAddressText(form.dropoff),
           total: estimate.total
         })
       });
@@ -177,7 +204,10 @@ export function BookingFlow() {
               label="Pickup location"
               value={form.pickup}
               contact={form.pickupContact}
-              onValue={(value) => update("pickup", value)}
+              onValue={(value) => {
+                setPickupAutofillEnabled(false);
+                update("pickup", value);
+              }}
               onContact={(value) => update("pickupContact", value)}
               placeholder="Pickup address in Lagos or Ogun"
             />

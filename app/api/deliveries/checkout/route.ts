@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { estimateFare } from "@/lib/fare";
+import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -31,8 +32,8 @@ export async function POST(request: Request) {
     const paymentMethod = String(payload.payment || "card") as "card" | "wallet" | "transfer";
     const vehicle = String(payload.vehicle || "bike") as VehicleType;
     const speed = String(payload.speed || "express") as DeliverySpeed;
-    const pickup = String(payload.pickup || "").trim();
-    const dropoff = String(payload.dropoff || "").trim();
+    const pickup = sanitizeAddressText(String(payload.pickup || ""));
+    const dropoff = sanitizeAddressText(String(payload.dropoff || ""));
     const parcel = String(payload.parcel || "Retail parcel").trim();
 
     if (!pickup || !dropoff) {

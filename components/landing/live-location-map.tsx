@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { estimateFareForDistance } from "@/lib/fare";
 import { formatMoney } from "@/lib/format";
+import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { currentLocationUpdatedEvent, readStoredCurrentLocation, type StoredCurrentLocation } from "@/lib/location/current-location";
 
 type LocationState = {
@@ -135,14 +136,15 @@ export function LiveLocationMap() {
   }, [currentAddress, dropoff, pickup, pickupUsesCurrentLocation, location?.latitude, location?.longitude]);
 
   function applyStoredLocation(stored: StoredCurrentLocation) {
+    const address = sanitizeAddressText(stored.address);
     setLocation({
       latitude: stored.latitude,
       longitude: stored.longitude,
       accuracy: stored.accuracy
     });
-    setCurrentAddress(stored.address);
-    setLocationMessage(stored.address);
-    setPickup((current) => (current.trim() ? current : stored.address));
+    setCurrentAddress(address);
+    setLocationMessage(address || "Use your live location or enter an address manually.");
+    setPickup((current) => (current.trim() || !address ? current : address));
   }
 
   async function updateDistance(signal?: AbortSignal) {

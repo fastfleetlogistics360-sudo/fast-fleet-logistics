@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
+import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { readStoredCurrentLocation } from "@/lib/location/current-location";
 
 declare global {
@@ -109,13 +110,13 @@ export function AddressAutocompleteInput({
   async function selectPrediction(prediction: AddressPrediction) {
     setSelectedPlaceId(prediction.placeId);
     setOpen(false);
-    onChange(prediction.description);
+    onChange(sanitizeAddressText(prediction.description));
 
     if (prediction.source === "local") return;
 
     try {
       const browserDetails = await fetchBrowserPlaceDetails(prediction.placeId);
-      if (browserDetails.address) onChange(browserDetails.address);
+      if (browserDetails.address) onChange(sanitizeAddressText(browserDetails.address));
       return;
     } catch {
       // The API route can still resolve details when a server Places key is configured.
@@ -125,7 +126,7 @@ export function AddressAutocompleteInput({
       const params = new URLSearchParams({ placeId: prediction.placeId, sessionToken });
       const response = await fetch(`/api/maps/place-details?${params.toString()}`, { cache: "no-store" });
       const data = (await response.json()) as { address?: string };
-      if (response.ok && data.address) onChange(data.address);
+      if (response.ok && data.address) onChange(sanitizeAddressText(data.address));
     } catch {
       // The prediction description is still a usable address.
     }
@@ -289,7 +290,8 @@ function buildLocalAddressPredictions(value: string, currentLocation: { latitude
   if (!base) return [];
   const hasStreetSuffix = /\b(st|street|road|rd|avenue|ave|close|crescent|drive|dr|lane|ln)\b/i.test(base);
   const stems = hasStreetSuffix ? [base] : [`${base} Street`, `${base} St`, `${base} Road`, `${base} Close`, `${base} Avenue`];
-  const areas = currentLocation?.address ? ["Near your current location", "Lagos, Nigeria", "Ogun, Nigeria"] : ["Lagos, Nigeria", "Alagbado, Lagos", "Agege, Nigeria", "Ota, Ogun"];
+  const currentArea = currentLocation?.address ? currentAddressArea(currentLocation.address) : "";
+  const areas = [currentArea, "Lagos, Nigeria", "Alagbado, Lagos", "Agege, Nigeria", "Ota, Ogun"].filter(Boolean);
 
   return stems.slice(0, 5).map((mainText, index) => ({
     placeId: `local-address-${index}-${mainText.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
@@ -301,7 +303,7 @@ function buildLocalAddressPredictions(value: string, currentLocation: { latitude
 }
 
 function cleanAddressSeed(value: string) {
-  return value
+  return sanitizeAddressText(value)
     .trim()
     .replace(/\s+/g, " ")
     .replace(/,\s*$/g, "");
@@ -309,4 +311,13 @@ function cleanAddressSeed(value: string) {
 
 function titleCase(value: string) {
   return value.replace(/\b([a-z])/gi, (letter) => letter.toUpperCase());
+}
+
+function currentAddressArea(address: string) {
+  const parts = sanitizeAddressText(address)
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts.slice(-2).join(", ");
 }

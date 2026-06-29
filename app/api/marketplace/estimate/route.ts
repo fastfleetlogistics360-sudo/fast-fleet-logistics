@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { estimateMarketplaceCheckout, type MarketplacePricingItem } from "@/lib/marketplace-pricing";
 
 export async function POST(request: Request) {
@@ -9,7 +10,7 @@ export async function POST(request: Request) {
       items?: MarketplacePricingItem[];
     };
     const items = Array.isArray(payload.items) ? payload.items : [];
-    const address = String(payload.address || "").trim();
+    const address = sanitizeAddressText(String(payload.address || ""));
 
     if (!items.length) {
       return NextResponse.json({ error: "Add at least one item before estimating delivery." }, { status: 400 });

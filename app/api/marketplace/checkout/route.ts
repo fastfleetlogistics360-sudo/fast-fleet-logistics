@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
     };
 
     const items = Array.isArray(payload.items) ? payload.items : [];
+    const address = sanitizeAddressText(payload.address || "");
 
     if (!payload.email || !payload.email.includes("@")) {
       return NextResponse.json({ error: "Enter a valid email address for Paystack checkout." }, { status: 400 });
@@ -49,10 +51,10 @@ export async function POST(request: Request) {
     if (!items.length) {
       return NextResponse.json({ error: "Add at least one item before checkout." }, { status: 400 });
     }
-    if (!payload.address || payload.address.trim().length < 6) {
+    if (address.length < 6) {
       return NextResponse.json({ error: "Enter the delivery street address." }, { status: 400 });
     }
-    const estimate = estimateMarketplaceCheckout({ kind: payload.kind, items, address: payload.address });
+    const estimate = estimateMarketplaceCheckout({ kind: payload.kind, items, address });
     const platformFee = estimate.platformFee;
     const deliveryFee = estimate.deliveryFee;
     const expectedAmount = estimate.total;
@@ -109,7 +111,7 @@ export async function POST(request: Request) {
             items,
             customer_contact: payload.phone || payload.email,
             pickup_address: business.pickup_address || pickupAddress,
-            dropoff_address: payload.address,
+            dropoff_address: address,
             package_type: payload.kind === "shopping" ? "shopping items" : "food order",
             vehicle_type: "bike",
             status: "received",
@@ -148,7 +150,7 @@ export async function POST(request: Request) {
           delivery_code: reference,
           customer_id: user.id,
           pickup_address: pickupAddress,
-          dropoff_address: payload.address,
+          dropoff_address: address,
           pickup_contact: payload.kind === "shopping" ? "Shopping vendor" : "Restaurant vendor",
           dropoff_contact: payload.phone || payload.email,
           parcel_type: payload.kind === "shopping" ? "shopping items" : "food order",
@@ -199,7 +201,7 @@ export async function POST(request: Request) {
           source: "fastfleet_marketplace",
           kind: payload.kind,
           phone: payload.phone || null,
-          delivery_address: payload.address,
+          delivery_address: address,
           platform_fee_ngn: platformFee,
           delivery_fee_ngn: deliveryFee,
           delivery_distance_km: estimate.distanceKm,

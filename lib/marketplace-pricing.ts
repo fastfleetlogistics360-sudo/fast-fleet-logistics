@@ -1,4 +1,5 @@
 import { estimateFare, PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
+import { sanitizeAddressText } from "@/lib/location/address-formatting";
 
 export type MarketplaceKind = "restaurant" | "shopping";
 
@@ -23,7 +24,7 @@ export function estimateMarketplaceCheckout({
 }) {
   const marketplaceKind = kind === "shopping" ? "shopping" : "restaurant";
   const pickupAddress = marketplacePickupAddress(items, marketplaceKind);
-  const dropoffAddress = address.trim();
+  const dropoffAddress = sanitizeAddressText(address);
   const itemsTotal = items.reduce((sum, item) => sum + Math.round(Number(item.subtotal || 0)), 0);
   const fare = estimateFare({
     pickup: pickupAddress,
@@ -47,7 +48,7 @@ export function estimateMarketplaceCheckout({
 export function marketplacePickupAddress(items: MarketplacePricingItem[], kind: MarketplaceKind) {
   const candidates = items
     .map((item) => item.pickupAddress || item.storeAddress || item.mallLocation || item.store || "")
-    .map((value) => value.trim())
+    .map((value) => sanitizeAddressText(value))
     .filter(Boolean);
   const unique = Array.from(new Set(candidates));
 

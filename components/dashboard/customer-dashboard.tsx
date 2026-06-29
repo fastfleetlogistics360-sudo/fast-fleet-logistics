@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DEFAULT_LIVE_STATES, NIGERIAN_STATES, launchStatusLabel, normalizeLaunchStatus, normalizeState, rolloutWaveForState } from "@/lib/launch-states";
+import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import type { LaunchStateStatus } from "@/lib/launch-states";
 
 type CustomerTab = "home" | "orders" | "track" | "account";
@@ -779,13 +780,14 @@ function OrdersTab({ loading, orders, filter, onFilter, onSelectOrder }: { loadi
 function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?: boolean; onSelect: () => void }) {
   const businessOrder = isBusinessMarketplaceOrder(order);
   const liveDelivery = hasLiveDelivery(order);
+  const routeLabel = orderRouteLabel(order);
   return (
     <article className="rounded-[22px] border border-white/80 bg-white/[0.92] p-4 shadow-[0_16px_42px_rgba(8,17,31,0.08)] ring-1 ring-fleet-line/30 backdrop-blur-2xl">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold text-slate-500">{formatDateTime(order.created_at)}</p>
           <h3 className="mt-1 text-sm font-black text-fleet-night">{order.delivery_code}</h3>
-          <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{routeLabel}</p>
         </div>
         <StatusBadge tone={statusTone(order.status)}>{customerOrderLabel(String(order.status))}</StatusBadge>
       </div>
@@ -1033,13 +1035,14 @@ function Field({ label, value, onChange, readOnly }: { label: string; value: str
 
 function OrderSheet({ order, onClose, onLiveDeliveryChange }: { order: OrderRow; onClose: () => void; onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null }) => void }) {
   const vendorOrder = isBusinessMarketplaceOrder(order) && !hasLiveDelivery(order);
+  const routeLabel = orderRouteLabel(order);
   return (
     <div className="fixed inset-0 z-[120] grid place-items-end bg-fleet-night/35 p-3 sm:place-items-center">
       <Card className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-2xl font-black text-fleet-night">{order.delivery_code}</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-600">{order.pickup_address} to {order.dropoff_address}</p>
+            <p className="mt-1 text-sm font-semibold text-slate-600">{routeLabel}</p>
           </div>
           <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
         </div>
@@ -1130,8 +1133,8 @@ function readLocalDeliveries(): OrderRow[] {
         id: item.id || `local-${item.delivery_code || index}`,
         rider_id: item.rider_id || null,
         delivery_code: String(item.delivery_code).toUpperCase(),
-        pickup_address: item.pickup_address || item.pickup || (item.source?.includes("restaurant") ? "Restaurant pickup" : "Marketplace pickup"),
-        dropoff_address: item.dropoff_address || item.dropoff || "Customer delivery address",
+        pickup_address: displayAddress(item.pickup_address || item.pickup || "", item.source?.includes("restaurant") ? "Restaurant pickup" : "Marketplace pickup"),
+        dropoff_address: displayAddress(item.dropoff_address || item.dropoff || "", "Customer delivery address"),
         status: item.status || "searching",
         price_ngn: Number(item.price_ngn || item.estimate?.total || 0),
         source: item.source || null,
@@ -1145,6 +1148,14 @@ function readLocalDeliveries(): OrderRow[] {
   } catch {
     return [];
   }
+}
+
+function orderRouteLabel(order: Pick<OrderRow, "pickup_address" | "dropoff_address">) {
+  return `${displayAddress(order.pickup_address, "Pickup address")} to ${displayAddress(order.dropoff_address, "Drop-off address")}`;
+}
+
+function displayAddress(value: string | undefined | null, fallback: string) {
+  return sanitizeAddressText(value || "") || fallback;
 }
 
 function DashboardSkeleton() {

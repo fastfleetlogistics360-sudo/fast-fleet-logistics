@@ -1,5 +1,6 @@
 import { Bike, Building2, Home } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { isUsableAddressText, sanitizeAddressText } from "@/lib/location/address-formatting";
 import type { LiveRiderLocation } from "@/components/realtime/use-live-delivery-tracking";
 
 const googleMapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -86,9 +87,8 @@ function mapPreviewUrl(origin: string, destination: string) {
 }
 
 function usableMapAddress(value?: string) {
-  const address = value?.trim() || "";
-  if (address.length < 4) return "";
-  if (/^current detected address$/i.test(address)) return "";
+  const address = sanitizeAddressText(value || "");
+  if (!isUsableAddressText(address)) return "";
   return address;
 }
 
