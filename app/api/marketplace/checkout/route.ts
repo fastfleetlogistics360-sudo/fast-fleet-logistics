@@ -1,43 +1,17 @@
 import { NextResponse } from "next/server";
-import { normalizeState } from "@/lib/launch-states";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
-import { extractNigerianState } from "@/lib/location/state-matching";
+import {
+  businessPickupAddressFor,
+  loadActiveLinkedBusiness,
+  resolveMarketplaceBusinessLinks,
+  type MarketplaceCheckoutItem
+} from "@/lib/marketplace-business-links";
 import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const PAYSTACK_INITIALIZE_URL = "https://api.paystack.co/transaction/initialize";
-
-type CheckoutItem = {
-  name: string;
-  store: string;
-  storeAddress?: string;
-  pickupAddress?: string;
-  mallLocation?: string;
-  quantity: number;
-  price: number;
-  subtotal: number;
-  productId?: string;
-  productName?: string;
-  storeId?: string;
-  businessId?: string;
-  mallId?: string;
-  mallName?: string;
-  vendorId?: string;
-  vendorName?: string;
-  category?: string;
-};
-
-type LinkedBusinessRow = {
-  id: string;
-  user_id: string;
-  business_name?: string | null;
-  pickup_address?: string | null;
-  operating_state?: string | null;
-  registration_status?: string | null;
-  users?: { default_zone?: string | null } | null;
-};
 
 export async function POST(request: Request) {
   try {
@@ -47,7 +21,7 @@ export async function POST(request: Request) {
       phone?: string;
       address?: string;
       amount?: number;
-      items?: CheckoutItem[];
+      items?: MarketplaceCheckoutItem[];
       fees?: {
         platformFee?: number;
         deliveryFee?: number;
@@ -92,33 +66,27 @@ export async function POST(request: Request) {
     callbackUrl.searchParams.set("code", reference);
     callbackUrl.searchParams.set("returnTo", `/track?code=${encodeURIComponent(reference)}`);
     const pickupAddress = estimate.pickupAddress;
-    const linkedBusinessIds = Array.from(new Set(items.map((item) => item.businessId).filter((id): id is string => Boolean(id))));
-    if (linkedBusinessIds.length > 1) {
+    const admin = createAdminClient();
+    const businessLinks = admin
+      ? await resolveMarketplaceBusinessLinks(admin, payload.kind, items)
+      : {
+          items,
+          linkedBusinessIds: [] as string[],
+          hasLinkedItems: false,
+          hasUnlinkedItems: items.some((item) => !item.businessId)
+        };
+    if (businessLinks.linkedBusinessIds.length > 1) {
       return NextResponse.json({ error: "Checkout items from one registered business at a time." }, { status: 400 });
     }
-    const admin = createAdminClient();
-    const linkedBusinessId = linkedBusinessIds[0] || null;
+    if (businessLinks.hasLinkedItems && businessLinks.hasUnlinkedItems) {
+      return NextResponse.json({ error: "Checkout items must all belong to the same linked marketplace business." }, { status: 400 });
+    }
+    const resolvedItems = businessLinks.items;
+    const linkedBusinessId = businessLinks.linkedBusinessIds[0] || null;
     if (linkedBusinessId && !admin) {
       return NextResponse.json({ error: "Business marketplace orders are not configured. Add SUPABASE_SERVICE_ROLE_KEY in production." }, { status: 503 });
     }
-    let linkedBusinessData: LinkedBusinessRow | null = null;
-    if (linkedBusinessId && admin) {
-      const linkedBusiness = await admin
-        .from("business_profiles")
-        .select("id, user_id, business_name, pickup_address, operating_state, registration_status, users:users!business_profiles_user_id_fkey(default_zone)")
-        .eq("id", linkedBusinessId)
-        .maybeSingle<LinkedBusinessRow>();
-      if (!linkedBusiness.error) linkedBusinessData = linkedBusiness.data || null;
-      if (linkedBusiness.error) {
-        const fallback = await admin
-          .from("business_profiles")
-          .select("id, user_id, business_name, pickup_address, registration_status, users:users!business_profiles_user_id_fkey(default_zone)")
-          .eq("id", linkedBusinessId)
-          .maybeSingle<Omit<LinkedBusinessRow, "operating_state">>();
-        linkedBusinessData = fallback.data ? { ...fallback.data, operating_state: null } : null;
-      }
-    }
-    const business = linkedBusinessData?.registration_status === "active" ? linkedBusinessData : null;
+    const business = admin ? await loadActiveLinkedBusiness(admin, linkedBusinessId) : null;
 
     if (business) {
       try {
@@ -133,9 +101,9 @@ export async function POST(request: Request) {
             business_id: business.user_id,
             business_profile_id: business.id,
             marketplace_kind: payload.kind || "restaurant",
-            items,
+            items: resolvedItems,
             customer_contact: payload.phone || payload.email,
-            pickup_address: appendStateToAddress(business.pickup_address || pickupAddress, normalizeState(business.operating_state || business.users?.default_zone)),
+            pickup_address: businessPickupAddressFor(business, pickupAddress),
             dropoff_address: address,
             package_type: payload.kind === "shopping" ? "shopping items" : "food order",
             vehicle_type: "bike",
@@ -171,7 +139,7 @@ export async function POST(request: Request) {
           metadata: {
             source: "fastfleet_marketplace",
             kind: payload.kind,
-            items,
+            items: resolvedItems,
             delivery_fee_ngn: deliveryFee,
             platform_fee_ngn: platformFee,
             delivery_distance_km: estimate.distanceKm,
@@ -213,7 +181,7 @@ export async function POST(request: Request) {
           delivery_fee_ngn: deliveryFee,
           delivery_distance_km: estimate.distanceKm,
           eta_minutes: estimate.etaMinutes,
-          items
+          items: resolvedItems
         }
       })
     });
@@ -233,10 +201,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Marketplace checkout failed." }, { status: 500 });
   }
-}
-
-function appendStateToAddress(address: string, state: string) {
-  const normalizedState = normalizeState(state);
-  if (!normalizedState) return address;
-  return extractNigerianState(address) === normalizedState ? address : `${address}, ${normalizedState}`;
 }

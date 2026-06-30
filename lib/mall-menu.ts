@@ -3,6 +3,7 @@ export type MallProductPrice = number | null | "ASK_PRICE";
 
 export type MallProduct = {
   id: string;
+  businessId?: string;
   name: string;
   price: MallProductPrice;
   image: string;
@@ -180,6 +181,7 @@ function normalizeMallProduct(value: unknown): MallProduct | null {
   if (!name) return null;
   return {
     id: text(product.id) || slug(name),
+    businessId: text(product.businessId) || undefined,
     name,
     price: normalizePrice(product.price),
     image: text(product.image) || defaultShoppingMalls[0].stores[0].products[0].image,

@@ -75,31 +75,16 @@ export async function GET(request: Request) {
     if (orderError) return NextResponse.json({ error: "We could not check that tracking code right now." }, { status: 400 });
     if (!order?.id) return NextResponse.json({ error: "No delivery or marketplace order was found for that tracking code." }, { status: 404 });
 
-    return NextResponse.json({
-      delivery: {
-        id: order.delivery_id || order.id,
-        delivery_code: order.order_code || code,
-        pickup_address: order.pickup_address || "Marketplace pickup",
-        dropoff_address: order.dropoff_address || "Customer delivery address",
-        status: order.status || "received",
-        vehicle_type: normalizeVehicle(order.vehicle_type),
-        delivery_speed: "same_day",
-        price_ngn: Number(order.amount || 0),
-        eta_minutes: 0,
-        created_at: order.created_at || null,
-        rider: {
-          full_name: null,
-          phone: null,
-          email: null,
-          avatar_url: null,
-          vehicle_type: null,
-          plate_number: null,
-          vehicle_color: null,
-          rider_account_type: normalizeRiderAccountType(null)
-        },
-        last_location: null
-      }
-    });
+    return orderTrackingResponse(order, code);
+  }
+
+  const { data: marketplaceOrder } = await supabase
+    .from("orders")
+    .select("id, order_code, delivery_id, pickup_address, dropoff_address, status, vehicle_type, amount, created_at, updated_at")
+    .eq("order_code", code)
+    .maybeSingle<OrderRow>();
+  if (marketplaceOrder?.id && shouldShowMarketplaceOrderBeforeDelivery(marketplaceOrder, data)) {
+    return orderTrackingResponse(marketplaceOrder, code);
   }
 
   let lastLocation: { latitude: number; longitude: number; updated_at?: string | null } | null = null;
@@ -157,6 +142,40 @@ export async function GET(request: Request) {
       last_location: lastLocation
     }
   });
+}
+
+function orderTrackingResponse(order: OrderRow, code: string) {
+  return NextResponse.json({
+    delivery: {
+      id: order.delivery_id || order.id,
+      delivery_code: order.order_code || code,
+      pickup_address: order.pickup_address || "Marketplace pickup",
+      dropoff_address: order.dropoff_address || "Customer delivery address",
+      status: order.status || "received",
+      vehicle_type: normalizeVehicle(order.vehicle_type),
+      delivery_speed: "same_day",
+      price_ngn: Number(order.amount || 0),
+      eta_minutes: 0,
+      created_at: order.created_at || null,
+      rider: {
+        full_name: null,
+        phone: null,
+        email: null,
+        avatar_url: null,
+        vehicle_type: null,
+        plate_number: null,
+        vehicle_color: null,
+        rider_account_type: normalizeRiderAccountType(null)
+      },
+      last_location: null
+    }
+  });
+}
+
+function shouldShowMarketplaceOrderBeforeDelivery(order: OrderRow, delivery: DeliveryRow) {
+  if (delivery.status === "cancelled") return true;
+  if (!order.delivery_id) return true;
+  return ["pending", "received", "preparing", "packing", "ready_for_pickup"].includes(String(order.status || ""));
 }
 
 function normalizeVehicle(value: unknown) {

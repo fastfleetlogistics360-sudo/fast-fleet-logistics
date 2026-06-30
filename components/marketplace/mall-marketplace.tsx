@@ -104,7 +104,7 @@ export function MallMarketplace() {
         mallName: mall.name,
         vendorId: vendor.id,
         vendorName: vendor.name,
-        businessId: vendor.businessId,
+        businessId: product.businessId || vendor.businessId,
         pickupAddress: mall.location || mall.name,
         category: vendor.category,
         price,

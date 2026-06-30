@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
 import { normalizeState } from "@/lib/launch-states";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
+import { repairMarketplaceDeliveriesForBusiness } from "@/lib/marketplace-order-repair";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -28,6 +29,7 @@ export async function GET() {
       .maybeSingle<{ id: string; registration_status?: string | null }>();
     if (businessError) throw businessError;
     if (businessProfile?.registration_status !== "active") return NextResponse.json({ orders: [] });
+    if (admin) await repairMarketplaceDeliveriesForBusiness(admin, businessProfile.id);
 
     const { data, error } = await db
       .from("orders")

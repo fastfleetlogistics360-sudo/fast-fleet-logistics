@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
+import { convertMarketplaceDeliveryToBusinessOrder } from "@/lib/marketplace-order-repair";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { creditBusinessOrderWallet, recordCustomerMarketplacePayment } from "@/lib/wallet-ledger";
@@ -135,10 +136,10 @@ async function verifyMarketplaceDeliveryPayment(
 ) {
   const { data: delivery, error } = await db
     .from("deliveries")
-    .select("id, delivery_code, customer_id, payment_method, price_ngn, status, metadata")
+    .select("id, delivery_code, customer_id, pickup_address, dropoff_address, dropoff_contact, parcel_type, vehicle_type, payment_method, price_ngn, status, metadata, created_at")
     .eq("customer_id", userId)
     .eq("delivery_code", reference)
-    .maybeSingle<{ id: string; delivery_code?: string | null; customer_id?: string | null; payment_method?: string | null; price_ngn?: number | string | null; status?: string | null; metadata?: Record<string, unknown> | null }>();
+    .maybeSingle<{ id: string; delivery_code?: string | null; customer_id?: string | null; pickup_address?: string | null; dropoff_address?: string | null; dropoff_contact?: string | null; parcel_type?: string | null; vehicle_type?: string | null; payment_method?: string | null; price_ngn?: number | string | null; status?: string | null; metadata?: Record<string, unknown> | null; created_at?: string | null }>();
   if (error) throw error;
   if (!delivery?.id) return null;
 
@@ -149,6 +150,9 @@ async function verifyMarketplaceDeliveryPayment(
   if (Math.round(amountNgn) !== Math.round(Number(delivery.price_ngn || 0))) {
     throw new Error("Paystack amount does not match this marketplace delivery total.");
   }
+
+  const convertedBusinessOrder = await convertMarketplaceDeliveryToBusinessOrder(db, delivery, { amountNgn, paystackData });
+  if (convertedBusinessOrder) return convertedBusinessOrder;
 
   await db
     .from("deliveries")

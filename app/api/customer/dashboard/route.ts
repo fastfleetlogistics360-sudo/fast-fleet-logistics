@@ -84,9 +84,7 @@ async function loadOrders(db: SupabaseClient, userId: string) {
 
   if (businessOrders.error) return deliveries;
 
-  const deliveryCodes = new Set((deliveries.data || []).map((delivery) => String(delivery.delivery_code || "").toUpperCase()));
   const mappedBusinessOrders = (businessOrders.data || [])
-    .filter((order) => !deliveryCodes.has(String(order.order_code || "").toUpperCase()))
     .map((order) => ({
       id: order.id,
       rider_id: order.rider_id,
@@ -103,10 +101,12 @@ async function loadOrders(db: SupabaseClient, userId: string) {
       items: order.items,
       source: "business_marketplace_order"
     }));
+  const businessOrderCodes = new Set(mappedBusinessOrders.map((order) => String(order.delivery_code || "").toUpperCase()));
+  const visibleDeliveries = (deliveries.data || []).filter((delivery) => !businessOrderCodes.has(String(delivery.delivery_code || "").toUpperCase()));
 
   return {
     ...deliveries,
-    data: [...mappedBusinessOrders, ...(deliveries.data || [])].sort((first, second) => new Date(second.created_at || 0).getTime() - new Date(first.created_at || 0).getTime())
+    data: [...mappedBusinessOrders, ...visibleDeliveries].sort((first, second) => new Date(second.created_at || 0).getTime() - new Date(first.created_at || 0).getTime())
   };
 }
 

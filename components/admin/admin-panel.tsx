@@ -1497,6 +1497,7 @@ export function AdminPanel() {
                         ...store.products,
                         {
                           id: `new-product-${Date.now().toString(36)}`,
+                          businessId: store.businessId,
                           name: "New product",
                           price: "ASK_PRICE",
                           image: store.products[0]?.image || defaultShoppingMalls[0].stores[0].products[0].image,
@@ -2980,7 +2981,7 @@ function MallMenuSection({
                   </div>
                   <div className="mt-3 grid gap-3">
                     {store.products.map((product) => (
-                      <div key={product.id} className="grid gap-3 rounded-fleet border border-fleet-line bg-white p-3 xl:grid-cols-[64px_1fr_120px_1fr_120px] xl:items-end">
+                      <div key={product.id} className="grid gap-3 rounded-fleet border border-fleet-line bg-white p-3 xl:grid-cols-[64px_1fr_120px_1.1fr_1fr_120px] xl:items-end">
                         <img src={product.image} alt={product.name} className="h-16 w-16 rounded-fleet object-cover" />
                         <label className="form-field">
                           <span className="form-label">Product</span>
@@ -2999,6 +3000,15 @@ function MallMenuSection({
                         <label className="form-field">
                           <span className="form-label">Product photo URL</span>
                           <input className="form-input" value={product.image} onChange={(event) => onProductChange(mall.id, store.id, product.id, { image: event.target.value })} />
+                        </label>
+                        <label className="form-field">
+                          <span className="form-label">Product vendor</span>
+                          <select className="form-input" value={product.businessId || ""} onChange={(event) => onProductChange(mall.id, store.id, product.id, { businessId: event.target.value || undefined })}>
+                            <option value="">Use store linked business</option>
+                            {businesses.map((business) => (
+                              <option key={business.id} value={business.id}>{business.business_name}</option>
+                            ))}
+                          </select>
                         </label>
                         <label className="flex min-h-11 items-center justify-between gap-3 rounded-fleet bg-fleet-paper px-3 text-sm font-black text-fleet-night">
                           Available
