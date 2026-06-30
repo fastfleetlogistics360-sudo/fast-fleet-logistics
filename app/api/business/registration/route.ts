@@ -118,6 +118,7 @@ export async function POST(request: Request) {
     industry: form.industry,
     business_type: form.businessType,
     commission_rate: form.commissionRate,
+    operating_state: form.state,
     dispatch_volume: form.dispatchVolume,
     pickup_address: form.pickupAddress,
     cac_number: form.cacNumber,
@@ -129,7 +130,7 @@ export async function POST(request: Request) {
 
   let profileResult = await db.from("business_profiles").upsert(profilePayload, { onConflict: "user_id" }).select("id").single<{ id: string }>();
   if (profileResult.error) {
-    const { cac_number: _cacNumber, rejection_reason: _rejectionReason, business_type: _businessType, commission_rate: _commissionRate, reviewed_at: _reviewedAt, ...fallbackPayload } = profilePayload;
+    const { cac_number: _cacNumber, rejection_reason: _rejectionReason, business_type: _businessType, commission_rate: _commissionRate, operating_state: _operatingState, reviewed_at: _reviewedAt, ...fallbackPayload } = profilePayload;
     profileResult = await db.from("business_profiles").upsert(fallbackPayload, { onConflict: "user_id" }).select("id").single<{ id: string }>();
   }
   if (profileResult.error) {

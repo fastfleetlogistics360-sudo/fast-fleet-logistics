@@ -60,6 +60,7 @@ export interface Database {
           industry: string | null;
           business_type: string | null;
           commission_rate: number | null;
+          operating_state: string | null;
           dispatch_volume: string | null;
           pickup_address: string | null;
           cac_number: string | null;
@@ -75,6 +76,38 @@ export interface Database {
           business_name: string;
         };
         Update: Partial<Database["public"]["Tables"]["business_profiles"]["Row"]>;
+      };
+      marketplace_listing_applications: {
+        Row: {
+          id: string;
+          business_profile_id: string;
+          user_id: string;
+          store_name: string;
+          store_category: string;
+          commission_rate: number | null;
+          item_count: number;
+          expected_average_orders: string;
+          contact_email: string;
+          whatsapp_number: string;
+          status: "submitted" | "accepted" | "rejected";
+          rejection_reason: string | null;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          retry_after: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["marketplace_listing_applications"]["Row"]> & {
+          business_profile_id: string;
+          user_id: string;
+          store_name: string;
+          store_category: string;
+          item_count: number;
+          expected_average_orders: string;
+          contact_email: string;
+          whatsapp_number: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["marketplace_listing_applications"]["Row"]>;
       };
       business_documents: {
         Row: {

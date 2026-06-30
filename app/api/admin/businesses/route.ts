@@ -43,7 +43,7 @@ export async function GET() {
 
   let { data, error } = await supabase
     .from("business_profiles")
-    .select("id, user_id, business_name, contact_name, phone, email, industry, business_type, commission_rate, dispatch_volume, pickup_address, cac_number, registration_status, rejection_reason, created_at, updated_at, users:users!business_profiles_user_id_fkey(full_name, phone, email), business_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)")
+    .select("id, user_id, business_name, contact_name, phone, email, industry, business_type, commission_rate, operating_state, dispatch_volume, pickup_address, cac_number, registration_status, rejection_reason, created_at, updated_at, users:users!business_profiles_user_id_fkey(full_name, phone, email), business_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)")
     .order("created_at", { ascending: false })
     .limit(75);
 
@@ -53,7 +53,7 @@ export async function GET() {
       .select("id, user_id, business_name, contact_name, phone, email, industry, dispatch_volume, pickup_address, registration_status, created_at, updated_at, users:users!business_profiles_user_id_fkey(full_name, phone, email)")
       .order("created_at", { ascending: false })
       .limit(75);
-    data = fallback.data?.map((business) => ({ ...business, business_type: null, commission_rate: null, cac_number: null, rejection_reason: null, business_documents: [] })) || null;
+    data = fallback.data?.map((business) => ({ ...business, business_type: null, commission_rate: null, operating_state: null, cac_number: null, rejection_reason: null, business_documents: [] })) || null;
     error = fallback.error;
   }
 

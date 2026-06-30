@@ -45,6 +45,7 @@ import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from 
 import { DEFAULT_FARE_CONFIG, fareSpeedTypes, fareVehicleTypes, normalizeFareConfig, speedLabel, vehicleLabel, type FareConfig } from "@/lib/fare";
 import { defaultLaunchStateRecords, launchStatusLabel, rememberLiveState } from "@/lib/launch-states";
 import type { LaunchStateRecord } from "@/lib/launch-states";
+import { marketplaceListingRetryDate, marketplaceListingStatusLabel } from "@/lib/marketplace-listing";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 import { formatMoney } from "@/lib/format";
 import { riderReviewLabel } from "@/lib/kyc";
@@ -107,6 +108,7 @@ type AdminSectionId =
   | "overview"
   | "rider-approvals"
   | "business-kyc"
+  | "marketplace-listings"
   | "delivery-timelines"
   | "withdrawal-review"
   | "company-transaction-logs"
@@ -122,6 +124,7 @@ const adminSectionIds = new Set<string>([
   "overview",
   "rider-approvals",
   "business-kyc",
+  "marketplace-listings",
   "delivery-timelines",
   "withdrawal-review",
   "company-transaction-logs",
@@ -149,7 +152,8 @@ const adminNavGroups: Array<{
     title: "Approvals",
     items: [
       { id: "rider-approvals", label: "Driver KYC", icon: ClipboardCheck, count: (stats) => String(stats.pendingRiders) },
-      { id: "business-kyc", label: "Business KYC", icon: Building2, count: (stats) => String(stats.pendingBusinesses) }
+      { id: "business-kyc", label: "Business KYC", icon: Building2, count: (stats) => String(stats.pendingBusinesses) },
+      { id: "marketplace-listings", label: "Marketplace listings", icon: StoreIcon, count: (stats) => String(stats.pendingMarketplaceListings) }
     ]
   },
   {
@@ -181,6 +185,7 @@ const adminNavGroups: Array<{
 type AdminNavStats = {
   pendingRiders: number;
   pendingBusinesses: number;
+  pendingMarketplaceListings: number;
   activeDeliveries: number;
   pendingWithdrawals: number;
   heroSlides: number;
@@ -261,6 +266,7 @@ type AdminBusiness = {
   industry: string | null;
   business_type?: string | null;
   commission_rate?: number | null;
+  operating_state?: string | null;
   dispatch_volume: string | null;
   pickup_address: string | null;
   cac_number?: string | null;
@@ -282,6 +288,38 @@ type AdminBusinessDocument = {
   file_url?: string | null;
   storage_path?: string | null;
   rejection_reason?: string | null;
+};
+
+type AdminMarketplaceListing = {
+  id: string;
+  business_profile_id: string;
+  user_id: string;
+  store_name: string;
+  store_category: string;
+  commission_rate: number | null;
+  item_count: number;
+  expected_average_orders: string;
+  contact_email: string;
+  whatsapp_number: string;
+  status: "submitted" | "accepted" | "rejected";
+  rejection_reason: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  retry_after: string | null;
+  created_at: string;
+  updated_at: string;
+  business_profiles?: {
+    id?: string | null;
+    business_name?: string | null;
+    business_type?: string | null;
+    industry?: string | null;
+    registration_status?: string | null;
+    users?: {
+      full_name?: string | null;
+      phone?: string | null;
+      email?: string | null;
+    } | null;
+  } | null;
 };
 
 type AdminDelivery = {
@@ -481,11 +519,42 @@ const demoBusinesses: AdminBusiness[] = [
     email: "ops@example.com",
     industry: "Retail and ecommerce",
     dispatch_volume: "10 - 30 weekly deliveries",
+    operating_state: "Lagos",
     pickup_address: "14 Acme Street, Ikeja",
     registration_status: "submitted",
     rejection_reason: null,
     created_at: new Date().toISOString(),
     users: { full_name: "Adewale Johnson", phone: "+2348012345678", email: "ops@example.com" }
+  }
+];
+
+const demoMarketplaceListings: AdminMarketplaceListing[] = [
+  {
+    id: "MLA-1001",
+    business_profile_id: "BP-1001",
+    user_id: "USR-BIZ-1001",
+    store_name: "Adewale Stores",
+    store_category: "Grocery",
+    commission_rate: 10,
+    item_count: 8,
+    expected_average_orders: "20 - 40 weekly orders",
+    contact_email: "ops@example.com",
+    whatsapp_number: "+2348012345678",
+    status: "submitted",
+    rejection_reason: null,
+    reviewed_by: null,
+    reviewed_at: null,
+    retry_after: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    business_profiles: {
+      id: "BP-1001",
+      business_name: "Adewale Stores",
+      business_type: "Grocery",
+      industry: "Retail and ecommerce",
+      registration_status: "active",
+      users: { full_name: "Adewale Johnson", phone: "+2348012345678", email: "ops@example.com" }
+    }
   }
 ];
 
@@ -625,6 +694,7 @@ export function AdminPanel() {
   const [launchStates, setLaunchStates] = useState<LaunchStateRecord[]>(defaultLaunchStateRecords());
   const [adminRiders, setAdminRiders] = useState<AdminRider[]>(demoRiders);
   const [adminBusinesses, setAdminBusinesses] = useState<AdminBusiness[]>(demoBusinesses);
+  const [adminMarketplaceListings, setAdminMarketplaceListings] = useState<AdminMarketplaceListing[]>(demoMarketplaceListings);
   const [adminDeliveries, setAdminDeliveries] = useState<AdminDelivery[]>(demoDeliveries);
   const [adminWithdrawals, setAdminWithdrawals] = useState<AdminWithdrawal[]>(demoWithdrawals);
   const [companyLogs, setCompanyLogs] = useState<CompanyTransactionLog[]>(demoCompanyTransactionLogs);
@@ -648,6 +718,7 @@ export function AdminPanel() {
   const liveStates = useMemo(() => launchStates.filter((state) => state.status === "active" || state.status === "live").length, [launchStates]);
   const pendingRiderCount = useMemo(() => adminRiders.filter((rider) => !["approved", "rejected"].includes(rider.application_status)).length, [adminRiders]);
   const pendingBusinessCount = useMemo(() => adminBusinesses.filter((business) => business.registration_status === "submitted").length, [adminBusinesses]);
+  const pendingMarketplaceListingCount = useMemo(() => adminMarketplaceListings.filter((application) => application.status === "submitted").length, [adminMarketplaceListings]);
   const activeDeliveryCount = useMemo(() => adminDeliveries.filter((delivery) => !["delivered", "cancelled"].includes(delivery.status)).length, [adminDeliveries]);
   const pendingWithdrawalCount = useMemo(() => adminWithdrawals.filter((withdrawal) => withdrawal.status === "pending").length, [adminWithdrawals]);
   const openRiskCount = useMemo(() => riskSignals.filter((signal) => !signal.resolved_at).length, [riskSignals]);
@@ -656,6 +727,7 @@ export function AdminPanel() {
     () => ({
       pendingRiders: pendingRiderCount,
       pendingBusinesses: pendingBusinessCount,
+      pendingMarketplaceListings: pendingMarketplaceListingCount,
       activeDeliveries: activeDeliveryCount,
       pendingWithdrawals: pendingWithdrawalCount,
       heroSlides: heroSlides.filter((slide) => slide.enabled).length,
@@ -663,7 +735,7 @@ export function AdminPanel() {
       openRisk: openRiskCount,
       openSupport: openSupportCount
     }),
-    [activeDeliveryCount, heroSlides, hubPromotionSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingRiderCount, pendingWithdrawalCount]
+    [activeDeliveryCount, heroSlides, hubPromotionSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingMarketplaceListingCount, pendingRiderCount, pendingWithdrawalCount]
   );
   const companyLogSummary = useMemo(() => summarizeCompanyLogs(companyLogs), [companyLogs]);
   const filteredCompanyLogs = useMemo(() => {
@@ -687,10 +759,11 @@ export function AdminPanel() {
   async function loadAdminData() {
     setBusyAction("refresh");
     try {
-      const [statesResponse, ridersResponse, businessesResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, heroSlidesResponse, hubPromotionSlidesResponse, riskSignalsResponse, restaurantsResponse, mallsResponse] = await Promise.all([
+      const [statesResponse, ridersResponse, businessesResponse, marketplaceListingsResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, heroSlidesResponse, hubPromotionSlidesResponse, riskSignalsResponse, restaurantsResponse, mallsResponse] = await Promise.all([
         fetch("/api/admin/states"),
         fetch("/api/admin/riders"),
         fetch("/api/admin/businesses"),
+        fetch("/api/admin/marketplace-listings"),
         fetch("/api/admin/deliveries"),
         fetch("/api/admin/withdrawals"),
         fetch("/api/admin/company-transactions"),
@@ -704,6 +777,7 @@ export function AdminPanel() {
       const statesResult = await statesResponse.json().catch(() => ({}));
       const ridersResult = await ridersResponse.json().catch(() => ({}));
       const businessesResult = await businessesResponse.json().catch(() => ({}));
+      const marketplaceListingsResult = await marketplaceListingsResponse.json().catch(() => ({}));
       const deliveriesResult = await deliveriesResponse.json().catch(() => ({}));
       const withdrawalsResult = await withdrawalsResponse.json().catch(() => ({}));
       const companyLogsResult = await companyLogsResponse.json().catch(() => ({}));
@@ -717,6 +791,7 @@ export function AdminPanel() {
         ["states", statesResponse, statesResult],
         ["riders", ridersResponse, ridersResult],
         ["businesses", businessesResponse, businessesResult],
+        ["marketplace listings", marketplaceListingsResponse, marketplaceListingsResult],
         ["deliveries", deliveriesResponse, deliveriesResult],
         ["withdrawals", withdrawalsResponse, withdrawalsResult],
         ["company logs", companyLogsResponse, companyLogsResult],
@@ -733,6 +808,7 @@ export function AdminPanel() {
       if (Array.isArray(statesResult.states)) setLaunchStates(statesResult.states);
       if (Array.isArray(ridersResult.riders)) setAdminRiders(ridersResult.riders);
       if (Array.isArray(businessesResult.businesses)) setAdminBusinesses(businessesResult.businesses);
+      if (Array.isArray(marketplaceListingsResult.applications)) setAdminMarketplaceListings(marketplaceListingsResult.applications);
       if (Array.isArray(deliveriesResult.deliveries)) setAdminDeliveries(deliveriesResult.deliveries);
       if (Array.isArray(withdrawalsResult.withdrawals)) {
         setAdminWithdrawals(withdrawalsResult.withdrawals);
@@ -760,8 +836,8 @@ export function AdminPanel() {
         const savedMalls = readDemoMallMenus();
         setMallMenus(mallsResult.demo && savedMalls.length > 0 ? savedMalls : normalizeShoppingMalls(mallsResult.malls));
       }
-      if (statesResult.demo || ridersResult.demo || businessesResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
-        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, business KYC, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
+      if (statesResult.demo || ridersResult.demo || businessesResult.demo || marketplaceListingsResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
+        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, business KYC, marketplace listings, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
       } else if (failedSections.length > 0) {
         setAdminMessage(`Some admin sections did not load: ${failedSections.join("; ")}`);
       }
@@ -873,6 +949,37 @@ export function AdminPanel() {
       setAdminMessage(`${current?.business_name || "Business"} KYC status updated to ${businessReviewLabel(status)}.`);
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "Could not update business KYC.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function reviewMarketplaceListing(id: string, status: AdminMarketplaceListing["status"]) {
+    if (status !== "accepted" && status !== "rejected") return;
+    const current = adminMarketplaceListings.find((application) => application.id === id);
+    const reason = status === "rejected" ? window.prompt("Reason to show the business:")?.trim() : "";
+    if (status === "rejected" && !reason) return;
+
+    setBusyAction(`marketplace-listing:${id}:${status}`);
+    setAdminMessage(null);
+    try {
+      const response = await fetch("/api/admin/marketplace-listings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status, reason })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not update marketplace listing request.");
+      setAdminMarketplaceListings((items) =>
+        items.map((item) => (item.id === id ? { ...item, ...(result.application as AdminMarketplaceListing) } : item))
+      );
+      setAdminMessage(
+        status === "accepted"
+          ? `${current?.store_name || "Marketplace listing"} accepted. The business sees the 7 business day go-live notice.`
+          : `${current?.store_name || "Marketplace listing"} rejected. The business can try again after 60 business days.`
+      );
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "Could not update marketplace listing request.");
     } finally {
       setBusyAction(null);
     }
@@ -1563,6 +1670,13 @@ export function AdminPanel() {
           onClick={() => openAdminSection("business-kyc")}
         />
         <ActionCard
+          icon={StoreIcon}
+          title="Marketplace listings"
+          body="Approve or reject approved businesses applying to list mall or marketplace items."
+          count={`${pendingMarketplaceListingCount} pending`}
+          onClick={() => openAdminSection("marketplace-listings")}
+        />
+        <ActionCard
           icon={PackageCheck}
           title="Delivery timelines"
           body="Update each customer timeline and push realtime green status updates."
@@ -1838,6 +1952,11 @@ export function AdminPanel() {
           businesses={adminBusinesses}
           busyAction={busyAction}
           onReview={reviewBusiness}
+        />
+        <MarketplaceListingSection
+          applications={adminMarketplaceListings}
+          busyAction={busyAction}
+          onReview={reviewMarketplaceListing}
         />
         <DriverWithdrawalSection
           withdrawals={adminWithdrawals.filter((withdrawal) => withdrawal.account_kind !== "business")}
@@ -3147,7 +3266,7 @@ function BusinessKycSection({
                     {business.contact_name || business.users?.full_name || "No contact"} · {business.email || business.users?.email || "No email"} · {business.phone || business.users?.phone || "No phone"}
                   </span>
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
-                    Pickup: {business.pickup_address || "No pickup address"}
+                    Pickup: {business.pickup_address || "No pickup address"} · State: {business.operating_state || "Not selected"}
                   </span>
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
                     CAC: {business.cac_number || "Not provided"}
@@ -3189,6 +3308,74 @@ function BusinessKycSection({
           );
         })}
         {businesses.length === 0 ? <div className="rounded-fleet bg-fleet-paper p-5 text-sm font-bold text-slate-500">No business KYC requests yet.</div> : null}
+      </div>
+    </Card>
+  );
+}
+
+function MarketplaceListingSection({
+  applications,
+  busyAction,
+  onReview
+}: {
+  applications: AdminMarketplaceListing[];
+  busyAction: string | null;
+  onReview: (id: string, status: AdminMarketplaceListing["status"]) => void;
+}) {
+  return (
+    <Card id="marketplace-listings" className="scroll-mt-24 overflow-hidden">
+      <div className="flex items-center justify-between gap-4 border-b border-fleet-line p-5">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-fleet bg-fleet-night text-white">
+            <StoreIcon className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-xl font-black text-fleet-night">Marketplace listings</h2>
+            <span className="text-sm font-bold text-slate-500">Review approved businesses applying for marketplace shelves</span>
+          </div>
+        </div>
+        <StatusBadge tone="amber">{applications.filter((application) => application.status === "submitted").length} pending</StatusBadge>
+      </div>
+      <div className="grid gap-3 p-4">
+        {applications.map((application) => {
+          const canAct = application.status === "submitted";
+          const business = application.business_profiles;
+          return (
+            <article key={application.id} className="rounded-fleet border border-fleet-line bg-white p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <strong className="block text-lg font-black text-fleet-night">{application.store_name}</strong>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                    Business: {business?.business_name || "Business profile"} · KYC {business?.registration_status || "active"}
+                  </span>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                    Category: {application.store_category} · Commission {Number(application.commission_rate || 0).toFixed(0)}%
+                  </span>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                    Items: {application.item_count} · Expected orders: {application.expected_average_orders}
+                  </span>
+                  <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                    Email: {application.contact_email} · WhatsApp: {application.whatsapp_number}
+                  </span>
+                  {application.rejection_reason ? <span className="mt-2 block rounded-fleet bg-red-50 p-2 text-xs font-bold leading-5 text-red-700">Reason: {application.rejection_reason}</span> : null}
+                  {application.retry_after ? <span className="mt-2 block rounded-fleet bg-amber-50 p-2 text-xs font-bold leading-5 text-amber-800">Retry after: {marketplaceListingRetryDate(application)}</span> : null}
+                </div>
+                <StatusBadge tone={application.status === "accepted" ? "green" : application.status === "rejected" ? "red" : "amber"}>
+                  {marketplaceListingStatusLabel(application.status)}
+                </StatusBadge>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <Button type="button" size="sm" onClick={() => onReview(application.id, "accepted")} disabled={!canAct || busyAction === `marketplace-listing:${application.id}:accepted`}>
+                  Accept
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => onReview(application.id, "rejected")} disabled={!canAct || busyAction === `marketplace-listing:${application.id}:rejected`}>
+                  Reject
+                </Button>
+              </div>
+            </article>
+          );
+        })}
+        {applications.length === 0 ? <div className="rounded-fleet bg-fleet-paper p-5 text-sm font-bold text-slate-500">No marketplace listing requests yet.</div> : null}
       </div>
     </Card>
   );

@@ -170,6 +170,51 @@ export async function creditBusinessOrderWallet(db: SupabaseClient, orderId: str
   return { credited: true, amount };
 }
 
+export async function recordCustomerMarketplacePayment(db: SupabaseClient, input: {
+  userId: string;
+  amountNgn: number;
+  providerReference: string;
+  deliveryId?: string | null;
+  orderId?: string | null;
+  orderCode?: string | null;
+  marketplaceKind?: string | null;
+  title?: string;
+  metadata?: JsonRecord;
+}) {
+  const amount = Math.max(0, Math.round(money(input.amountNgn)));
+  if (!input.userId || amount <= 0 || !input.providerReference) return { recorded: false };
+
+  const providerReference = `${input.providerReference}-customer-marketplace-payment`;
+  const { data: existing } = await db
+    .from("transactions")
+    .select("id")
+    .eq("provider_reference", providerReference)
+    .maybeSingle<{ id: string }>();
+  if (existing?.id) return { recorded: false };
+
+  const wallet = await ensureWallet(db, input.userId, "customer");
+  const { error } = await db.from("transactions").insert({
+    wallet_id: wallet.id,
+    delivery_id: input.deliveryId || null,
+    transaction_type: "delivery_payment",
+    amount_ngn: amount * -1,
+    status: "successful",
+    provider: "paystack_marketplace",
+    provider_reference: providerReference,
+    metadata: {
+      title: input.title || "Marketplace order payment",
+      source: "fastfleet_marketplace",
+      order_id: input.orderId || null,
+      order_code: input.orderCode || input.providerReference,
+      delivery_id: input.deliveryId || null,
+      marketplace_kind: input.marketplaceKind || null,
+      ...metadataRecord(input.metadata)
+    }
+  });
+  if (error) throw error;
+  return { recorded: true };
+}
+
 export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: string) {
   const { data: delivery, error: deliveryError } = await db
     .from("deliveries")

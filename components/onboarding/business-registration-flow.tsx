@@ -86,7 +86,7 @@ export function BusinessRegistrationFlow() {
         if (data.user) {
           supabase
             .from("business_profiles")
-            .select("business_name, contact_name, phone, email, industry, business_type, commission_rate, dispatch_volume, pickup_address, cac_number, registration_status, rejection_reason, business_documents(id, document_type, file_url, storage_path, status)")
+            .select("business_name, contact_name, phone, email, industry, business_type, commission_rate, operating_state, dispatch_volume, pickup_address, cac_number, registration_status, rejection_reason, business_documents(id, document_type, file_url, storage_path, status)")
             .eq("user_id", data.user.id)
             .maybeSingle<{
               business_name?: string | null;
@@ -96,6 +96,7 @@ export function BusinessRegistrationFlow() {
               industry?: string | null;
               business_type?: BusinessType | null;
               commission_rate?: number | null;
+              operating_state?: string | null;
               dispatch_volume?: string | null;
               pickup_address?: string | null;
               cac_number?: string | null;
@@ -139,7 +140,7 @@ export function BusinessRegistrationFlow() {
                 commissionRate: Number(business.commission_rate ?? commissionByBusinessType[business.business_type || current.businessType]),
                 industry: business.industry || business.business_type || current.industry,
                 dispatchVolume: business.dispatch_volume || current.dispatchVolume,
-                state: normalizeState(appUserResult.data?.default_zone) || current.state,
+                state: normalizeState(business.operating_state || appUserResult.data?.default_zone) || current.state,
                 pickupAddress: business.pickup_address || current.pickupAddress,
                 cacNumber: business.cac_number || current.cacNumber
               }));

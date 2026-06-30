@@ -29,6 +29,16 @@ type CheckoutItem = {
   category?: string;
 };
 
+type LinkedBusinessRow = {
+  id: string;
+  user_id: string;
+  business_name?: string | null;
+  pickup_address?: string | null;
+  operating_state?: string | null;
+  registration_status?: string | null;
+  users?: { default_zone?: string | null } | null;
+};
+
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as {
@@ -88,14 +98,27 @@ export async function POST(request: Request) {
     }
     const admin = createAdminClient();
     const linkedBusinessId = linkedBusinessIds[0] || null;
-    const linkedBusiness = linkedBusinessId && admin
-      ? await admin
+    if (linkedBusinessId && !admin) {
+      return NextResponse.json({ error: "Business marketplace orders are not configured. Add SUPABASE_SERVICE_ROLE_KEY in production." }, { status: 503 });
+    }
+    let linkedBusinessData: LinkedBusinessRow | null = null;
+    if (linkedBusinessId && admin) {
+      const linkedBusiness = await admin
+        .from("business_profiles")
+        .select("id, user_id, business_name, pickup_address, operating_state, registration_status, users:users!business_profiles_user_id_fkey(default_zone)")
+        .eq("id", linkedBusinessId)
+        .maybeSingle<LinkedBusinessRow>();
+      if (!linkedBusiness.error) linkedBusinessData = linkedBusiness.data || null;
+      if (linkedBusiness.error) {
+        const fallback = await admin
           .from("business_profiles")
           .select("id, user_id, business_name, pickup_address, registration_status, users:users!business_profiles_user_id_fkey(default_zone)")
           .eq("id", linkedBusinessId)
-          .maybeSingle<{ id: string; user_id: string; business_name?: string | null; pickup_address?: string | null; registration_status?: string | null; users?: { default_zone?: string | null } | null }>()
-      : null;
-    const business = linkedBusiness?.data?.registration_status === "active" ? linkedBusiness.data : null;
+          .maybeSingle<Omit<LinkedBusinessRow, "operating_state">>();
+        linkedBusinessData = fallback.data ? { ...fallback.data, operating_state: null } : null;
+      }
+    }
+    const business = linkedBusinessData?.registration_status === "active" ? linkedBusinessData : null;
 
     if (business) {
       try {
@@ -112,11 +135,11 @@ export async function POST(request: Request) {
             marketplace_kind: payload.kind || "restaurant",
             items,
             customer_contact: payload.phone || payload.email,
-            pickup_address: appendStateToAddress(business.pickup_address || pickupAddress, normalizeState(business.users?.default_zone)),
+            pickup_address: appendStateToAddress(business.pickup_address || pickupAddress, normalizeState(business.operating_state || business.users?.default_zone)),
             dropoff_address: address,
             package_type: payload.kind === "shopping" ? "shopping items" : "food order",
             vehicle_type: "bike",
-            status: "received",
+            status: "pending",
             amount: expectedAmount,
             payment_method: "card",
             payment_status: "pending"
@@ -125,24 +148,6 @@ export async function POST(request: Request) {
           .single();
         if (orderError) throw orderError;
 
-        await Promise.allSettled([
-          admin.from("notifications").insert({
-            user_id: business.user_id,
-            title: "New marketplace order",
-            body: `${reference} is waiting for your team to receive and prepare.`,
-            type: "business_order_received",
-            channel: "in_app",
-            metadata: { order_id: order?.id, order_code: reference, business_profile_id: business.id }
-          }),
-          supabase.from("notifications").insert({
-            user_id: user.id,
-            title: "Order sent to business",
-            body: `${business.business_name || "The business"} received ${reference}.`,
-            type: "order_update",
-            channel: "in_app",
-            metadata: { order_id: order?.id, order_code: reference, status: "received" }
-          })
-        ]);
       } catch (error) {
         return NextResponse.json({ error: error instanceof Error ? error.message : "Could not create the business marketplace order." }, { status: 500 });
       }
@@ -223,7 +228,7 @@ export async function POST(request: Request) {
       authorizationUrl: paystackData.data.authorization_url,
       accessCode: paystackData.data.access_code,
       businessOrder: Boolean(business),
-      status: business ? "received" : "searching"
+      status: business ? "pending" : "searching"
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Marketplace checkout failed." }, { status: 500 });

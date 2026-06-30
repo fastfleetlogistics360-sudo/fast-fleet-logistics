@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { creditBusinessOrderWallet } from "@/lib/wallet-ledger";
+import { creditBusinessOrderWallet, recordCustomerMarketplacePayment } from "@/lib/wallet-ledger";
 
 const PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify";
 const pendingPaystackStatuses = new Set(["ongoing", "pending", "processing", "queued"]);
@@ -57,10 +57,10 @@ export async function GET(request: NextRequest) {
 async function verifyBusinessOrderPayment(db: SupabaseClient, userId: string, reference: string, amountNgn: number) {
   const { data: order, error } = await db
     .from("orders")
-    .select("id, order_code, customer_id, business_id, amount, payment_status")
+    .select("id, order_code, customer_id, business_id, business_profile_id, marketplace_kind, amount, payment_status, status")
     .eq("customer_id", userId)
     .eq("order_code", reference)
-    .maybeSingle<{ id: string; order_code?: string | null; customer_id?: string | null; business_id?: string | null; amount?: number | string | null; payment_status?: string | null }>();
+    .maybeSingle<{ id: string; order_code?: string | null; customer_id?: string | null; business_id?: string | null; business_profile_id?: string | null; marketplace_kind?: string | null; amount?: number | string | null; payment_status?: string | null; status?: string | null }>();
   if (error) throw error;
   if (!order?.id || !order.business_id) return null;
 
@@ -69,6 +69,52 @@ async function verifyBusinessOrderPayment(db: SupabaseClient, userId: string, re
   }
 
   const credit = await creditBusinessOrderWallet(db, order.id);
+  await Promise.allSettled([
+    db
+      .from("orders")
+      .update({
+        status: order.status === "pending" ? "received" : order.status || "received",
+        payment_status: "paid",
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", order.id),
+    recordCustomerMarketplacePayment(db, {
+      userId,
+      amountNgn,
+      providerReference: reference,
+      orderId: order.id,
+      orderCode: order.order_code || reference,
+      marketplaceKind: order.marketplace_kind,
+      metadata: {
+        business_id: order.business_id,
+        business_profile_id: order.business_profile_id
+      }
+    }),
+    recordDeliveryIncome({
+      amountNgn,
+      deliveryCode: order.order_code || reference,
+      paymentMethod: "paystack",
+      reference,
+      counterparty: userId,
+      notes: "Paystack linked marketplace order checkout was verified successfully."
+    }),
+    db.from("notifications").insert({
+      user_id: order.business_id,
+      title: "New paid marketplace order",
+      body: `${order.order_code || reference} is paid and waiting for your team to prepare.`,
+      type: "business_order_received",
+      channel: "in_app",
+      metadata: { order_id: order.id, order_code: order.order_code || reference, business_profile_id: order.business_profile_id }
+    }),
+    db.from("notifications").insert({
+      user_id: userId,
+      title: "Marketplace payment confirmed",
+      body: `${order.order_code || reference} has been sent to the business.`,
+      type: "order_update",
+      channel: "in_app",
+      metadata: { order_id: order.id, order_code: order.order_code || reference, status: "received" }
+    })
+  ]);
   return {
     kind: "business_order",
     orderId: order.id,
@@ -127,6 +173,15 @@ async function verifyMarketplaceDeliveryPayment(
     reference,
     counterparty: userId,
     notes: "Paystack marketplace checkout was verified successfully."
+  });
+
+  await recordCustomerMarketplacePayment(db, {
+    userId,
+    amountNgn,
+    providerReference: reference,
+    deliveryId: delivery.id,
+    orderCode: delivery.delivery_code || reference,
+    marketplaceKind: typeof metadata.kind === "string" ? metadata.kind : null
   });
 
   return {

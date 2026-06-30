@@ -41,7 +41,7 @@ export async function PATCH(request: Request) {
     if (!current?.id) return NextResponse.json({ error: "Business profile was not found." }, { status: 404 });
 
     const now = new Date().toISOString();
-    const { data, error } = await db
+    let { data, error } = await db
       .from("business_profiles")
       .update({
         business_name: businessName,
@@ -50,13 +50,34 @@ export async function PATCH(request: Request) {
         email: email || user.email || null,
         industry: businessType || null,
         business_type: businessType || null,
+        operating_state: state,
         pickup_address: pickupAddress,
         cac_number: cacNumber || null,
         updated_at: now
       })
       .eq("id", current.id)
-      .select("id, business_name, contact_name, phone, email, industry, business_type, commission_rate, pickup_address, cac_number, registration_status, rejection_reason")
+      .select("id, business_name, contact_name, phone, email, industry, business_type, commission_rate, operating_state, pickup_address, cac_number, registration_status, rejection_reason")
       .maybeSingle();
+    if (error) {
+      const fallback = await db
+        .from("business_profiles")
+        .update({
+          business_name: businessName,
+          contact_name: contactName || null,
+          phone: phone || null,
+          email: email || user.email || null,
+          industry: businessType || null,
+          business_type: businessType || null,
+          pickup_address: pickupAddress,
+          cac_number: cacNumber || null,
+          updated_at: now
+        })
+        .eq("id", current.id)
+        .select("id, business_name, contact_name, phone, email, industry, business_type, commission_rate, pickup_address, cac_number, registration_status, rejection_reason")
+        .maybeSingle();
+      data = fallback.data ? { ...fallback.data, operating_state: state } : null;
+      error = fallback.error;
+    }
     if (error) throw error;
 
     await Promise.allSettled([
@@ -64,7 +85,7 @@ export async function PATCH(request: Request) {
       db.from("profiles").update({ full_name: contactName || businessName, phone: phone || null, email: email || user.email || null, updated_at: now }).eq("user_id", user.id)
     ]);
 
-    return NextResponse.json({ profile: { ...(data || {}), default_zone: state } });
+    return NextResponse.json({ profile: { ...(data || {}), operating_state: state, default_zone: state } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not save business profile." }, { status: 500 });
   }

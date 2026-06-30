@@ -33,6 +33,7 @@ export async function GET() {
       .from("orders")
       .select(orderSelect)
       .or(`business_profile_id.eq.${businessProfile.id},business_id.eq.${user.id}`)
+      .neq("payment_status", "pending")
       .order("created_at", { ascending: false })
       .limit(60);
     if (error) throw error;
@@ -62,16 +63,25 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Business order dispatch is not configured. Add SUPABASE_SERVICE_ROLE_KEY in production." }, { status: 503 });
     }
     const db = admin;
-    const { data: businessProfile, error: businessError } = await db
+    let { data: businessProfile, error: businessError } = await db
       .from("business_profiles")
-      .select("id, user_id, business_name, pickup_address, registration_status, users:users!business_profiles_user_id_fkey(default_zone)")
+      .select("id, user_id, business_name, pickup_address, operating_state, registration_status, users:users!business_profiles_user_id_fkey(default_zone)")
       .eq("user_id", user.id)
-      .maybeSingle<{ id: string; user_id: string; business_name?: string | null; pickup_address?: string | null; registration_status?: string | null; users?: { default_zone?: string | null } | null }>();
+      .maybeSingle<{ id: string; user_id: string; business_name?: string | null; pickup_address?: string | null; operating_state?: string | null; registration_status?: string | null; users?: { default_zone?: string | null } | null }>();
+    if (businessError) {
+      const fallback = await db
+        .from("business_profiles")
+        .select("id, user_id, business_name, pickup_address, registration_status, users:users!business_profiles_user_id_fkey(default_zone)")
+        .eq("user_id", user.id)
+        .maybeSingle<{ id: string; user_id: string; business_name?: string | null; pickup_address?: string | null; registration_status?: string | null; users?: { default_zone?: string | null } | null }>();
+      businessProfile = fallback.data ? { ...fallback.data, operating_state: null } : null;
+      businessError = fallback.error;
+    }
     if (businessError) throw businessError;
     if (businessProfile?.registration_status !== "active") {
       return NextResponse.json({ error: "Business KYC must be approved before managing orders." }, { status: 403 });
     }
-    const businessState = normalizeState(businessProfile.users?.default_zone);
+    const businessState = normalizeState(businessProfile.operating_state || businessProfile.users?.default_zone);
     if (status === "ready_for_pickup" && !businessState) {
       return NextResponse.json({ error: "Select and save your business state from Account before marking orders ready for pickup." }, { status: 400 });
     }

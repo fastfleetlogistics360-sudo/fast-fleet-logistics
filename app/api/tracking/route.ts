@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeRiderAccountType, type RiderAccountType } from "@/lib/rider-account-type";
 
-const activeStatuses = ["searching", "accepted", "rider_arrived", "picked_up", "in_transit"];
-
 type DeliveryRow = {
   id: string;
   delivery_code: string;
@@ -31,6 +29,19 @@ type DeliveryRow = {
   } | null;
 };
 
+type OrderRow = {
+  id: string;
+  order_code?: string | null;
+  delivery_id?: string | null;
+  pickup_address?: string | null;
+  dropoff_address?: string | null;
+  status?: string | null;
+  vehicle_type?: string | null;
+  amount?: number | string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export async function GET(request: Request) {
   const code = new URL(request.url).searchParams.get("code")?.trim().toUpperCase() || "";
 
@@ -49,7 +60,6 @@ export async function GET(request: Request) {
 	      "id, rider_id, delivery_code, pickup_address, dropoff_address, status, vehicle_type, delivery_speed, price_ngn, eta_minutes, created_at, rider_profiles:rider_profiles!deliveries_rider_id_fkey(user_id, plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))"
 	    )
     .eq("delivery_code", code)
-    .in("status", activeStatuses)
     .maybeSingle<DeliveryRow>();
 
   if (error) {
@@ -57,7 +67,39 @@ export async function GET(request: Request) {
   }
 
   if (!data) {
-    return NextResponse.json({ error: "No ongoing delivery was found for that tracking code." }, { status: 404 });
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .select("id, order_code, delivery_id, pickup_address, dropoff_address, status, vehicle_type, amount, created_at, updated_at")
+      .eq("order_code", code)
+      .maybeSingle<OrderRow>();
+    if (orderError) return NextResponse.json({ error: "We could not check that tracking code right now." }, { status: 400 });
+    if (!order?.id) return NextResponse.json({ error: "No delivery or marketplace order was found for that tracking code." }, { status: 404 });
+
+    return NextResponse.json({
+      delivery: {
+        id: order.delivery_id || order.id,
+        delivery_code: order.order_code || code,
+        pickup_address: order.pickup_address || "Marketplace pickup",
+        dropoff_address: order.dropoff_address || "Customer delivery address",
+        status: order.status || "received",
+        vehicle_type: normalizeVehicle(order.vehicle_type),
+        delivery_speed: "same_day",
+        price_ngn: Number(order.amount || 0),
+        eta_minutes: 0,
+        created_at: order.created_at || null,
+        rider: {
+          full_name: null,
+          phone: null,
+          email: null,
+          avatar_url: null,
+          vehicle_type: null,
+          plate_number: null,
+          vehicle_color: null,
+          rider_account_type: normalizeRiderAccountType(null)
+        },
+        last_location: null
+      }
+    });
   }
 
   let lastLocation: { latitude: number; longitude: number; updated_at?: string | null } | null = null;
@@ -115,4 +157,9 @@ export async function GET(request: Request) {
       last_location: lastLocation
     }
   });
+}
+
+function normalizeVehicle(value: unknown) {
+  const vehicle = String(value || "").toLowerCase();
+  return vehicle === "car" || vehicle === "van" ? vehicle : "bike";
 }

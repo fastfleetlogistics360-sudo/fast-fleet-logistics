@@ -562,6 +562,7 @@ create table if not exists public.business_profiles (
   industry text,
   business_type text,
   commission_rate numeric(5,2),
+  operating_state text,
   dispatch_volume text,
   pickup_address text,
   cac_number text,
@@ -576,6 +577,7 @@ create table if not exists public.business_profiles (
 alter table if exists public.business_profiles
   add column if not exists business_type text,
   add column if not exists commission_rate numeric(5,2),
+  add column if not exists operating_state text,
   add column if not exists cac_number text,
   add column if not exists rejection_reason text,
   add column if not exists reviewed_by uuid references public.users(id),
@@ -626,6 +628,38 @@ create table if not exists public.business_team_members (
 drop trigger if exists business_team_members_set_updated_at on public.business_team_members;
 create trigger business_team_members_set_updated_at
 before update on public.business_team_members
+for each row execute function public.set_updated_at();
+
+create table if not exists public.marketplace_listing_applications (
+  id uuid primary key default gen_random_uuid(),
+  business_profile_id uuid not null references public.business_profiles(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  store_name text not null,
+  store_category text not null,
+  commission_rate numeric(5,2),
+  item_count integer not null check (item_count between 5 and 15),
+  expected_average_orders text not null,
+  contact_email text not null,
+  whatsapp_number text not null,
+  status text not null default 'submitted' check (status in ('submitted', 'accepted', 'rejected')),
+  rejection_reason text,
+  reviewed_by uuid references public.users(id),
+  reviewed_at timestamptz,
+  retry_after timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table if exists public.marketplace_listing_applications
+  add column if not exists commission_rate numeric(5,2),
+  add column if not exists rejection_reason text,
+  add column if not exists reviewed_by uuid references public.users(id),
+  add column if not exists reviewed_at timestamptz,
+  add column if not exists retry_after timestamptz;
+
+drop trigger if exists marketplace_listing_applications_set_updated_at on public.marketplace_listing_applications;
+create trigger marketplace_listing_applications_set_updated_at
+before update on public.marketplace_listing_applications
 for each row execute function public.set_updated_at();
 
 create table if not exists public.deliveries (
@@ -1818,7 +1852,10 @@ create index if not exists users_phone_idx on public.users(phone);
 create index if not exists business_profiles_user_id_idx on public.business_profiles(user_id);
 create index if not exists profiles_user_id_idx on public.profiles(user_id);
 create index if not exists business_profiles_status_idx on public.business_profiles(registration_status);
+create index if not exists business_profiles_operating_state_idx on public.business_profiles(operating_state);
 create index if not exists business_documents_profile_idx on public.business_documents(business_profile_id);
+create index if not exists marketplace_listing_applications_business_idx on public.marketplace_listing_applications(business_profile_id, created_at desc);
+create index if not exists marketplace_listing_applications_status_idx on public.marketplace_listing_applications(status, created_at desc);
 create index if not exists rider_profiles_user_id_idx on public.rider_profiles(user_id);
 create index if not exists rider_profiles_status_idx on public.rider_profiles(application_status);
 create index if not exists rider_profiles_online_zone_idx on public.rider_profiles(online, operating_zone);
@@ -1852,6 +1889,7 @@ alter table public.orders enable row level security;
 alter table public.business_profiles enable row level security;
 alter table public.business_documents enable row level security;
 alter table public.business_team_members enable row level security;
+alter table public.marketplace_listing_applications enable row level security;
 alter table public.rider_profiles enable row level security;
 alter table public.rider_applications enable row level security;
 alter table public.rider_documents enable row level security;
@@ -2101,6 +2139,30 @@ create policy "Businesses manage own team members and admins manage all"
       where bp.id = business_profile_id and bp.user_id = auth.uid()
     )
     or user_id = auth.uid()
+  );
+
+drop policy if exists "Businesses manage own marketplace listing applications and admins manage all" on public.marketplace_listing_applications;
+create policy "Businesses manage own marketplace listing applications and admins manage all"
+  on public.marketplace_listing_applications for all
+  using (
+    public.current_user_role() = 'admin'
+    or exists (
+      select 1 from public.business_profiles bp
+      where bp.id = business_profile_id and bp.user_id = auth.uid()
+    )
+    or user_id = auth.uid()
+  )
+  with check (
+    public.current_user_role() = 'admin'
+    or (
+      user_id = auth.uid()
+      and exists (
+        select 1 from public.business_profiles bp
+        where bp.id = business_profile_id
+          and bp.user_id = auth.uid()
+          and bp.registration_status = 'active'
+      )
+    )
   );
 
 drop policy if exists "Rider documents visible to owner and admins" on public.rider_documents;

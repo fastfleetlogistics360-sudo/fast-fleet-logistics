@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { BarChart3, Building2, Clock, Download, FileText, Home, LayoutDashboard, Loader2, MapPin, PackageCheck, Plus, ShieldCheck, Upload, UserPlus, UserRound, WalletCards } from "lucide-react";
+import { BarChart3, Building2, Clock, Download, FileText, Home, LayoutDashboard, Loader2, MapPin, PackageCheck, Plus, ShieldCheck, Store, Upload, UserRound, WalletCards } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -23,7 +23,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 
-type BusinessTab = "overview" | "dispatch" | "history" | "analytics" | "team" | "account";
+type BusinessTab = "overview" | "dispatch" | "history" | "analytics" | "account";
 type BusinessKycStatus = "submitted" | "active" | "paused" | "rejected";
 
 type BusinessProfile = {
@@ -36,6 +36,7 @@ type BusinessProfile = {
   industry?: string | null;
   business_type?: string | null;
   commission_rate?: number | null;
+  operating_state?: string | null;
   default_zone?: string | null;
   pickup_address?: string | null;
   cac_number?: string | null;
@@ -118,7 +119,6 @@ const tabs: Array<{ id: BusinessTab; label: string; icon: LucideIcon }> = [
   { id: "dispatch", label: "Dispatch", icon: Plus },
   { id: "history", label: "History", icon: Clock },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "team", label: "Team", icon: UserPlus },
   { id: "account", label: "Account", icon: UserRound }
 ];
 
@@ -170,6 +170,7 @@ async function loadBusinessOrdersForProfile(supabase: ReturnType<typeof createCl
     .from("orders")
     .select(businessOrderSelect)
     .or(filters.join(","))
+    .neq("payment_status", "pending")
     .order("created_at", { ascending: false })
     .limit(60);
 
@@ -231,7 +232,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         } = await supabase.auth.getUser();
         if (!user) return;
 
-        let businessQuery = supabase.from("business_profiles").select("id, business_name, contact_name, phone, email, industry, business_type, commission_rate, pickup_address, cac_number, registration_status, rejection_reason").eq("user_id", user.id).maybeSingle();
+        let businessQuery = supabase.from("business_profiles").select("id, business_name, contact_name, phone, email, industry, business_type, commission_rate, operating_state, pickup_address, cac_number, registration_status, rejection_reason").eq("user_id", user.id).maybeSingle();
         const [businessResult, accountProfileResult, appUserResult, walletResult, ordersResult, addressResult, teamResult, withdrawalsResult] = await Promise.all([
           businessQuery,
           supabase.from("profiles").select("avatar_url").eq("user_id", user.id).maybeSingle(),
@@ -248,9 +249,9 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
           const fallback = await supabase.from("business_profiles").select("id, business_name, contact_name, phone, email, industry, pickup_address, cac_number, registration_status").eq("user_id", user.id).maybeSingle();
           nextProfile = (fallback.data || profile) as BusinessProfile;
         }
-        const nextState = normalizeState((appUserResult.data as { default_zone?: string | null } | null)?.default_zone) || null;
+        const nextState = normalizeState(nextProfile.operating_state || (appUserResult.data as { default_zone?: string | null } | null)?.default_zone) || null;
         const nextKycStatus = nextProfile.registration_status || initialKycStatus;
-        setProfile({ ...nextProfile, default_zone: nextState, avatar_url: (accountProfileResult.data as { avatar_url?: string | null } | null)?.avatar_url || nextProfile.avatar_url || null });
+        setProfile({ ...nextProfile, operating_state: nextState, default_zone: nextState, avatar_url: (accountProfileResult.data as { avatar_url?: string | null } | null)?.avatar_url || nextProfile.avatar_url || null });
         setKycStatus(nextKycStatus);
         setKycRejectionReason(nextProfile.rejection_reason || initialKycRejectionReason);
         if (!silent && nextKycStatus === "active" && !nextState) setActiveTab("account");
@@ -550,7 +551,6 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
               {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsv={parseCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={deleteAddress} /> : null}
               {activeTab === "history" ? <HistoryTab orders={filteredOrders} status={historyStatus} onStatus={setHistoryStatus} onExport={exportHistory} /> : null}
               {activeTab === "analytics" ? <AnalyticsTab orders={orders} addresses={addresses} team={team} /> : null}
-              {activeTab === "team" ? <TeamTab team={team} email={teamEmail} role={teamRole} message={teamMessage} onEmail={setTeamEmail} onRole={setTeamRole} onInvite={inviteTeamMember} onRemove={removeTeamMember} /> : null}
               {activeTab === "account" ? <AccountTab profile={profile} onProfile={setProfile} prefs={prefs} onPrefs={setPrefs} /> : null}
             </>
           )}
@@ -563,33 +563,40 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
 }
 
 function BusinessMobileTabs({ activeTab, onChange, disabled = false }: { activeTab: BusinessTab; onChange: (tab: BusinessTab) => void; disabled?: boolean }) {
+  const renderTab = (tab: (typeof tabs)[number]) => {
+    const Icon = tab.icon;
+    return (
+      <button
+        key={tab.id}
+        type="button"
+        onClick={() => {
+          if (!disabled) onChange(tab.id);
+        }}
+        disabled={disabled}
+        className={cn(
+          "grid min-h-14 place-items-center rounded-[18px] px-1 py-2 text-[0.62rem] font-black leading-none transition",
+          activeTab === tab.id && !disabled ? "bg-sky-50 text-fleet-blue ring-1 ring-sky-100" : "text-slate-500 hover:bg-fleet-paper",
+          disabled && "cursor-not-allowed opacity-45 hover:bg-transparent"
+        )}
+      >
+        <Icon className="mb-1 h-4 w-4" />
+        <span className="max-w-full truncate">{tab.label}</span>
+      </button>
+    );
+  };
+
   return (
     <nav className="fixed inset-x-3 bottom-3 z-50 mx-auto grid max-w-3xl grid-cols-7 gap-1 rounded-[24px] border border-fleet-line bg-white/95 p-2 shadow-glow backdrop-blur" aria-label="Business dashboard navigation">
       <Link href="/hub" className="grid min-h-14 place-items-center rounded-[18px] px-1 py-2 text-[0.62rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper">
         <LayoutDashboard className="mb-1 h-4 w-4" />
         <span className="max-w-full truncate">Hub</span>
       </Link>
-      {tabs.map((tab) => {
-        const Icon = tab.icon;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => {
-              if (!disabled) onChange(tab.id);
-            }}
-            disabled={disabled}
-            className={cn(
-              "grid min-h-14 place-items-center rounded-[18px] px-1 py-2 text-[0.62rem] font-black leading-none transition",
-              activeTab === tab.id && !disabled ? "bg-sky-50 text-fleet-blue ring-1 ring-sky-100" : "text-slate-500 hover:bg-fleet-paper",
-              disabled && "cursor-not-allowed opacity-45 hover:bg-transparent"
-            )}
-          >
-            <Icon className="mb-1 h-4 w-4" />
-            <span className="max-w-full truncate">{tab.label}</span>
-          </button>
-        );
-      })}
+      {tabs.slice(0, 2).map(renderTab)}
+      <Link href="/marketplace/listing" className="grid min-h-14 place-items-center rounded-[18px] px-1 py-2 text-[0.62rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper">
+        <Store className="mb-1 h-4 w-4" />
+        <span className="max-w-full truncate">Mall Listing</span>
+      </Link>
+      {tabs.slice(2).map(renderTab)}
     </nav>
   );
 }
@@ -836,7 +843,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [photoMessage, setPhotoMessage] = useState<string | null>(profile.avatar_url ? null : "Upload a business profile picture for your account.");
-  const selectedState = normalizeState(profile.default_zone);
+  const selectedState = normalizeState(profile.operating_state || profile.default_zone);
   const missingState = !selectedState;
 
   async function handleProfilePhoto(file: File | null) {
@@ -873,7 +880,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
         body: JSON.stringify({
           business_name: profile.business_name,
           pickup_address: profile.pickup_address,
-          state: profile.default_zone,
+          state: profile.operating_state || profile.default_zone,
           cac_number: profile.cac_number,
           business_type: profile.business_type || profile.industry,
           contact_name: profile.contact_name,
@@ -883,7 +890,8 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
       });
       const payload = (await response.json().catch(() => ({}))) as { profile?: BusinessProfile; error?: string };
       if (!response.ok) throw new Error(payload.error || "Could not save business profile.");
-      onProfile({ ...profile, ...(payload.profile || {}), default_zone: normalizeState(payload.profile?.default_zone || profile.default_zone) });
+      const savedState = normalizeState(payload.profile?.operating_state || payload.profile?.default_zone || profile.operating_state || profile.default_zone);
+      onProfile({ ...profile, ...(payload.profile || {}), operating_state: savedState, default_zone: savedState });
       setProfileMessage("Business profile saved.");
     } catch (error) {
       setProfileMessage(error instanceof Error ? error.message : "Could not save business profile.");
@@ -921,7 +929,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
           <Field label="Business name" value={profile.business_name || ""} onChange={(value) => onProfile({ ...profile, business_name: value })} />
           <label className="form-field">
             <span className="form-label">Business state</span>
-            <select className="form-input" value={selectedState} onChange={(event) => onProfile({ ...profile, default_zone: event.target.value })}>
+            <select className="form-input" value={selectedState} onChange={(event) => onProfile({ ...profile, operating_state: event.target.value, default_zone: event.target.value })}>
               <option value="">Select state</option>
               {NIGERIAN_STATES.map((state) => (
                 <option key={state} value={state}>{state}</option>
