@@ -306,12 +306,14 @@ In Supabase dashboard:
 
 1. Enable your required sign-in providers.
 2. Configure email confirmation if needed.
-3. Add redirect URLs:
+3. Add redirect URLs in Supabase:
    - `http://localhost:3000/auth/callback`
    - `https://your-domain.com/auth/callback`
    - `https://your-domain.com/auth/confirm`
 4. Set the site URL to the deployed domain.
 5. If using Google/Apple auth, set provider secrets in Supabase Auth Providers, not in client code.
+6. In Google Cloud, authorize Supabase's provider callback URL:
+   - `https://your-project.supabase.co/auth/v1/callback`
 
 ### Required database setup
 
@@ -565,7 +567,6 @@ Admin routes should always call `requireAdminSession()`.
 | `POST /api/uploads` | `app/api/uploads/route.ts` | Upload profile photos, rider docs, business docs. | Supabase Storage |
 | `GET /api/site-controls` | `app/api/site-controls/route.ts` | Public-safe site controls, currently brand partners. | `platform_settings` |
 | `GET /api/health/readiness` | `app/api/health/readiness/route.ts` | Production readiness checks. | Env vars, Supabase, Paystack |
-| `POST /api/auth/oauth-provider-check` | `app/api/auth/oauth-provider-check/route.ts` | Checks if OAuth provider URL is valid/enabled. | Supabase Auth URL |
 
 ## 10. Database And Storage Map
 

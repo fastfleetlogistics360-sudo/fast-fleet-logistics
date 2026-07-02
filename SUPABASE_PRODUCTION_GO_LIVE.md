@@ -20,12 +20,14 @@ Use this before switching the public site from preview/demo storage to live Supa
 
 - Enable Email auth.
 - Enable Confirm email if customers must verify before dashboard access.
-- Add production redirect URLs:
+- Add app redirect URLs in Supabase Authentication -> URL Configuration:
   - `https://fastfleet.com.ng/auth/callback`
   - `https://www.fastfleet.com.ng/auth/callback`
   - `http://localhost:3000/auth/callback`
 - Set Site URL to `https://fastfleet.com.ng`.
 - If using Google login, add the Google provider client ID and secret in Supabase Auth Providers.
+- In Google Cloud, add the Supabase provider callback URL as an authorized redirect URI:
+  - `https://<your-supabase-project-ref>.supabase.co/auth/v1/callback`
 - For iOS App Store submission, if the native iOS app keeps Google login, add an equivalent Apple-approved login option or remove Google login from the iOS build.
 
 ## 4. Configure Resend for Supabase confirmation emails

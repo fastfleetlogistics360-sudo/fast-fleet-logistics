@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const providerError = requestUrl.searchParams.get("error_description") || requestUrl.searchParams.get("error");
 
   if (providerError) {
-    return redirectToAuth(request, requestedReturnTo, providerError);
+    return redirectToAuth(request, requestedReturnTo, friendlyAuthError(providerError));
   }
 
   const { url, anonKey } = getSupabasePublicConfig();
@@ -86,7 +86,11 @@ function redirectWithCookies(url: URL, cookiesToSet: CookieToSet[]) {
 }
 
 function friendlyAuthError(message: string) {
-  if (message.includes("code verifier") || message.includes("pkce")) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("external code")) {
+    return "Google sign-in could not be completed. Please try again. If this keeps happening, check the Google OAuth client ID, client secret, and Supabase callback URL.";
+  }
+  if (normalized.includes("code verifier") || normalized.includes("pkce")) {
     return "This verification link opened in a different browser session. Please request a new verification email, or open the link in the same browser you used to register.";
   }
   return message;
