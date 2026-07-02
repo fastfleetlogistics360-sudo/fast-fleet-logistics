@@ -117,6 +117,7 @@ export function TrackingConsole() {
             pickupAddress={delivery.pickup_address}
             dropoffAddress={delivery.dropoff_address}
             riderLocation={delivery.last_location}
+            riderAvatarUrl={delivery.rider?.avatar_url}
           />
         ) : (
           <Card className="grid min-h-[360px] place-items-center p-6 text-center">

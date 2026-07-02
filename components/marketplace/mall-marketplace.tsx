@@ -31,8 +31,8 @@ type CartItem = {
   subtotal: number;
 };
 
-export function MallMarketplace() {
-  const [malls, setMalls] = useState<ShoppingMall[]>(defaultShoppingMalls);
+export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initialMalls?: ShoppingMall[] } = {}) {
+  const [malls, setMalls] = useState<ShoppingMall[]>(initialMalls);
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -70,21 +70,18 @@ export function MallMarketplace() {
       }
     }
 
-    applyStoredMalls();
-    fetch("/api/marketplace/malls")
-      .then((response) => response.json())
-      .then((payload) => {
-        if (Array.isArray(payload.malls)) {
-          const nextMalls = normalizeShoppingMalls(payload.malls);
-          setMalls(nextMalls);
-          window.localStorage.setItem(mallMenuStorageKey, JSON.stringify(nextMalls));
-        }
-      })
-      .catch(() => applyStoredMalls());
-
     window.addEventListener("storage", applyStoredMalls);
     return () => window.removeEventListener("storage", applyStoredMalls);
   }, []);
+
+  useEffect(() => {
+    setMalls(initialMalls);
+    try {
+      window.localStorage.setItem(mallMenuStorageKey, JSON.stringify(initialMalls));
+    } catch {
+      // Browser storage is optional; the server-loaded menu is still the source of truth.
+    }
+  }, [initialMalls]);
 
   function changeQuantity(mall: ShoppingMall, vendor: MallStore, product: MallProduct, delta: number) {
     if (typeof product.price !== "number") return;

@@ -931,6 +931,9 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, prof
           pickupAddress={activeJob?.pickup_address || "Victoria Island, Lagos"}
           dropoffAddress={activeJob?.dropoff_address || "Ikeja GRA, Lagos"}
           riderLocation={liveLocation}
+          riderAvatarUrl={profile.avatar_url}
+          customerAvatarUrl={activeJob?.users?.avatar_url}
+          customerName={activeJob?.users?.full_name || "Customer"}
         />
       </Card>
       <section>
@@ -1019,6 +1022,8 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
         pickupAddress={job.pickup_address}
         dropoffAddress={job.dropoff_address}
         riderLocation={liveLocation}
+        customerAvatarUrl={job.users?.avatar_url}
+        customerName={customerName}
       />
       {job.status === "picked_up" ? (
         <label className="form-field mt-4">

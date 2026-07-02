@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Loader2, MapPin, Navigation, Route, ShieldCheck } from "lucide-react";
+import { ArrowRight, Loader2, Navigation, Route, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
+import { FastFleetMap } from "@/components/maps/fastfleet-map";
 import { estimateFareForDistance } from "@/lib/fare";
 import { formatMoney } from "@/lib/format";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
@@ -21,8 +22,6 @@ type Coordinates = {
   longitude: number;
 };
 
-const googleMapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-
 export function LiveLocationMap() {
   const [location, setLocation] = useState<LocationState | null>(null);
   const [pickup, setPickup] = useState("");
@@ -33,27 +32,12 @@ export function LiveLocationMap() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [locationMessage, setLocationMessage] = useState("Detecting your address...");
   const [currentAddress, setCurrentAddress] = useState("");
-  const [mapReady, setMapReady] = useState(false);
-  const mapFrameRef = useRef<HTMLDivElement>(null);
   const refreshedLocationRef = useRef(false);
 
   const pickupCoordinates = pickupUsesCurrentLocation && location ? location : parseCoordinates(pickup);
   const dropoffCoordinates = parseCoordinates(dropoff);
 
   const pricing = useMemo(() => estimateFareForDistance({ distanceKm, vehicle: "bike", speed: "express" }), [distanceKm]);
-
-  const mapUrl = useMemo(() => {
-    const origin = pickupCoordinates ? formatCoordinates(pickupCoordinates) : pickup.trim();
-    const destination = dropoffCoordinates ? formatCoordinates(dropoffCoordinates) : dropoff.trim();
-
-    if (googleMapsKey && origin.length > 3 && destination.length > 3) {
-      return googleDirectionsEmbedUrl(origin, destination);
-    }
-
-    const focus = destination.length > 3 ? destination : origin;
-    if (!focus || focus.length <= 3) return null;
-    return googlePlaceEmbedUrl(focus, pickupCoordinates && destination.length <= 3 ? 16 : 13);
-  }, [dropoff, dropoffCoordinates, pickup, pickupCoordinates]);
 
   useEffect(() => {
     const stored = readStoredCurrentLocation();
@@ -66,28 +50,6 @@ export function LiveLocationMap() {
 
     window.addEventListener(currentLocationUpdatedEvent, handleLocationUpdate);
     return () => window.removeEventListener(currentLocationUpdatedEvent, handleLocationUpdate);
-  }, []);
-
-  useEffect(() => {
-    const node = mapFrameRef.current;
-    if (!node) return;
-
-    if (!("IntersectionObserver" in window)) {
-      setMapReady(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return;
-        setMapReady(true);
-        observer.disconnect();
-      },
-      { rootMargin: "360px 0px" }
-    );
-
-    observer.observe(node);
-    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -239,23 +201,20 @@ export function LiveLocationMap() {
           </Card>
 
           <div className="grid gap-4">
-            <div ref={mapFrameRef} className="relative min-h-[280px] overflow-hidden rounded-[20px] border border-white/70 bg-white/70 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-xl sm:min-h-[360px]">
-              {mapReady && mapUrl ? (
-                <iframe
-                  title="Your Location live map"
-                  src={mapUrl}
-                  className="absolute inset-0 h-full w-full border-0"
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  allowFullScreen
-                />
-              ) : (
-                <div className="map-grid absolute inset-0">
-                  <div className="absolute left-1/2 top-1/2 grid h-20 w-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white text-fleet-ember shadow-lift">
-                    <MapPin className="h-9 w-9" />
-                  </div>
-                </div>
-              )}
+            <div className="relative min-h-[280px] overflow-hidden rounded-[20px] border border-white/70 bg-white/70 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-xl sm:min-h-[360px]">
+              <FastFleetMap
+                className="absolute inset-0 min-h-0 rounded-[20px] border-0"
+                label="FastFleets route lab"
+                title={dropoff.trim() ? "Route preview ready" : "Set your drop-off"}
+                subtitle={dropoff.trim() ? `${pickupUsesCurrentLocation ? currentAddress || pickup || "Current location" : pickup || "Pickup"} to ${dropoff}` : "Add a destination to animate your fare preview."}
+                badge={routeLoading ? "Calculating" : `${distanceKm.toFixed(1)} km`}
+                pickup={pickupCoordinates}
+                dropoff={dropoffCoordinates}
+                pickupAddress={pickupUsesCurrentLocation ? currentAddress || pickup : pickup}
+                dropoffAddress={dropoff}
+                progress={dropoff.trim() ? 66 : 26}
+                showLegend={false}
+              />
               <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-fleet border border-white/80 bg-white/80 p-3 shadow-lift backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-3">
                   <span className="inline-flex items-center gap-2 text-sm font-black text-fleet-night">
@@ -315,22 +274,6 @@ function parseCoordinates(value: string): Coordinates | null {
 
 function formatCoordinates(coordinates: Coordinates) {
   return `${coordinates.latitude},${coordinates.longitude}`;
-}
-
-function googleDirectionsEmbedUrl(origin: string, destination: string) {
-  const params = new URLSearchParams({
-    key: googleMapsKey || "",
-    origin,
-    destination,
-    mode: "driving",
-    units: "metric"
-  });
-
-  return `https://www.google.com/maps/embed/v1/directions?${params.toString()}`;
-}
-
-function googlePlaceEmbedUrl(query: string, zoom: number) {
-  return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=${zoom}&output=embed`;
 }
 
 function haversineDistanceKm(origin: Coordinates, destination: Coordinates) {

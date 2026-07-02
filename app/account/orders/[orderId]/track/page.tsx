@@ -27,7 +27,7 @@ type DeliveryRow = {
   created_at: string;
   updated_at?: string | null;
   rider_id?: string | null;
-  rider_profiles?: {
+    rider_profiles?: {
     plate_number?: string | null;
     vehicle_type?: string | null;
     vehicle_color?: string | null;
@@ -36,6 +36,7 @@ type DeliveryRow = {
       full_name?: string | null;
       phone?: string | null;
       email?: string | null;
+      avatar_url?: string | null;
     } | null;
   } | null;
 };
@@ -54,7 +55,7 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
   const query = supabase
     .from("deliveries")
     .select(
-      "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, dropoff_latitude, dropoff_longitude, status, price_ngn, distance_km, eta_minutes, created_at, updated_at, rider_id, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email))"
+      "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, dropoff_latitude, dropoff_longitude, status, price_ngn, distance_km, eta_minutes, created_at, updated_at, rider_id, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))"
     )
     .eq("customer_id", user.id);
 
@@ -70,7 +71,7 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
     if (admin) {
       const { data } = await admin
         .from("rider_profiles")
-        .select("plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email)")
+        .select("plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url)")
         .eq("id", result.data.rider_id)
         .maybeSingle<RiderProfileRow>();
       riderProfile = data || riderProfile;
@@ -105,6 +106,7 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
       full_name: riderProfile?.users?.full_name || null,
       phone: riderProfile?.users?.phone || null,
       email: riderProfile?.users?.email || null,
+      avatar_url: riderProfile?.users?.avatar_url || null,
       vehicle_type: riderProfile?.vehicle_type || null,
       plate_number: riderProfile?.plate_number || null,
       vehicle_color: riderProfile?.vehicle_color || null,

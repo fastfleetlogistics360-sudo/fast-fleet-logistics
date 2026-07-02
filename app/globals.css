@@ -69,6 +69,43 @@ svg {
   background-size: 42px 42px;
 }
 
+.fastfleet-map-road {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 11 9;
+}
+
+.fastfleet-map-road-soft {
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 1.8;
+}
+
+.fastfleet-map-dash {
+  animation: fastfleet-map-dash 1.5s linear infinite;
+}
+
+.fastfleet-map-rider {
+  animation: fastfleet-map-float 3.1s ease-in-out infinite;
+}
+
+@keyframes fastfleet-map-dash {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+
+@keyframes fastfleet-map-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
 .wallet-card-grid {
   background-image:
     radial-gradient(circle at 90% 0%, rgba(255, 255, 255, 0.08), transparent 18rem);

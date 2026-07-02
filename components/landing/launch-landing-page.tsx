@@ -8,7 +8,7 @@ import { ArrowUpRight, Bike, CalendarDays, CheckCircle2, CircleUserRound, Layout
 import type { LucideIcon } from "lucide-react";
 import { AppleIcon, GoogleIcon, InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 import { readReturningProfile, saveReturningProfile } from "@/lib/auth/returning-profile";
-import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from "@/lib/brand-partners";
+import { defaultBrandPartners, type BrandPartner } from "@/lib/brand-partners";
 
 type ActionItemConfig = {
   title: string;
@@ -67,27 +67,17 @@ function isInstalledApp() {
   return window.matchMedia("(display-mode: standalone)").matches || navigatorWithStandalone.standalone === true;
 }
 
-export function LaunchLandingPage() {
+export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { initialPartners?: BrandPartner[] }) {
   const [storePopup, setStorePopup] = useState(false);
-  const [partners, setPartners] = useState<BrandPartner[]>(defaultBrandPartners);
+  const [partners, setPartners] = useState<BrandPartner[]>(initialPartners);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const reduceMotion = useReducedMotion();
   const activePartners = partners.filter((partner) => partner.active);
   const partnerLoop = [...activePartners, ...activePartners];
 
   useEffect(() => {
-    let cancelled = false;
-    fetch("/api/site-controls", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((data) => {
-        if (!cancelled) setPartners(normalizeBrandPartners(data.brand_partners));
-      })
-      .catch(() => undefined);
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    setPartners(initialPartners);
+  }, [initialPartners]);
 
   useEffect(() => {
     let cancelled = false;

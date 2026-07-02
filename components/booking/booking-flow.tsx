@@ -331,7 +331,7 @@ export function BookingFlow() {
       </Card>
 
       <aside className="grid gap-4">
-        <RoutePreview label="Google Maps route preview" pickupAddress={form.pickup} dropoffAddress={form.dropoff} />
+        <RoutePreview label="FastFleets 360 route preview" pickupAddress={form.pickup} dropoffAddress={form.dropoff} />
         <Card className="p-5">
           <div className="flex items-start justify-between">
             <div>

@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import { OrderMarketplace } from "@/components/marketplace/order-marketplace";
-import { defaultRestaurantKitchens } from "@/lib/restaurant-menu";
+import { loadPublicRestaurantKitchens } from "@/lib/public-content";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Restaurants"
 };
 
-export default function RestaurantsPage() {
-  return <OrderMarketplace title="Order restaurant meals with Fast Fleets 360." eyebrow="Restaurants" stores={defaultRestaurantKitchens} kind="restaurant" />;
+export default async function RestaurantsPage() {
+  const stores = await loadPublicRestaurantKitchens();
+
+  return <OrderMarketplace title="Order restaurant meals with Fast Fleets 360." eyebrow="Restaurants" stores={stores} kind="restaurant" />;
 }

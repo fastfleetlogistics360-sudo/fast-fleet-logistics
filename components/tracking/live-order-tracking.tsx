@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
 import { AlertTriangle, Bike, Clock3, MapPin, MessageCircle, Navigation2, Phone, Route, ShieldCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
+import { FastFleetMap } from "@/components/maps/fastfleet-map";
 import { LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -49,15 +49,13 @@ export type TrackingOrder = {
     full_name?: string | null;
     phone?: string | null;
     email?: string | null;
+    avatar_url?: string | null;
     vehicle_type?: string | null;
     plate_number?: string | null;
     vehicle_color?: string | null;
     rider_account_type?: RiderAccountType | null;
   } | null;
 };
-
-// Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to render the Google Maps layer; the CSS map remains available without it.
-const googleMapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 const statusSteps = [
   { keys: ["accepted"], label: "Rider assigned" },
@@ -136,53 +134,54 @@ export function LiveOrderTracking({
     };
   }, [initialOrder.id]);
 
-	  useEffect(() => {
-	    if (isComplete(order.status)) setConnectionState("complete");
-	  }, [order.status]);
+  useEffect(() => {
+    if (isComplete(order.status)) setConnectionState("complete");
+  }, [order.status]);
 
-	  useEffect(() => {
-	    if (!order.rider_id || order.rider?.full_name) return;
-	    const supabase = createClient();
-	    let mounted = true;
-	    async function loadRiderDetails() {
-	      const trackingResponse = await fetch(`/api/tracking?code=${encodeURIComponent(order.delivery_code)}`, { cache: "no-store" }).catch(() => null);
-	      if (trackingResponse?.ok) {
-	        const payload = (await trackingResponse.json().catch(() => ({}))) as { delivery?: { rider?: TrackingOrder["rider"] } };
-	        if (mounted && payload.delivery?.rider?.full_name) {
-	          setOrder((current) => ({ ...current, rider: payload.delivery?.rider || current.rider }));
-	          return;
-	        }
-	      }
-	      const { data } = await supabase
-	        .from("rider_profiles")
-	        .select("plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email)")
-	        .eq("id", order.rider_id)
-	        .maybeSingle<{
-	          plate_number?: string | null;
-	          vehicle_type?: string | null;
-	          vehicle_color?: string | null;
-	          rider_account_type?: RiderAccountType | null;
-	          users?: { full_name?: string | null; phone?: string | null; email?: string | null } | null;
-	        }>();
-	      if (!mounted || !data) return;
-	      setOrder((current) => ({
-	        ...current,
-	        rider: {
-	          full_name: data.users?.full_name || null,
-	          phone: data.users?.phone || null,
-	          email: data.users?.email || null,
-	          vehicle_type: data.vehicle_type || null,
-	          plate_number: data.plate_number || null,
-	          vehicle_color: data.vehicle_color || null,
-	          rider_account_type: data.rider_account_type || null
-	        }
-	      }));
-	    }
-	    void loadRiderDetails();
-	    return () => {
-	      mounted = false;
-	    };
-	  }, [order.delivery_code, order.rider?.full_name, order.rider_id]);
+  useEffect(() => {
+    if (!order.rider_id || order.rider?.full_name) return;
+    const supabase = createClient();
+    let mounted = true;
+    async function loadRiderDetails() {
+      const trackingResponse = await fetch(`/api/tracking?code=${encodeURIComponent(order.delivery_code)}`, { cache: "no-store" }).catch(() => null);
+      if (trackingResponse?.ok) {
+        const payload = (await trackingResponse.json().catch(() => ({}))) as { delivery?: { rider?: TrackingOrder["rider"] } };
+        if (mounted && payload.delivery?.rider?.full_name) {
+          setOrder((current) => ({ ...current, rider: payload.delivery?.rider || current.rider }));
+          return;
+        }
+      }
+      const { data } = await supabase
+        .from("rider_profiles")
+        .select("plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url)")
+        .eq("id", order.rider_id)
+        .maybeSingle<{
+          plate_number?: string | null;
+          vehicle_type?: string | null;
+          vehicle_color?: string | null;
+          rider_account_type?: RiderAccountType | null;
+          users?: { full_name?: string | null; phone?: string | null; email?: string | null; avatar_url?: string | null } | null;
+        }>();
+      if (!mounted || !data) return;
+      setOrder((current) => ({
+        ...current,
+        rider: {
+          full_name: data.users?.full_name || null,
+          phone: data.users?.phone || null,
+          email: data.users?.email || null,
+          avatar_url: data.users?.avatar_url || null,
+          vehicle_type: data.vehicle_type || null,
+          plate_number: data.plate_number || null,
+          vehicle_color: data.vehicle_color || null,
+          rider_account_type: data.rider_account_type || null
+        }
+      }));
+    }
+    void loadRiderDetails();
+    return () => {
+      mounted = false;
+    };
+  }, [order.delivery_code, order.rider?.full_name, order.rider_id]);
 
   const pickup = toPoint(order.pickup_latitude, order.pickup_longitude);
   const dropoff = toPoint(order.dropoff_latitude, order.dropoff_longitude);
@@ -298,104 +297,25 @@ function LiveTrackingMap({
   dropoff: LatLng | null;
   location: DeliveryLocation | null;
 }) {
-  const mapRef = useRef<HTMLDivElement | null>(null);
-  const mapInstance = useRef<any>(null);
-  const markers = useRef<{ pickup?: any; dropoff?: any; rider?: any; line?: any }>({});
   const displayLocation = useSmoothLocation(location);
-  const canUseGoogle = Boolean(googleMapsKey && pickup && dropoff);
-
-  useEffect(() => {
-    if (!canUseGoogle || !mapRef.current || !pickup || !dropoff) return;
-    const pickupPoint = pickup;
-    const dropoffPoint = dropoff;
-    let cancelled = false;
-
-    async function setupGoogleMap() {
-      const google = await loadGoogleMaps();
-      if (cancelled || !mapRef.current) return;
-      const center = displayLocation || pickupPoint;
-      if (!mapInstance.current) {
-        mapInstance.current = new google.maps.Map(mapRef.current, {
-          center: toGoogleLatLng(center),
-          zoom: 13,
-          disableDefaultUI: true,
-          clickableIcons: false,
-          gestureHandling: "greedy"
-        });
-        markers.current.pickup = new google.maps.Marker({ map: mapInstance.current, position: toGoogleLatLng(pickupPoint), label: "P", title: "Pickup" });
-        markers.current.dropoff = new google.maps.Marker({ map: mapInstance.current, position: toGoogleLatLng(dropoffPoint), label: "D", title: "Drop-off" });
-        markers.current.rider = new google.maps.Marker({ map: mapInstance.current, position: toGoogleLatLng(center), label: "R", title: "Rider" });
-        markers.current.line = new google.maps.Polyline({
-          map: mapInstance.current,
-          path: [toGoogleLatLng(pickupPoint), toGoogleLatLng(center), toGoogleLatLng(dropoffPoint)],
-          strokeColor: "#0f3460",
-          strokeOpacity: 0.9,
-          strokeWeight: 5
-        });
-      }
-      if (displayLocation) markers.current.rider?.setPosition(toGoogleLatLng(displayLocation));
-      markers.current.line?.setPath([toGoogleLatLng(pickupPoint), toGoogleLatLng(displayLocation || pickupPoint), toGoogleLatLng(dropoffPoint)]);
-      const bounds = new google.maps.LatLngBounds();
-      [pickupPoint, dropoffPoint, displayLocation].filter(Boolean).forEach((point) => bounds.extend(toGoogleLatLng(point as LatLng)));
-      mapInstance.current.fitBounds(bounds, 70);
-    }
-
-    void setupGoogleMap();
-    return () => {
-      cancelled = true;
-    };
-  }, [canUseGoogle, displayLocation, dropoff, pickup]);
-
-  if (canUseGoogle) {
-    return (
-      <div className="relative min-h-[62dvh] overflow-hidden bg-slate-100">
-        <div ref={mapRef} className="absolute inset-0" />
-        <MapOverlay order={order} location={location} />
-      </div>
-    );
-  }
-
-  return <FallbackMap order={order} pickup={pickup} dropoff={dropoff} location={displayLocation || location} />;
-}
-
-function FallbackMap({ order, pickup, dropoff, location }: { order: TrackingOrder; pickup: LatLng | null; dropoff: LatLng | null; location: LatLng | null }) {
-  const points = normalizePoints(pickup, dropoff, location);
+  const updatedAt = location?.updated_at || null;
   return (
-    <div className="map-grid relative min-h-[62dvh] overflow-hidden bg-[#eef5f7]">
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <path d={`M ${points.pickup.x} ${points.pickup.y} C 38 18, 62 82, ${points.dropoff.x} ${points.dropoff.y}`} fill="none" stroke="rgba(15,52,96,0.18)" strokeWidth="8" strokeLinecap="round" />
-        <path d={`M ${points.pickup.x} ${points.pickup.y} C 38 18, 62 82, ${points.dropoff.x} ${points.dropoff.y}`} fill="none" stroke="rgb(15,52,96)" strokeWidth="2.2" strokeLinecap="round" strokeDasharray="6 5" />
-      </svg>
-      <MapPinBadge label="Pickup" className="bg-fleet-leaf text-white" style={{ left: `${points.pickup.x}%`, top: `${points.pickup.y}%` }} />
-      <MapPinBadge label="Drop-off" className="bg-fleet-ember text-white" style={{ left: `${points.dropoff.x}%`, top: `${points.dropoff.y}%` }} />
-      <div
-        className="absolute grid h-14 w-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-fleet-navy text-white shadow-[0_18px_46px_rgba(15,52,96,0.28)] transition-[left,top] duration-700"
-        style={{ left: `${points.rider.x}%`, top: `${points.rider.y}%` }}
-      >
-        <Bike className="h-6 w-6" />
-        <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-fleet-gold shadow-[0_0_0_8px_rgba(244,166,42,0.2)]" />
-      </div>
-      <MapOverlay order={order} location={location ? { ...location, status: order.status } : null} />
-    </div>
-  );
-}
-
-function MapOverlay({ order, location }: { order: TrackingOrder; location: DeliveryLocation | LatLng | null }) {
-  const updatedAt = "updated_at" in (location || {}) ? (location as DeliveryLocation).updated_at : null;
-  return (
-    <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-fleet border border-white/80 bg-white/95 p-4 shadow-lift backdrop-blur-xl sm:inset-x-5 sm:bottom-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Live route</span>
-          <strong className="mt-1 block text-xl font-black text-fleet-night">{statusLabel(order.status)}</strong>
-          <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{order.pickup_address} to {order.dropoff_address}</p>
-        </div>
-        <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">
-          <Navigation2 className="h-4 w-4" />
-          {updatedAt ? `Updated ${relativeUpdateLabel(updatedAt)}` : "Waiting for rider"}
-        </span>
-      </div>
-    </div>
+    <FastFleetMap
+      className="min-h-[62dvh] rounded-none border-0"
+      label="Live route"
+      title={statusLabel(order.status)}
+      subtitle={`${order.pickup_address} to ${order.dropoff_address}`}
+      badge={updatedAt ? `Updated ${relativeUpdateLabel(updatedAt)}` : "Waiting for rider"}
+      status={order.status}
+      pickup={pickup}
+      dropoff={dropoff}
+      rider={displayLocation || location}
+      pickupAddress={order.pickup_address}
+      dropoffAddress={order.dropoff_address}
+      riderName={order.rider?.full_name || "Rider"}
+      riderAvatarUrl={order.rider?.avatar_url}
+      customerName="Customer"
+    />
   );
 }
 
@@ -438,14 +358,6 @@ function MetricCard({ icon: Icon, label, value }: { icon: LucideIcon; label: str
   );
 }
 
-function MapPinBadge({ label, className, style }: { label: string; className?: string; style: CSSProperties }) {
-  return (
-    <div className={cn("absolute -translate-x-1/2 -translate-y-1/2 rounded-fleet px-3 py-2 text-xs font-black shadow-lift", className)} style={style}>
-      {label}
-    </div>
-  );
-}
-
 function useSmoothLocation(location: DeliveryLocation | null) {
   const [display, setDisplay] = useState<DeliveryLocation | null>(location);
 
@@ -474,32 +386,6 @@ function useSmoothLocation(location: DeliveryLocation | null) {
   }, [location?.latitude, location?.longitude]);
 
   return display;
-}
-
-function normalizePoints(pickup: LatLng | null, dropoff: LatLng | null, rider: LatLng | null) {
-  if (!pickup || !dropoff) {
-    return {
-      pickup: { x: 16, y: 26 },
-      rider: { x: rider ? 52 : 36, y: rider ? 48 : 50 },
-      dropoff: { x: 82, y: 72 }
-    };
-  }
-
-  const points = [pickup, dropoff, rider].filter(Boolean) as LatLng[];
-  const minLat = Math.min(...points.map((point) => point.latitude));
-  const maxLat = Math.max(...points.map((point) => point.latitude));
-  const minLng = Math.min(...points.map((point) => point.longitude));
-  const maxLng = Math.max(...points.map((point) => point.longitude));
-  const toXY = (point: LatLng) => ({
-    x: 12 + ((point.longitude - minLng) / Math.max(0.0001, maxLng - minLng)) * 76,
-    y: 12 + (1 - (point.latitude - minLat) / Math.max(0.0001, maxLat - minLat)) * 76
-  });
-
-  return {
-    pickup: toXY(pickup),
-    rider: toXY(rider || pickup),
-    dropoff: toXY(dropoff)
-  };
 }
 
 function toPoint(latitude?: number | null, longitude?: number | null): LatLng | null {
@@ -563,37 +449,4 @@ function relativeUpdateLabel(value: string) {
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
   return "recently";
-}
-
-function toGoogleLatLng(point: LatLng) {
-  return { lat: point.latitude, lng: point.longitude };
-}
-
-let googleMapsPromise: Promise<any> | null = null;
-
-function loadGoogleMaps() {
-  if (typeof window === "undefined") return Promise.reject(new Error("Google Maps is only available in the browser."));
-  if ((window as any).google?.maps) return Promise.resolve((window as any).google);
-  if (!googleMapsKey) return Promise.reject(new Error("Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable Google Maps tracking."));
-  if (!googleMapsPromise) {
-    googleMapsPromise = new Promise((resolve, reject) => {
-      const existing = document.querySelector<HTMLScriptElement>("script[data-fastfleet-google-maps]");
-      if (existing) {
-        existing.addEventListener("load", () => resolve((window as any).google), { once: true });
-        existing.addEventListener("error", reject, { once: true });
-        return;
-      }
-      const script = document.createElement("script");
-      script.dataset.fastfleetGoogleMaps = "true";
-      script.async = true;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsKey)}&libraries=places`;
-      script.onload = () => {
-        script.dataset.fastfleetGoogleMapsLoaded = "true";
-        resolve((window as any).google);
-      };
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
-  return googleMapsPromise;
 }

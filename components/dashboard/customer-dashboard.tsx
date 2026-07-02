@@ -1114,6 +1114,7 @@ function DeliveryRouteMap({
       pickupAddress={order?.pickup_address || "Victoria Island, Lagos"}
       dropoffAddress={order?.dropoff_address || "Ikeja GRA, Lagos"}
       riderLocation={riderLocation}
+      riderAvatarUrl={order?.rider_profiles?.users?.avatar_url}
     />
   );
 }

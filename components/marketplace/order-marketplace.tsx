@@ -6,7 +6,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ChevronDown, Loader2, MapPin, Minus, Plus, ShoppingCart, Utensils } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
-import { normalizeRestaurantKitchens, restaurantMenuStorageKey } from "@/lib/restaurant-menu";
 import { cn } from "@/lib/cn";
 import { Button, LinkButton } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
@@ -52,34 +51,6 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   useEffect(() => {
     setLiveStores(stores);
   }, [stores]);
-
-  useEffect(() => {
-    if (kind !== "restaurant") return;
-
-    function applyStoredMenu() {
-      try {
-        const stored = window.localStorage.getItem(restaurantMenuStorageKey);
-        if (stored) setLiveStores(normalizeRestaurantKitchens(JSON.parse(stored)));
-      } catch {
-        // Keep the server-rendered menu when locally saved menu data is malformed.
-      }
-    }
-
-    applyStoredMenu();
-    fetch("/api/marketplace/restaurants")
-      .then((response) => response.json())
-      .then((payload) => {
-        if (Array.isArray(payload.restaurants)) {
-          const restaurants = normalizeRestaurantKitchens(payload.restaurants);
-          setLiveStores(restaurants);
-          window.localStorage.setItem(restaurantMenuStorageKey, JSON.stringify(restaurants));
-        }
-      })
-      .catch(() => applyStoredMenu());
-
-    window.addEventListener("storage", applyStoredMenu);
-    return () => window.removeEventListener("storage", applyStoredMenu);
-  }, [kind]);
 
   const selectedItems = useMemo(
     () =>
