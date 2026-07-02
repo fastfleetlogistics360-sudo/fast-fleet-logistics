@@ -169,9 +169,10 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
   }
   if (!riderId) return [] as JobRow[];
   const riderState = extractNigerianState(riderZone);
-  const [assignedResult, availableResult] = await Promise.all([
+  const canLoadAvailable = includeAvailable && vehicleType && riderState;
+  const [assignedResult, availableByAddressResult, availableByMetadataResult] = await Promise.all([
     supabase.from("deliveries").select(jobFields).eq("rider_id", riderId).order("created_at", { ascending: false }).limit(40),
-    includeAvailable && vehicleType && riderState
+    canLoadAvailable
       ? supabase
           .from("deliveries")
           .select(jobFields)
@@ -181,10 +182,24 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
           .ilike("pickup_address", `%${riderState}%`)
           .order("created_at", { ascending: true })
           .limit(20)
+      : Promise.resolve({ data: [] }),
+    canLoadAvailable
+      ? supabase
+          .from("deliveries")
+          .select(jobFields)
+          .eq("status", "searching")
+          .is("rider_id", null)
+          .eq("vehicle_type", vehicleType)
+          .contains("metadata", { pickup_state: riderState })
+          .order("created_at", { ascending: true })
+          .limit(20)
       : Promise.resolve({ data: [] })
   ]);
   const assigned = ((assignedResult.data || []) as JobRow[]).filter(Boolean);
-  const available = ((availableResult.data || []) as JobRow[]).filter((job) => !isRejectedByRider(job, riderId) && pickupMatchesRiderState(job.pickup_address, riderZone));
+  const available = [
+    ...((availableByAddressResult.data || []) as JobRow[]),
+    ...((availableByMetadataResult.data || []) as JobRow[])
+  ].filter((job) => !isRejectedByRider(job, riderId) && pickupMatchesRiderState(job.pickup_address, riderZone, job.metadata));
   return mergeJobs([...available, ...assigned]);
 }
 

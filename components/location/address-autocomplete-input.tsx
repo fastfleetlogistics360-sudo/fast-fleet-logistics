@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { readStoredCurrentLocation } from "@/lib/location/current-location";
+import { extractNigerianState } from "@/lib/location/state-matching";
 
 declare global {
   interface Window {
@@ -23,12 +24,23 @@ type PlaceDetails = {
   address?: string;
   latitude?: number;
   longitude?: number;
+  state?: string;
+};
+
+export type AddressSelection = {
+  address: string;
+  state?: string;
+  latitude?: number;
+  longitude?: number;
+  placeId?: string;
+  source?: AddressPrediction["source"];
 };
 
 type AddressAutocompleteInputProps = {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  onSelect?: (selection: AddressSelection) => void;
   placeholder?: string;
 };
 
@@ -36,6 +48,7 @@ export function AddressAutocompleteInput({
   label,
   value,
   onChange,
+  onSelect,
   placeholder = "Start typing the full street address"
 }: AddressAutocompleteInputProps) {
   const inputId = useId();
@@ -110,13 +123,31 @@ export function AddressAutocompleteInput({
   async function selectPrediction(prediction: AddressPrediction) {
     setSelectedPlaceId(prediction.placeId);
     setOpen(false);
-    onChange(sanitizeAddressText(prediction.description));
+    const predictedAddress = sanitizeAddressText(prediction.description);
+    const predictedState = extractNigerianState(`${prediction.description} ${prediction.secondaryText}`);
+    onChange(predictedAddress);
+    onSelect?.({
+      address: predictedAddress,
+      state: predictedState,
+      placeId: prediction.placeId,
+      source: prediction.source
+    });
 
     if (prediction.source === "local") return;
 
     try {
       const browserDetails = await fetchBrowserPlaceDetails(prediction.placeId);
-      if (browserDetails.address) onChange(sanitizeAddressText(browserDetails.address));
+      if (browserDetails.address) {
+        const address = sanitizeAddressText(browserDetails.address);
+        onChange(address);
+        onSelect?.({
+          ...browserDetails,
+          address,
+          state: browserDetails.state || extractNigerianState(address) || predictedState,
+          placeId: prediction.placeId,
+          source: prediction.source
+        });
+      }
       return;
     } catch {
       // The API route can still resolve details when a server Places key is configured.
@@ -125,8 +156,18 @@ export function AddressAutocompleteInput({
     try {
       const params = new URLSearchParams({ placeId: prediction.placeId, sessionToken });
       const response = await fetch(`/api/maps/place-details?${params.toString()}`, { cache: "no-store" });
-      const data = (await response.json()) as { address?: string };
-      if (response.ok && data.address) onChange(sanitizeAddressText(data.address));
+      const data = (await response.json()) as PlaceDetails;
+      if (response.ok && data.address) {
+        const address = sanitizeAddressText(data.address);
+        onChange(address);
+        onSelect?.({
+          ...data,
+          address,
+          state: data.state || extractNigerianState(address) || predictedState,
+          placeId: prediction.placeId,
+          source: prediction.source
+        });
+      }
     } catch {
       // The prediction description is still a usable address.
     }
@@ -225,7 +266,7 @@ async function fetchBrowserPlaceDetails(placeId: string): Promise<PlaceDetails> 
   const service = new google.maps.places.PlacesService(document.createElement("div"));
 
   return new Promise((resolve, reject) => {
-    service.getDetails({ placeId, fields: ["formatted_address", "geometry", "name"] }, (place: any | null, status: string) => {
+    service.getDetails({ placeId, fields: ["formatted_address", "geometry", "name", "address_components"] }, (place: any | null, status: string) => {
       if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
         reject(new Error(`Google place details failed: ${status}`));
         return;
@@ -234,7 +275,8 @@ async function fetchBrowserPlaceDetails(placeId: string): Promise<PlaceDetails> 
       resolve({
         address: place.formatted_address || place.name || "",
         latitude: typeof place.geometry?.location?.lat === "function" ? place.geometry.location.lat() : undefined,
-        longitude: typeof place.geometry?.location?.lng === "function" ? place.geometry.location.lng() : undefined
+        longitude: typeof place.geometry?.location?.lng === "function" ? place.geometry.location.lng() : undefined,
+        state: stateFromLegacyAddressComponents(place.address_components)
       });
     });
   });
@@ -320,4 +362,9 @@ function currentAddressArea(address: string) {
     .filter(Boolean);
 
   return parts.slice(-2).join(", ");
+}
+
+function stateFromLegacyAddressComponents(components: Array<{ long_name?: string; short_name?: string; types?: string[] }> | undefined) {
+  const area = components?.find((component) => component.types?.includes("administrative_area_level_1"));
+  return extractNigerianState(area?.long_name || area?.short_name || "");
 }

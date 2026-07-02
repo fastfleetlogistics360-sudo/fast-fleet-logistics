@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { extractNigerianState } from "@/lib/location/state-matching";
 import { googleRequestReferer } from "@/lib/maps/google-api";
 
 const googleMapsKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
       headers: {
         Referer: googleRequestReferer(request),
         "X-Goog-Api-Key": googleMapsKey,
-        "X-Goog-FieldMask": "formattedAddress,location,displayName"
+        "X-Goog-FieldMask": "formattedAddress,location,displayName,addressComponents"
       },
       next: { revalidate: 60 * 60 * 24 }
     });
@@ -33,11 +34,17 @@ export async function GET(request: Request) {
     return NextResponse.json({
       address: payload.formattedAddress || payload.displayName?.text || "",
       latitude: payload.location?.latitude ?? null,
-      longitude: payload.location?.longitude ?? null
+      longitude: payload.location?.longitude ?? null,
+      state: stateFromAddressComponents(payload.addressComponents) || extractNigerianState(payload.formattedAddress || "")
     });
   } catch {
     return NextResponse.json({ error: "Place details service failed." }, { status: 502 });
   }
+}
+
+function stateFromAddressComponents(components: Array<{ longText?: string; shortText?: string; types?: string[] }> | undefined) {
+  const area = components?.find((component) => component.types?.includes("administrative_area_level_1"));
+  return extractNigerianState(area?.longText || area?.shortText || "");
 }
 
 function googlePlacesError(message?: string) {

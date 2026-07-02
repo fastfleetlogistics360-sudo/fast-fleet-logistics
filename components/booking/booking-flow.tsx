@@ -4,16 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, CreditCard, Loader2, MapPin, Package, Truck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { DEFAULT_FARE_CONFIG, estimateFare, normalizeFareConfig, speedLabel, vehicleLabel, type FareConfig } from "@/lib/fare";
+import { DEFAULT_FARE_CONFIG, estimateFare, fareSpeedTypes, fareVehicleTypes, normalizeFareConfig, speedLabel, vehicleLabel, type FareConfig } from "@/lib/fare";
 import { formatMoney } from "@/lib/format";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
+import { AddressAutocompleteInput, type AddressSelection } from "@/components/location/address-autocomplete-input";
 import { RoutePreview } from "@/components/maps/route-preview";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { sanitizeAddressText, isUsableAddressText } from "@/lib/location/address-formatting";
 import { currentLocationUpdatedEvent, readStoredCurrentLocation, type StoredCurrentLocation } from "@/lib/location/current-location";
+import { extractNigerianState } from "@/lib/location/state-matching";
 
 const steps = [
   "Pickup",
@@ -41,6 +42,23 @@ const speeds: Array<{ value: DeliverySpeed; label: string; body: string }> = [
   { value: "interstate", label: "Inter-state", body: "Lagos, Ogun and beyond" }
 ];
 
+type BookingPayment = "card" | "wallet" | "transfer";
+
+type BookingForm = {
+  pickup: string;
+  pickupState: string;
+  pickupContact: string;
+  dropoff: string;
+  dropoffState: string;
+  dropoffContact: string;
+  parcel: string;
+  vehicle: VehicleType | "";
+  speed: DeliverySpeed | "";
+  scheduledAt: string;
+  payment: BookingPayment | "";
+  note: string;
+};
+
 export function BookingFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -50,36 +68,45 @@ export function BookingFlow() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pickupAutofillEnabled, setPickupAutofillEnabled] = useState(() => !searchParams.get("pickup")?.trim());
   const [fareConfig, setFareConfig] = useState<FareConfig>(DEFAULT_FARE_CONFIG);
-  const [form, setForm] = useState({
-    pickup: sanitizeAddressText(searchParams.get("pickup") || ""),
+  const initialPickup = sanitizeAddressText(searchParams.get("pickup") || "");
+  const initialDropoff = sanitizeAddressText(searchParams.get("dropoff") || "");
+  const [form, setForm] = useState<BookingForm>({
+    pickup: initialPickup,
+    pickupState: extractNigerianState(initialPickup),
     pickupContact: "",
-    dropoff: sanitizeAddressText(searchParams.get("dropoff") || ""),
+    dropoff: initialDropoff,
+    dropoffState: extractNigerianState(initialDropoff),
     dropoffContact: "",
-    parcel: "Retail parcel",
-    vehicle: "bike" as VehicleType,
-    speed: "express" as DeliverySpeed,
+    parcel: "",
+    vehicle: "",
+    speed: "",
     scheduledAt: "",
-    payment: "card" as "card" | "wallet" | "transfer",
+    payment: "",
     note: ""
   });
 
+  const selectedVehicle = isVehicleType(form.vehicle) ? form.vehicle : null;
+  const selectedSpeed = isDeliverySpeed(form.speed) ? form.speed : null;
+  const pickup = sanitizeAddressText(form.pickup);
+  const dropoff = sanitizeAddressText(form.dropoff);
+  const estimateReady = Boolean(isUsableAddressText(pickup) && isUsableAddressText(dropoff) && form.parcel.trim() && selectedVehicle && selectedSpeed && (selectedSpeed !== "scheduled" || form.scheduledAt));
+
   const estimate = useMemo(
     () => {
-      const pickup = sanitizeAddressText(form.pickup);
-      const dropoff = sanitizeAddressText(form.dropoff);
+      if (!estimateReady || !selectedVehicle || !selectedSpeed) return null;
       return estimateFare({
         pickup,
         dropoff,
-        vehicle: form.vehicle,
-        speed: form.speed,
+        vehicle: selectedVehicle,
+        speed: selectedSpeed,
         scheduledAt: form.scheduledAt,
         zone: `${pickup} ${dropoff}`
       }, fareConfig);
     },
-    [fareConfig, form]
+    [dropoff, estimateReady, fareConfig, form.scheduledAt, pickup, selectedSpeed, selectedVehicle]
   );
 
-  function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+  function update<K extends keyof BookingForm>(key: K, value: BookingForm[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
   }
 
@@ -89,7 +116,7 @@ export function BookingFlow() {
     function applyCurrentPickup(location: StoredCurrentLocation | null) {
       const address = sanitizeAddressText(location?.address || "");
       if (!isUsableAddressText(address)) return;
-      setForm((previous) => (previous.pickup.trim() ? previous : { ...previous, pickup: address }));
+      setForm((previous) => (previous.pickup.trim() ? previous : { ...previous, pickup: address, pickupState: extractNigerianState(address) }));
     }
 
     applyCurrentPickup(readStoredCurrentLocation());
@@ -125,6 +152,10 @@ export function BookingFlow() {
   }
 
   async function confirmDelivery() {
+    if (!estimate || !selectedVehicle || !selectedSpeed || !form.payment) {
+      setErrorMessage("Complete pickup, drop-off, parcel, vehicle, speed, and payment before confirming.");
+      return;
+    }
     setLoading(true);
     setErrorMessage(null);
 
@@ -134,8 +165,12 @@ export function BookingFlow() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          pickup: sanitizeAddressText(form.pickup),
-          dropoff: sanitizeAddressText(form.dropoff),
+          pickup,
+          pickupState: form.pickupState || extractNigerianState(pickup),
+          dropoff,
+          dropoffState: form.dropoffState || extractNigerianState(dropoff),
+          vehicle: selectedVehicle,
+          speed: selectedSpeed,
           total: estimate.total
         })
       });
@@ -158,6 +193,9 @@ export function BookingFlow() {
       setLoading(false);
     }
   }
+
+  const currentStepComplete = isBookingStepComplete(current, form, estimateReady);
+  const currentStepPrompt = bookingStepPrompt(current);
 
   if (deliveryCode) {
     return (
@@ -221,7 +259,11 @@ export function BookingFlow() {
               contact={form.pickupContact}
               onValue={(value) => {
                 setPickupAutofillEnabled(false);
-                update("pickup", value);
+                setForm((previous) => ({ ...previous, pickup: value, pickupState: extractNigerianState(value) }));
+              }}
+              onSelect={(selection) => {
+                setPickupAutofillEnabled(false);
+                setForm((previous) => ({ ...previous, pickup: selection.address, pickupState: selection.state || extractNigerianState(selection.address) }));
               }}
               onContact={(value) => update("pickupContact", value)}
               placeholder="Pickup address in Lagos or Ogun"
@@ -233,7 +275,8 @@ export function BookingFlow() {
               label="Delivery location"
               value={form.dropoff}
               contact={form.dropoffContact}
-              onValue={(value) => update("dropoff", value)}
+              onValue={(value) => setForm((previous) => ({ ...previous, dropoff: value, dropoffState: extractNigerianState(value) }))}
+              onSelect={(selection) => setForm((previous) => ({ ...previous, dropoff: selection.address, dropoffState: selection.state || extractNigerianState(selection.address) }))}
               onContact={(value) => update("dropoffContact", value)}
               placeholder="Recipient address"
             />
@@ -273,7 +316,7 @@ export function BookingFlow() {
               ) : null}
             </div>
           ) : null}
-          {current === 5 ? <EstimatePanel estimate={estimate} vehicle={form.vehicle} speed={form.speed} /> : null}
+          {current === 5 ? estimate && selectedVehicle && selectedSpeed ? <EstimatePanel estimate={estimate} vehicle={selectedVehicle} speed={selectedSpeed} /> : <PendingEstimatePanel /> : null}
           {current === 6 ? (
             <ChoiceGrid
               icon={CreditCard}
@@ -289,7 +332,7 @@ export function BookingFlow() {
           ) : null}
           {current === 7 ? (
             <div className="grid gap-4">
-              <EstimatePanel estimate={estimate} vehicle={form.vehicle} speed={form.speed} />
+              {estimate && selectedVehicle && selectedSpeed ? <EstimatePanel estimate={estimate} vehicle={selectedVehicle} speed={selectedSpeed} /> : <PendingEstimatePanel />}
               <label className="form-field">
                 <span className="form-label">Rider note optional</span>
                 <textarea className="form-textarea" value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Gate code, package instruction, preferred pickup contact" />
@@ -317,37 +360,42 @@ export function BookingFlow() {
             Back
           </Button>
           {current < steps.length - 1 ? (
-            <Button type="button" onClick={next}>
+            <Button type="button" onClick={next} disabled={loading || !currentStepComplete}>
               Continue
               <ArrowRight className="h-4 w-4" />
             </Button>
           ) : (
-            <Button type="button" onClick={confirmDelivery} disabled={loading}>
+            <Button type="button" onClick={confirmDelivery} disabled={loading || !currentStepComplete || !estimate}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               Confirm order
             </Button>
           )}
         </div>
+        {!currentStepComplete ? <p className="mt-3 text-sm font-bold text-slate-500">{currentStepPrompt}</p> : null}
       </Card>
 
       <aside className="grid gap-4">
         <RoutePreview label="FastFleets 360 route preview" pickupAddress={form.pickup} dropoffAddress={form.dropoff} />
-        <Card className="p-5">
-          <div className="flex items-start justify-between">
-            <div>
-              <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Delivery summary</span>
-              <strong className="mt-1 block text-3xl font-black text-fleet-night">{formatMoney(estimate.total)}</strong>
+        {estimate && selectedVehicle && selectedSpeed ? (
+          <Card className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Delivery summary</span>
+                <strong className="mt-1 block text-3xl font-black text-fleet-night">{formatMoney(estimate.total)}</strong>
+              </div>
+              <StatusBadge tone="green">{estimate.etaMinutes} min ETA</StatusBadge>
             </div>
-            <StatusBadge tone="green">{estimate.etaMinutes} min ETA</StatusBadge>
-          </div>
-          <div className="mt-5 grid gap-3">
-            <SummaryRow label="Distance" value={`${estimate.distanceKm.toFixed(1)} km`} />
-            <SummaryRow label="Vehicle" value={vehicleLabel(form.vehicle)} />
-            <SummaryRow label="Speed" value={speedLabel(form.speed)} />
-            <SummaryRow label="Delivery fee" value={formatMoney(estimate.deliveryFee)} />
-            <SummaryRow label="Platform fee" value={formatMoney(estimate.platformFee)} />
-          </div>
-        </Card>
+            <div className="mt-5 grid gap-3">
+              <SummaryRow label="Distance" value={`${estimate.distanceKm.toFixed(1)} km`} />
+              <SummaryRow label="Vehicle" value={vehicleLabel(selectedVehicle)} />
+              <SummaryRow label="Speed" value={speedLabel(selectedSpeed)} />
+              <SummaryRow label="Delivery fee" value={formatMoney(estimate.deliveryFee)} />
+              <SummaryRow label="Platform fee" value={formatMoney(estimate.platformFee)} />
+            </div>
+          </Card>
+        ) : (
+          <PendingSummaryCard />
+        )}
       </aside>
     </div>
   );
@@ -359,6 +407,7 @@ function AddressStep({
   value,
   contact,
   onValue,
+  onSelect,
   onContact,
   placeholder
 }: {
@@ -367,6 +416,7 @@ function AddressStep({
   value: string;
   contact: string;
   onValue: (value: string) => void;
+  onSelect: (selection: AddressSelection) => void;
   onContact: (value: string) => void;
   placeholder: string;
 }) {
@@ -375,7 +425,7 @@ function AddressStep({
       <span className="grid h-12 w-12 place-items-center rounded-fleet bg-fleet-night text-white">
         <Icon className="h-5 w-5" />
       </span>
-      <AddressAutocompleteInput label={label} value={value} onChange={onValue} placeholder={placeholder} />
+      <AddressAutocompleteInput label={label} value={value} onChange={onValue} onSelect={onSelect} placeholder={placeholder} />
       <label className="form-field">
         <span className="form-label">Contact phone</span>
         <input className="form-input" value={contact} onChange={(event) => onContact(event.target.value)} placeholder="+234..." inputMode="tel" />
@@ -425,6 +475,18 @@ function ChoiceGrid<T extends string>({
   );
 }
 
+function PendingEstimatePanel() {
+  return (
+    <div className="rounded-fleet border border-dashed border-fleet-line bg-white p-5 shadow-[0_14px_36px_rgba(8,17,31,0.05)]">
+      <StatusBadge tone="neutral">Estimate pending</StatusBadge>
+      <h2 className="mt-3 text-2xl font-black text-fleet-night">Complete the booking details first.</h2>
+      <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+        Add pickup, drop-off, parcel type, vehicle, and speed to see a real Fast Fleets 360 estimate.
+      </p>
+    </div>
+  );
+}
+
 function EstimatePanel({ estimate, vehicle, speed }: { estimate: ReturnType<typeof estimateFare>; vehicle: VehicleType; speed: DeliverySpeed }) {
   return (
     <div className="rounded-fleet border border-fleet-line bg-white p-5 shadow-[0_14px_36px_rgba(8,17,31,0.07)]">
@@ -442,6 +504,18 @@ function EstimatePanel({ estimate, vehicle, speed }: { estimate: ReturnType<type
   );
 }
 
+function PendingSummaryCard() {
+  return (
+    <Card className="p-5">
+      <StatusBadge tone="neutral">No estimate yet</StatusBadge>
+      <h2 className="mt-3 text-2xl font-black text-fleet-night">Complete pickup, drop-off, parcel, vehicle, and speed.</h2>
+      <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+        Your delivery fee will appear here only after the required choices are filled.
+      </p>
+    </Card>
+  );
+}
+
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-fleet bg-fleet-paper px-3 py-2 text-sm">
@@ -449,4 +523,35 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
       <strong className="text-right font-black text-fleet-night">{value}</strong>
     </div>
   );
+}
+
+function isVehicleType(value: string): value is VehicleType {
+  return fareVehicleTypes.includes(value as VehicleType);
+}
+
+function isDeliverySpeed(value: string): value is DeliverySpeed {
+  return fareSpeedTypes.includes(value as DeliverySpeed);
+}
+
+function isBookingStepComplete(index: number, form: BookingForm, estimateReady: boolean) {
+  if (index === 0) return isUsableAddressText(sanitizeAddressText(form.pickup));
+  if (index === 1) return isUsableAddressText(sanitizeAddressText(form.dropoff));
+  if (index === 2) return Boolean(form.parcel.trim());
+  if (index === 3) return isVehicleType(form.vehicle);
+  if (index === 4) return isDeliverySpeed(form.speed) && (form.speed !== "scheduled" || Boolean(form.scheduledAt));
+  if (index === 5) return estimateReady;
+  if (index === 6) return Boolean(form.payment);
+  if (index === 7) return estimateReady && Boolean(form.payment);
+  return true;
+}
+
+function bookingStepPrompt(index: number) {
+  if (index === 0) return "Add a pickup address to continue.";
+  if (index === 1) return "Add a drop-off address to continue.";
+  if (index === 2) return "Choose the parcel type to continue.";
+  if (index === 3) return "Choose the delivery vehicle to continue.";
+  if (index === 4) return "Choose delivery speed to continue.";
+  if (index === 5) return "Complete pickup, drop-off, parcel, vehicle, and speed to see the estimate.";
+  if (index === 6) return "Choose a payment method to continue.";
+  return "Complete the required booking details before confirming.";
 }

@@ -3,6 +3,7 @@ import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { estimateFare } from "@/lib/fare";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
+import { extractNigerianState } from "@/lib/location/state-matching";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -15,14 +16,16 @@ const deliverySpeeds = new Set(["standard", "same_day", "express", "priority", "
 
 type CheckoutPayload = {
   pickup?: string;
+  pickupState?: string;
   pickupContact?: string;
   dropoff?: string;
+  dropoffState?: string;
   dropoffContact?: string;
   parcel?: string;
-  vehicle?: VehicleType;
-  speed?: DeliverySpeed;
+  vehicle?: VehicleType | "";
+  speed?: DeliverySpeed | "";
   scheduledAt?: string;
-  payment?: "card" | "wallet" | "transfer";
+  payment?: "card" | "wallet" | "transfer" | "";
   note?: string;
   total?: number;
 };
@@ -30,21 +33,29 @@ type CheckoutPayload = {
 export async function POST(request: Request) {
   try {
     const payload = (await request.json().catch(() => ({}))) as CheckoutPayload;
-    const paymentMethod = String(payload.payment || "card") as "card" | "wallet" | "transfer";
-    const vehicle = String(payload.vehicle || "bike") as VehicleType;
-    const speed = String(payload.speed || "express") as DeliverySpeed;
+    const paymentMethod = String(payload.payment || "") as "card" | "wallet" | "transfer";
+    const vehicle = String(payload.vehicle || "") as VehicleType;
+    const speed = String(payload.speed || "") as DeliverySpeed;
     const pickup = sanitizeAddressText(String(payload.pickup || ""));
     const dropoff = sanitizeAddressText(String(payload.dropoff || ""));
-    const parcel = String(payload.parcel || "Retail parcel").trim();
+    const parcel = String(payload.parcel || "").trim();
+    const pickupState = extractNigerianState(pickup) || extractNigerianState(payload.pickupState);
+    const dropoffState = extractNigerianState(dropoff) || extractNigerianState(payload.dropoffState);
 
     if (!pickup || !dropoff) {
       return NextResponse.json({ error: "Add both pickup and drop-off addresses." }, { status: 400 });
+    }
+    if (!parcel) {
+      return NextResponse.json({ error: "Choose a parcel type." }, { status: 400 });
     }
     if (!paymentMethods.has(paymentMethod)) {
       return NextResponse.json({ error: "Choose card, transfer, or wallet balance." }, { status: 400 });
     }
     if (!vehicleTypes.has(vehicle) || !deliverySpeeds.has(speed)) {
       return NextResponse.json({ error: "Choose a valid vehicle and delivery speed." }, { status: 400 });
+    }
+    if (speed === "scheduled" && !payload.scheduledAt) {
+      return NextResponse.json({ error: "Choose a scheduled pickup time." }, { status: 400 });
     }
 
     const fareConfig = await loadFareConfig();
@@ -81,6 +92,8 @@ export async function POST(request: Request) {
       note: payload.note || "",
       scheduled_at: payload.scheduledAt || null,
       source: "booking_checkout",
+      pickup_state: pickupState || null,
+      dropoff_state: dropoffState || null,
       payment_choice: paymentMethod,
       paystack_reference: paymentMethod === "wallet" ? null : paystackReference
     };
@@ -180,7 +193,9 @@ export async function POST(request: Request) {
           delivery_code: delivery.delivery_code,
           payment_method: paymentMethod,
           pickup_address: pickup,
+          pickup_state: pickupState || null,
           dropoff_address: dropoff,
+          dropoff_state: dropoffState || null,
           customer_phone: profile?.phone || user.phone || String(payload.dropoffContact || payload.pickupContact || "").trim() || null,
           customer_name: profile?.full_name || null
         }

@@ -50,7 +50,8 @@ export async function GET(request: Request) {
       rider = { ...rider, vehicle_type: dispatchVehicle };
     }
     const riderState = extractNigerianState(rider.operating_zone || rider.address);
-    const availableQuery = includeAvailable && rider.online && rider.application_status === "approved" && riderState
+    const canLoadAvailable = includeAvailable && rider.online && rider.application_status === "approved" && riderState;
+    const availableByAddressQuery = canLoadAvailable
       ? db
           .from("deliveries")
           .select(jobSelect)
@@ -61,17 +62,33 @@ export async function GET(request: Request) {
           .order("created_at", { ascending: true })
           .limit(20)
       : Promise.resolve({ data: [] });
+    const availableByMetadataQuery = canLoadAvailable
+      ? db
+          .from("deliveries")
+          .select(jobSelect)
+          .eq("status", "searching")
+          .is("rider_id", null)
+          .eq("vehicle_type", dispatchVehicle)
+          .contains("metadata", { pickup_state: riderState })
+          .order("created_at", { ascending: true })
+          .limit(20)
+      : Promise.resolve({ data: [] });
 
-    const [assignedResult, availableResult] = await Promise.all([
+    const [assignedResult, availableByAddressResult, availableByMetadataResult] = await Promise.all([
       db.from("deliveries").select(jobSelect).eq("rider_id", rider.id).order("created_at", { ascending: false }).limit(40),
-      availableQuery
+      availableByAddressQuery,
+      availableByMetadataQuery
     ]);
 
     if (assignedResult.error) throw assignedResult.error;
-    if ("error" in availableResult && availableResult.error) throw availableResult.error;
+    if ("error" in availableByAddressResult && availableByAddressResult.error) throw availableByAddressResult.error;
+    if ("error" in availableByMetadataResult && availableByMetadataResult.error) throw availableByMetadataResult.error;
 
     const assigned = ((assignedResult.data || []) as JobRow[]).filter(Boolean);
-    const available = (((availableResult as { data?: JobRow[] }).data || []) as JobRow[]).filter((job) => !isRejectedByRider(job, rider.id) && pickupMatchesRiderState(job.pickup_address, rider.operating_zone || rider.address));
+    const available = [
+      ...(((availableByAddressResult as { data?: JobRow[] }).data || []) as JobRow[]),
+      ...(((availableByMetadataResult as { data?: JobRow[] }).data || []) as JobRow[])
+    ].filter((job) => !isRejectedByRider(job, rider.id) && pickupMatchesRiderState(job.pickup_address, rider.operating_zone || rider.address, job.metadata));
     return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load rider jobs." }, { status: 500 });
@@ -229,16 +246,16 @@ async function canRiderAcceptPickupState(db: SupabaseClient, userId: string, del
       .maybeSingle<{ operating_zone?: string | null; address?: string | null }>(),
     db
       .from("deliveries")
-      .select("pickup_address")
+      .select("pickup_address, metadata")
       .eq("id", deliveryId)
-      .maybeSingle<{ pickup_address?: string | null }>()
+      .maybeSingle<{ pickup_address?: string | null; metadata?: Record<string, unknown> | null }>()
   ]);
 
   if (riderError) throw riderError;
   if (deliveryError) throw deliveryError;
   const riderZone = rider?.operating_zone || rider?.address || "";
   if (!extractNigerianState(riderZone)) return { ok: false, error: "Your rider operating state is missing. Update your rider profile before accepting jobs." };
-  if (!pickupMatchesRiderState(delivery?.pickup_address, riderZone)) {
+  if (!pickupMatchesRiderState(delivery?.pickup_address, riderZone, delivery?.metadata)) {
     return { ok: false, error: "This pickup is outside your registered rider state." };
   }
   return { ok: true };
