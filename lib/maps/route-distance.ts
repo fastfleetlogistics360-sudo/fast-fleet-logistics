@@ -15,7 +15,7 @@ export type GoogleRouteEstimate = {
 const routesUrl = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
 export function googleRoutesApiKey() {
-  return process.env.GOOGLE_ROUTES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+  return process.env.GOOGLE_ROUTES_API_KEY || "";
 }
 
 export async function getGoogleRouteEstimate({
