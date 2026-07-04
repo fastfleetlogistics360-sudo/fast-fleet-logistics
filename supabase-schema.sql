@@ -681,8 +681,15 @@ create table if not exists public.deliveries (
   payment_method text not null default 'card' check (payment_method in ('card', 'wallet', 'transfer')),
   status public.delivery_status not null default 'draft',
   price_ngn numeric not null default 0,
+  delivery_fee_ngn numeric,
+  platform_fee_ngn numeric,
   distance_km numeric not null default 0,
   eta_minutes integer not null default 0,
+  route_source text,
+  route_type text,
+  route_duration_seconds integer,
+  vehicle_subtype text,
+  fleet_asset_id uuid,
   scheduled_at timestamptz,
   accepted_at timestamptz,
   picked_up_at timestamptz,
@@ -693,10 +700,53 @@ create table if not exists public.deliveries (
   updated_at timestamptz not null default now()
 );
 
+alter table if exists public.deliveries
+  add column if not exists delivery_fee_ngn numeric,
+  add column if not exists platform_fee_ngn numeric,
+  add column if not exists route_source text,
+  add column if not exists route_type text,
+  add column if not exists route_duration_seconds integer,
+  add column if not exists vehicle_subtype text,
+  add column if not exists fleet_asset_id uuid;
+
 drop trigger if exists deliveries_set_updated_at on public.deliveries;
 create trigger deliveries_set_updated_at
 before update on public.deliveries
 for each row execute function public.set_updated_at();
+
+create table if not exists public.fleet_assets (
+  id uuid primary key default gen_random_uuid(),
+  asset_code text not null unique,
+  asset_type text not null default 'bicycle' check (asset_type in ('bicycle')),
+  status text not null default 'available' check (status in ('available', 'busy', 'maintenance', 'inactive')),
+  operating_state text,
+  operating_zone text,
+  assigned_rider_profile_id uuid references public.rider_profiles(id) on delete set null,
+  assigned_user_id uuid references public.users(id) on delete set null,
+  current_delivery_id uuid references public.deliveries(id) on delete set null,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table if exists public.fleet_assets
+  add column if not exists asset_type text not null default 'bicycle',
+  add column if not exists status text not null default 'available',
+  add column if not exists operating_state text,
+  add column if not exists operating_zone text,
+  add column if not exists assigned_rider_profile_id uuid references public.rider_profiles(id) on delete set null,
+  add column if not exists assigned_user_id uuid references public.users(id) on delete set null,
+  add column if not exists current_delivery_id uuid references public.deliveries(id) on delete set null,
+  add column if not exists notes text;
+
+drop trigger if exists fleet_assets_set_updated_at on public.fleet_assets;
+create trigger fleet_assets_set_updated_at
+before update on public.fleet_assets
+for each row execute function public.set_updated_at();
+
+create index if not exists fleet_assets_type_status_idx on public.fleet_assets(asset_type, status);
+create index if not exists fleet_assets_assigned_rider_idx on public.fleet_assets(assigned_rider_profile_id);
+create index if not exists fleet_assets_current_delivery_idx on public.fleet_assets(current_delivery_id);
 
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
@@ -713,8 +763,15 @@ create table if not exists public.orders (
   dropoff_address text not null,
   package_type text not null,
   vehicle_type text not null check (vehicle_type in ('any', 'bike', 'car', 'van')),
+  vehicle_subtype text,
   status text not null default 'pending' check (status in ('pending', 'received', 'preparing', 'packing', 'ready_for_pickup', 'assigned', 'rider_assigned', 'picked_up', 'in_transit', 'delivered', 'cancelled')),
   amount numeric not null default 0,
+  delivery_fee_ngn numeric,
+  platform_fee_ngn numeric,
+  distance_km numeric,
+  eta_minutes integer,
+  route_source text,
+  route_type text,
   payment_method text not null default 'wallet',
   payment_status text not null default 'pending',
   proof_of_delivery_url text,
@@ -730,6 +787,13 @@ alter table if exists public.orders
   add column if not exists marketplace_kind text,
   add column if not exists items jsonb not null default '[]'::jsonb,
   add column if not exists customer_contact text,
+  add column if not exists vehicle_subtype text,
+  add column if not exists delivery_fee_ngn numeric,
+  add column if not exists platform_fee_ngn numeric,
+  add column if not exists distance_km numeric,
+  add column if not exists eta_minutes integer,
+  add column if not exists route_source text,
+  add column if not exists route_type text,
   add column if not exists updated_at timestamptz not null default now();
 
 do $$ begin
@@ -1895,6 +1959,7 @@ alter table public.rider_applications enable row level security;
 alter table public.rider_documents enable row level security;
 alter table public.saved_addresses enable row level security;
 alter table public.deliveries enable row level security;
+alter table public.fleet_assets enable row level security;
 alter table public.delivery_events enable row level security;
 alter table public.rider_locations enable row level security;
 alter table public.delivery_locations enable row level security;
@@ -2204,6 +2269,25 @@ create policy "Customers riders and admins read deliveries"
           and rp.application_status = 'approved'
           and rp.online = true
           and rp.vehicle_type = deliveries.vehicle_type
+          and (
+            (
+              coalesce(deliveries.vehicle_subtype, '') = 'bicycle'
+              and exists (
+                select 1 from public.fleet_assets fa
+                where fa.assigned_rider_profile_id = rp.id
+                  and fa.asset_type = 'bicycle'
+                  and fa.status = 'available'
+              )
+            )
+            or (
+              coalesce(deliveries.vehicle_subtype, '') <> 'bicycle'
+              and not exists (
+                select 1 from public.fleet_assets fa
+                where fa.assigned_rider_profile_id = rp.id
+                  and fa.asset_type = 'bicycle'
+              )
+            )
+          )
       )
     )
     or exists (
@@ -2236,6 +2320,17 @@ create policy "Delivery updates by assigned rider or admin"
       where rp.id = rider_id and rp.user_id = auth.uid()
     )
   );
+
+drop policy if exists "Assigned riders read own fleet assets" on public.fleet_assets;
+create policy "Assigned riders read own fleet assets"
+  on public.fleet_assets for select
+  using (assigned_user_id = auth.uid() or public.current_user_role() = 'admin');
+
+drop policy if exists "Admins manage fleet assets" on public.fleet_assets;
+create policy "Admins manage fleet assets"
+  on public.fleet_assets for all
+  using (public.current_user_role() = 'admin')
+  with check (public.current_user_role() = 'admin');
 
 drop policy if exists "Delivery events follow delivery access" on public.delivery_events;
 create policy "Delivery events follow delivery access"

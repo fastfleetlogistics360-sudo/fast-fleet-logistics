@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
+import { releaseBicycleAssetForDelivery } from "@/lib/fleet-assets";
 import { creditRiderDeliveryWallet } from "@/lib/wallet-ledger";
 import type { DeliveryStatus } from "@/types/domain";
 
@@ -59,9 +60,11 @@ export async function PATCH(request: Request) {
   if (!supabase) return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to update delivery timelines." }, { status: 503 });
 
   const timestamp = new Date().toISOString();
-  const patch: { status: DeliveryStatus; accepted_at?: string; picked_up_at?: string; delivered_at?: string; metadata?: Record<string, string> } = {
+  const { data: existing } = await supabase.from("deliveries").select("metadata").eq("id", id).maybeSingle<{ metadata?: Record<string, unknown> | null }>();
+  const metadata = existing?.metadata && typeof existing.metadata === "object" && !Array.isArray(existing.metadata) ? existing.metadata : {};
+  const patch: { status: DeliveryStatus; accepted_at?: string; picked_up_at?: string; delivered_at?: string; metadata?: Record<string, unknown> } = {
     status: status as DeliveryStatus,
-    metadata: { admin_timeline_updated_at: timestamp }
+    metadata: { ...metadata, admin_timeline_updated_at: timestamp }
   };
   if (status === "accepted") patch.accepted_at = timestamp;
   if (status === "picked_up" || status === "in_transit") patch.picked_up_at = timestamp;
@@ -85,6 +88,9 @@ export async function PATCH(request: Request) {
   await supabase.from("delivery_locations").update({ status, updated_at: timestamp }).eq("order_id", id);
   if (status === "delivered") {
     await creditRiderDeliveryWallet(supabase, id);
+  }
+  if (status === "delivered" || status === "cancelled") {
+    await releaseBicycleAssetForDelivery(supabase, id);
   }
 
   const riderProfiles = data.rider_profiles as { user_id?: string | null } | null;

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
-import { estimateFare } from "@/lib/fare";
+import { createDeliveryQuote } from "@/lib/delivery-quotes";
+import { loadFareConfig } from "@/lib/fare-settings";
+import { extractNigerianState } from "@/lib/location/state-matching";
 import { createClient } from "@/lib/supabase/server";
 import type { VehicleType } from "@/types/domain";
 
@@ -35,39 +37,73 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Business KYC must be approved before creating dispatches." }, { status: 403 });
     }
 
-    const deliveries = rows.map((row, index) => {
-      const pickup = clean(row.pickup_address);
-      const dropoff = clean(row.dropoff_address);
-      const fare = estimateFare({ pickup, dropoff, vehicle: "bike" satisfies VehicleType, speed: "standard" });
+    const normalizedRows = rows.map((row) => ({
+      pickup: clean(row.pickup_address),
+      dropoff: clean(row.dropoff_address),
+      senderName: clean(row.sender_name),
+      senderPhone: clean(row.sender_phone),
+      recipientName: clean(row.recipient_name),
+      recipientPhone: clean(row.recipient_phone),
+      packageType: clean(row.package_type) || "Parcel"
+    }));
+
+    const invalidIndex = normalizedRows.findIndex((row) => !row.pickup || !row.dropoff || !row.senderName || !row.senderPhone || !row.recipientName || !row.recipientPhone);
+    if (invalidIndex >= 0) {
+      return NextResponse.json({ error: `Row ${invalidIndex + 1} is missing required dispatch details.` }, { status: 400 });
+    }
+
+    const fareConfig = await loadFareConfig();
+    const deliveries = await Promise.all(normalizedRows.map(async (row, index) => {
+      const quote = await createDeliveryQuote({
+        pickup: { address: row.pickup },
+        dropoff: { address: row.dropoff },
+        pickupState: extractNigerianState(row.pickup),
+        dropoffState: extractNigerianState(row.dropoff),
+        vehicle: "bike" satisfies VehicleType,
+        speed: "standard",
+        parcelType: row.packageType,
+        fareConfig
+      });
+      const fare = quote.fare;
       return {
         customer_id: user.id,
         delivery_code: `FF-BULK-${Date.now().toString(36).toUpperCase()}-${index + 1}`,
-        pickup_address: pickup,
-        pickup_contact: `${clean(row.sender_name)} ${clean(row.sender_phone)}`,
-        dropoff_address: dropoff,
-        dropoff_contact: `${clean(row.recipient_name)} ${clean(row.recipient_phone)}`,
-        parcel_type: clean(row.package_type) || "Parcel",
+        pickup_address: row.pickup,
+        pickup_contact: `${row.senderName} ${row.senderPhone}`,
+        dropoff_address: row.dropoff,
+        dropoff_contact: `${row.recipientName} ${row.recipientPhone}`,
+        parcel_type: row.packageType,
         vehicle_type: "bike",
         delivery_speed: "standard",
         payment_method: "wallet",
         status: "pending_payment",
         price_ngn: fare.total,
+        delivery_fee_ngn: fare.deliveryFee,
+        platform_fee_ngn: fare.platformFee,
         distance_km: fare.distanceKm,
         eta_minutes: fare.etaMinutes,
+        route_source: quote.routeSource,
+        route_type: quote.routeType,
+        route_duration_seconds: quote.durationSeconds,
+        vehicle_subtype: quote.vehicleSubtype,
         metadata: {
           source: "business_bulk_dispatch",
-          sender_name: clean(row.sender_name),
-          sender_phone: clean(row.sender_phone),
-          recipient_name: clean(row.recipient_name),
-          recipient_phone: clean(row.recipient_phone)
+          pickup_state: quote.pickupState || null,
+          dropoff_state: quote.dropoffState || null,
+          route_source: quote.routeSource,
+          route_type: quote.routeType,
+          route_duration_seconds: quote.durationSeconds,
+          bicycle_eligible: quote.bicycleEligible,
+          vehicle_subtype: quote.vehicleSubtype,
+          delivery_fee_ngn: fare.deliveryFee,
+          platform_fee_ngn: fare.platformFee,
+          sender_name: row.senderName,
+          sender_phone: row.senderPhone,
+          recipient_name: row.recipientName,
+          recipient_phone: row.recipientPhone
         }
       };
-    });
-
-    const invalidIndex = deliveries.findIndex((row) => !row.pickup_address || !row.dropoff_address || !row.pickup_contact.trim() || !row.dropoff_contact.trim());
-    if (invalidIndex >= 0) {
-      return NextResponse.json({ error: `Row ${invalidIndex + 1} is missing required dispatch details.` }, { status: 400 });
-    }
+    }));
 
     const total = deliveries.reduce((sum, row) => sum + Number(row.price_ngn || 0), 0);
     const { data: wallet } = await supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).eq("wallet_type", "customer").maybeSingle();

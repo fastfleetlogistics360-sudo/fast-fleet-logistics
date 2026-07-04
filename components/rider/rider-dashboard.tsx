@@ -969,6 +969,8 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, prof
 
 function IncomingJob({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLocation, onRespond }: { job: JobRow; expires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; liveLocation: LiveRiderLocation | null; onRespond: (job: JobRow, accepted: boolean) => void }) {
   const customerName = job.users?.full_name || "Customer";
+  const routeDistance = Number(job.distance_km || 0);
+  const distanceLabel = routeDistance > 0 ? `${routeDistance.toFixed(1)} km` : "Route distance pending";
   return (
     <Card className="border-fleet-gold p-5">
       <div className="flex items-start justify-between gap-4">
@@ -977,7 +979,7 @@ function IncomingJob({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLoc
           <div className="min-w-0">
 	          <StatusBadge tone="amber">Incoming job</StatusBadge>
 	          <h2 className="mt-3 text-2xl font-black text-fleet-night">{job.pickup_address} to {job.dropoff_address}</h2>
-	          <p className="mt-2 text-sm font-semibold text-slate-600">{job.distance_km || 6} km · {formatMoney(job.price_ngn)} estimated earning</p>
+	          <p className="mt-2 text-sm font-semibold text-slate-600">{distanceLabel} · {formatMoney(job.price_ngn)} estimated earning</p>
 	          <p className="mt-2 inline-flex rounded-fleet bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">{pickupEtaLabel(pickupEtaMinutes, pickupEtaLoading, liveLocation)}</p>
 	          <p className="mt-2 text-sm font-bold text-slate-600">Customer: {customerName} · {job.dropoff_contact || job.pickup_contact || job.users?.phone || "Phone pending"}</p>
 	        </div>

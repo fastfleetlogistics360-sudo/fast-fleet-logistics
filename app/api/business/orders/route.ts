@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadFareConfig } from "@/lib/fare-settings";
 import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
+import { isBicycleDelivery, loadAssignedBicycleAsset } from "@/lib/fleet-assets";
 import { normalizeState } from "@/lib/launch-states";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import { repairMarketplaceDeliveriesForBusiness } from "@/lib/marketplace-order-repair";
@@ -102,7 +104,7 @@ export async function PATCH(request: Request) {
     const customerDropoffAddress = String(order.dropoff_address || "");
     const businessPickupContact = businessProfile.business_name || "Business pickup";
     const marketplaceCustomerContact = String(order.customer_contact || "Marketplace customer");
-    const marketplaceEstimate = estimateBusinessOrderDelivery(order);
+    const marketplaceEstimate = await estimateBusinessOrderDelivery(order, businessPickupAddress);
 
     if (status === "ready_for_pickup" && !deliveryId) {
       const deliveryCode = String(order.order_code || `FF-BIZ-ORDER-${Date.now().toString(36).toUpperCase()}`);
@@ -121,8 +123,14 @@ export async function PATCH(request: Request) {
           payment_method: "card",
           status: "searching",
           price_ngn: marketplaceEstimate.deliveryFee,
+          delivery_fee_ngn: marketplaceEstimate.deliveryFee,
+          platform_fee_ngn: marketplaceEstimate.platformFee,
           distance_km: marketplaceEstimate.distanceKm,
           eta_minutes: marketplaceEstimate.etaMinutes,
+          route_source: marketplaceEstimate.routeSource,
+          route_type: marketplaceEstimate.routeType,
+          route_duration_seconds: marketplaceEstimate.durationSeconds,
+          vehicle_subtype: marketplaceEstimate.vehicleSubtype,
           metadata: {
             source: "business_marketplace_order",
             business_order_id: order.id,
@@ -130,10 +138,17 @@ export async function PATCH(request: Request) {
             business_name: businessProfile.business_name || null,
             marketplace_customer_id: order.customer_id || null,
             marketplace_kind: order.marketplace_kind || null,
+            pickup_state: marketplaceEstimate.pickupState || null,
+            dropoff_state: marketplaceEstimate.dropoffState || null,
             order_total_ngn: Number(order.amount || 0),
             goods_amount_ngn: marketplaceEstimate.itemsTotal,
             delivery_fee_ngn: marketplaceEstimate.deliveryFee,
-            platform_fee_ngn: marketplaceEstimate.platformFee
+            platform_fee_ngn: marketplaceEstimate.platformFee,
+            route_source: marketplaceEstimate.routeSource,
+            route_type: marketplaceEstimate.routeType,
+            route_duration_seconds: marketplaceEstimate.durationSeconds,
+            bicycle_eligible: marketplaceEstimate.bicycleEligible,
+            vehicle_subtype: marketplaceEstimate.vehicleSubtype
           }
         })
         .select("id, delivery_code")
@@ -150,7 +165,7 @@ export async function PATCH(request: Request) {
           title: "Ready for pickup",
           body: "Business marked this order ready. Fast Fleets 360 is finding a courier."
         }),
-        notifyApprovedRiders(db, delivery.id, delivery.delivery_code, businessPickupAddress)
+        notifyApprovedRiders(db, delivery.id, delivery.delivery_code, businessPickupAddress, { vehicle_subtype: marketplaceEstimate.vehicleSubtype })
       ]);
     } else if (status === "ready_for_pickup" && deliveryId) {
       await db
@@ -200,25 +215,15 @@ export async function PATCH(request: Request) {
   }
 }
 
-function estimateBusinessOrderDelivery(order: Record<string, unknown>) {
-  try {
-    return estimateMarketplaceCheckout({
-      kind: order.marketplace_kind === "shopping" ? "shopping" : "restaurant",
-      items: Array.isArray(order.items) ? order.items as Parameters<typeof estimateMarketplaceCheckout>[0]["items"] : [],
-      address: String(order.dropoff_address || "")
-    });
-  } catch {
-    const amount = Math.max(0, Math.round(Number(order.amount || 0)));
-    return {
-      itemsTotal: 0,
-      pickupAddress: String(order.pickup_address || "Business pickup"),
-      distanceKm: 5,
-      etaMinutes: 35,
-      deliveryFee: amount,
-      platformFee: 0,
-      total: amount
-    };
-  }
+async function estimateBusinessOrderDelivery(order: Record<string, unknown>, pickupAddress: string) {
+  const fareConfig = await loadFareConfig();
+  return estimateMarketplaceCheckout({
+    kind: order.marketplace_kind === "shopping" ? "shopping" : "restaurant",
+    items: Array.isArray(order.items) ? order.items as Parameters<typeof estimateMarketplaceCheckout>[0]["items"] : [],
+    address: String(order.dropoff_address || ""),
+    pickupAddress,
+    fareConfig
+  });
 }
 
 function normalizeVehicle(value: unknown) {
@@ -232,16 +237,26 @@ function appendStateToAddress(address: string, state: string) {
   return extractNigerianState(address) === normalizedState ? address : `${address}, ${normalizedState}`;
 }
 
-async function notifyApprovedRiders(db: SupabaseClient, deliveryId: string, deliveryCode: string, pickupAddress: string) {
+async function notifyApprovedRiders(db: SupabaseClient, deliveryId: string, deliveryCode: string, pickupAddress: string, metadata: Record<string, unknown> = {}) {
   const { data: riders } = await db
     .from("rider_profiles")
-    .select("user_id, operating_zone, address")
+    .select("id, user_id, operating_zone, address")
     .eq("application_status", "approved")
     .eq("online", true)
     .limit(25);
 
-  const rows = (riders || [])
-    .filter((rider) => pickupMatchesRiderState(pickupAddress, rider.operating_zone || rider.address))
+  const bicycle = isBicycleDelivery(metadata);
+  const eligibleRiders = [];
+  for (const rider of riders || []) {
+    if (!pickupMatchesRiderState(pickupAddress, rider.operating_zone || rider.address)) continue;
+    if (bicycle) {
+      const asset = await loadAssignedBicycleAsset(db, rider.id);
+      if (!asset?.id || asset.status !== "available") continue;
+    }
+    eligibleRiders.push(rider);
+  }
+
+  const rows = eligibleRiders
     .map((rider) => rider.user_id)
     .filter(Boolean)
     .map((userId) => ({

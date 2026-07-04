@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
 
 export const MIN_WITHDRAWAL_NGN = 2000;
 export const MAX_WITHDRAWAL_NGN = 200000;
@@ -85,22 +84,16 @@ export function businessGoodsAmount(items: unknown, fallbackTotal = 0) {
 
 export async function marketplaceDeliveryFee(db: SupabaseClient, order: {
   amount?: number | string | null;
+  delivery_fee_ngn?: number | string | null;
   items?: unknown;
   dropoff_address?: string | null;
   marketplace_kind?: string | null;
 }) {
-  try {
-    const estimate = estimateMarketplaceCheckout({
-      kind: order.marketplace_kind === "shopping" ? "shopping" : "restaurant",
-      items: Array.isArray(order.items) ? order.items as Parameters<typeof estimateMarketplaceCheckout>[0]["items"] : [],
-      address: order.dropoff_address || "Customer delivery address"
-    });
-    return Math.max(0, Math.round(estimate.deliveryFee));
-  } catch {
-    const total = money(order.amount);
-    const goods = businessGoodsAmount(order.items, total);
-    return Math.max(0, Math.round(total - goods));
-  }
+  const storedFee = money(order.delivery_fee_ngn);
+  if (storedFee > 0) return Math.max(0, Math.round(storedFee));
+  const total = money(order.amount);
+  const goods = businessGoodsAmount(order.items, total);
+  return Math.max(0, Math.round(total - goods));
 }
 
 export async function creditBusinessOrderWallet(db: SupabaseClient, orderId: string) {
@@ -244,9 +237,9 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
   if (!amount && typeof metadata.business_order_id === "string") {
     const { data: order } = await db
       .from("orders")
-      .select("items, amount, dropoff_address, marketplace_kind")
+      .select("items, amount, delivery_fee_ngn, dropoff_address, marketplace_kind")
       .eq("id", metadata.business_order_id)
-      .maybeSingle<{ items?: unknown; amount?: number | string | null; dropoff_address?: string | null; marketplace_kind?: string | null }>();
+      .maybeSingle<{ items?: unknown; amount?: number | string | null; delivery_fee_ngn?: number | string | null; dropoff_address?: string | null; marketplace_kind?: string | null }>();
     if (order) amount = await marketplaceDeliveryFee(db, order);
   }
   if (!amount) amount = money(delivery.price_ngn);

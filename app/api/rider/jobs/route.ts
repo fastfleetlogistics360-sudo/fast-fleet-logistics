@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isBicycleDelivery, loadAssignedBicycleAsset, markBicycleAssetBusy, releaseBicycleAssetForDelivery } from "@/lib/fleet-assets";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import type { DeliveryStatus } from "@/types/domain";
 
@@ -20,6 +21,8 @@ type JobRow = {
   pickup_address?: string | null;
   metadata?: Record<string, unknown> | null;
 };
+
+type RiderFleetAsset = Awaited<ReturnType<typeof loadAssignedBicycleAsset>>;
 
 export async function GET(request: Request) {
   try {
@@ -51,6 +54,7 @@ export async function GET(request: Request) {
     }
     const riderState = extractNigerianState(rider.operating_zone || rider.address);
     const canLoadAvailable = includeAvailable && rider.online && rider.application_status === "approved" && riderState;
+    const bicycleAsset = canLoadAvailable ? await loadAssignedBicycleAsset(db, rider.id) : null;
     const availableByAddressQuery = canLoadAvailable
       ? db
           .from("deliveries")
@@ -88,7 +92,12 @@ export async function GET(request: Request) {
     const available = [
       ...(((availableByAddressResult as { data?: JobRow[] }).data || []) as JobRow[]),
       ...(((availableByMetadataResult as { data?: JobRow[] }).data || []) as JobRow[])
-    ].filter((job) => !isRejectedByRider(job, rider.id) && pickupMatchesRiderState(job.pickup_address, rider.operating_zone || rider.address, job.metadata));
+    ].filter(
+      (job) =>
+        !isRejectedByRider(job, rider.id) &&
+        pickupMatchesRiderState(job.pickup_address, rider.operating_zone || rider.address, job.metadata) &&
+        jobMatchesRiderFleet(job, bicycleAsset)
+    );
     return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load rider jobs." }, { status: 500 });
@@ -118,6 +127,10 @@ export async function POST(request: Request) {
       if (!stateCheck.ok) return NextResponse.json({ error: stateCheck.error }, { status: 403 });
       const { error } = await supabase.rpc("accept_delivery_offer", { target_delivery_id: id });
       if (error) throw error;
+      if (stateCheck.bicycle) {
+        const asset = await markBicycleAssetBusy(db, stateCheck.riderProfileId, id);
+        if (asset?.id) await attachFleetAssetToDelivery(db, id, asset.id, asset.asset_code || null);
+      }
       await syncLinkedBusinessOrder(db, id, "rider_assigned");
       return updateResponse(db, id);
     }
@@ -164,6 +177,7 @@ export async function POST(request: Request) {
       body: "Rider updated this delivery."
     });
     await db.from("delivery_locations").update({ status: nextStatus, updated_at: timestamp }).eq("order_id", id);
+    if (nextStatus === "delivered" || nextStatus === "cancelled") await releaseBicycleAssetForDelivery(db, id);
     await syncLinkedBusinessOrder(db, id, mapDeliveryStatusToBusinessOrder(nextStatus));
 
     return updateResponse(db, id);
@@ -237,13 +251,17 @@ async function ensureApprovedRiderProfile(admin: NonNullable<ReturnType<typeof c
   return data || null;
 }
 
-async function canRiderAcceptPickupState(db: SupabaseClient, userId: string, deliveryId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+async function canRiderAcceptPickupState(
+  db: SupabaseClient,
+  userId: string,
+  deliveryId: string
+): Promise<{ ok: true; bicycle: boolean; riderProfileId: string } | { ok: false; error: string }> {
   const [{ data: rider, error: riderError }, { data: delivery, error: deliveryError }] = await Promise.all([
     db
       .from("rider_profiles")
-      .select("operating_zone, address")
+      .select("id, operating_zone, address")
       .eq("user_id", userId)
-      .maybeSingle<{ operating_zone?: string | null; address?: string | null }>(),
+      .maybeSingle<{ id: string; operating_zone?: string | null; address?: string | null }>(),
     db
       .from("deliveries")
       .select("pickup_address, metadata")
@@ -258,7 +276,41 @@ async function canRiderAcceptPickupState(db: SupabaseClient, userId: string, del
   if (!pickupMatchesRiderState(delivery?.pickup_address, riderZone, delivery?.metadata)) {
     return { ok: false, error: "This pickup is outside your registered rider state." };
   }
-  return { ok: true };
+  const bicycle = isBicycleDelivery(delivery?.metadata);
+  if (bicycle) {
+    const asset = await loadAssignedBicycleAsset(db, rider?.id);
+    if (!asset?.id || asset.status !== "available") {
+      return { ok: false, error: "This delivery is reserved for an available assigned Fast Fleets bicycle." };
+    }
+  }
+  return { ok: true, bicycle, riderProfileId: rider?.id || "" };
+}
+
+function jobMatchesRiderFleet(job: JobRow, bicycleAsset: RiderFleetAsset) {
+  const bicycleJob = isBicycleDelivery(job.metadata);
+  if (bicycleJob) return Boolean(bicycleAsset?.id && bicycleAsset.status === "available");
+  return !bicycleAsset?.id;
+}
+
+async function attachFleetAssetToDelivery(db: SupabaseClient, deliveryId: string, assetId: string, assetCode: string | null) {
+  const { data: delivery } = await db
+    .from("deliveries")
+    .select("metadata")
+    .eq("id", deliveryId)
+    .maybeSingle<{ metadata?: Record<string, unknown> | null }>();
+  const metadata = delivery?.metadata && typeof delivery.metadata === "object" && !Array.isArray(delivery.metadata) ? delivery.metadata : {};
+  await db
+    .from("deliveries")
+    .update({
+      fleet_asset_id: assetId,
+      metadata: {
+        ...metadata,
+        fleet_asset_id: assetId,
+        fleet_asset_code: assetCode
+      },
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", deliveryId);
 }
 
 function isRejectedByRider(job: JobRow, riderId: string | null | undefined) {

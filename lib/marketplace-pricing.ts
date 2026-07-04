@@ -1,9 +1,13 @@
-import { estimateFare, PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
+import type { FareConfig } from "@/lib/fare";
+import { createDeliveryQuote } from "@/lib/delivery-quotes";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 
 export type MarketplaceKind = "restaurant" | "shopping";
 
 export type MarketplacePricingItem = {
+  name?: string;
+  productName?: string;
+  category?: string;
   store?: string;
   storeAddress?: string;
   pickupAddress?: string;
@@ -13,35 +17,50 @@ export type MarketplacePricingItem = {
   subtotal?: number;
 };
 
-export function estimateMarketplaceCheckout({
+export async function estimateMarketplaceCheckout({
   kind,
   items,
-  address
+  address,
+  pickupAddress,
+  fareConfig
 }: {
   kind?: MarketplaceKind;
   items: MarketplacePricingItem[];
   address: string;
+  pickupAddress?: string | null;
+  fareConfig?: FareConfig;
 }) {
   const marketplaceKind = kind === "shopping" ? "shopping" : "restaurant";
-  const pickupAddress = marketplacePickupAddress(items, marketplaceKind);
+  const resolvedPickupAddress = sanitizeAddressText(pickupAddress || "") || marketplacePickupAddress(items, marketplaceKind);
   const dropoffAddress = sanitizeAddressText(address);
   const itemsTotal = items.reduce((sum, item) => sum + Math.round(Number(item.subtotal || 0)), 0);
-  const fare = estimateFare({
-    pickup: pickupAddress,
-    dropoff: dropoffAddress,
+  const quote = await createDeliveryQuote({
+    pickup: { address: resolvedPickupAddress },
+    dropoff: { address: dropoffAddress },
     vehicle: "bike",
     speed: "same_day",
-    zone: `${pickupAddress} ${dropoffAddress}`
+    marketplaceKind,
+    items,
+    fareConfig
   });
 
   return {
     itemsTotal,
-    pickupAddress,
-    distanceKm: fare.distanceKm,
-    etaMinutes: fare.etaMinutes,
-    deliveryFee: fare.deliveryFee,
-    platformFee: PLATFORM_CHECKOUT_FEE_NGN,
-    total: itemsTotal + fare.deliveryFee + PLATFORM_CHECKOUT_FEE_NGN
+    pickupAddress: resolvedPickupAddress,
+    dropoffAddress,
+    pickupState: quote.pickupState,
+    dropoffState: quote.dropoffState,
+    distanceKm: quote.distanceKm,
+    etaMinutes: quote.etaMinutes,
+    durationSeconds: quote.durationSeconds,
+    routeSource: quote.routeSource,
+    routeType: quote.routeType,
+    lightOrder: quote.lightOrder,
+    bicycleEligible: quote.bicycleEligible,
+    vehicleSubtype: quote.vehicleSubtype,
+    deliveryFee: quote.fare.deliveryFee,
+    platformFee: quote.fare.platformFee,
+    total: itemsTotal + quote.fare.deliveryFee + quote.fare.platformFee
   };
 }
 

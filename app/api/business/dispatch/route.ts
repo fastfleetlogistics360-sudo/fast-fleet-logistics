@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
-import { estimateFare } from "@/lib/fare";
+import { createDeliveryQuote } from "@/lib/delivery-quotes";
+import { loadFareConfig } from "@/lib/fare-settings";
 import { createClient } from "@/lib/supabase/server";
+import { extractNigerianState } from "@/lib/location/state-matching";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
 const vehicleTypes = new Set<VehicleType>(["bike", "car", "van"]);
@@ -48,7 +50,18 @@ export async function POST(request: Request) {
     const vehicleType: VehicleType = vehicleTypes.has(requestedVehicle as VehicleType) ? (requestedVehicle as VehicleType) : "bike";
     const deliverySpeed: DeliverySpeed = payload.scheduleMode === "Schedule for later" ? "scheduled" : "standard";
     const paymentMethod = "wallet";
-    const fare = estimateFare({ pickup: pickupAddress, dropoff: dropoffAddress, vehicle: vehicleType, speed: deliverySpeed });
+    const fareConfig = await loadFareConfig();
+    const quote = await createDeliveryQuote({
+      pickup: { address: pickupAddress },
+      dropoff: { address: dropoffAddress },
+      pickupState: extractNigerianState(pickupAddress),
+      dropoffState: extractNigerianState(dropoffAddress),
+      vehicle: vehicleType,
+      speed: deliverySpeed,
+      parcelType: clean(payload.packageType) || "Parcel",
+      fareConfig
+    });
+    const fare = quote.fare;
     const deliveryCode = `FF-BIZ-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
     const { data: businessProfile } = await supabase
@@ -76,13 +89,28 @@ export async function POST(request: Request) {
         payment_method: paymentMethod,
         status: "pending_payment",
         price_ngn: fare.total,
+        delivery_fee_ngn: fare.deliveryFee,
+        platform_fee_ngn: fare.platformFee,
         distance_km: fare.distanceKm,
         eta_minutes: fare.etaMinutes,
+        route_source: quote.routeSource,
+        route_type: quote.routeType,
+        route_duration_seconds: quote.durationSeconds,
+        vehicle_subtype: quote.vehicleSubtype,
         scheduled_at: payload.scheduleMode === "Schedule for later" && payload.scheduledAt ? payload.scheduledAt : null,
         metadata: {
           source: "business_dashboard",
           business_profile_id: businessProfile?.id ?? null,
           business_name: businessProfile?.business_name ?? null,
+          pickup_state: quote.pickupState || null,
+          dropoff_state: quote.dropoffState || null,
+          route_source: quote.routeSource,
+          route_type: quote.routeType,
+          route_duration_seconds: quote.durationSeconds,
+          bicycle_eligible: quote.bicycleEligible,
+          vehicle_subtype: quote.vehicleSubtype,
+          delivery_fee_ngn: fare.deliveryFee,
+          platform_fee_ngn: fare.platformFee,
           sender_name: senderName,
           sender_phone: senderPhone,
           recipient_name: recipientName,

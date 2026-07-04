@@ -1,4 +1,4 @@
-import type { DeliverySpeed, FareEstimate, FareInput, VehicleType } from "@/types/domain";
+import type { DeliverySpeed, FareEstimate, VehicleType } from "@/types/domain";
 
 export type FareVehicleConfig = {
   base: number;
@@ -9,8 +9,11 @@ export type FareVehicleConfig = {
 
 export type FareConfig = {
   vehicles: Record<VehicleType, FareVehicleConfig>;
+  bicycle: FareVehicleConfig;
   speedMultipliers: Record<DeliverySpeed, number>;
   platformFee: number;
+  bicyclePlatformFee: number;
+  bicycleMaxDistanceKm: number;
   ogunSurcharge: number;
 };
 
@@ -20,6 +23,7 @@ export const DEFAULT_FARE_CONFIG: FareConfig = {
     car: { base: 3600, perKm: 360, speedKmh: 25, label: "Car" },
     van: { base: 7200, perKm: 620, speedKmh: 20, label: "Van" }
   },
+  bicycle: { base: 900, perKm: 150, speedKmh: 18, label: "Bicycle" },
   speedMultipliers: {
     standard: 1,
     same_day: 1.14,
@@ -29,6 +33,8 @@ export const DEFAULT_FARE_CONFIG: FareConfig = {
     interstate: 1.92
   },
   platformFee: 500,
+  bicyclePlatformFee: 300,
+  bicycleMaxDistanceKm: 10,
   ogunSurcharge: 800
 };
 
@@ -47,6 +53,7 @@ type FareComputationInput = {
 export function normalizeFareConfig(value: unknown): FareConfig {
   const input = (value || {}) as Partial<FareConfig>;
   const vehicles = (input.vehicles || {}) as Partial<Record<VehicleType, Partial<FareVehicleConfig>>>;
+  const bicycle = (input.bicycle || {}) as Partial<FareVehicleConfig>;
   const speedMultipliers = (input.speedMultipliers || {}) as Partial<Record<DeliverySpeed, number>>;
 
   return {
@@ -61,63 +68,45 @@ export function normalizeFareConfig(value: unknown): FareConfig {
       };
       return next;
     }, {} as FareConfig["vehicles"]),
+    bicycle: {
+      base: clampNumber(bicycle.base, 100, 500000, DEFAULT_FARE_CONFIG.bicycle.base),
+      perKm: clampNumber(bicycle.perKm, 10, 50000, DEFAULT_FARE_CONFIG.bicycle.perKm),
+      speedKmh: clampNumber(bicycle.speedKmh, 5, 80, DEFAULT_FARE_CONFIG.bicycle.speedKmh),
+      label: DEFAULT_FARE_CONFIG.bicycle.label
+    },
     speedMultipliers: fareSpeedTypes.reduce((next, speed) => {
       next[speed] = clampNumber(speedMultipliers[speed], 0.1, 10, DEFAULT_FARE_CONFIG.speedMultipliers[speed], 2);
       return next;
     }, {} as FareConfig["speedMultipliers"]),
     platformFee: clampNumber(input.platformFee, 0, 500000, DEFAULT_FARE_CONFIG.platformFee),
+    bicyclePlatformFee: clampNumber(input.bicyclePlatformFee, 0, 500000, DEFAULT_FARE_CONFIG.bicyclePlatformFee),
+    bicycleMaxDistanceKm: clampNumber(input.bicycleMaxDistanceKm, 1, 50, DEFAULT_FARE_CONFIG.bicycleMaxDistanceKm, 1),
     ogunSurcharge: clampNumber(input.ogunSurcharge, 0, 500000, DEFAULT_FARE_CONFIG.ogunSurcharge)
   };
 }
 
-function stableHash(value: string) {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(index);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
-export function estimateDistanceKm(pickup: string, dropoff: string, speed: DeliverySpeed) {
-  const seed = stableHash(`${pickup}|${dropoff}|${speed}`);
-  const cityDistance = Math.max(2.2, Math.round(((seed % 340) / 10 + 3.4) * 10) / 10);
-
-  if (speed === "interstate") {
-    return Math.max(42, Math.round((cityDistance + 38) * 10) / 10);
-  }
-
-  return cityDistance;
-}
-
-export function estimateFare(input: FareInput, config: FareConfig = DEFAULT_FARE_CONFIG): FareEstimate {
-  const distanceKm = estimateDistanceKm(input.pickup, input.dropoff, input.speed);
-  return buildFareEstimate({
-    distanceKm,
-    vehicle: input.vehicle,
-    speed: input.speed,
-    zone: input.zone
-  }, config);
-}
-
-export function estimateFareForDistance(input: Partial<FareComputationInput> & { distanceKm: number }, config: FareConfig = DEFAULT_FARE_CONFIG): FareEstimate {
+export function estimateFareForDistance(
+  input: Partial<FareComputationInput> & { distanceKm: number; vehicleSubtype?: "bicycle" | null },
+  config: FareConfig = DEFAULT_FARE_CONFIG
+): FareEstimate {
   return buildFareEstimate({
     distanceKm: Math.max(1, Math.round(input.distanceKm * 10) / 10),
     vehicle: input.vehicle || "bike",
     speed: input.speed || "express",
-    zone: input.zone
+    zone: input.zone,
+    vehicleSubtype: input.vehicleSubtype
   }, config);
 }
 
-function buildFareEstimate(input: FareComputationInput, rawConfig: FareConfig): FareEstimate {
+function buildFareEstimate(input: FareComputationInput & { vehicleSubtype?: "bicycle" | null }, rawConfig: FareConfig): FareEstimate {
   const config = normalizeFareConfig(rawConfig);
-  const vehicle = config.vehicles[input.vehicle] ?? config.vehicles.bike;
+  const vehicle = input.vehicle === "bike" && input.vehicleSubtype === "bicycle" ? config.bicycle : config.vehicles[input.vehicle] ?? config.vehicles.bike;
   const speedMultiplier = config.speedMultipliers[input.speed] ?? 1;
   const zoneSurcharge = input.zone?.toLowerCase().includes("ogun") ? config.ogunSurcharge : 0;
   const baseFare = vehicle.base + zoneSurcharge;
   const distanceFare = input.distanceKm * vehicle.perKm;
   const deliveryFee = Math.round(((baseFare + distanceFare) * speedMultiplier) / 50) * 50;
-  const platformFee = config.platformFee;
+  const platformFee = input.vehicle === "bike" && input.vehicleSubtype === "bicycle" ? config.bicyclePlatformFee : config.platformFee;
   const total = deliveryFee + platformFee;
   const etaMinutes = Math.max(
     16,

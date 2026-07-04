@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
-import { estimateFare } from "@/lib/fare";
+import { createDeliveryQuote } from "@/lib/delivery-quotes";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
@@ -17,9 +17,15 @@ const deliverySpeeds = new Set(["standard", "same_day", "express", "priority", "
 type CheckoutPayload = {
   pickup?: string;
   pickupState?: string;
+  pickupPlaceId?: string;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
   pickupContact?: string;
   dropoff?: string;
   dropoffState?: string;
+  dropoffPlaceId?: string;
+  dropoffLatitude?: number;
+  dropoffLongitude?: number;
   dropoffContact?: string;
   parcel?: string;
   vehicle?: VehicleType | "";
@@ -59,14 +65,27 @@ export async function POST(request: Request) {
     }
 
     const fareConfig = await loadFareConfig();
-    const estimate = estimateFare({
-      pickup,
-      dropoff,
+    const quote = await createDeliveryQuote({
+      pickup: {
+        address: pickup,
+        placeId: payload.pickupPlaceId,
+        latitude: payload.pickupLatitude,
+        longitude: payload.pickupLongitude
+      },
+      dropoff: {
+        address: dropoff,
+        placeId: payload.dropoffPlaceId,
+        latitude: payload.dropoffLatitude,
+        longitude: payload.dropoffLongitude
+      },
+      pickupState,
+      dropoffState,
       vehicle,
       speed,
-      scheduledAt: payload.scheduledAt || "",
-      zone: `${pickup} ${dropoff}`
-    }, fareConfig);
+      parcelType: parcel,
+      fareConfig
+    });
+    const estimate = quote.fare;
 
     if (Number(payload.total || 0) !== estimate.total) {
       return NextResponse.json({ error: "Delivery total changed. Review the estimate and try again." }, { status: 400 });
@@ -94,6 +113,13 @@ export async function POST(request: Request) {
       source: "booking_checkout",
       pickup_state: pickupState || null,
       dropoff_state: dropoffState || null,
+      route_source: quote.routeSource,
+      route_type: quote.routeType,
+      route_duration_seconds: quote.durationSeconds,
+      bicycle_eligible: quote.bicycleEligible,
+      vehicle_subtype: quote.vehicleSubtype,
+      delivery_fee_ngn: estimate.deliveryFee,
+      platform_fee_ngn: estimate.platformFee,
       payment_choice: paymentMethod,
       paystack_reference: paymentMethod === "wallet" ? null : paystackReference
     };
@@ -113,8 +139,14 @@ export async function POST(request: Request) {
         payment_method: paymentMethod,
         status: "pending_payment",
         price_ngn: estimate.total,
+        delivery_fee_ngn: estimate.deliveryFee,
+        platform_fee_ngn: estimate.platformFee,
         distance_km: estimate.distanceKm,
         eta_minutes: estimate.etaMinutes,
+        route_source: quote.routeSource,
+        route_type: quote.routeType,
+        route_duration_seconds: quote.durationSeconds,
+        vehicle_subtype: quote.vehicleSubtype,
         scheduled_at: payload.scheduledAt || null,
         metadata
       })
@@ -196,6 +228,13 @@ export async function POST(request: Request) {
           pickup_state: pickupState || null,
           dropoff_address: dropoff,
           dropoff_state: dropoffState || null,
+          route_source: quote.routeSource,
+          route_type: quote.routeType,
+          route_duration_seconds: quote.durationSeconds,
+          bicycle_eligible: quote.bicycleEligible,
+          vehicle_subtype: quote.vehicleSubtype,
+          delivery_fee_ngn: estimate.deliveryFee,
+          platform_fee_ngn: estimate.platformFee,
           customer_phone: profile?.phone || user.phone || String(payload.dropoffContact || payload.pickupContact || "").trim() || null,
           customer_name: profile?.full_name || null
         }

@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
-import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
 import {
   businessPickupAddressFor,
   loadActiveLinkedBusiness,
@@ -210,12 +209,7 @@ function businessGoodsAmount(items: MarketplaceCheckoutItem[], fallbackTotal: nu
     return sum + Math.round(Number(item.price || 0)) * Math.max(1, Math.round(Number(item.quantity || 1)));
   }, 0);
   if (total > 0) return total;
-  try {
-    const estimate = estimateMarketplaceCheckout({ kind: "shopping", items, address: "Customer delivery address" });
-    return Math.max(0, Math.round(fallbackTotal - estimate.deliveryFee - estimate.platformFee));
-  } catch {
-    return Math.max(0, Math.round(fallbackTotal));
-  }
+  return Math.max(0, Math.round(fallbackTotal));
 }
 
 function metadataRecord(value: unknown): Record<string, unknown> {

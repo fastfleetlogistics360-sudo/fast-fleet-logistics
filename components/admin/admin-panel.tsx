@@ -48,6 +48,7 @@ import type { LaunchStateRecord } from "@/lib/launch-states";
 import { marketplaceListingRetryDate, marketplaceListingStatusLabel } from "@/lib/marketplace-listing";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 import { formatMoney } from "@/lib/format";
+import type { FleetAssetStatus } from "@/lib/fleet-assets";
 import { riderReviewLabel } from "@/lib/kyc";
 import { normalizeRiderAccountType, riderAccountTypeLabel, riderAccountTypes, type RiderAccountType } from "@/lib/rider-account-type";
 import {
@@ -116,6 +117,7 @@ type AdminSectionId =
   | "hub-promotions"
   | "restaurant-menus"
   | "mall-menus"
+  | "fleet-assets"
   | "ops-control"
   | "field-insights"
   | "risk-signals";
@@ -132,6 +134,7 @@ const adminSectionIds = new Set<string>([
   "hub-promotions",
   "restaurant-menus",
   "mall-menus",
+  "fleet-assets",
   "ops-control",
   "field-insights",
   "risk-signals"
@@ -175,6 +178,7 @@ const adminNavGroups: Array<{
   {
     title: "Controls",
     items: [
+      { id: "fleet-assets", label: "Fleet assets", icon: Bike, count: (stats) => String(stats.fleetAssets) },
       { id: "ops-control", label: "Launch & pricing", icon: SlidersHorizontal },
       { id: "field-insights", label: "Field insights", icon: Map },
       { id: "risk-signals", label: "Risk & support", icon: AlertTriangle, count: (stats) => String(stats.openRisk + stats.openSupport) }
@@ -190,6 +194,7 @@ type AdminNavStats = {
   pendingWithdrawals: number;
   heroSlides: number;
   hubPromotions: number;
+  fleetAssets: number;
   openRisk: number;
   openSupport: number;
 };
@@ -254,6 +259,41 @@ type AdminRider = {
     email?: string | null;
   } | null;
   rider_documents?: AdminRiderDocument[];
+};
+
+type AdminFleetAsset = {
+  id: string;
+  asset_code: string;
+  asset_type?: "bicycle" | string | null;
+  status: FleetAssetStatus;
+  operating_state?: string | null;
+  operating_zone?: string | null;
+  assigned_rider_profile_id?: string | null;
+  assigned_user_id?: string | null;
+  current_delivery_id?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  rider_profiles?: {
+    id?: string | null;
+    user_id?: string | null;
+    operating_zone?: string | null;
+    users?: {
+      full_name?: string | null;
+      phone?: string | null;
+      email?: string | null;
+    } | null;
+  } | null;
+};
+
+type FleetAssetForm = {
+  id: string;
+  asset_code: string;
+  status: FleetAssetStatus;
+  operating_state: string;
+  operating_zone: string;
+  assigned_rider_profile_id: string;
+  notes: string;
 };
 
 type AdminBusiness = {
@@ -509,6 +549,37 @@ const demoRiders: AdminRider[] = [
   }
 ];
 
+const demoFleetAssets: AdminFleetAsset[] = [
+  {
+    id: "FLEET-BICYCLE-001",
+    asset_code: "FF-BICYCLE-001",
+    asset_type: "bicycle",
+    status: "available",
+    operating_state: "Lagos",
+    operating_zone: "Lekki / VI",
+    assigned_rider_profile_id: null,
+    assigned_user_id: null,
+    current_delivery_id: null,
+    notes: "Demo company-owned bicycle.",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
+const fleetAssetStatuses: FleetAssetStatus[] = ["available", "busy", "maintenance", "inactive"];
+
+function blankFleetAssetForm(): FleetAssetForm {
+  return {
+    id: "",
+    asset_code: "",
+    status: "available",
+    operating_state: "Lagos",
+    operating_zone: "",
+    assigned_rider_profile_id: "",
+    notes: ""
+  };
+}
+
 const demoBusinesses: AdminBusiness[] = [
   {
     id: "BP-1001",
@@ -693,6 +764,8 @@ export function AdminPanel() {
   const [liveCount, setLiveCount] = useState(284);
   const [launchStates, setLaunchStates] = useState<LaunchStateRecord[]>(defaultLaunchStateRecords());
   const [adminRiders, setAdminRiders] = useState<AdminRider[]>(demoRiders);
+  const [fleetAssets, setFleetAssets] = useState<AdminFleetAsset[]>(demoFleetAssets);
+  const [fleetAssetForm, setFleetAssetForm] = useState<FleetAssetForm>(blankFleetAssetForm);
   const [adminBusinesses, setAdminBusinesses] = useState<AdminBusiness[]>(demoBusinesses);
   const [adminMarketplaceListings, setAdminMarketplaceListings] = useState<AdminMarketplaceListing[]>(demoMarketplaceListings);
   const [adminDeliveries, setAdminDeliveries] = useState<AdminDelivery[]>(demoDeliveries);
@@ -721,6 +794,7 @@ export function AdminPanel() {
   const pendingMarketplaceListingCount = useMemo(() => adminMarketplaceListings.filter((application) => application.status === "submitted").length, [adminMarketplaceListings]);
   const activeDeliveryCount = useMemo(() => adminDeliveries.filter((delivery) => !["delivered", "cancelled"].includes(delivery.status)).length, [adminDeliveries]);
   const pendingWithdrawalCount = useMemo(() => adminWithdrawals.filter((withdrawal) => withdrawal.status === "pending").length, [adminWithdrawals]);
+  const approvedFleetRiders = useMemo(() => adminRiders.filter((rider) => rider.application_status === "approved"), [adminRiders]);
   const openRiskCount = useMemo(() => riskSignals.filter((signal) => !signal.resolved_at).length, [riskSignals]);
   const openSupportCount = useMemo(() => supportTickets.filter((ticket) => !["resolved", "closed"].includes(ticket.status)).length, [supportTickets]);
   const navStats = useMemo<AdminNavStats>(
@@ -732,10 +806,11 @@ export function AdminPanel() {
       pendingWithdrawals: pendingWithdrawalCount,
       heroSlides: heroSlides.filter((slide) => slide.enabled).length,
       hubPromotions: hubPromotionSlides.filter((slide) => slide.enabled).length,
+      fleetAssets: fleetAssets.length,
       openRisk: openRiskCount,
       openSupport: openSupportCount
     }),
-    [activeDeliveryCount, heroSlides, hubPromotionSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingMarketplaceListingCount, pendingRiderCount, pendingWithdrawalCount]
+    [activeDeliveryCount, fleetAssets.length, heroSlides, hubPromotionSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingMarketplaceListingCount, pendingRiderCount, pendingWithdrawalCount]
   );
   const companyLogSummary = useMemo(() => summarizeCompanyLogs(companyLogs), [companyLogs]);
   const filteredCompanyLogs = useMemo(() => {
@@ -759,9 +834,25 @@ export function AdminPanel() {
   async function loadAdminData() {
     setBusyAction("refresh");
     try {
-      const [statesResponse, ridersResponse, businessesResponse, marketplaceListingsResponse, deliveriesResponse, withdrawalsResponse, companyLogsResponse, siteControlsResponse, heroSlidesResponse, hubPromotionSlidesResponse, riskSignalsResponse, restaurantsResponse, mallsResponse] = await Promise.all([
+      const [
+        statesResponse,
+        ridersResponse,
+        fleetAssetsResponse,
+        businessesResponse,
+        marketplaceListingsResponse,
+        deliveriesResponse,
+        withdrawalsResponse,
+        companyLogsResponse,
+        siteControlsResponse,
+        heroSlidesResponse,
+        hubPromotionSlidesResponse,
+        riskSignalsResponse,
+        restaurantsResponse,
+        mallsResponse
+      ] = await Promise.all([
         fetch("/api/admin/states"),
         fetch("/api/admin/riders"),
+        fetch("/api/admin/fleet-assets"),
         fetch("/api/admin/businesses"),
         fetch("/api/admin/marketplace-listings"),
         fetch("/api/admin/deliveries"),
@@ -776,6 +867,7 @@ export function AdminPanel() {
       ]);
       const statesResult = await statesResponse.json().catch(() => ({}));
       const ridersResult = await ridersResponse.json().catch(() => ({}));
+      const fleetAssetsResult = await fleetAssetsResponse.json().catch(() => ({}));
       const businessesResult = await businessesResponse.json().catch(() => ({}));
       const marketplaceListingsResult = await marketplaceListingsResponse.json().catch(() => ({}));
       const deliveriesResult = await deliveriesResponse.json().catch(() => ({}));
@@ -790,6 +882,7 @@ export function AdminPanel() {
       const failedSections = [
         ["states", statesResponse, statesResult],
         ["riders", ridersResponse, ridersResult],
+        ["fleet assets", fleetAssetsResponse, fleetAssetsResult],
         ["businesses", businessesResponse, businessesResult],
         ["marketplace listings", marketplaceListingsResponse, marketplaceListingsResult],
         ["deliveries", deliveriesResponse, deliveriesResult],
@@ -807,6 +900,7 @@ export function AdminPanel() {
 
       if (Array.isArray(statesResult.states)) setLaunchStates(statesResult.states);
       if (Array.isArray(ridersResult.riders)) setAdminRiders(ridersResult.riders);
+      if (Array.isArray(fleetAssetsResult.fleetAssets)) setFleetAssets(fleetAssetsResult.fleetAssets);
       if (Array.isArray(businessesResult.businesses)) setAdminBusinesses(businessesResult.businesses);
       if (Array.isArray(marketplaceListingsResult.applications)) setAdminMarketplaceListings(marketplaceListingsResult.applications);
       if (Array.isArray(deliveriesResult.deliveries)) setAdminDeliveries(deliveriesResult.deliveries);
@@ -836,8 +930,8 @@ export function AdminPanel() {
         const savedMalls = readDemoMallMenus();
         setMallMenus(mallsResult.demo && savedMalls.length > 0 ? savedMalls : normalizeShoppingMalls(mallsResult.malls));
       }
-      if (statesResult.demo || ridersResult.demo || businessesResult.demo || marketplaceListingsResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
-        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, business KYC, marketplace listings, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
+      if (statesResult.demo || ridersResult.demo || fleetAssetsResult.demo || businessesResult.demo || marketplaceListingsResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
+        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, bicycle fleet assets, business KYC, marketplace listings, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
       } else if (failedSections.length > 0) {
         setAdminMessage(`Some admin sections did not load: ${failedSections.join("; ")}`);
       }
@@ -1096,8 +1190,64 @@ export function AdminPanel() {
     });
   }
 
-  function updateFareConfig(patch: Partial<Pick<FareConfig, "platformFee" | "ogunSurcharge">>) {
+  function updateFareBicycle(patch: Partial<FareConfig["bicycle"]>) {
+    setSiteControls((current) => {
+      const fareConfig = normalizeFareConfig(current.fare_config);
+      return {
+        ...current,
+        fare_config: {
+          ...fareConfig,
+          bicycle: {
+            ...fareConfig.bicycle,
+            ...patch
+          }
+        }
+      };
+    });
+  }
+
+  function updateFareConfig(patch: Partial<Pick<FareConfig, "platformFee" | "ogunSurcharge" | "bicyclePlatformFee" | "bicycleMaxDistanceKm">>) {
     setSiteControls((current) => ({ ...current, fare_config: { ...normalizeFareConfig(current.fare_config), ...patch } }));
+  }
+
+  function editFleetAsset(asset: AdminFleetAsset) {
+    setFleetAssetForm({
+      id: asset.id,
+      asset_code: asset.asset_code || "",
+      status: normalizeFleetAssetStatus(asset.status),
+      operating_state: asset.operating_state || "Lagos",
+      operating_zone: asset.operating_zone || "",
+      assigned_rider_profile_id: asset.assigned_rider_profile_id || "",
+      notes: asset.notes || ""
+    });
+    openAdminSection("fleet-assets");
+  }
+
+  async function saveFleetAsset() {
+    setBusyAction("fleet-assets:save");
+    setAdminMessage(null);
+    try {
+      const response = await fetch("/api/admin/fleet-assets", {
+        method: fleetAssetForm.id ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fleetAssetForm)
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not save bicycle fleet asset.");
+      const saved = result.fleetAsset as AdminFleetAsset | undefined;
+      if (saved?.id) {
+        setFleetAssets((current) => {
+          const exists = current.some((asset) => asset.id === saved.id);
+          return exists ? current.map((asset) => (asset.id === saved.id ? saved : asset)) : [...current, saved].sort((a, b) => a.asset_code.localeCompare(b.asset_code));
+        });
+      }
+      setFleetAssetForm(blankFleetAssetForm());
+      setAdminMessage("Bicycle fleet asset saved. Assigned operators will use their normal rider dashboard, but only matching bicycle jobs will reach them.");
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "Could not save bicycle fleet asset.");
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function resolveRiskSignal(id: string) {
@@ -1803,6 +1953,17 @@ export function AdminPanel() {
         onSave={saveMallMenus}
       />
 
+      <FleetAssetsSection
+        assets={fleetAssets}
+        riders={approvedFleetRiders}
+        form={fleetAssetForm}
+        busyAction={busyAction}
+        onFormChange={(patch) => setFleetAssetForm((current) => ({ ...current, ...patch }))}
+        onSave={saveFleetAsset}
+        onEdit={editFleetAsset}
+        onReset={() => setFleetAssetForm(blankFleetAssetForm())}
+      />
+
       <div id="ops-control" className="mt-6 grid scroll-mt-24 gap-4 xl:grid-cols-3">
         <Card className="p-5">
           <div className="flex items-start justify-between gap-4">
@@ -1855,6 +2016,16 @@ export function AdminPanel() {
                   </div>
                 </div>
               ))}
+            </div>
+            <div className="rounded-fleet border border-fleet-line bg-white p-3">
+              <strong className="text-sm font-black text-fleet-night">Bicycle discount under Bike</strong>
+              <p className="mt-1 text-xs font-bold leading-5 text-slate-500">Company bicycles use these rates only when the order is light and the route is within the bicycle distance cap.</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <AdminNumberInput label="Bicycle base fare" value={siteControls.fare_config.bicycle.base} onChange={(value) => updateFareBicycle({ base: value })} />
+                <AdminNumberInput label="Bicycle fee per km" value={siteControls.fare_config.bicycle.perKm} onChange={(value) => updateFareBicycle({ perKm: value })} />
+                <AdminNumberInput label="Bicycle platform fee" value={siteControls.fare_config.bicyclePlatformFee} onChange={(value) => updateFareConfig({ bicyclePlatformFee: value })} />
+                <AdminNumberInput label="Bicycle max km" value={siteControls.fare_config.bicycleMaxDistanceKm} onChange={(value) => updateFareConfig({ bicycleMaxDistanceKm: value })} />
+              </div>
             </div>
             <div className="rounded-fleet border border-fleet-line bg-white p-3">
               <strong className="text-sm font-black text-fleet-night">Speed multipliers</strong>
@@ -3391,6 +3562,137 @@ function MarketplaceListingSection({
   );
 }
 
+function FleetAssetsSection({
+  assets,
+  riders,
+  form,
+  busyAction,
+  onFormChange,
+  onSave,
+  onEdit,
+  onReset
+}: {
+  assets: AdminFleetAsset[];
+  riders: AdminRider[];
+  form: FleetAssetForm;
+  busyAction: string | null;
+  onFormChange: (patch: Partial<FleetAssetForm>) => void;
+  onSave: () => void;
+  onEdit: (asset: AdminFleetAsset) => void;
+  onReset: () => void;
+}) {
+  const saving = busyAction === "fleet-assets:save";
+
+  return (
+    <Card id="fleet-assets" className="mt-6 scroll-mt-24 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Company fleet</span>
+          <h2 className="mt-1 text-2xl font-black text-fleet-night">Bicycle assets and operators</h2>
+          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
+            Bicycles stay under Bike, but they are company-owned assets. Assign one to an approved rider account so that operator logs into the normal rider dashboard and only receives eligible light-route bicycle jobs.
+          </p>
+        </div>
+        <Bike className="h-5 w-5 text-fleet-ember" />
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+        <div className="grid gap-3 rounded-fleet border border-fleet-line bg-fleet-paper p-4">
+          <div className="flex items-center justify-between gap-3">
+            <strong className="text-sm font-black text-fleet-night">{form.id ? "Edit bicycle" : "Add bicycle"}</strong>
+            {form.id ? (
+              <Button type="button" size="sm" variant="secondary" onClick={onReset} disabled={saving}>
+                New asset
+              </Button>
+            ) : null}
+          </div>
+          <label className="form-field">
+            <span className="form-label">Asset code</span>
+            <input className="form-input" value={form.asset_code} onChange={(event) => onFormChange({ asset_code: event.target.value })} placeholder="FF-BICYCLE-001" />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="form-field">
+              <span className="form-label">Operating state</span>
+              <select className="form-input" value={form.operating_state} onChange={(event) => onFormChange({ operating_state: event.target.value })}>
+                <option value="Lagos">Lagos</option>
+                <option value="Ogun">Ogun</option>
+              </select>
+            </label>
+            <label className="form-field">
+              <span className="form-label">Status</span>
+              <select className="form-input" value={form.status} onChange={(event) => onFormChange({ status: normalizeFleetAssetStatus(event.target.value) })}>
+                {fleetAssetStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {fleetAssetStatusLabel(status)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className="form-field">
+            <span className="form-label">Operating zone</span>
+            <input className="form-input" value={form.operating_zone} onChange={(event) => onFormChange({ operating_zone: event.target.value })} placeholder="Lekki / VI" />
+          </label>
+          <label className="form-field">
+            <span className="form-label">Assigned operator</span>
+            <select className="form-input" value={form.assigned_rider_profile_id} onChange={(event) => onFormChange({ assigned_rider_profile_id: event.target.value })}>
+              <option value="">Unassigned</option>
+              {riders.map((rider) => (
+                <option key={rider.id} value={rider.id}>
+                  {riderDisplayName(rider)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
+            <span className="form-label">Notes</span>
+            <textarea className="form-input min-h-20" value={form.notes} onChange={(event) => onFormChange({ notes: event.target.value })} placeholder="Helmet, lock, service notes" />
+          </label>
+          <Button type="button" onClick={onSave} disabled={saving || !form.asset_code.trim()}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save bicycle asset
+          </Button>
+        </div>
+
+        <div className="grid gap-3">
+          {assets.map((asset) => {
+            const status = normalizeFleetAssetStatus(asset.status);
+            return (
+              <article key={asset.id} className="rounded-fleet border border-fleet-line bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <strong className="block text-sm font-black text-fleet-night">{asset.asset_code}</strong>
+                    <span className="mt-1 block text-xs font-bold text-slate-500">
+                      {asset.operating_state || "No state"} {asset.operating_zone ? `- ${asset.operating_zone}` : ""}
+                    </span>
+                  </div>
+                  <StatusBadge tone={fleetAssetStatusTone(status)}>{fleetAssetStatusLabel(status)}</StatusBadge>
+                </div>
+                <div className="mt-3 grid gap-2 text-xs font-bold text-slate-600 sm:grid-cols-2">
+                  <div className="rounded-fleet bg-fleet-paper p-3">
+                    Operator: <span className="text-fleet-night">{assetOperatorLabel(asset)}</span>
+                  </div>
+                  <div className="rounded-fleet bg-fleet-paper p-3">
+                    Current job: <span className="text-fleet-night">{asset.current_delivery_id ? "Busy" : "None"}</span>
+                  </div>
+                </div>
+                {asset.notes ? <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">{asset.notes}</p> : null}
+                <div className="mt-3 flex justify-end">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => onEdit(asset)}>
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                </div>
+              </article>
+            );
+          })}
+          {assets.length === 0 ? <div className="rounded-fleet bg-fleet-paper p-5 text-sm font-bold text-slate-500">No bicycle assets yet.</div> : null}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function SiteControlsSection({
   controls,
   busyAction,
@@ -3700,6 +4002,36 @@ function summarizeCompanyLogs(logs: CompanyTransactionLog[]) {
 
 function categoryLabel(category: CompanyTransactionCategory) {
   return companyTransactionCategories.find((item) => item.value === category)?.label || "Other";
+}
+
+function normalizeFleetAssetStatus(value: unknown): FleetAssetStatus {
+  const status = String(value || "").toLowerCase();
+  return fleetAssetStatuses.includes(status as FleetAssetStatus) ? (status as FleetAssetStatus) : "available";
+}
+
+function fleetAssetStatusLabel(status: FleetAssetStatus) {
+  if (status === "available") return "Available";
+  if (status === "busy") return "Busy";
+  if (status === "maintenance") return "Maintenance";
+  return "Inactive";
+}
+
+function fleetAssetStatusTone(status: FleetAssetStatus): "green" | "amber" | "red" | "neutral" {
+  if (status === "available") return "green";
+  if (status === "busy") return "amber";
+  if (status === "maintenance") return "red";
+  return "neutral";
+}
+
+function riderDisplayName(rider: AdminRider) {
+  const name = rider.users?.full_name || rider.users?.email || rider.users?.phone || rider.id;
+  const zone = rider.operating_zone ? ` - ${rider.operating_zone}` : "";
+  return `${name}${zone}`;
+}
+
+function assetOperatorLabel(asset: AdminFleetAsset) {
+  const user = asset.rider_profiles?.users;
+  return user?.full_name || user?.phone || user?.email || "Unassigned";
 }
 
 function riderDocumentLabel(documentType: string) {

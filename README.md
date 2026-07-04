@@ -32,11 +32,12 @@ FASTFLEET_ADMIN_USERNAME=FastFleetAdmin
 FASTFLEET_ADMIN_PASSWORD="Fastfleet360@#"
 FASTFLEET_ADMIN_SECRET=change-this-long-random-secret
 PAYSTACK_SECRET_KEY=sk_test_or_live_xxxxxxxxxxxxxxxxxxxx
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=optional-google-maps-key
+GOOGLE_ROUTES_API_KEY=server-google-routes-key
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=browser-google-maps-key
 NEXT_PUBLIC_SITE_URL=https://fastfleet.com.ng
 ```
 
-Run `supabase-schema.sql` in the Supabase SQL editor before testing live auth, orders, rider documents, wallets, withdrawals, notifications, and admin operations.
+Run `supabase-schema.sql` in the Supabase SQL editor before testing live auth, orders, rider documents, wallets, withdrawals, notifications, fleet assets, and admin operations. Delivery pricing requires Google Routes API access through `GOOGLE_ROUTES_API_KEY` or `GOOGLE_MAPS_API_KEY`; the public key is still used by browser maps and Places autocomplete.
 
 ## Soft Launch Setup
 

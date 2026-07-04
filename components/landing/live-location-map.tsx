@@ -27,7 +27,7 @@ export function LiveLocationMap() {
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
   const [pickupUsesCurrentLocation, setPickupUsesCurrentLocation] = useState(true);
-  const [distanceKm, setDistanceKm] = useState(1);
+  const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [distanceSource, setDistanceSource] = useState("Waiting for route details");
   const [routeLoading, setRouteLoading] = useState(false);
   const [locationMessage, setLocationMessage] = useState("Detecting your address...");
@@ -37,7 +37,7 @@ export function LiveLocationMap() {
   const pickupCoordinates = pickupUsesCurrentLocation && location ? location : parseCoordinates(pickup);
   const dropoffCoordinates = parseCoordinates(dropoff);
 
-  const pricing = useMemo(() => estimateFareForDistance({ distanceKm, vehicle: "bike", speed: "express" }), [distanceKm]);
+  const pricing = useMemo(() => (distanceKm ? estimateFareForDistance({ distanceKm, vehicle: "bike", speed: "express" }) : null), [distanceKm]);
 
   useEffect(() => {
     const stored = readStoredCurrentLocation();
@@ -114,15 +114,8 @@ export function LiveLocationMap() {
     const destination = dropoffCoordinates ? formatCoordinates(dropoffCoordinates) : dropoff.trim();
 
     if (!origin || !destination || destination.length < 3) {
-      setDistanceKm(1);
+      setDistanceKm(null);
       setDistanceSource("Add a pickup and drop-off to estimate distance");
-      return;
-    }
-
-    if (!currentAddress && pickupCoordinates && dropoffCoordinates) {
-      const directDistance = roundDistance(haversineDistanceKm(pickupCoordinates, dropoffCoordinates));
-      setDistanceKm(Math.max(1, directDistance));
-      setDistanceSource("Calculated from map coordinates");
       return;
     }
 
@@ -138,8 +131,8 @@ export function LiveLocationMap() {
       setDistanceSource("Calculated with route distance");
     } catch {
       if (signal?.aborted) return;
-      setDistanceKm(fallbackDistance(origin, destination));
-      setDistanceSource("Estimated with Fast Fleets 360 fallback routing");
+      setDistanceKm(null);
+      setDistanceSource("Google route distance is unavailable right now");
     } finally {
       if (!signal?.aborted) setRouteLoading(false);
     }
@@ -207,7 +200,7 @@ export function LiveLocationMap() {
                 label="FastFleets route lab"
                 title={dropoff.trim() ? "Route preview ready" : "Set your drop-off"}
                 subtitle={dropoff.trim() ? `${pickupUsesCurrentLocation ? currentAddress || pickup || "Current location" : pickup || "Pickup"} to ${dropoff}` : "Add a destination to animate your fare preview."}
-                badge={routeLoading ? "Calculating" : `${distanceKm.toFixed(1)} km`}
+                badge={routeLoading ? "Calculating" : distanceKm ? `${distanceKm.toFixed(1)} km` : "Route needed"}
                 pickup={pickupCoordinates}
                 dropoff={dropoffCoordinates}
                 pickupAddress={pickupUsesCurrentLocation ? currentAddress || pickup : pickup}
@@ -230,20 +223,20 @@ export function LiveLocationMap() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Auto price estimate</span>
-                  <strong className="mt-1 block text-2xl font-black text-fleet-night">{formatMoney(pricing.total)}</strong>
+                  <strong className="mt-1 block text-2xl font-black text-fleet-night">{pricing ? formatMoney(pricing.total) : "Waiting for route"}</strong>
                 </div>
                 <span className="inline-flex items-center gap-2 rounded-full bg-fleet-night px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-white">
                   {routeLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 text-fleet-gold" />}
-                  {distanceKm.toFixed(1)} km
+                  {distanceKm ? `${distanceKm.toFixed(1)} km` : "No route"}
                 </span>
               </div>
               <div className="mt-3 grid gap-2">
-                <PriceRow label="Estimated distance" value={`${distanceKm.toFixed(1)} km`} />
-                <PriceRow label="Delivery fee" value={formatMoney(pricing.deliveryFee)} />
-                <PriceRow label="Platform fee" value={formatMoney(pricing.platformFee)} />
-                <PriceRow label="Total fee" value={formatMoney(pricing.total)} strong />
+                <PriceRow label="Google route distance" value={distanceKm ? `${distanceKm.toFixed(1)} km` : "Not quoted"} />
+                <PriceRow label="Delivery fee" value={pricing ? formatMoney(pricing.deliveryFee) : "Not quoted"} />
+                <PriceRow label="Platform fee" value={pricing ? formatMoney(pricing.platformFee) : "Not quoted"} />
+                <PriceRow label="Total fee" value={pricing ? formatMoney(pricing.total) : "Not quoted"} strong />
               </div>
-              <p className="mt-3 text-[0.72rem] font-bold leading-5 text-slate-500">{distanceSource}. Final estimate updates with the route distance.</p>
+              <p className="mt-3 text-[0.72rem] font-bold leading-5 text-slate-500">{distanceSource}. Final estimate requires Google route distance.</p>
             </Card>
           </div>
         </div>
@@ -295,11 +288,6 @@ function roundDistance(value: number) {
   return Math.round(value * 10) / 10;
 }
 
-function fallbackDistance(origin: string, destination: string) {
-  const seed = stableHash(`${origin}|${destination}`);
-  return Math.max(1, roundDistance(1 + (seed % 90) / 10));
-}
-
 function scheduleIdleWork(callback: () => void) {
   if (typeof window.requestIdleCallback === "function" && typeof window.cancelIdleCallback === "function") {
     const handle = window.requestIdleCallback(callback, { timeout: 1600 });
@@ -308,13 +296,4 @@ function scheduleIdleWork(callback: () => void) {
 
   const timer = globalThis.setTimeout(callback, 800);
   return () => globalThis.clearTimeout(timer);
-}
-
-function stableHash(value: string) {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(index);
-    hash |= 0;
-  }
-  return Math.abs(hash);
 }
