@@ -332,7 +332,7 @@ export function BookingFlow() {
                   ...previous,
                   pickup: selection.address,
                   pickupState: selection.state || extractNigerianState(selection.address),
-                  pickupPlaceId: selection.placeId || "",
+                  pickupPlaceId: selection.source === "google" ? selection.placeId || "" : "",
                   pickupLatitude: selection.latitude ?? null,
                   pickupLongitude: selection.longitude ?? null
                 }));
@@ -353,7 +353,7 @@ export function BookingFlow() {
                   ...previous,
                   dropoff: selection.address,
                   dropoffState: selection.state || extractNigerianState(selection.address),
-                  dropoffPlaceId: selection.placeId || "",
+                  dropoffPlaceId: selection.source === "google" ? selection.placeId || "" : "",
                   dropoffLatitude: selection.latitude ?? null,
                   dropoffLongitude: selection.longitude ?? null
                 }))
