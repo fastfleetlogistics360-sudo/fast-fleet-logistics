@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     "bike delivery",
     "same day delivery",
     "driver KYC",
-    "Paystack wallet"
+    "Squad wallet"
   ],
   alternates: {
     canonical: "/"

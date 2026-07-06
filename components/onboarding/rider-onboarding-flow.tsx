@@ -208,7 +208,7 @@ export function RiderOnboardingFlow() {
     setBankLoading(true);
     setBankMessage("Checking account name...");
     const timer = window.setTimeout(() => {
-      fetch(`/api/paystack/resolve-account?bankCode=${encodeURIComponent(form.bankCode)}&accountNumber=${encodeURIComponent(accountNumber)}`)
+      fetch(`/api/payments/resolve-account?bankCode=${encodeURIComponent(form.bankCode)}&accountNumber=${encodeURIComponent(accountNumber)}`)
         .then((response) => response.json())
         .then((payload: { accountName?: string; error?: string }) => {
           if (cancelled) return;
@@ -250,7 +250,7 @@ export function RiderOnboardingFlow() {
   async function loadBanks() {
     setBanksLoading(true);
     try {
-      const response = await fetch("/api/paystack/banks");
+      const response = await fetch("/api/payments/banks");
       const payload: { banks?: Bank[] } = await response.json();
       setBanks(Array.isArray(payload.banks) ? payload.banks : []);
     } catch {
@@ -532,10 +532,10 @@ export function RiderOnboardingFlow() {
                 placeholder="0123456789"
                 inputMode="numeric"
               />
-              <Field label="Verified account name" value={form.accountName} error={errors.accountName} onChange={(value) => update("accountName", value)} placeholder="Auto-filled by Paystack" wide readOnly />
+              <Field label="Verified account name" value={form.accountName} error={errors.accountName} onChange={(value) => update("accountName", value)} placeholder="Auto-filled by Squad" wide readOnly />
             </div>
             <div className="mt-5 rounded-fleet border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
-              {bankLoading ? "Checking Paystack for the account name..." : bankMessage || "Select a bank and enter a 10-digit account number to verify the account name automatically."}
+              {bankLoading ? "Checking Squad for the account name..." : bankMessage || "Select a bank and enter a 10-digit account number to verify the account name automatically."}
             </div>
           </StepShell>
         ) : null}

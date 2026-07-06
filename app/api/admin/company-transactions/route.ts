@@ -40,7 +40,7 @@ const demoLogs = [
     title: "Same-day delivery collections",
     counterparty: "Fast Fleets 360 customers",
     reference: "DAY-CLOSE",
-    payment_method: "Wallet / Paystack",
+    payment_method: "Wallet / Squad",
     status: "cleared",
     notes: "Daily delivery income summary.",
     created_at: new Date().toISOString(),

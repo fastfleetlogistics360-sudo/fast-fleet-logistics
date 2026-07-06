@@ -5,11 +5,11 @@ import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
+import { generatePaymentReference, initiateSquadPayment, paymentChannelsFor } from "@/lib/payments/squad";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
-const PAYSTACK_INITIALIZE_URL = "https://api.paystack.co/transaction/initialize";
 const paymentMethods = new Set(["card", "wallet", "transfer"]);
 const vehicleTypes = new Set(["bike", "car", "van"]);
 const deliverySpeeds = new Set(["standard", "same_day", "express", "priority", "scheduled", "interstate"]);
@@ -100,13 +100,13 @@ export async function POST(request: Request) {
     const { data: profile } = await supabase.from("users").select("email, phone, full_name").eq("id", user.id).maybeSingle();
     const email = user.email || profile?.email || "";
     if (paymentMethod !== "wallet" && !email.includes("@")) {
-      return NextResponse.json({ error: "Add an email address to your account before Paystack checkout." }, { status: 400 });
+      return NextResponse.json({ error: "Add an email address to your account before Squad checkout." }, { status: 400 });
     }
 
     const admin = createAdminClient();
     const db = admin || supabase;
     const code = `FF-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
-    const paystackReference = `FFD-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+    const squadReference = generatePaymentReference("FFD");
     const metadata = {
       note: payload.note || "",
       scheduled_at: payload.scheduledAt || null,
@@ -121,7 +121,8 @@ export async function POST(request: Request) {
       delivery_fee_ngn: estimate.deliveryFee,
       platform_fee_ngn: estimate.platformFee,
       payment_choice: paymentMethod,
-      paystack_reference: paymentMethod === "wallet" ? null : paystackReference
+      payment_provider: paymentMethod === "wallet" ? "wallet" : "squad",
+      provider_reference: paymentMethod === "wallet" ? null : squadReference
     };
 
     const { data: delivery, error: insertError } = await db
@@ -195,30 +196,22 @@ export async function POST(request: Request) {
       });
     }
 
-    const secretKey = process.env.PAYSTACK_SECRET_KEY;
-    if (!secretKey) {
-      await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, paystack_error: "missing_secret" } }).eq("id", delivery.id);
-      return NextResponse.json({ error: "Missing PAYSTACK_SECRET_KEY. Add it before card or transfer checkout." }, { status: 500 });
-    }
-
     const siteUrl = paymentCallbackOrigin(request);
     const callbackUrl = new URL(`${siteUrl}/delivery/callback`);
+    callbackUrl.searchParams.set("reference", squadReference);
     callbackUrl.searchParams.set("code", delivery.delivery_code);
     callbackUrl.searchParams.set("deliveryId", delivery.id);
     callbackUrl.searchParams.set("returnTo", `/track?code=${encodeURIComponent(delivery.delivery_code)}`);
 
-    const paystackResponse = await fetch(PAYSTACK_INITIALIZE_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        amount: Math.round(estimate.total * 100),
+    let squadCheckout;
+    try {
+      squadCheckout = await initiateSquadPayment({
+        amountNgn: estimate.total,
         email,
-        currency: "NGN",
-        reference: paystackReference,
-        callback_url: callbackUrl.toString(),
+        reference: squadReference,
+        callbackUrl: callbackUrl.toString(),
+        customerName: profile?.full_name || null,
+        channels: paymentChannelsFor(paymentMethod),
         metadata: {
           source: "booking_checkout",
           delivery_id: delivery.id,
@@ -238,21 +231,18 @@ export async function POST(request: Request) {
           customer_phone: profile?.phone || user.phone || String(payload.dropoffContact || payload.pickupContact || "").trim() || null,
           customer_name: profile?.full_name || null
         }
-      })
-    });
-    const paystackData = await paystackResponse.json();
-
-    if (!paystackResponse.ok || !paystackData.status) {
-      await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, paystack_error: paystackData.message || "initialize_failed" } }).eq("id", delivery.id);
-      return NextResponse.json({ error: paystackData.message || "Paystack could not initialize this payment." }, { status: 502 });
+      });
+    } catch (error) {
+      await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, squad_error: error instanceof Error ? error.message : "initialize_failed" } }).eq("id", delivery.id);
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Squad could not initialize this payment." }, { status: 502 });
     }
 
     return NextResponse.json({
       deliveryId: delivery.id,
       deliveryCode: delivery.delivery_code,
-      reference: paystackReference,
-      authorizationUrl: paystackData.data.authorization_url,
-      accessCode: paystackData.data.access_code
+      reference: squadCheckout.reference,
+      authorizationUrl: squadCheckout.authorizationUrl,
+      accessCode: squadCheckout.accessCode
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not create delivery checkout." }, { status: 500 });

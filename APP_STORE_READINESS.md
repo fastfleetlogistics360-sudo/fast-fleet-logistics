@@ -22,14 +22,14 @@ Data collected:
 - Email address: account login, support, receipts, account deletion requests.
 - Phone number: delivery coordination, recipient contact, rider onboarding, support.
 - Approximate and precise location: pickup detection, route estimates, live delivery tracking, rider location during active jobs.
-- Financial info: wallet top-ups, Paystack payment references, refund records, withdrawal records, bank payout details for riders.
+- Financial info: wallet top-ups, Squad payment references, refund records, withdrawal records, bank payout details for riders.
 - Photos/files: rider documents, KYC uploads, vehicle documents where enabled.
 - Government ID/NIN: rider KYC where legally or operationally required.
 - App activity: delivery history, support tickets, wallet transactions, dashboard activity.
 
 Data shared with third parties:
 - Supabase: authentication, database, storage, sessions.
-- Paystack: wallet funding, payment verification, payment references.
+- Squad by GTCO/HabariPay: wallet funding, payment verification, payment references.
 - Map/location providers: route preview, pickup detection, delivery tracking.
 
 Security and deletion:
@@ -57,7 +57,7 @@ Tracking:
 
 ## Store Notes
 
-- Wallet top-ups are for real-world logistics and delivery services. Confirm final Apple review language before submitting iOS builds that use Paystack.
+- Wallet top-ups are for real-world logistics and delivery services. Confirm final Apple review language before submitting iOS builds that use Squad by GTCO/HabariPay.
 - Likely content rating: Apple 4+ / Google Everyone, subject to the official questionnaire answers.
 - Declare in-app payments as real-world service payments, not digital content.
 - Use `store-submission/native-build-checklist.md` before opening App Store Connect or Play Console releases.

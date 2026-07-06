@@ -139,7 +139,7 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
       return;
     }
     if (!email.trim()) {
-      setMessage("Enter an email address for Paystack checkout.");
+      setMessage("Enter an email address for Squad checkout.");
       return;
     }
     if (address.trim().length < 6) {
@@ -170,7 +170,7 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
         })
       });
       const payload = await response.json();
-      if (!response.ok || !payload.authorizationUrl) throw new Error(payload.error || "Paystack checkout failed.");
+      if (!response.ok || !payload.authorizationUrl) throw new Error(payload.error || "Squad checkout failed.");
       const deliveryCode = String(payload.reference || `FFM-${Date.now()}`).toUpperCase();
       const businessOrder = Boolean(payload.businessOrder);
       const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]");
@@ -209,7 +209,7 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
     <CinematicPageHero
       eyebrow="Fast Fleets 360 Mall"
       title="Shop malls by store, not generic shelves."
-      body="Open a mall, choose a vendor menu, add priced products, and checkout through Fast Fleets 360 with transparent fees and Paystack payment flow."
+      body="Open a mall, choose a vendor menu, add priced products, and checkout through Fast Fleets 360 with transparent fees and Squad payment flow."
       image="https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=2200&q=84"
     />
     <section className="section-wrap -mt-8 pb-28 sm:-mt-10 sm:pb-12">
@@ -219,7 +219,7 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
             <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Marketplace lane</span>
             <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Pick, pack, and dispatch.</h2>
             <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
-              Open a mall card, expand a vendor menu, then checkout through Paystack. Fast Fleets 360 calculates delivery from pickup to your address and adds a {formatMoney(platformFee)} platform fee.
+              Open a mall card, expand a vendor menu, then checkout through Squad. Fast Fleets 360 calculates delivery from pickup to your address and adds a {formatMoney(platformFee)} platform fee.
             </p>
           </div>
 

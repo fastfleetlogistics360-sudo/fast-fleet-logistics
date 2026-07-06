@@ -1,24 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
+import { isPendingSquadStatus, isSuccessfulSquadStatus, verifySquadTransaction } from "@/lib/payments/squad";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-const PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify";
-const pendingPaystackStatuses = new Set(["ongoing", "pending", "processing", "queued"]);
-
 export async function GET(request: NextRequest) {
   try {
-    const reference = request.nextUrl.searchParams.get("reference") || request.nextUrl.searchParams.get("trxref");
+    const reference =
+      request.nextUrl.searchParams.get("reference") ||
+      request.nextUrl.searchParams.get("transaction_ref") ||
+      request.nextUrl.searchParams.get("TransactionRef") ||
+      request.nextUrl.searchParams.get("trxref");
     const code = request.nextUrl.searchParams.get("code")?.trim().toUpperCase() || "";
     const deliveryId = request.nextUrl.searchParams.get("deliveryId") || "";
 
     if (!reference || (!code && !deliveryId)) {
       return NextResponse.json({ error: "Missing payment reference or delivery code." }, { status: 400 });
-    }
-
-    const secretKey = process.env.PAYSTACK_SECRET_KEY;
-    if (!secretKey) {
-      return NextResponse.json({ error: "Missing PAYSTACK_SECRET_KEY. Add your Paystack secret key to .env.local." }, { status: 500 });
     }
 
     const supabase = await createClient();
@@ -29,16 +26,7 @@ export async function GET(request: NextRequest) {
     const admin = createAdminClient();
     const db = admin || supabase;
 
-    const paystackResponse = await fetch(`${PAYSTACK_VERIFY_URL}/${encodeURIComponent(reference)}`, {
-      headers: {
-        Authorization: `Bearer ${secretKey}`
-      }
-    });
-    const paystackData = await paystackResponse.json();
-
-    if (!paystackResponse.ok || !paystackData.status) {
-      return NextResponse.json({ error: paystackData.message || "Paystack verification failed." }, { status: 502 });
-    }
+    const squadTransaction = await verifySquadTransaction(reference);
 
     const query = db
       .from("deliveries")
@@ -52,52 +40,52 @@ export async function GET(request: NextRequest) {
     if (!delivery) return NextResponse.json({ error: "Delivery not found for this payment." }, { status: 404 });
 
     const metadata = (delivery.metadata || {}) as Record<string, unknown>;
-    if (String(metadata.paystack_reference || "") !== reference) {
+    if (String(metadata.provider_reference || "") !== reference) {
       return NextResponse.json({ error: "Payment reference does not match this delivery." }, { status: 400 });
     }
 
-    if (paystackData.data.status !== "success") {
-      const paystackStatus = String(paystackData.data.status || "pending");
+    if (!isSuccessfulSquadStatus(squadTransaction.status)) {
+      const squadStatus = String(squadTransaction.status || "Pending");
       await db.from("deliveries").update({
         metadata: {
           ...metadata,
-          paystack_status: paystackStatus,
-          paystack_gateway_response: paystackData.data.gateway_response
+          provider_status: squadStatus,
+          squad_gateway_reference: squadTransaction.gatewayReference,
+          squad_raw_status: squadTransaction.raw
         }
       }).eq("id", delivery.id);
-      if (pendingPaystackStatuses.has(paystackStatus)) {
+      if (isPendingSquadStatus(squadStatus)) {
         return NextResponse.json(
           {
             reference,
             deliveryId: delivery.id,
             deliveryCode: delivery.delivery_code,
             status: "pending",
-            message: "Paystack is still waiting for this payment to clear."
+            message: "Squad is still waiting for this payment to clear."
           },
           { status: 202 }
         );
       }
-      return NextResponse.json({ error: `Payment status is ${paystackStatus}.` }, { status: 400 });
+      return NextResponse.json({ error: `Payment status is ${squadStatus}.` }, { status: 400 });
     }
 
-    const amountNgn = Number(paystackData.data.amount) / 100;
+    const amountNgn = squadTransaction.amountNgn;
     if (Math.round(amountNgn) !== Math.round(Number(delivery.price_ngn || 0))) {
-      return NextResponse.json({ error: "Paystack amount does not match this delivery total." }, { status: 400 });
+      return NextResponse.json({ error: "Squad amount does not match this delivery total." }, { status: 400 });
     }
 
     if (delivery.status !== "searching") {
-      const paidAt = paystackData.data.paid_at || new Date().toISOString();
       const { error: updateError } = await db
         .from("deliveries")
         .update({
           status: "searching",
           metadata: {
             ...metadata,
-            paystack_paid_at: paidAt,
-            paystack_id: paystackData.data.id,
-            paystack_status: paystackData.data.status,
-            paystack_channel: paystackData.data.channel,
-            paystack_gateway_response: paystackData.data.gateway_response
+            provider_paid_at: squadTransaction.paidAt,
+            provider_status: squadTransaction.status,
+            provider_channel: squadTransaction.channel,
+            squad_gateway_reference: squadTransaction.gatewayReference,
+            squad_raw: squadTransaction.raw
           },
           updated_at: new Date().toISOString()
         })
@@ -109,17 +97,17 @@ export async function GET(request: NextRequest) {
         actor_id: user.id,
         status: "searching",
         title: "Payment received",
-        body: "Paystack payment confirmed. Fast Fleets 360 is notifying online drivers."
+        body: "Squad payment confirmed. Fast Fleets 360 is notifying online drivers."
       });
     }
 
     await recordDeliveryIncome({
       amountNgn,
       deliveryCode: delivery.delivery_code,
-      paymentMethod: paystackData.data.channel || delivery.payment_method || "paystack",
+      paymentMethod: squadTransaction.channel || delivery.payment_method || "squad",
       reference,
       counterparty: user.email || user.id,
-      notes: "Paystack delivery checkout was verified successfully."
+      notes: "Squad delivery checkout was verified successfully."
     });
 
     return NextResponse.json({

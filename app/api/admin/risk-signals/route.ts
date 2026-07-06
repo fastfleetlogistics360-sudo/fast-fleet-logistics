@@ -21,7 +21,7 @@ const demoSupportTickets = [
     id: "ST-1001",
     topic: "refund",
     subject: "Wallet top-up pending",
-    message: "Customer says Paystack debited them but wallet has not updated.",
+    message: "Customer says Squad debited them but wallet has not updated.",
     priority: "urgent",
     status: "open",
     contact_name: "Fast Fleets 360 Customer",
@@ -32,7 +32,7 @@ const demoSupportTickets = [
       {
         id: "STM-1001",
         sender_type: "customer",
-        body: "Customer says Paystack debited them but wallet has not updated.",
+        body: "Customer says Squad debited them but wallet has not updated.",
         created_at: new Date().toISOString()
       }
     ]

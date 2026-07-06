@@ -32,7 +32,7 @@ The repo now includes `capacitor.config.ts` with:
 
 - Set bundle identifiers and signing teams in Xcode/Android Studio.
 - Add production privacy strings for location, notifications, camera/photo uploads, and document uploads.
-- Confirm Paystack wording is declared as payment for real-world logistics services, not digital goods.
+- Confirm Squad wording is declared as payment for real-world logistics services, not digital goods.
 - Test account deletion inside customer, rider, and business account settings before review submission.
 
 ## Live Location Permissions

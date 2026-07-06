@@ -23,13 +23,13 @@ export default function DeliveryCallbackPage() {
 
 function DeliveryCallbackContent() {
   const searchParams = useSearchParams();
-  const reference = searchParams.get("reference") || searchParams.get("trxref");
+  const reference = searchParams.get("reference") || searchParams.get("transaction_ref") || searchParams.get("TransactionRef") || searchParams.get("trxref");
   const code = searchParams.get("code") || "";
   const deliveryId = searchParams.get("deliveryId") || "";
   const returnTo = sanitizeReturnTo(searchParams.get("returnTo"), code ? `/track?code=${encodeURIComponent(code)}` : "/dashboard");
   const [state, setState] = useState<VerificationState>({
     status: "loading",
-    message: "Confirming delivery payment with Paystack..."
+    message: "Confirming delivery payment with Squad..."
   });
 
   useEffect(() => {
@@ -52,7 +52,7 @@ function DeliveryCallbackContent() {
         if (response.status === 202) {
           setState({
             status: "pending",
-            message: data.message || "Paystack is still confirming this payment. This page will keep checking.",
+            message: data.message || "Squad is still confirming this payment. This page will keep checking.",
             deliveryCode: data.deliveryCode
           });
           if (!stopped && attempts < 8) {

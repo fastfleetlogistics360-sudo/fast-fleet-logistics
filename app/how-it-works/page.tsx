@@ -33,7 +33,7 @@ const steps: Array<{ title: string; body: string; icon: LucideIcon }> = [
   },
   {
     title: "Place Your Order or Delivery Request",
-    body: "Customers can book riders for food, documents, parcels, shopping items, business dispatch, and urgent errands. Restaurant customers can select meals, add items to cart, confirm delivery details, and checkout through Paystack. Mall customers can choose a mall, select a vendor, add vendor-specific products, and checkout.",
+    body: "Customers can book riders for food, documents, parcels, shopping items, business dispatch, and urgent errands. Restaurant customers can select meals, add items to cart, confirm delivery details, and checkout through Squad. Mall customers can choose a mall, select a vendor, add vendor-specific products, and checkout.",
     icon: PackageCheck
   },
   {

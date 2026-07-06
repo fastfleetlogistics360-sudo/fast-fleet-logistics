@@ -22,11 +22,11 @@ export default function WalletCallbackPage() {
 
 function WalletCallbackContent() {
   const searchParams = useSearchParams();
-  const reference = searchParams.get("reference") || searchParams.get("trxref");
+  const reference = searchParams.get("reference") || searchParams.get("transaction_ref") || searchParams.get("TransactionRef") || searchParams.get("trxref");
   const returnTo = sanitizeReturnTo(searchParams.get("returnTo"), "/dashboard");
   const [state, setState] = useState<VerificationState>({
     status: "loading",
-    message: "Confirming payment with Paystack..."
+    message: "Confirming payment with Squad..."
   });
 
   useEffect(() => {
@@ -42,7 +42,7 @@ function WalletCallbackContent() {
         if (!response.ok) throw new Error(data.error || "Payment verification failed.");
         setState({
           status: "success",
-          message: "Wallet funded successfully. Your dashboard balance will refresh from the confirmed Paystack payment.",
+          message: "Wallet funded successfully. Your dashboard balance will refresh from the confirmed Squad payment.",
           amount: data.amount,
           balance: data.balance
         });

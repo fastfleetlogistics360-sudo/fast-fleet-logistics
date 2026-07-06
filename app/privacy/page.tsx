@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 const sections = [
   {
     title: "1. Data we collect",
-    body: "Fast Fleets 360 collects account details such as name, email, phone number, account type, profile photo, saved addresses, delivery addresses, order history, support messages, notification preferences, and device/session information. We collect delivery location data needed for pickup, drop-off, rider assignment, live tracking, proof of delivery, fraud prevention, and customer support. Payment card data is not stored by Fast Fleets 360; we store Paystack payment references, wallet transactions, receipts, and payout records. Rider and business onboarding may require vehicle details, government ID documents, licence documents, insurance, guarantor records, bank details, and review decisions."
+    body: "Fast Fleets 360 collects account details such as name, email, phone number, account type, profile photo, saved addresses, delivery addresses, order history, support messages, notification preferences, and device/session information. We collect delivery location data needed for pickup, drop-off, rider assignment, live tracking, proof of delivery, fraud prevention, and customer support. Payment card data is not stored by Fast Fleets 360; we store Squad payment references, wallet transactions, receipts, and payout records. Rider and business onboarding may require vehicle details, government ID documents, licence documents, insurance, guarantor records, bank details, and review decisions."
   },
   {
     title: "2. Why we collect it",
@@ -16,7 +16,7 @@ const sections = [
   },
   {
     title: "3. Service providers and sharing",
-    body: "We share data only where needed to operate Fast Fleets 360. Supabase provides authentication, database, storage, sessions, and realtime infrastructure. Paystack processes payments, bank verification, wallet top-ups, and payout references. Map and location providers may process pickup, drop-off, route, and approximate location information to support dispatch and tracking. We may share limited records with regulators, law enforcement, payment partners, insurers, or dispute-resolution bodies when required by law or to protect users."
+    body: "We share data only where needed to operate Fast Fleets 360. Supabase provides authentication, database, storage, sessions, and realtime infrastructure. Squad by HabariPay/GTCO processes payments, bank verification, wallet top-ups, and payout references. Map and location providers may process pickup, drop-off, route, and approximate location information to support dispatch and tracking. We may share limited records with regulators, law enforcement, payment partners, insurers, or dispute-resolution bodies when required by law or to protect users."
   },
   {
     title: "4. Retention periods",

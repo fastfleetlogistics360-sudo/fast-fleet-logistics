@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isSuccessfulSquadStatus, verifySquadTransaction } from "@/lib/payments/squad";
 import { createClient } from "@/lib/supabase/server";
-
-const PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify";
 
 export async function GET(request: NextRequest) {
   try {
-    const reference = request.nextUrl.searchParams.get("reference");
+    const reference =
+      request.nextUrl.searchParams.get("reference") ||
+      request.nextUrl.searchParams.get("transaction_ref") ||
+      request.nextUrl.searchParams.get("TransactionRef") ||
+      request.nextUrl.searchParams.get("trxref");
     if (!reference) {
       return NextResponse.json({ error: "Missing payment reference." }, { status: 400 });
-    }
-
-    const secretKey = process.env.PAYSTACK_SECRET_KEY;
-    if (!secretKey) {
-      return NextResponse.json({ error: "Missing PAYSTACK_SECRET_KEY. Add your Paystack secret key to .env.local." }, { status: 500 });
     }
 
     const supabase = await createClient();
@@ -24,41 +22,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Please sign in to verify wallet funding." }, { status: 401 });
     }
 
-    const paystackResponse = await fetch(`${PAYSTACK_VERIFY_URL}/${encodeURIComponent(reference)}`, {
-      headers: {
-        Authorization: `Bearer ${secretKey}`
-      }
-    });
-    const paystackData = await paystackResponse.json();
+    const squadTransaction = await verifySquadTransaction(reference);
 
-    if (!paystackResponse.ok || !paystackData.status) {
-      return NextResponse.json({ error: paystackData.message || "Paystack verification failed." }, { status: 502 });
-    }
-
-    if (paystackData.data.status !== "success") {
+    if (!isSuccessfulSquadStatus(squadTransaction.status)) {
       await supabase.rpc("mark_wallet_funding_failed", {
         next_provider_reference: reference,
         next_metadata: {
-          paystack_id: paystackData.data.id,
-          paystack_status: paystackData.data.status,
-          gateway_response: paystackData.data.gateway_response,
-          channel: paystackData.data.channel,
-          currency: paystackData.data.currency
+          provider_status: squadTransaction.status,
+          gateway_reference: squadTransaction.gatewayReference,
+          channel: squadTransaction.channel,
+          currency: squadTransaction.currency
         }
       });
-      return NextResponse.json({ error: `Payment status is ${paystackData.data.status}.` }, { status: 400 });
+      return NextResponse.json({ error: `Payment status is ${squadTransaction.status}.` }, { status: 400 });
     }
 
-    const amountNgn = Number(paystackData.data.amount) / 100;
+    const amountNgn = squadTransaction.amountNgn;
     const { data: walletId, error } = await supabase.rpc("complete_wallet_funding", {
       next_provider_reference: reference,
       next_amount_ngn: amountNgn,
       next_metadata: {
-        paystack_id: paystackData.data.id,
-        paid_at: paystackData.data.paid_at,
-        channel: paystackData.data.channel,
-        currency: paystackData.data.currency,
-        gateway_response: paystackData.data.gateway_response
+        paid_at: squadTransaction.paidAt,
+        channel: squadTransaction.channel,
+        currency: squadTransaction.currency,
+        gateway_reference: squadTransaction.gatewayReference,
+        squad_raw: squadTransaction.raw
       }
     });
 

@@ -74,10 +74,10 @@ export function WalletDashboardCard({
         body: JSON.stringify({ amount: amountNgn, walletType, returnTo: returnTo || (walletType === "rider" ? "/rider/dashboard" : "/dashboard") })
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Could not start Paystack top-up.");
+      if (!response.ok) throw new Error(data.error || "Could not start Squad top-up.");
       window.location.assign(data.authorizationUrl);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not start Paystack top-up.");
+      setMessage(error instanceof Error ? error.message : "Could not start Squad top-up.");
     } finally {
       setTopUpLoading(false);
     }

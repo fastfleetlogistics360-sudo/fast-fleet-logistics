@@ -8,7 +8,7 @@ FastFleet collects the following data types:
 
 - Personal info: name, email address, phone number, account type, business contact details, rider profile details.
 - Location: pickup address, drop-off address, route estimate, approximate service zone, and rider location while an active delivery is being fulfilled.
-- Financial info: Paystack payment references, wallet top-ups, refund records, withdrawal requests, bank payout details for riders, and transaction history.
+- Financial info: Squad payment references, wallet top-ups, refund records, withdrawal requests, bank payout details for riders, and transaction history.
 - Photos and files: rider KYC documents, vehicle documents, proof-of-delivery images, support attachments where enabled.
 - Government ID: rider identity and licensing documents where required for KYC and safety review.
 - App activity: delivery bookings, order status changes, wallet transactions, support tickets, notification read status, dashboard activity.
@@ -19,7 +19,7 @@ FastFleet collects the following data types:
 FastFleet shares data only as needed to operate the service:
 
 - Supabase: authentication, database, storage, realtime notifications, sessions, and row-level security.
-- Paystack: wallet funding, payment verification, bank verification, refunds, and payout references.
+- Squad by GTCO/HabariPay: wallet funding, payment verification, bank verification, refunds, and payout references.
 - Map/location providers: pickup, drop-off, route, ETA, and delivery tracking support.
 - Regulators, law enforcement, insurers, payment partners, or dispute-resolution bodies when required by law or safety/fraud review.
 

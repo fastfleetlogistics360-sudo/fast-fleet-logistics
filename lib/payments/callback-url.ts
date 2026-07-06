@@ -6,7 +6,7 @@ function forwardedOrigin(request: Request) {
 }
 
 export function paymentCallbackOrigin(request: Request) {
-  const explicit = process.env.PAYSTACK_CALLBACK_ORIGIN?.trim();
+  const explicit = process.env.PAYMENT_CALLBACK_ORIGIN?.trim() || process.env.SQUAD_CALLBACK_ORIGIN?.trim();
   if (explicit) return explicit.replace(/\/$/, "");
 
   const origin = forwardedOrigin(request) || new URL(request.url).origin;

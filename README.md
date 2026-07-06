@@ -31,7 +31,9 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 FASTFLEET_ADMIN_USERNAME=FastFleetAdmin
 FASTFLEET_ADMIN_PASSWORD="Fastfleet360@#"
 FASTFLEET_ADMIN_SECRET=change-this-long-random-secret
-PAYSTACK_SECRET_KEY=sk_test_or_live_xxxxxxxxxxxxxxxxxxxx
+SQUAD_SECRET_KEY=sandbox_or_live_squad_secret_key
+SQUAD_BASE_URL=https://sandbox-api-d.squadco.com
+SQUAD_CALLBACK_ORIGIN=http://localhost:3000
 GOOGLE_ROUTES_API_KEY=server-google-routes-key
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=browser-google-maps-key
 NEXT_PUBLIC_SITE_URL=https://fastfleet.com.ng
@@ -45,15 +47,15 @@ FastFleet is open for Lagos and Ogun first. During registration, users can choos
 
 The admin panel includes every Nigerian state with a `Go live` button. When a state is launched, `platform_launch_states` is updated and users from that state automatically see the full customer or rider dashboard. Rider registration also builds its city/LGA options from the states marked active in `platform_launch_states`.
 
-## Wallet and Paystack
+## Wallet and Squad
 
 Wallet top-up is wired through server routes:
 
-- `POST /api/wallet/topup` initializes a Paystack payment.
+- `POST /api/wallet/topup` initializes a Squad payment.
 - `GET /api/wallet/verify?reference=...` verifies the payment and credits the wallet once.
-- `/wallet/callback` is the Paystack callback page.
+- `/wallet/callback` is the Squad callback page.
 
-Set `PAYSTACK_SECRET_KEY` in `.env.local`, and set `NEXT_PUBLIC_SITE_URL` to your deployed domain before going live.
+Set `SQUAD_SECRET_KEY`, `SQUAD_BASE_URL`, and `SQUAD_CALLBACK_ORIGIN` in `.env.local`, and set `NEXT_PUBLIC_SITE_URL` to your deployed domain before going live.
 
 ## Admin Access
 

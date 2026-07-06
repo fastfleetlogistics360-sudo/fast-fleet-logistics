@@ -24,7 +24,7 @@ const topicCopy: Record<SupportTopic, { label: string; subject: string; answer: 
   wallet: {
     label: "Wallet/payment",
     subject: "Wallet or payment support request",
-    answer: "For Paystack debits, keep your payment reference. Wallet top-ups are verified from the callback, and support can reconcile pending credits from the admin panel.",
+    answer: "For Squad debits, keep your payment reference. Wallet top-ups are verified from the callback, and support can reconcile pending credits from the admin panel.",
     priority: "urgent"
   },
   business: {

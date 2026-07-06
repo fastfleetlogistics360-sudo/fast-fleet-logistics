@@ -9,10 +9,9 @@ import {
 } from "@/lib/marketplace-business-links";
 import { estimateMarketplaceCheckout, marketplacePickupAddress } from "@/lib/marketplace-pricing";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
+import { generatePaymentReference, initiateSquadPayment } from "@/lib/payments/squad";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-
-const PAYSTACK_INITIALIZE_URL = "https://api.paystack.co/transaction/initialize";
 
 export async function POST(request: Request) {
   try {
@@ -33,7 +32,7 @@ export async function POST(request: Request) {
     const address = sanitizeAddressText(payload.address || "");
 
     if (!payload.email || !payload.email.includes("@")) {
-      return NextResponse.json({ error: "Enter a valid email address for Paystack checkout." }, { status: 400 });
+      return NextResponse.json({ error: "Enter a valid email address for Squad checkout." }, { status: 400 });
     }
     if (!items.length) {
       return NextResponse.json({ error: "Add at least one item before checkout." }, { status: 400 });
@@ -79,12 +78,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Checkout total changed. Refresh and try again." }, { status: 400 });
     }
 
-    const secretKey = process.env.PAYSTACK_SECRET_KEY;
-    if (!secretKey) {
-      return NextResponse.json({ error: "Missing PAYSTACK_SECRET_KEY. Add it on Vercel before live marketplace checkout." }, { status: 500 });
-    }
-
-    const reference = `FFM-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+    const reference = generatePaymentReference("FFM");
     const siteUrl = paymentCallbackOrigin(request);
     const callbackUrl = new URL(`${siteUrl}/marketplace/callback`);
     callbackUrl.searchParams.set("reference", reference);
@@ -132,7 +126,7 @@ export async function POST(request: Request) {
       }
     } else {
       try {
-        const { data: delivery } = await supabase.from("deliveries").insert({
+        const { error: deliveryError } = await supabase.from("deliveries").insert({
           delivery_code: reference,
           customer_id: user.id,
           pickup_address: pickupAddress,
@@ -143,7 +137,7 @@ export async function POST(request: Request) {
           vehicle_type: "bike",
           delivery_speed: "same_day",
           payment_method: "card",
-          status: "searching",
+          status: "pending_payment",
           price_ngn: expectedAmount,
           delivery_fee_ngn: deliveryFee,
           platform_fee_ngn: platformFee,
@@ -167,65 +161,46 @@ export async function POST(request: Request) {
             route_duration_seconds: estimate.durationSeconds,
             bicycle_eligible: estimate.bicycleEligible,
             vehicle_subtype: estimate.vehicleSubtype,
-            paystack_reference: reference
+            payment_provider: "squad",
+            provider_reference: reference
           }
-        }).select("id").single();
-        if (delivery?.id) {
-          await supabase.from("delivery_events").insert({
-            delivery_id: delivery.id,
-            actor_id: user.id,
-            status: "searching",
-            title: "Marketplace order placed",
-            body: "Fast Fleets 360 is notifying online drivers."
-          });
-        }
-      } catch {
-        // Local delivery fallback is still written in the browser before redirect.
+        });
+        if (deliveryError) throw deliveryError;
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Could not create the marketplace delivery." }, { status: 500 });
       }
     }
 
-    const response = await fetch(PAYSTACK_INITIALIZE_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        amount: Math.round(expectedAmount * 100),
-        email: payload.email,
-        currency: "NGN",
-        reference,
-        callback_url: callbackUrl.toString(),
-        metadata: {
-          source: "fastfleet_marketplace",
-          kind: payload.kind,
-          phone: payload.phone || null,
-          delivery_address: address,
-          platform_fee_ngn: platformFee,
-          delivery_fee_ngn: deliveryFee,
-          delivery_distance_km: estimate.distanceKm,
-          route_source: estimate.routeSource,
-          route_type: estimate.routeType,
-          route_duration_seconds: estimate.durationSeconds,
-          bicycle_eligible: estimate.bicycleEligible,
-          vehicle_subtype: estimate.vehicleSubtype,
-          eta_minutes: estimate.etaMinutes,
-          items: resolvedItems
-        }
-      })
+    const squadCheckout = await initiateSquadPayment({
+      amountNgn: expectedAmount,
+      email: payload.email,
+      reference,
+      callbackUrl: callbackUrl.toString(),
+      customerName: payload.phone || payload.email,
+      metadata: {
+        source: "fastfleet_marketplace",
+        kind: payload.kind,
+        phone: payload.phone || null,
+        delivery_address: address,
+        platform_fee_ngn: platformFee,
+        delivery_fee_ngn: deliveryFee,
+        delivery_distance_km: estimate.distanceKm,
+        route_source: estimate.routeSource,
+        route_type: estimate.routeType,
+        route_duration_seconds: estimate.durationSeconds,
+        bicycle_eligible: estimate.bicycleEligible,
+        vehicle_subtype: estimate.vehicleSubtype,
+        eta_minutes: estimate.etaMinutes,
+        items: resolvedItems
+      }
     });
-    const paystackData = await response.json();
-
-    if (!response.ok || !paystackData.status) {
-      return NextResponse.json({ error: paystackData.message || "Paystack could not initialize checkout." }, { status: 502 });
-    }
 
     return NextResponse.json({
-      reference,
-      authorizationUrl: paystackData.data.authorization_url,
-      accessCode: paystackData.data.access_code,
+      reference: squadCheckout.reference,
+      authorizationUrl: squadCheckout.authorizationUrl,
+      accessCode: squadCheckout.accessCode,
       businessOrder: Boolean(business),
-      status: business ? "pending" : "searching"
+      status: business ? "pending" : "pending_payment"
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Marketplace checkout failed." }, { status: 500 });

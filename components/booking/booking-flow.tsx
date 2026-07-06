@@ -275,7 +275,7 @@ export function BookingFlow() {
             Tracking code <strong className="text-fleet-night">{deliveryCode}</strong> has been created.
             {form.payment === "wallet"
               ? " Wallet checkout payment was recorded successfully, and online drivers are being notified."
-              : " Realtime assignment will update after Paystack confirms payment."}
+              : " Realtime assignment will update after Squad confirms payment."}
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -404,9 +404,9 @@ export function BookingFlow() {
               title="Payment"
               value={form.payment}
               options={[
-                { value: "card", label: "Card", body: "Pay securely on Paystack with your debit or credit card." },
+                { value: "card", label: "Card", body: "Pay securely on Squad with your debit or credit card." },
                 { value: "wallet", label: "Wallet", body: "Pay from funded Fast Fleets 360 customer balance." },
-                { value: "transfer", label: "Transfer", body: "Use Paystack bank transfer and dispatch after confirmation." }
+                { value: "transfer", label: "Transfer", body: "Use Squad bank transfer and dispatch after confirmation." }
               ]}
               onChange={(value) => update("payment", value as "card" | "wallet" | "transfer")}
             />

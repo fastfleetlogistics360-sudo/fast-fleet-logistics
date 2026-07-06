@@ -694,7 +694,7 @@ const demoSupportTickets: SupportTicket[] = [
     id: "ST-1001",
     topic: "refund",
     subject: "Wallet top-up pending",
-    message: "Customer says Paystack debited them but wallet has not updated.",
+    message: "Customer says Squad debited them but wallet has not updated.",
     priority: "urgent",
     status: "open",
     contact_name: "Fast Fleets 360 Customer",
@@ -705,7 +705,7 @@ const demoSupportTickets: SupportTicket[] = [
       {
         id: "STM-1001",
         sender_type: "customer",
-        body: "Customer says Paystack debited them but wallet has not updated.",
+        body: "Customer says Squad debited them but wallet has not updated.",
         created_at: new Date().toISOString()
       }
     ]
@@ -722,7 +722,7 @@ const demoCompanyTransactionLogs: CompanyTransactionLog[] = [
     title: "Same-day delivery collections",
     counterparty: "Fast Fleets 360 customers",
     reference: "DAY-CLOSE",
-    payment_method: "Wallet / Paystack",
+    payment_method: "Wallet / Squad",
     status: "cleared",
     notes: "Daily delivery income summary.",
     created_at: new Date().toISOString(),
@@ -2170,13 +2170,13 @@ export function AdminPanel() {
           <div className="flex items-center justify-between">
             <div>
               <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Financial control</span>
-              <h2 className="mt-1 text-2xl font-black text-fleet-night">Wallet and Paystack oversight</h2>
+              <h2 className="mt-1 text-2xl font-black text-fleet-night">Wallet and Squad oversight</h2>
             </div>
             <WalletCards className="h-5 w-5 text-fleet-ember" />
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-2">
             {[
-              ["Pending wallet credits", "12", "Verify Paystack references before support escalation"],
+              ["Pending wallet credits", "12", "Verify Squad references before support escalation"],
               ["Refund queue", formatMoney(186400), "Reverse or approve customer balance refunds"],
               ["Rider withdrawals", "27", "Bank payout approvals and hold controls"],
               ["Platform commission", formatMoney(782000), "Daily commission capture estimate"]

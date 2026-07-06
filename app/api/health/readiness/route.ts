@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { checkSquadKey } from "@/lib/payments/squad";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
@@ -9,7 +10,7 @@ const requiredEnv = [
   "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
-  "PAYSTACK_SECRET_KEY",
+  "SQUAD_SECRET_KEY",
   "NEXT_PUBLIC_SITE_URL",
   "FASTFLEET_ADMIN_USERNAME",
   "FASTFLEET_ADMIN_PASSWORD",
@@ -99,7 +100,7 @@ export async function GET() {
       : "No RESEND_API_KEY is used by this app. If you use Resend for confirmation emails, configure it in Supabase Auth SMTP."
   });
 
-  checks.push(await checkPaystack());
+  checks.push(await checkSquad());
 
   const failed = checks.filter((check) => !check.ok);
   return NextResponse.json(
@@ -116,32 +117,19 @@ export async function GET() {
   );
 }
 
-async function checkPaystack(): Promise<Check> {
-  const secret = process.env.PAYSTACK_SECRET_KEY;
-  if (!secret) {
-    return { name: "paystack:secret", ok: false, message: "Missing PAYSTACK_SECRET_KEY" };
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
+async function checkSquad(): Promise<Check> {
   try {
-    const response = await fetch("https://api.paystack.co/bank?currency=NGN&perPage=1", {
-      headers: { Authorization: `Bearer ${secret}` },
-      signal: controller.signal,
-      cache: "no-store"
-    });
+    const result = await checkSquadKey();
     return {
-      name: "paystack:api",
-      ok: response.ok,
-      message: response.ok ? "Paystack API accepted the key" : `Paystack returned ${response.status}`
+      name: "squad:api",
+      ok: result.ok,
+      message: result.message
     };
   } catch (error) {
     return {
-      name: "paystack:api",
+      name: "squad:api",
       ok: false,
-      message: error instanceof Error ? error.message : "Paystack check failed"
+      message: error instanceof Error ? error.message : "Squad check failed"
     };
-  } finally {
-    clearTimeout(timeout);
   }
 }

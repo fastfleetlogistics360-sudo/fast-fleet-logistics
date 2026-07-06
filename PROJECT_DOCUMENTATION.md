@@ -47,7 +47,7 @@ Think of the project as four layers:
    - The schema is in `supabase-schema.sql`.
 
 4. Third-party services
-   - Paystack handles payment initialization and verification.
+   - Squad by GTCO/HabariPay handles payment initialization and verification.
    - Google Maps handles distance, autocomplete, place details, reverse geocoding, and optional map rendering.
    - Supabase Auth SMTP may use Resend, but confirmation emails are configured inside Supabase, not inside this Next.js app.
 
@@ -68,7 +68,7 @@ The project uses:
 | Motion | Framer Motion | Animations |
 | Icons | lucide-react | UI icons |
 | Auth and database | Supabase | Auth, Postgres, Storage, Realtime |
-| Payments | Paystack | Card/transfer wallet and checkout payments |
+| Payments | Squad by GTCO/HabariPay | Card/transfer wallet and checkout payments |
 | Maps | Google Maps APIs | Distance, Places, route helpers |
 | Mobile wrapper | Capacitor | Native Android/iOS shell support |
 
@@ -175,7 +175,8 @@ The `lib/` folder holds shared logic used by API routes and components.
 | `lib/realtime.ts` | Supabase realtime channel helpers. |
 | `lib/notifications.ts` | Client-side notification helpers. |
 | `lib/maps/google-api.ts` | Google Maps browser key helpers. |
-| `lib/payments/callback-url.ts` | Builds Paystack callback origin. |
+| `lib/payments/callback-url.ts` | Builds Squad callback origin. |
+| `lib/payments/squad.ts` | Squad payment, verification, and bank account lookup helpers. |
 
 ### Types folder
 
@@ -206,7 +207,9 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 FASTFLEET_ADMIN_USERNAME=FastFleetAdmin
 FASTFLEET_ADMIN_PASSWORD="change-this"
 FASTFLEET_ADMIN_SECRET=change-this-long-random-secret
-PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxx
+SQUAD_SECRET_KEY=sandbox_or_live_squad_secret_key
+SQUAD_BASE_URL=https://sandbox-api-d.squadco.com
+SQUAD_CALLBACK_ORIGIN=http://localhost:3000
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=optional-google-maps-key
 NEXT_PUBLIC_ALLOW_DEMO_DATA=false
@@ -270,8 +273,9 @@ Environment variables control backend behavior. Anything with `NEXT_PUBLIC_` is 
 | `FASTFLEET_ADMIN_PASSWORD` | Yes | No | Admin login password for `/admin`. Change before production. |
 | `FASTFLEET_ADMIN_SECRET` | Yes | No | Secret used to sign admin session cookie. |
 | `FASTFLEET_ADMIN_REQUIRE_SUPABASE_PROFILE` | Optional | No | If `true`, admin cookie must also match a Supabase profile with `is_admin=true`. |
-| `PAYSTACK_SECRET_KEY` | Yes for payments | No | Paystack secret key for initialization and verification. |
-| `PAYSTACK_CALLBACK_ORIGIN` | Optional | No | Overrides callback origin for Paystack redirects. |
+| `SQUAD_SECRET_KEY` | Yes for payments | No | Squad secret key for initialization and verification. |
+| `SQUAD_BASE_URL` | Optional | No | Overrides the Squad API origin. Use sandbox or live base URL to match the key. |
+| `SQUAD_CALLBACK_ORIGIN` | Optional | No | Overrides callback origin for Squad redirects. |
 | `NEXT_PUBLIC_SITE_URL` | Yes | Yes | Public site URL. Used for callbacks and readiness. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Optional but recommended | Yes | Browser Google Maps key. Also used by some server routes as fallback. |
 | `GOOGLE_MAPS_API_KEY` | Optional | No | Server Google Maps key for distance/reverse geocode. |
@@ -283,7 +287,7 @@ Environment variables control backend behavior. Anything with `NEXT_PUBLIC_` is 
 
 ### Key safety notes
 
-- Never put `SUPABASE_SERVICE_ROLE_KEY`, `PAYSTACK_SECRET_KEY`, `FASTFLEET_ADMIN_PASSWORD`, OAuth secrets, or `CRON_SECRET` inside client components.
+- Never put `SUPABASE_SERVICE_ROLE_KEY`, `SQUAD_SECRET_KEY`, `FASTFLEET_ADMIN_PASSWORD`, OAuth secrets, or `CRON_SECRET` inside client components.
 - Never rename env vars without updating every route that reads them.
 - In production, set `NEXT_PUBLIC_ALLOW_DEMO_DATA=false` and `NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false`.
 - `lib/supabase/config.ts` has fallback Supabase values for non-production use. Do not rely on those for production.
@@ -449,10 +453,10 @@ Production recommendation:
 | `/restaurants` | `app/restaurants/page.tsx` | Restaurant marketplace. |
 | `/restaurants/[kitchenId]` | `app/restaurants/[kitchenId]/page.tsx` | Single restaurant/kitchen page. |
 | `/shopping-mall` | `app/shopping-mall/page.tsx` | Mall/shopping marketplace. |
-| `/marketplace/callback` | `app/marketplace/callback/page.tsx` | Paystack marketplace callback page. |
-| `/delivery/callback` | `app/delivery/callback/page.tsx` | Paystack delivery callback page. |
+| `/marketplace/callback` | `app/marketplace/callback/page.tsx` | Squad marketplace callback page. |
+| `/delivery/callback` | `app/delivery/callback/page.tsx` | Squad delivery callback page. |
 | `/delivery/details` | `app/delivery/details/page.tsx` | Delivery details page. |
-| `/wallet/callback` | `app/wallet/callback/page.tsx` | Paystack wallet top-up callback page. |
+| `/wallet/callback` | `app/wallet/callback/page.tsx` | Squad wallet top-up callback page. |
 | `/admin` | `app/admin/page.tsx` | Admin login and panel. |
 | `/admin/dashboard` | `app/admin/dashboard/page.tsx` | Admin dashboard route. |
 | `/support` | `app/support/page.tsx` | Support page. |
@@ -502,8 +506,8 @@ Admin routes should always call `requireAdminSession()`.
 | Method and path | File | Purpose | Important tables/services |
 | --- | --- | --- | --- |
 | `GET /api/customer/dashboard` | `app/api/customer/dashboard/route.ts` | Load customer dashboard data. | `deliveries`, `notifications`, admin client |
-| `POST /api/deliveries/checkout` | `app/api/deliveries/checkout/route.ts` | Create customer delivery and initialize wallet or Paystack payment. | `deliveries`, `pay_delivery_from_wallet`, Paystack |
-| `GET /api/deliveries/verify` | `app/api/deliveries/verify/route.ts` | Verify Paystack delivery payment. | Paystack, `deliveries`, `delivery_events`, company ledger |
+| `POST /api/deliveries/checkout` | `app/api/deliveries/checkout/route.ts` | Create customer delivery and initialize wallet or Squad payment. | `deliveries`, `pay_delivery_from_wallet`, Squad |
+| `GET /api/deliveries/verify` | `app/api/deliveries/verify/route.ts` | Verify Squad delivery payment. | Squad, `deliveries`, `delivery_events`, company ledger |
 | `GET /api/tracking` | `app/api/tracking/route.ts` | Look up delivery by tracking code. | `deliveries`, joined rider/customer/location data |
 
 ### Rider routes
@@ -534,17 +538,17 @@ Admin routes should always call `requireAdminSession()`.
 | `GET /api/marketplace/restaurants` | `app/api/marketplace/restaurants/route.ts` | Read restaurant menu. | `platform_settings`, fallback menu |
 | `GET /api/marketplace/malls` | `app/api/marketplace/malls/route.ts` | Read mall menu. | `platform_settings`, fallback menu |
 | `POST /api/marketplace/estimate` | `app/api/marketplace/estimate/route.ts` | Estimate marketplace total. | `lib/marketplace-pricing.ts` |
-| `POST /api/marketplace/checkout` | `app/api/marketplace/checkout/route.ts` | Create marketplace order/delivery and initialize Paystack. | `orders`, `deliveries`, Paystack |
-| `GET /api/marketplace/verify` | `app/api/marketplace/verify/route.ts` | Verify Paystack marketplace payment. | Paystack, `orders`, `deliveries`, wallet credit/company ledger |
+| `POST /api/marketplace/checkout` | `app/api/marketplace/checkout/route.ts` | Create marketplace order/delivery and initialize Squad. | `orders`, `deliveries`, Squad |
+| `GET /api/marketplace/verify` | `app/api/marketplace/verify/route.ts` | Verify Squad marketplace payment. | Squad, `orders`, `deliveries`, wallet credit/company ledger |
 
-### Wallet and Paystack routes
+### Wallet and Squad routes
 
 | Method and path | File | Purpose | Important tables/services |
 | --- | --- | --- | --- |
-| `GET /api/paystack/banks` | `app/api/paystack/banks/route.ts` | Get Nigerian bank list, with fallback banks. | Paystack |
-| `GET /api/paystack/resolve-account` | `app/api/paystack/resolve-account/route.ts` | Resolve bank account name. | Paystack |
-| `POST /api/wallet/topup` | `app/api/wallet/topup/route.ts` | Create wallet funding transaction and initialize Paystack. | `create_wallet_funding`, Paystack |
-| `GET /api/wallet/verify` | `app/api/wallet/verify/route.ts` | Verify Paystack funding and credit wallet once. | `complete_wallet_funding`, `mark_wallet_funding_failed` |
+| `GET /api/payments/banks` | `app/api/payments/banks/route.ts` | Get Nigerian bank list, with fallback banks. | Squad |
+| `GET /api/payments/resolve-account` | `app/api/payments/resolve-account/route.ts` | Resolve bank account name. | Squad |
+| `POST /api/wallet/topup` | `app/api/wallet/topup/route.ts` | Create wallet funding transaction and initialize Squad. | `create_wallet_funding`, Squad |
+| `GET /api/wallet/verify` | `app/api/wallet/verify/route.ts` | Verify Squad funding and credit wallet once. | `complete_wallet_funding`, `mark_wallet_funding_failed` |
 | `GET /api/wallet/transactions` | `app/api/wallet/transactions/route.ts` | List wallet transactions. | `wallets`, `transactions` |
 | `GET /api/wallet/withdrawals` | `app/api/wallet/withdrawals/route.ts` | List user withdrawal requests. | `wallets`, `transactions` |
 | `POST /api/wallet/withdrawals` | `app/api/wallet/withdrawals/route.ts` | Request rider/business withdrawal. | `wallets`, `transactions`, `notifications` |
@@ -566,7 +570,7 @@ Admin routes should always call `requireAdminSession()`.
 | --- | --- | --- | --- |
 | `POST /api/uploads` | `app/api/uploads/route.ts` | Upload profile photos, rider docs, business docs. | Supabase Storage |
 | `GET /api/site-controls` | `app/api/site-controls/route.ts` | Public-safe site controls, currently brand partners. | `platform_settings` |
-| `GET /api/health/readiness` | `app/api/health/readiness/route.ts` | Production readiness checks. | Env vars, Supabase, Paystack |
+| `GET /api/health/readiness` | `app/api/health/readiness/route.ts` | Production readiness checks. | Env vars, Supabase, Squad |
 
 ## 10. Database And Storage Map
 
@@ -714,10 +718,10 @@ Flow:
    - A `delivery_events` row is created.
    - A company ledger income row is recorded.
 9. If payment method is card or transfer:
-   - The route initializes Paystack.
-   - Paystack sends user to `/delivery/callback`.
+   - The route initializes Squad.
+   - Squad sends user to `/delivery/callback`.
    - Callback page calls `/api/deliveries/verify`.
-   - Verification checks Paystack status and amount.
+   - Verification checks Squad status and amount.
    - The delivery is marked paid/searching and ledger is recorded.
 
 Where to change customer delivery pricing:
@@ -958,7 +962,7 @@ Flow:
    - Business receives notification.
 7. If no active linked business:
    - The route creates a `deliveries` row as a marketplace delivery fallback.
-8. Paystack payment is initialized.
+8. Squad payment is initialized.
 9. Callback page calls `/api/marketplace/verify`.
 10. Verification either:
    - Credits the business order wallet for goods amount.
@@ -996,11 +1000,11 @@ Flow:
 2. UI posts to `/api/wallet/topup`.
 3. Route validates amount and wallet type.
 4. Route calls SQL RPC `create_wallet_funding()`.
-5. Route initializes Paystack.
-6. User pays on Paystack.
-7. Paystack redirects to `/wallet/callback`.
+5. Route initializes Squad.
+6. User pays on Squad.
+7. Squad redirects to `/wallet/callback`.
 8. Callback page calls `/api/wallet/verify`.
-9. Route verifies Paystack amount/status.
+9. Route verifies Squad amount/status.
 10. Route calls SQL RPC `complete_wallet_funding()`.
 11. SQL function credits wallet only once.
 
@@ -1109,7 +1113,7 @@ Do this first:
    - `createClient()` from `lib/supabase/server.ts`
    - `createAdminClient()` from `lib/supabase/admin.ts`
    - SQL RPC functions
-   - Paystack
+   - Squad
    - Google Maps
 6. Decide whether the change belongs in:
    - UI only.
@@ -1228,7 +1232,7 @@ Rules:
 - When rejecting withdrawals, return funds correctly.
 - When marking withdrawals paid, reduce locked balance correctly.
 
-### 12.6 How to change Paystack behavior
+### 12.6 How to change Squad behavior
 
 Files:
 
@@ -1238,19 +1242,20 @@ Files:
 - `app/api/marketplace/verify/route.ts`
 - `app/api/wallet/topup/route.ts`
 - `app/api/wallet/verify/route.ts`
-- `app/api/paystack/banks/route.ts`
-- `app/api/paystack/resolve-account/route.ts`
+- `app/api/payments/banks/route.ts`
+- `app/api/payments/resolve-account/route.ts`
 - `lib/payments/callback-url.ts`
+- `lib/payments/squad.ts`
 
 Rules:
 
 - Initialize payment on the server.
 - Verify payment on the server.
-- Check Paystack status is `success`.
-- Compare Paystack amount against expected amount.
-- Use `PAYSTACK_SECRET_KEY` only on the server.
+- Check Squad status is successful.
+- Compare Squad amount against expected amount.
+- Use `SQUAD_SECRET_KEY` only on the server.
 - Do not mark an order paid from the callback page alone. The callback page must call a verification route.
-- Keep callback URLs aligned with `NEXT_PUBLIC_SITE_URL` or `PAYSTACK_CALLBACK_ORIGIN`.
+- Keep callback URLs aligned with `NEXT_PUBLIC_SITE_URL`, `PAYMENT_CALLBACK_ORIGIN`, or `SQUAD_CALLBACK_ORIGIN`.
 
 ### 12.7 How to change KYC approval behavior
 
@@ -1413,7 +1418,7 @@ Rules:
 These keys must never reach the browser:
 
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `PAYSTACK_SECRET_KEY`
+- `SQUAD_SECRET_KEY`
 - `FASTFLEET_ADMIN_PASSWORD`
 - `FASTFLEET_ADMIN_SECRET`
 - `CRON_SECRET`
@@ -1464,7 +1469,7 @@ Never trust:
 Always trust:
 
 - Server recalculation.
-- Paystack verification API.
+- Squad verification API.
 - SQL RPC functions that lock rows and prevent duplicate updates.
 
 ## 14. Payments, Wallet, And Withdrawal Rules
@@ -1622,7 +1627,9 @@ SUPABASE_SERVICE_ROLE_KEY=your-production-service-role-key
 FASTFLEET_ADMIN_USERNAME=your-admin-username
 FASTFLEET_ADMIN_PASSWORD=your-strong-admin-password
 FASTFLEET_ADMIN_SECRET=long-random-secret
-PAYSTACK_SECRET_KEY=your-live-paystack-secret
+SQUAD_SECRET_KEY=your-live-squad-secret
+SQUAD_BASE_URL=https://api-d.squadco.com
+SQUAD_CALLBACK_ORIGIN=https://your-domain.com
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-google-maps-key
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 NEXT_PUBLIC_ALLOW_DEMO_DATA=false
@@ -1642,7 +1649,7 @@ CRON_SECRET=long-random-secret
 2. Confirm storage buckets exist.
 3. Confirm realtime tables are enabled.
 4. Confirm Supabase Auth redirect URLs.
-5. Confirm Paystack callback URLs.
+5. Confirm Squad callback and redirect URLs.
 6. Confirm Google Maps APIs.
 7. Confirm admin login.
 8. Confirm `/api/health/readiness`.
@@ -1681,7 +1688,7 @@ Customer:
 - Choose customer account.
 - Book delivery.
 - Pay by wallet.
-- Pay by Paystack test card.
+- Pay by Squad sandbox card/transfer.
 - Track delivery.
 - Check dashboard.
 
@@ -1723,11 +1730,11 @@ Admin:
 
 Payments:
 
-- Paystack initialize works.
-- Paystack verify works.
+- Squad initialize works.
+- Squad verify works.
 - Wrong amount is rejected.
 - Duplicate verification does not double-credit wallet.
-- Missing `PAYSTACK_SECRET_KEY` gives a clear server error.
+- Missing `SQUAD_SECRET_KEY` gives a clear server error.
 
 Storage:
 
@@ -1788,8 +1795,8 @@ Check:
 
 Check:
 
-- Paystack verification route was called.
-- Paystack returned `success`.
+- Squad verification route was called.
+- Squad returned a successful status.
 - Amount in kobo matches expected NGN amount times 100.
 - `complete_wallet_funding()` exists in Supabase.
 - `transactions.provider_reference` is unique.
@@ -1867,7 +1874,7 @@ Common causes:
 - Supabase service role key missing.
 - Schema not fully run.
 - Storage bucket missing.
-- Paystack key invalid.
+- Squad key invalid.
 - `NEXT_PUBLIC_SITE_URL` is not the expected production domain.
 
 ## 19. Known Maintenance Notes
@@ -1931,7 +1938,7 @@ This means business wallet behavior depends on transaction metadata/account kind
 | Wallet | User balance row in `wallets`. |
 | Transaction | Wallet ledger row in `transactions`. |
 | Locked balance | Funds reserved while withdrawal is pending/approved but not paid. |
-| Paystack reference | Unique payment reference used to initialize and verify payments. |
+| Squad reference | Unique payment reference used to initialize and verify payments. |
 | Platform settings | JSON configuration stored in `platform_settings`. |
 | Launch state | Nigerian state availability stored in `platform_launch_states`. |
 | Admin session cookie | HTTP-only cookie used to protect admin APIs. |

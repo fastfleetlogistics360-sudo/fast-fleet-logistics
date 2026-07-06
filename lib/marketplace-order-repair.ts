@@ -41,7 +41,7 @@ export async function convertMarketplaceDeliveryToBusinessOrder(
   delivery: MarketplaceDeliveryRow,
   options: {
     amountNgn?: number;
-    paystackData?: Record<string, unknown> | null;
+    providerData?: Record<string, unknown> | null;
     targetBusinessProfileId?: string | null;
   } = {}
 ) {
@@ -113,7 +113,7 @@ export async function convertMarketplaceDeliveryToBusinessOrder(
       paymentMethod: normalizePaymentMethod(delivery.payment_method),
       reference,
       counterparty: delivery.customer_id,
-      notes: "Paystack marketplace checkout was linked to a business order."
+      notes: "Squad marketplace checkout was linked to a business order."
     }),
     db.from("notifications").insert({
       user_id: business.user_id,
@@ -141,11 +141,11 @@ export async function convertMarketplaceDeliveryToBusinessOrder(
           converted_to_business_order_at: new Date().toISOString(),
           converted_to_business_profile_id: business.id,
           original_marketplace_delivery_status: delivery.status || null,
-          paystack_paid_at: typeof options.paystackData?.paid_at === "string" ? options.paystackData.paid_at : metadata.paystack_paid_at || new Date().toISOString(),
-          paystack_id: options.paystackData?.id ?? metadata.paystack_id ?? null,
-          paystack_status: options.paystackData?.status ?? metadata.paystack_status ?? "success",
-          paystack_channel: options.paystackData?.channel ?? metadata.paystack_channel ?? null,
-          paystack_gateway_response: options.paystackData?.gateway_response ?? metadata.paystack_gateway_response ?? null
+          provider_paid_at: typeof options.providerData?.created_at === "string" ? options.providerData.created_at : metadata.provider_paid_at || new Date().toISOString(),
+          provider_status: options.providerData?.transaction_status ?? metadata.provider_status ?? "Success",
+          provider_channel: options.providerData?.transaction_type ?? metadata.provider_channel ?? null,
+          squad_gateway_reference: options.providerData?.gateway_transaction_ref ?? metadata.squad_gateway_reference ?? null,
+          squad_raw: options.providerData ?? metadata.squad_raw ?? null
         } as unknown as Json
       })
       .eq("id", delivery.id)
@@ -182,7 +182,7 @@ export async function repairMarketplaceDeliveriesForBusiness(db: SupabaseClient,
 }
 
 function isVerifiedMarketplacePayment(metadata: Record<string, unknown>) {
-  return Boolean(metadata.paystack_paid_at || metadata.paystack_status === "success");
+  return Boolean(metadata.provider_paid_at || String(metadata.provider_status || "").toLowerCase() === "success");
 }
 
 async function insertConvertedOrder(db: SupabaseClient, payload: Record<string, unknown>) {

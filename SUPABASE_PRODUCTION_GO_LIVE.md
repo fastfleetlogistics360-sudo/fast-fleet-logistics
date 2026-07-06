@@ -57,14 +57,16 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 FASTFLEET_ADMIN_USERNAME=FastFleetAdmin
 FASTFLEET_ADMIN_PASSWORD=change-this-before-launch
 FASTFLEET_ADMIN_SECRET=long-random-secret
-PAYSTACK_SECRET_KEY=your-live-or-test-paystack-secret
+SQUAD_SECRET_KEY=your-live-or-test-squad-secret
+SQUAD_BASE_URL=https://sandbox-api-d.squadco.com
+SQUAD_CALLBACK_ORIGIN=https://your-domain.com
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-google-maps-browser-key
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 NEXT_PUBLIC_ALLOW_DEMO_DATA=false
 NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false
 ```
 
-Do not put service role keys, admin passwords, or Paystack secret keys in client-side code.
+Do not put service role keys, admin passwords, or Squad secret keys in client-side code.
 
 ## 6. Run the production readiness endpoint
 
@@ -74,7 +76,7 @@ After deployment, open:
 https://fastfleet.com.ng/api/health/readiness
 ```
 
-The endpoint returns `200` only when the required production environment variables, Supabase admin access, critical tables, storage bucket, and Paystack API check pass. Add this endpoint to your uptime monitor.
+The endpoint returns `200` only when the required production environment variables, Supabase admin access, critical tables, storage bucket, and Squad API check pass. Add this endpoint to your uptime monitor.
 
 ## 7. Test live workflows
 
@@ -87,7 +89,7 @@ The endpoint returns `200` only when the required production environment variabl
 - Create a rider account and submit KYC.
 - Approve or reject rider KYC from admin.
 - Submit support ticket and confirm it appears in Supabase.
-- Test Paystack wallet top-up in test mode before switching to live keys.
+- Test Squad wallet top-up in sandbox before switching to live keys.
 - Confirm receipts, wallet transactions, admin logs, and company transaction logs reconcile.
 
 ## 8. Store release readiness
@@ -108,6 +110,6 @@ Safe to share for wiring:
 Do not paste these into chat unless you intentionally want them handled in your local files:
 
 - Supabase service role key.
-- Paystack secret key.
+- Squad secret key.
 - Admin password.
 - OAuth provider secrets.

@@ -73,10 +73,10 @@ export function SmartWalletTopUp({ compact = false, className }: SmartWalletTopU
         body: JSON.stringify({ amount: amountNgn, walletType, returnTo: window.location.pathname || "/dashboard" })
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Could not start Paystack top-up.");
+      if (!response.ok) throw new Error(data.error || "Could not start Squad top-up.");
       window.location.assign(data.authorizationUrl);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not start Paystack top-up.");
+      setMessage(error instanceof Error ? error.message : "Could not start Squad top-up.");
     } finally {
       setLoading(false);
     }
@@ -94,9 +94,9 @@ export function SmartWalletTopUp({ compact = false, className }: SmartWalletTopU
           <div className="w-full max-w-md rounded-fleet border border-fleet-line bg-white p-5 shadow-glow">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Paystack wallet</span>
+                <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Squad wallet</span>
                 <h2 className="mt-1 text-2xl font-black text-fleet-night">Wallet top up</h2>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">Funds go to your {walletLabel} and are credited after server-side Paystack verification.</p>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">Funds go to your {walletLabel} and are credited after server-side Squad verification.</p>
               </div>
               <button
                 type="button"
@@ -140,7 +140,7 @@ export function SmartWalletTopUp({ compact = false, className }: SmartWalletTopU
 
               <Button type="button" onClick={topUp} disabled={loading || Number(amount) < 500}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                Continue to Paystack
+                Continue to Squad
               </Button>
             </div>
           </div>

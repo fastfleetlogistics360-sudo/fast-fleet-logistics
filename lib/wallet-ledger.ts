@@ -192,7 +192,7 @@ export async function recordCustomerMarketplacePayment(db: SupabaseClient, input
     transaction_type: "delivery_payment",
     amount_ngn: amount * -1,
     status: "successful",
-    provider: "paystack_marketplace",
+    provider: "squad_marketplace",
     provider_reference: providerReference,
     metadata: {
       title: input.title || "Marketplace order payment",

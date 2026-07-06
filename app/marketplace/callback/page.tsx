@@ -23,12 +23,12 @@ export default function MarketplaceCallbackPage() {
 
 function MarketplaceCallbackContent() {
   const searchParams = useSearchParams();
-  const reference = searchParams.get("reference") || searchParams.get("trxref");
+  const reference = searchParams.get("reference") || searchParams.get("transaction_ref") || searchParams.get("TransactionRef") || searchParams.get("trxref");
   const code = searchParams.get("code") || reference || "";
   const returnTo = sanitizeReturnTo(searchParams.get("returnTo"), code ? `/track?code=${encodeURIComponent(code)}` : "/dashboard");
   const [state, setState] = useState<VerificationState>({
     status: "loading",
-    message: "Confirming marketplace payment with Paystack..."
+    message: "Confirming marketplace payment with Squad..."
   });
 
   useEffect(() => {
@@ -46,7 +46,7 @@ function MarketplaceCallbackContent() {
         const response = await fetch(`/api/marketplace/verify?reference=${encodeURIComponent(reference || "")}`);
         const data = await response.json();
         if (response.status === 202) {
-          setState({ status: "pending", message: data.message || "Paystack is still confirming this payment." });
+          setState({ status: "pending", message: data.message || "Squad is still confirming this payment." });
           if (!stopped && attempts < 8) window.setTimeout(verify, 5000);
           return;
         }

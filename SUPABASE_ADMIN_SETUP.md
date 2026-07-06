@@ -85,7 +85,9 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 FASTFLEET_ADMIN_USERNAME=FastFleetAdmin
 FASTFLEET_ADMIN_PASSWORD="Fastfleet360@#"
 FASTFLEET_ADMIN_SECRET=change-this-long-random-secret
-PAYSTACK_SECRET_KEY=sk_test_or_live_xxxxxxxxxxxxxxxxxxxx
+SQUAD_SECRET_KEY=sandbox_or_live_squad_secret_key
+SQUAD_BASE_URL=https://sandbox-api-d.squadco.com
+SQUAD_CALLBACK_ORIGIN=https://your-live-domain.com
 NEXT_PUBLIC_SITE_URL=https://your-live-domain.com
 ```
 
@@ -102,5 +104,5 @@ If you upload only `admin/index.html` to a static host, the cards can open local
 1. Authentication: enable the sign-in provider you use for customers/riders.
 2. Storage: confirm the `rider-documents` bucket exists. The schema creates it as private.
 3. Realtime: confirm `deliveries`, `delivery_events`, `rider_locations`, and `notifications` are in the realtime publication.
-4. Paystack: set `PAYSTACK_SECRET_KEY` and set the Paystack callback URL to `/wallet/callback` on your live domain.
+4. Squad: set `SQUAD_SECRET_KEY`, set the matching sandbox/live `SQUAD_BASE_URL`, and add your live callback URLs in the Squad dashboard.
 5. Admin: use `/admin`, log in with the admin credentials, then test rider approval, withdrawal review, site controls, and risk/support actions.

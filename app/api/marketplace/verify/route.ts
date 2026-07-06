@@ -2,20 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { convertMarketplaceDeliveryToBusinessOrder } from "@/lib/marketplace-order-repair";
+import { isPendingSquadStatus, isSuccessfulSquadStatus, verifySquadTransaction, type SquadTransaction } from "@/lib/payments/squad";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { creditBusinessOrderWallet, recordCustomerMarketplacePayment } from "@/lib/wallet-ledger";
 
-const PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify";
-const pendingPaystackStatuses = new Set(["ongoing", "pending", "processing", "queued"]);
-
 export async function GET(request: NextRequest) {
   try {
-    const reference = request.nextUrl.searchParams.get("reference") || request.nextUrl.searchParams.get("trxref");
+    const reference =
+      request.nextUrl.searchParams.get("reference") ||
+      request.nextUrl.searchParams.get("transaction_ref") ||
+      request.nextUrl.searchParams.get("TransactionRef") ||
+      request.nextUrl.searchParams.get("trxref");
     if (!reference) return NextResponse.json({ error: "Missing payment reference." }, { status: 400 });
-
-    const secretKey = process.env.PAYSTACK_SECRET_KEY;
-    if (!secretKey) return NextResponse.json({ error: "Missing PAYSTACK_SECRET_KEY. Add it before marketplace checkout." }, { status: 500 });
 
     const supabase = await createClient();
     const {
@@ -25,28 +24,21 @@ export async function GET(request: NextRequest) {
 
     const admin = createAdminClient();
     const db = (admin || supabase) as SupabaseClient;
-    const paystackResponse = await fetch(`${PAYSTACK_VERIFY_URL}/${encodeURIComponent(reference)}`, {
-      headers: { Authorization: `Bearer ${secretKey}` }
-    });
-    const paystackData = await paystackResponse.json();
+    const squadTransaction = await verifySquadTransaction(reference);
 
-    if (!paystackResponse.ok || !paystackData.status) {
-      return NextResponse.json({ error: paystackData.message || "Paystack verification failed." }, { status: 502 });
-    }
-
-    const paystackStatus = String(paystackData.data.status || "pending");
-    if (paystackStatus !== "success") {
-      if (pendingPaystackStatuses.has(paystackStatus)) {
-        return NextResponse.json({ reference, status: "pending", message: "Paystack is still waiting for this marketplace payment to clear." }, { status: 202 });
+    const squadStatus = String(squadTransaction.status || "Pending");
+    if (!isSuccessfulSquadStatus(squadStatus)) {
+      if (isPendingSquadStatus(squadStatus)) {
+        return NextResponse.json({ reference, status: "pending", message: "Squad is still waiting for this marketplace payment to clear." }, { status: 202 });
       }
-      return NextResponse.json({ error: `Payment status is ${paystackStatus}.` }, { status: 400 });
+      return NextResponse.json({ error: `Payment status is ${squadStatus}.` }, { status: 400 });
     }
 
-    const amountNgn = Number(paystackData.data.amount) / 100;
+    const amountNgn = squadTransaction.amountNgn;
     const businessResult = await verifyBusinessOrderPayment(db, user.id, reference, amountNgn);
     if (businessResult) return NextResponse.json(businessResult);
 
-    const deliveryResult = await verifyMarketplaceDeliveryPayment(db, user.id, reference, amountNgn, paystackData.data);
+    const deliveryResult = await verifyMarketplaceDeliveryPayment(db, user.id, reference, amountNgn, squadTransaction);
     if (deliveryResult) return NextResponse.json(deliveryResult);
 
     return NextResponse.json({ error: "Marketplace order was not found for this payment." }, { status: 404 });
@@ -66,7 +58,7 @@ async function verifyBusinessOrderPayment(db: SupabaseClient, userId: string, re
   if (!order?.id || !order.business_id) return null;
 
   if (Math.round(amountNgn) !== Math.round(Number(order.amount || 0))) {
-    throw new Error("Paystack amount does not match this marketplace order total.");
+    throw new Error("Squad amount does not match this marketplace order total.");
   }
 
   const credit = await creditBusinessOrderWallet(db, order.id);
@@ -94,10 +86,10 @@ async function verifyBusinessOrderPayment(db: SupabaseClient, userId: string, re
     recordDeliveryIncome({
       amountNgn,
       deliveryCode: order.order_code || reference,
-      paymentMethod: "paystack",
+      paymentMethod: "squad",
       reference,
       counterparty: userId,
-      notes: "Paystack linked marketplace order checkout was verified successfully."
+      notes: "Squad linked marketplace order checkout was verified successfully."
     }),
     db.from("notifications").insert({
       user_id: order.business_id,
@@ -132,7 +124,7 @@ async function verifyMarketplaceDeliveryPayment(
   userId: string,
   reference: string,
   amountNgn: number,
-  paystackData: Record<string, unknown>
+  squadTransaction: SquadTransaction
 ) {
   const { data: delivery, error } = await db
     .from("deliveries")
@@ -144,14 +136,14 @@ async function verifyMarketplaceDeliveryPayment(
   if (!delivery?.id) return null;
 
   const metadata = delivery.metadata || {};
-  if (String(metadata.paystack_reference || "") !== reference) {
+  if (String(metadata.provider_reference || "") !== reference) {
     throw new Error("Payment reference does not match this marketplace delivery.");
   }
   if (Math.round(amountNgn) !== Math.round(Number(delivery.price_ngn || 0))) {
-    throw new Error("Paystack amount does not match this marketplace delivery total.");
+    throw new Error("Squad amount does not match this marketplace delivery total.");
   }
 
-  const convertedBusinessOrder = await convertMarketplaceDeliveryToBusinessOrder(db, delivery, { amountNgn, paystackData });
+  const convertedBusinessOrder = await convertMarketplaceDeliveryToBusinessOrder(db, delivery, { amountNgn, providerData: squadTransaction.raw });
   if (convertedBusinessOrder) return convertedBusinessOrder;
 
   await db
@@ -160,23 +152,31 @@ async function verifyMarketplaceDeliveryPayment(
       status: "searching",
       metadata: {
         ...metadata,
-        paystack_paid_at: typeof paystackData.paid_at === "string" ? paystackData.paid_at : new Date().toISOString(),
-        paystack_id: paystackData.id,
-        paystack_status: paystackData.status,
-        paystack_channel: paystackData.channel,
-        paystack_gateway_response: paystackData.gateway_response
+        provider_paid_at: squadTransaction.paidAt,
+        provider_status: squadTransaction.status,
+        provider_channel: squadTransaction.channel,
+        squad_gateway_reference: squadTransaction.gatewayReference,
+        squad_raw: squadTransaction.raw
       },
       updated_at: new Date().toISOString()
     })
     .eq("id", delivery.id);
 
+  await db.from("delivery_events").insert({
+    delivery_id: delivery.id,
+    actor_id: userId,
+    status: "searching",
+    title: "Payment received",
+    body: "Squad marketplace payment confirmed. Fast Fleets 360 is notifying online drivers."
+  });
+
   await recordDeliveryIncome({
     amountNgn,
     deliveryCode: delivery.delivery_code || reference,
-    paymentMethod: String(paystackData.channel || delivery.payment_method || "paystack"),
+    paymentMethod: String(squadTransaction.channel || delivery.payment_method || "squad"),
     reference,
     counterparty: userId,
-    notes: "Paystack marketplace checkout was verified successfully."
+    notes: "Squad marketplace checkout was verified successfully."
   });
 
   await recordCustomerMarketplacePayment(db, {

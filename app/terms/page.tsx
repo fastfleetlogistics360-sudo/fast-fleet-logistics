@@ -28,7 +28,7 @@ const terms = [
   },
   {
     title: "6. Payments and wallets",
-    body: "Fast Fleets 360 may use Paystack and wallet balances to collect delivery fees, top-ups, and payout references. Users are responsible for ensuring payment information and bank details are correct. Rider withdrawals may be reviewed before payout."
+    body: "Fast Fleets 360 may use Squad and wallet balances to collect delivery fees, top-ups, and payout references. Users are responsible for ensuring payment information and bank details are correct. Rider withdrawals may be reviewed before payout."
   },
   {
     title: "7. Limitation of liability",

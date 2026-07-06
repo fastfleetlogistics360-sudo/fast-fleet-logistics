@@ -118,7 +118,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       return;
     }
     if (!email.trim()) {
-      setMessage("Enter an email address for Paystack checkout.");
+      setMessage("Enter an email address for Squad checkout.");
       return;
     }
     if (address.trim().length < 6) {
@@ -149,7 +149,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
         })
       });
       const payload = await response.json();
-      if (!response.ok || !payload.authorizationUrl) throw new Error(payload.error || "Paystack checkout failed.");
+      if (!response.ok || !payload.authorizationUrl) throw new Error(payload.error || "Squad checkout failed.");
       const deliveryCode = String(payload.reference || `FFM-${Date.now()}`).toUpperCase();
       const businessOrder = Boolean(payload.businessOrder);
       const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]");
@@ -188,7 +188,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
     <CinematicPageHero
       eyebrow={eyebrow}
       title={title}
-      body={`Choose items, confirm the delivery address, and checkout through Fast Fleets 360 with transparent fees and Paystack payment flow.`}
+      body={`Choose items, confirm the delivery address, and checkout through Fast Fleets 360 with transparent fees and Squad payment flow.`}
       image={kind === "restaurant" ? "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=2200&q=84" : "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=2200&q=84"}
     />
     <section className="section-wrap -mt-8 pb-28 sm:-mt-10 sm:pb-12">
@@ -198,7 +198,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Marketplace lane</span>
           <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Pick, pack, and dispatch.</h2>
           <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
-            Open a store, pick items with the plus button, then checkout through Paystack. Fast Fleets 360 calculates delivery from pickup to your address and adds a {formatMoney(platformFee)} platform fee.
+            Open a store, pick items with the plus button, then checkout through Squad. Fast Fleets 360 calculates delivery from pickup to your address and adds a {formatMoney(platformFee)} platform fee.
           </p>
           </div>
 
@@ -270,7 +270,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             <AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} placeholder="Enter recipient street address" />
             <Button type="button" onClick={checkout} disabled={loading || estimateLoading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
-              Pay with Paystack
+              Pay with Squad
             </Button>
           </div>
           {message || estimateError ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{message || estimateError}</div> : null}

@@ -5,7 +5,7 @@ Fast Fleets 360 LOGISTICS is an on-demand dispatch, courier, and parcel delivery
 Primary services:
 - Dispatch rider booking for documents, retail parcels, food, grocery, pharmacy, and urgent errands.
 - Same-day delivery with bike, car, and van options.
-- Live delivery tracking, courier matching, wallet payments, Paystack references, and customer dashboard records.
+- Live delivery tracking, courier matching, wallet payments, Squad references, and customer dashboard records.
 - Rider onboarding with KYC, vehicle details, operating zones, payout records, and driver support.
 - Business logistics for vendors, offices, repeat deliveries, and fleet operations.
 
