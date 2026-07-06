@@ -3,10 +3,14 @@ import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { businessPickupAddressFor, loadActiveLinkedBusiness, resolveMarketplaceBusinessLinks } from "@/lib/marketplace-business-links";
 import { estimateMarketplaceCheckout, marketplacePickupAddress, type MarketplacePricingItem } from "@/lib/marketplace-pricing";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   try {
+    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.estimate, name: "marketplace:estimate" });
+    if (limited) return limited;
+
     const payload = (await request.json().catch(() => ({}))) as {
       kind?: "restaurant" | "shopping";
       address?: string;

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isBicycleDelivery, loadAssignedBicycleAsset, markBicycleAssetBusy, releaseBicycleAssetForDelivery } from "@/lib/fleet-assets";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import type { DeliveryStatus } from "@/types/domain";
 
 const statusFlow: Record<string, DeliveryStatus> = {
@@ -26,6 +27,9 @@ type RiderFleetAsset = Awaited<ReturnType<typeof loadAssignedBicycleAsset>>;
 
 export async function GET(request: Request) {
   try {
+    const limited = await enforceRateLimit(request, rateLimitPolicies.riderJobsRead);
+    if (limited) return limited;
+
     const requestUrl = new URL(request.url);
     const includeAvailable = requestUrl.searchParams.get("includeAvailable") !== "0";
     const supabase = await createClient();
@@ -106,6 +110,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const limited = await enforceRateLimit(request, rateLimitPolicies.riderJobsWrite);
+    if (limited) return limited;
+
     const body = await request.json().catch(() => ({}));
     const id = String(body.id || "").trim();
     const action = String(body.action || "").trim();

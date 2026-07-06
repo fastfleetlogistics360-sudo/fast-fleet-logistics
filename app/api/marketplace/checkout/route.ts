@@ -10,11 +10,15 @@ import {
 import { estimateMarketplaceCheckout, marketplacePickupAddress } from "@/lib/marketplace-pricing";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { generatePaymentReference, initiateSquadPayment } from "@/lib/payments/squad";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   try {
+    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentCreate, name: "marketplace:checkout" });
+    if (limited) return limited;
+
     const payload = (await request.json()) as {
       kind?: "restaurant" | "shopping";
       email?: string;

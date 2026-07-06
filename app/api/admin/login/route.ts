@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { ADMIN_SESSION_COOKIE, adminSessionToken, verifyAdminCredentials } from "@/lib/admin-auth";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  const limited = await enforceRateLimit(request, rateLimitPolicies.adminLogin);
+  if (limited) return limited;
+
   const body = await request.json().catch(() => ({}));
   const username = String(body.username || "");
   const password = String(body.password || "");

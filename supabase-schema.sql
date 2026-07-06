@@ -1786,6 +1786,99 @@ create table if not exists public.push_subscriptions (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.rate_limit_buckets (
+  id uuid primary key default gen_random_uuid(),
+  bucket_key text not null,
+  route text not null,
+  window_start timestamptz not null,
+  count integer not null default 0,
+  expires_at timestamptz not null,
+  updated_at timestamptz not null default now(),
+  unique (bucket_key, route)
+);
+
+create or replace function public.consume_rate_limit(
+  next_key text,
+  next_route text,
+  next_limit integer,
+  next_window_seconds integer
+)
+returns table (
+  allowed boolean,
+  remaining integer,
+  reset_at timestamptz,
+  retry_after_seconds integer
+)
+language plpgsql
+as $$
+declare
+  effective_limit integer := greatest(1, coalesce(next_limit, 1));
+  effective_window_seconds integer := greatest(1, coalesce(next_window_seconds, 60));
+  current_window_start timestamptz;
+  current_reset_at timestamptz;
+  consumed_count integer;
+begin
+  if nullif(trim(next_key), '') is null or nullif(trim(next_route), '') is null then
+    raise exception 'Rate limit key and route are required';
+  end if;
+
+  current_window_start := to_timestamp(
+    floor(extract(epoch from now()) / effective_window_seconds) * effective_window_seconds
+  );
+  current_reset_at := current_window_start + make_interval(secs => effective_window_seconds);
+
+  insert into public.rate_limit_buckets as bucket (
+    bucket_key,
+    route,
+    window_start,
+    count,
+    expires_at,
+    updated_at
+  )
+  values (
+    next_key,
+    next_route,
+    current_window_start,
+    1,
+    current_reset_at,
+    now()
+  )
+  on conflict (bucket_key, route) do update
+    set count = case
+          when bucket.window_start < current_window_start then 1
+          else bucket.count + 1
+        end,
+        window_start = case
+          when bucket.window_start < current_window_start then current_window_start
+          else bucket.window_start
+        end,
+        expires_at = case
+          when bucket.window_start < current_window_start then current_reset_at
+          else bucket.expires_at
+        end,
+        updated_at = now()
+  returning bucket.count, bucket.expires_at
+  into consumed_count, current_reset_at;
+
+  if random() < 0.02 then
+    delete from public.rate_limit_buckets
+    where expires_at < now() - interval '1 hour';
+  end if;
+
+  return query select
+    consumed_count <= effective_limit,
+    greatest(0, effective_limit - consumed_count),
+    current_reset_at,
+    case
+      when consumed_count <= effective_limit then 0
+      else greatest(1, ceil(extract(epoch from current_reset_at - now()))::integer)
+    end;
+end;
+$$;
+
+revoke all on function public.consume_rate_limit(text, text, integer, integer) from public;
+grant execute on function public.consume_rate_limit(text, text, integer, integer) to service_role;
+
 create table if not exists public.support_tickets (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references public.users(id),
@@ -1931,6 +2024,7 @@ create index if not exists deliveries_status_idx on public.deliveries(status);
 create index if not exists deliveries_code_idx on public.deliveries(delivery_code);
 create index if not exists deliveries_created_at_idx on public.deliveries(created_at desc);
 create index if not exists notifications_user_read_idx on public.notifications(user_id, read_at);
+create index if not exists rate_limit_buckets_expires_at_idx on public.rate_limit_buckets(expires_at);
 create index if not exists transactions_wallet_idx on public.transactions(wallet_id, created_at desc);
 create index if not exists company_transaction_logs_date_idx on public.company_transaction_logs(entry_date desc, created_at desc);
 create index if not exists company_transaction_logs_category_idx on public.company_transaction_logs(category, direction, status);
@@ -1973,6 +2067,7 @@ alter table public.state_waitlist enable row level security;
 alter table public.platform_launch_states enable row level security;
 alter table public.platform_settings enable row level security;
 alter table public.push_subscriptions enable row level security;
+alter table public.rate_limit_buckets enable row level security;
 alter table public.support_tickets enable row level security;
 alter table public.support_messages enable row level security;
 alter table public.account_deletion_requests enable row level security;

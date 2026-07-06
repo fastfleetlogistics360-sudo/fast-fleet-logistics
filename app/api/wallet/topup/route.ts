@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { generatePaymentReference, initiateSquadPayment } from "@/lib/payments/squad";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import type { WalletType } from "@/types/domain";
 
 export async function POST(request: Request) {
   try {
+    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentCreate, name: "wallet:topup" });
+    if (limited) return limited;
+
     const { amount, walletType = "customer", returnTo } = (await request.json()) as {
       amount?: number;
       walletType?: WalletType;

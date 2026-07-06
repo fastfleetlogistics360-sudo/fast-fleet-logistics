@@ -3,12 +3,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { convertMarketplaceDeliveryToBusinessOrder } from "@/lib/marketplace-order-repair";
 import { isPendingSquadStatus, isSuccessfulSquadStatus, verifySquadTransaction, type SquadTransaction } from "@/lib/payments/squad";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { creditBusinessOrderWallet, recordCustomerMarketplacePayment } from "@/lib/wallet-ledger";
 
 export async function GET(request: NextRequest) {
   try {
+    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentVerify, name: "marketplace:verify" });
+    if (limited) return limited;
+
     const reference =
       request.nextUrl.searchParams.get("reference") ||
       request.nextUrl.searchParams.get("transaction_ref") ||

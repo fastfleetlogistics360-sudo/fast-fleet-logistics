@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isSuccessfulSquadStatus, verifySquadTransaction } from "@/lib/payments/squad";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   try {
+    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentVerify, name: "wallet:verify" });
+    if (limited) return limited;
+
     const reference =
       request.nextUrl.searchParams.get("reference") ||
       request.nextUrl.searchParams.get("transaction_ref") ||

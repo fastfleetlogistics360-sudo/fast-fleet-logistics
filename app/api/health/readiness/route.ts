@@ -32,6 +32,7 @@ const criticalTables = [
   "platform_settings",
   "platform_launch_states",
   "state_waitlist",
+  "rate_limit_buckets",
   "fraud_signals",
   "company_transaction_logs"
 ];

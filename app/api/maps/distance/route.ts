@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getGoogleRouteEstimate } from "@/lib/maps/route-distance";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
+  const limited = await enforceRateLimit(request, { ...rateLimitPolicies.maps, name: "maps:distance" });
+  if (limited) return limited;
+
   const { searchParams } = new URL(request.url);
   const origin = searchParams.get("origin")?.trim();
   const destination = searchParams.get("destination")?.trim();

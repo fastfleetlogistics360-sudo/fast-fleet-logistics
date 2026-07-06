@@ -6,6 +6,7 @@ import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { generatePaymentReference, initiateSquadPayment, paymentChannelsFor } from "@/lib/payments/squad";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
@@ -38,6 +39,9 @@ type CheckoutPayload = {
 
 export async function POST(request: Request) {
   try {
+    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentCreate, name: "deliveries:checkout" });
+    if (limited) return limited;
+
     const payload = (await request.json().catch(() => ({}))) as CheckoutPayload;
     const paymentMethod = String(payload.payment || "") as "card" | "wallet" | "transfer";
     const vehicle = String(payload.vehicle || "") as VehicleType;

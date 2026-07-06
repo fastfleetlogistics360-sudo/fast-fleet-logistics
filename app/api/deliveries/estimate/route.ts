@@ -3,6 +3,7 @@ import { loadFareConfig } from "@/lib/fare-settings";
 import { createDeliveryQuote, type DeliveryQuoteInput } from "@/lib/delivery-quotes";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
 const vehicleTypes = new Set(["bike", "car", "van"]);
@@ -26,6 +27,9 @@ type EstimatePayload = {
 
 export async function POST(request: Request) {
   try {
+    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.estimate, name: "deliveries:estimate" });
+    if (limited) return limited;
+
     const payload = (await request.json().catch(() => ({}))) as EstimatePayload;
     const pickup = sanitizeAddressText(String(payload.pickup || ""));
     const dropoff = sanitizeAddressText(String(payload.dropoff || ""));

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSquadAccount } from "@/lib/payments/squad";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
   try {
+    const limited = await enforceRateLimit(request, rateLimitPolicies.accountLookup);
+    if (limited) return limited;
+
     const bankCode = request.nextUrl.searchParams.get("bankCode") || "";
     const accountNumber = request.nextUrl.searchParams.get("accountNumber") || "";
 
