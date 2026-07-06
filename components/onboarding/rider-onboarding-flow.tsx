@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { DEFAULT_OPERATION_LOCATIONS, operationLocationsForLaunchRows } from "@/lib/nigeria-locations";
 
 const steps = ["Personal", "Vehicle", "Documents", "Payout", "Review"] as const;
+const manualAccountNameMessage = "Auto verification is unavailable. Enter the account name exactly as shown in your bank app.";
 
 const governmentIds = [
   ["nin_slip", "NIN slip"],
@@ -98,6 +99,7 @@ export function RiderOnboardingFlow() {
   const [banksLoading, setBanksLoading] = useState(true);
   const [bankMessage, setBankMessage] = useState<string | null>(null);
   const [bankLoading, setBankLoading] = useState(false);
+  const [manualAccountNameAllowed, setManualAccountNameAllowed] = useState(false);
   const [operationLocations, setOperationLocations] = useState<string[]>([...DEFAULT_OPERATION_LOCATIONS]);
   const [docs, setDocs] = useState<Partial<Record<DocumentKey, UploadedDoc>>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -201,28 +203,40 @@ export function RiderOnboardingFlow() {
     if (!form.bankCode || accountNumber.length !== 10) {
       setBankMessage(null);
       setBankLoading(false);
+      setManualAccountNameAllowed(false);
       return;
     }
 
     let cancelled = false;
     setBankLoading(true);
+    setManualAccountNameAllowed(false);
     setBankMessage("Checking account name...");
     const timer = window.setTimeout(() => {
       fetch(`/api/payments/resolve-account?bankCode=${encodeURIComponent(form.bankCode)}&accountNumber=${encodeURIComponent(accountNumber)}`)
         .then((response) => response.json())
-        .then((payload: { accountName?: string; error?: string }) => {
+        .then((payload: { accountName?: string; error?: string; code?: string }) => {
           if (cancelled) return;
           if (payload.accountName) {
+            setManualAccountNameAllowed(false);
             update("accountName", payload.accountName);
             setBankMessage("Account name verified.");
             clearError("accountName");
+          } else if (isAccountLookupUnavailable(payload)) {
+            setManualAccountNameAllowed(true);
+            update("accountName", "");
+            setBankMessage(manualAccountNameMessage);
+            clearError("accountName");
           } else {
+            setManualAccountNameAllowed(false);
             update("accountName", "");
             setBankMessage(payload.error || "Could not verify this account number.");
           }
         })
         .catch(() => {
-          if (!cancelled) setBankMessage("Could not verify account name right now.");
+          if (cancelled) return;
+          setManualAccountNameAllowed(true);
+          setBankMessage(manualAccountNameMessage);
+          clearError("accountName");
         })
         .finally(() => {
           if (!cancelled) setBankLoading(false);
@@ -237,6 +251,10 @@ export function RiderOnboardingFlow() {
 
   function update<K extends keyof RiderForm>(key: K, value: RiderForm[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
+  }
+
+  function isAccountLookupUnavailable(payload: { code?: string; error?: string }) {
+    return payload.code === "account_lookup_unavailable" || /merchant not eligible|not eligible to use this endpoint|auto verification is unavailable/i.test(payload.error || "");
   }
 
   function clearError(key: string) {
@@ -375,9 +393,6 @@ export function RiderOnboardingFlow() {
         </div>
         <StatusBadge tone="amber" className="mt-5">Pending review</StatusBadge>
         <h1 className="mt-3 text-3xl font-black text-fleet-night sm:text-4xl">Application submitted.</h1>
-        <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
-          We review within 48 hours. You&apos;ll receive an SMS and email.
-        </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <LinkButton href="/rider/dashboard" variant="secondary">Open rider dashboard</LinkButton>
           <LinkButton href="/support">Contact support</LinkButton>
@@ -387,14 +402,11 @@ export function RiderOnboardingFlow() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]">
-      <Card className="p-5">
+    <div className="grid gap-4 lg:grid-cols-[0.64fr_1.36fr]">
+      <Card className="self-start p-4 sm:p-5">
         <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Rider onboarding</span>
-        <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-5xl">Complete your rider application.</h1>
-        <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">
-          Submit your identity, vehicle, documents, and payout details for manual operations review.
-        </p>
-        <div className="mt-6 rounded-fleet bg-fleet-paper p-3">
+        <h1 className="mt-2 text-3xl font-black leading-tight text-fleet-night sm:text-4xl">Rider KYC.</h1>
+        <div className="mt-5 rounded-[16px] border border-fleet-line bg-fleet-paper p-3">
           <div className="flex justify-between text-xs font-black uppercase tracking-[0.14em] text-slate-500">
             <span>{steps[current]}</span>
             <span>{completion}%</span>
@@ -403,14 +415,14 @@ export function RiderOnboardingFlow() {
             <div className="h-2 rounded-full bg-fleet-navy transition-all" style={{ width: `${completion}%` }} />
           </div>
         </div>
-        <div className="mt-5 grid gap-2">
+        <div className="mt-4 grid gap-2">
           {steps.map((step, index) => (
             <button
               key={step}
               type="button"
               onClick={() => openStep(index as StepIndex)}
-              className={`flex items-center justify-between rounded-fleet px-3 py-3 text-left text-sm font-black transition ${
-                current === index ? "bg-fleet-navy text-white" : "bg-white text-slate-600 hover:bg-fleet-paper"
+              className={`flex min-h-11 items-center justify-between rounded-[14px] px-3 py-2 text-left text-sm font-black transition ${
+                current === index ? "bg-fleet-navy text-white shadow-lift" : "bg-white text-slate-600 hover:bg-fleet-paper"
               }`}
             >
               {step}
@@ -421,7 +433,7 @@ export function RiderOnboardingFlow() {
         {message ? <div className="mt-4 rounded-fleet bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800">{message}</div> : null}
       </Card>
 
-      <Card className="p-4 sm:p-6">
+      <Card className="p-4 sm:p-5">
         {current === 0 ? (
           <StepShell icon={UserRound} title="Personal details">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -511,6 +523,7 @@ export function RiderOnboardingFlow() {
                       update("bankCode", selected?.code || "");
                       update("bankName", selected?.name || "");
                       update("accountName", "");
+                      setManualAccountNameAllowed(false);
                     }}
                   >
                     <option value="">Select bank</option>
@@ -528,13 +541,25 @@ export function RiderOnboardingFlow() {
                 onChange={(value) => {
                   update("accountNumber", value.replace(/\D/g, "").slice(0, 10));
                   update("accountName", "");
+                  setManualAccountNameAllowed(false);
                 }}
                 placeholder="0123456789"
                 inputMode="numeric"
               />
-              <Field label="Verified account name" value={form.accountName} error={errors.accountName} onChange={(value) => update("accountName", value)} placeholder="Auto-filled by Squad" wide readOnly />
+              <Field
+                label={manualAccountNameAllowed ? "Account name" : "Verified account name"}
+                value={form.accountName}
+                error={errors.accountName}
+                onChange={(value) => {
+                  update("accountName", value);
+                  if (errors.accountName) clearError("accountName");
+                }}
+                placeholder={manualAccountNameAllowed ? "Enter account name" : "Auto-filled by Squad"}
+                wide
+                readOnly={!manualAccountNameAllowed}
+              />
             </div>
-            <div className="mt-5 rounded-fleet border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
+            <div className={`mt-5 rounded-fleet border p-4 text-sm font-bold ${manualAccountNameAllowed ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
               {bankLoading ? "Checking Squad for the account name..." : bankMessage || "Select a bank and enter a 10-digit account number to verify the account name automatically."}
             </div>
           </StepShell>
@@ -610,10 +635,12 @@ function OnboardingSkeleton() {
 function StepShell({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {
   return (
     <div>
-      <span className="grid h-12 w-12 place-items-center rounded-fleet bg-fleet-navy text-white">
-        <Icon className="h-5 w-5" />
-      </span>
-      <h2 className="mt-4 text-2xl font-black text-fleet-night">{title}</h2>
+      <div className="flex items-center gap-3 border-b border-fleet-line pb-4">
+        <span className="grid h-10 w-10 place-items-center rounded-[14px] bg-fleet-navy text-white">
+          <Icon className="h-5 w-5" />
+        </span>
+        <h2 className="text-xl font-black text-fleet-night">{title}</h2>
+      </div>
       <div className="mt-5">{children}</div>
     </div>
   );
@@ -680,7 +707,7 @@ function DocumentDropzone({
 
   return (
     <label
-      className="grid min-h-44 cursor-pointer place-items-center rounded-fleet border border-dashed border-fleet-line bg-fleet-paper p-4 text-center transition hover:border-fleet-gold hover:bg-white"
+      className="grid min-h-36 cursor-pointer place-items-center rounded-[16px] border border-dashed border-fleet-line bg-fleet-paper p-3 text-center transition hover:border-fleet-gold hover:bg-white"
       onDragOver={(event) => event.preventDefault()}
       onDrop={handleDrop}
     >
@@ -690,7 +717,7 @@ function DocumentDropzone({
       </span>
       <span>
         <strong className="mt-3 block text-sm font-black text-fleet-night">{label}</strong>
-        <span className="mt-1 block text-xs font-semibold text-slate-500">Drag, drop, browse, or use camera</span>
+        <span className="mt-1 block text-xs font-semibold text-slate-500">Browse or use camera</span>
       </span>
       {doc ? (
         <span className="mt-3 block w-full">
@@ -727,7 +754,7 @@ function EmptyBanks({ onRetry }: { onRetry: () => void }) {
 
 function ReviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-fleet bg-fleet-paper px-4 py-3">
+    <div className="flex items-center justify-between gap-4 rounded-[14px] bg-fleet-paper px-3 py-2.5">
       <span className="text-sm font-bold text-slate-500">{label}</span>
       <strong className="text-right text-sm font-black text-fleet-night">{value}</strong>
     </div>

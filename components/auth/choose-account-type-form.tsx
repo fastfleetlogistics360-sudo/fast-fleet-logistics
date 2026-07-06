@@ -14,23 +14,20 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
 
-const options: Array<{ role: Exclude<UserRole, "admin">; title: string; body: string; icon: LucideIcon }> = [
+const options: Array<{ role: Exclude<UserRole, "admin">; title: string; icon: LucideIcon }> = [
   {
     role: "customer",
     title: "Customer",
-    body: "Book deliveries, track riders live, manage wallet, receipts, and support.",
     icon: UserRound
   },
   {
     role: "rider",
     title: "Rider",
-    body: "Complete onboarding, receive jobs, share live delivery tracking, and manage payouts.",
     icon: Bike
   },
   {
     role: "business",
     title: "Business",
-    body: "Create dispatches, manage saved pickup points, bulk orders, team access, and invoices.",
     icon: Building2
   }
 ];
@@ -99,14 +96,11 @@ export function ChooseAccountTypeForm() {
   }
 
   return (
-    <Card className="mx-auto max-w-5xl p-5 sm:p-7">
+    <Card className="mx-auto max-w-3xl p-4 sm:p-5">
       <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">One last step</span>
-      <h1 className="mt-3 text-3xl font-black text-fleet-night sm:text-5xl">Choose your Fast Fleets 360 account type.</h1>
-      <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
-        This controls which dashboard, permissions, and onboarding flow your OAuth account uses.
-      </p>
+      <h1 className="mt-2 text-2xl font-black text-fleet-night sm:text-3xl">Choose your account type.</h1>
 
-      <div className="mt-6 grid gap-3 md:grid-cols-3">
+      <div className="mt-5 grid gap-2 sm:grid-cols-3">
         {options.map((option) => {
           const Icon = option.icon;
           const active = selected === option.role;
@@ -115,11 +109,10 @@ export function ChooseAccountTypeForm() {
               key={option.role}
               type="button"
               onClick={() => setSelected(option.role)}
-              className={cn("rounded-fleet border p-4 text-left transition", active ? "border-fleet-navy bg-fleet-navy text-white shadow-lift" : "border-fleet-line bg-white text-fleet-night hover:border-fleet-gold")}
+              className={cn("flex min-h-16 items-center gap-3 rounded-[14px] border px-3 py-2 text-left transition", active ? "border-fleet-navy bg-fleet-navy text-white shadow-lift" : "border-fleet-line bg-white text-fleet-night hover:border-fleet-gold")}
             >
-              <Icon className="h-6 w-6" />
-              <strong className="mt-4 block text-lg font-black">{option.title}</strong>
-              <span className={cn("mt-2 block text-sm font-semibold leading-6", active ? "text-white/80" : "text-slate-600")}>{option.body}</span>
+              <Icon className="h-5 w-5 shrink-0" />
+              <strong className="block text-sm font-black">{option.title}</strong>
             </button>
           );
         })}

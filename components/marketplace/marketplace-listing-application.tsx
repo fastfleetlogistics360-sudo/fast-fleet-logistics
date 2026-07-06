@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { CheckCircle2, Clock3, Loader2, Store, XCircle } from "lucide-react";
 import type { UserRole } from "@/types/domain";
+import { roleHome } from "@/lib/auth/roles";
 import { canRetryMarketplaceListing, marketplaceListingRetryDate, type MarketplaceListingApplication } from "@/lib/marketplace-listing";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -49,14 +50,15 @@ export function MarketplaceListingApplication({
     const rate = Number(business?.commission_rate ?? 0);
     return Number.isFinite(rate) && rate > 0 ? `${rate.toFixed(0)}%` : "Not set";
   }, [business?.commission_rate]);
+  const dashboardHref = roleHome[role] || "/hub";
 
   if (role !== "business") {
     return (
       <StatusScreen
         icon="blocked"
-        title="INELIGIBLE TO NON-BUSINESS ACCOUNT USERS."
-        body="Marketplace Listing is only available to approved business accounts."
-        actions={<LinkButton href="/business/register">SIGN UP A BUSINESS ACCOUNT</LinkButton>}
+        title="Marketplace listing is for business accounts."
+        body="Use an approved business account to apply for marketplace shelves."
+        actions={<LinkButton href={dashboardHref} variant="secondary">Return to dashboard</LinkButton>}
       />
     );
   }

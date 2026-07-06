@@ -21,25 +21,21 @@ import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
 const roleOptions: Array<{
   role: Exclude<UserRole, "admin">;
   label: string;
-  body: string;
   icon: LucideIcon;
 }> = [
   {
     role: "customer",
     label: "Customer",
-    body: "Book deliveries, track orders, manage wallet, addresses, receipts, and support.",
     icon: UserRound
   },
   {
     role: "rider",
     label: "Rider",
-    body: "Apply, upload documents, receive jobs, manage earnings, and request withdrawals.",
     icon: Bike
   },
   {
     role: "business",
     label: "Business",
-    body: "Create vendor dispatch access, saved pickup points, bulk jobs, invoices, and team controls.",
     icon: Building2
   }
 ];
@@ -104,10 +100,11 @@ export function PhoneAuthForm({
   const targetRoleHome = roleHome[role];
   const destination = returnToOverride || returnTo || "/hub";
   const safeDestination = destination.startsWith("/") && !destination.startsWith("//") ? destination : "/hub";
+  const lockedRiderSignup = mode === "signup" && effectiveLockedRole === "rider";
   const emailValid = isValidEmail(email);
   const passwordValid = password.trim().length >= 6;
   const nameValid = mode === "login" || fullName.trim().length >= 2;
-  const profilePhotoValid = mode === "login" || Boolean(profilePhotoFile);
+  const profilePhotoValid = mode === "login" || lockedRiderSignup || Boolean(profilePhotoFile);
   const customerStateValid = mode === "login" || role !== "customer" || Boolean(normalizeState(customerState));
   const canSubmit = useMemo(() => {
     return emailValid && passwordValid && nameValid && profilePhotoValid && customerStateValid;
@@ -401,7 +398,7 @@ export function PhoneAuthForm({
         <div>
           <StatusBadge tone="blue">{mode === "signup" ? "Account registration" : "Secure sign-in"}</StatusBadge>
           <h1 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-3xl">{title}</h1>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{description}</p>
+          {description ? <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{description}</p> : null}
           {effectiveLockedRole ? (
             <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-fleet-navy px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white">
               <LockKeyhole className="h-3.5 w-3.5" />
@@ -431,7 +428,7 @@ export function PhoneAuthForm({
       </div>
 
       {mode === "signup" ? (
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="mt-5 grid gap-2 sm:grid-cols-3">
           {roleOptions.filter((option) => !effectiveLockedRole || option.role === effectiveLockedRole).map((option) => {
             const Icon = option.icon;
             const selected = role === option.role;
@@ -440,7 +437,7 @@ export function PhoneAuthForm({
                 key={option.role}
                 type="button"
                 className={cn(
-                  "rounded-[16px] border p-3 text-left transition",
+                  "flex min-h-14 items-center gap-3 rounded-[14px] border px-3 py-2 text-left transition",
                   selected ? "border-fleet-navy bg-fleet-navy text-white shadow-lift" : "border-fleet-line bg-white text-fleet-night hover:border-fleet-gold"
                 )}
                 onClick={() => {
@@ -448,9 +445,8 @@ export function PhoneAuthForm({
                 }}
                 disabled={Boolean(effectiveLockedRole)}
               >
-                <Icon className="h-5 w-5" />
-                <strong className="mt-3 block text-sm font-black">{option.label}</strong>
-                <span className={cn("mt-2 block text-xs font-semibold leading-5", selected ? "text-white/80" : "text-slate-600")}>{option.body}</span>
+                <Icon className="h-5 w-5 shrink-0" />
+                <strong className="block text-sm font-black">{option.label}</strong>
               </button>
             );
           })}
@@ -476,7 +472,7 @@ export function PhoneAuthForm({
           </label>
         ) : null}
 
-        {mode === "signup" ? (
+        {mode === "signup" && !lockedRiderSignup ? (
           <label className="form-field">
             <span className="form-label">Profile picture</span>
               <span className="flex items-center gap-3 rounded-[16px] border border-fleet-line bg-white p-3">

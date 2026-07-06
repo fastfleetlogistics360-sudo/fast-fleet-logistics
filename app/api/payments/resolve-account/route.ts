@@ -21,6 +21,20 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(account);
   } catch (error) {
+    if (isAccountLookupUnavailable(error)) {
+      return NextResponse.json(
+        {
+          code: "account_lookup_unavailable",
+          error: "Auto verification is unavailable. Enter the account name exactly as shown in your bank app."
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: error instanceof Error ? error.message : "Account verification failed." }, { status: 500 });
   }
+}
+
+function isAccountLookupUnavailable(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /merchant not eligible|not eligible to use this endpoint|account lookup.*unavailable/i.test(message);
 }

@@ -287,22 +287,19 @@ export function BusinessRegistrationFlow() {
 
   if (!signedIn) {
     return (
-      <div className="grid gap-6 lg:grid-cols-[0.86fr_1.14fr]">
-        <Card className="p-5">
+      <div className="grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
+        <Card className="self-start p-4 sm:p-5">
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Business registration</span>
-          <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-5xl">Register your business.</h1>
-          <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">
-            This creates a Fast Fleets 360 business account first, then opens the vendor setup for pickup points, bulk delivery tools, wallet records, and dispatch support.
-          </p>
-          <div className="mt-5 grid gap-3 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">
-            <span>Business dashboard access</span>
-            <span>Saved pickup and vendor dispatch settings</span>
-            <span>Bulk bookings, receipts, and support visibility</span>
+          <h1 className="mt-2 text-3xl font-black leading-tight text-fleet-night sm:text-4xl">Register business.</h1>
+          <div className="mt-5 grid gap-2 rounded-[16px] bg-fleet-paper p-3 text-sm font-black text-fleet-night">
+            <span>Dashboard access</span>
+            <span>Pickup settings</span>
+            <span>Dispatch tools</span>
           </div>
         </Card>
         <PhoneAuthForm
           title="Create business account"
-          description="Create your business account with email verification. After login, you will finish the business dispatch profile on this page."
+          description=""
           defaultRole="business"
           lockedRole="business"
           returnToOverride="/business/register"
@@ -324,11 +321,6 @@ export function BusinessRegistrationFlow() {
         <h1 className="mt-3 text-3xl font-black text-fleet-night sm:text-4xl">
           {registrationStatus === "active" ? "Your business dashboard is ready." : "Your business KYC is under review."}
         </h1>
-        <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
-          {registrationStatus === "active"
-            ? "Your business account has been approved by Fast Fleets 360 operations."
-            : "Fast Fleets 360 admin will review your business profile. Your dashboard will show pending status until it is approved."}
-        </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <LinkButton href="/business/dashboard" variant="secondary">
             {registrationStatus === "active" ? "Open business dashboard" : "View pending dashboard"}
@@ -340,37 +332,31 @@ export function BusinessRegistrationFlow() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-      <Card className="p-5">
+    <div className="grid gap-4 lg:grid-cols-[0.64fr_1.36fr]">
+      <Card className="self-start p-4 sm:p-5">
         <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Vendor setup</span>
-        <h1 className="mt-3 text-4xl font-black leading-tight text-fleet-night sm:text-5xl">Business dispatch profile.</h1>
-        <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">
-          Add your company details so Fast Fleets 360 can tailor pickup, billing, support, and bulk dispatch workflows.
-        </p>
+        <h1 className="mt-2 text-3xl font-black leading-tight text-fleet-night sm:text-4xl">Business KYC.</h1>
         {registrationStatus === "rejected" ? (
           <div className="mt-5 rounded-fleet border border-red-200 bg-red-50 p-4 text-sm font-bold leading-6 text-red-700">
             Your previous business KYC was rejected. {rejectionReason ? `Reason: ${rejectionReason}` : "Please update your details and resubmit."}
           </div>
         ) : null}
-        <div className="mt-5 grid gap-3">
+        <div className="mt-5 grid gap-2">
           {[
-            ["Account", "Business role and dashboard access", Building2],
-            ["Pickup", "Default warehouse or store location", Store],
-            ["Dispatch", "Volume and support expectations", PackageCheck]
-          ].map(([title, body, Icon]) => (
-            <div key={String(title)} className="flex gap-3 rounded-fleet bg-fleet-paper p-3">
-              <Icon className="mt-1 h-4 w-4 shrink-0 text-fleet-ember" />
-              <span>
-                <strong className="block text-sm font-black text-fleet-night">{String(title)}</strong>
-                <span className="text-xs font-bold text-slate-500">{String(body)}</span>
-              </span>
+            ["Account", Building2],
+            ["Pickup", Store],
+            ["Dispatch", PackageCheck]
+          ].map(([title, Icon]) => (
+            <div key={String(title)} className="flex items-center gap-3 rounded-[14px] bg-fleet-paper px-3 py-2">
+              <Icon className="h-4 w-4 shrink-0 text-fleet-ember" />
+              <strong className="block text-sm font-black text-fleet-night">{String(title)}</strong>
             </div>
           ))}
         </div>
       </Card>
 
-      <Card className="p-4 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
+      <Card className="p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-4 border-b border-fleet-line pb-4">
           <div>
             <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Registration details</span>
             <h2 className="mt-1 text-2xl font-black text-fleet-night">Business information</h2>
@@ -504,7 +490,7 @@ function BusinessDocumentDropzone({
 
   return (
     <label
-      className="grid min-h-44 cursor-pointer place-items-center rounded-fleet border border-dashed border-fleet-line bg-fleet-paper p-4 text-center transition hover:border-fleet-gold hover:bg-white"
+      className="grid min-h-36 cursor-pointer place-items-center rounded-[16px] border border-dashed border-fleet-line bg-fleet-paper p-3 text-center transition hover:border-fleet-gold hover:bg-white"
       onDragOver={(event) => event.preventDefault()}
       onDrop={handleDrop}
     >
@@ -514,7 +500,7 @@ function BusinessDocumentDropzone({
       </span>
       <span>
         <strong className="mt-3 block text-sm font-black text-fleet-night">{label}</strong>
-        <span className="mt-1 block text-xs font-semibold text-slate-500">Drag, drop, browse, or use camera</span>
+        <span className="mt-1 block text-xs font-semibold text-slate-500">Browse or use camera</span>
       </span>
       {doc ? (
         <span className="mt-3 block w-full">

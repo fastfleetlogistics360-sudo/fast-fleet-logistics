@@ -61,10 +61,13 @@ export function QuickActionHub({
     saveReturningProfile({ fullName: fullName || name, email });
   }, [email, fullName, name]);
 
+  const marketplaceActions: HubAction[] = role === "business"
+    ? [{ title: "Marketplace Listing", href: "/marketplace/listing", icon: Store, tone: "navy" }]
+    : [];
   const actions: HubAction[] = [
     { title: "Dashboard", href: roleHome[role], icon: LayoutDashboard, tone: "navy" },
     { title: "Mall", href: "/shopping-mall", icon: ShoppingBag, tone: "green" },
-    { title: "Marketplace Listing", href: "/marketplace/listing", icon: Store, tone: "navy" },
+    ...marketplaceActions,
     { title: "Restaurants", href: "/restaurants", icon: Utensils, tone: "orange" },
     { title: "Book a Delivery", href: "/book", icon: Truck, tone: "orange" },
     { title: "Track a Delivery", href: "/track", icon: MapPinned, tone: "blue" },
