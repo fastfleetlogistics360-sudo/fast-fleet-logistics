@@ -208,18 +208,18 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
     <BackButton className="section-wrap pb-4 pt-4" />
     <CinematicPageHero
       eyebrow="Fast Fleets 360 Mall"
-      title="Shop malls by store, not generic shelves."
-      body="Open a mall, choose a vendor menu, add priced products, and checkout through Fast Fleets 360 with transparent fees and Squad payment flow."
+      title="Mall orders, delivered cleanly."
+      body="Choose a mall, add items, and checkout with Squad."
       image="https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=2200&q=84"
     />
     <section className="section-wrap -mt-8 pb-28 sm:-mt-10 sm:pb-12">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="min-w-0">
           <div className="rounded-fleet border border-white/70 bg-white/80 p-4 shadow-lift backdrop-blur-xl sm:p-5">
-            <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Marketplace lane</span>
-            <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Pick, pack, and dispatch.</h2>
+            <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Mall checkout</span>
+            <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Choose. Add. Pay.</h2>
             <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
-              Open a mall card, expand a vendor menu, then checkout through Squad. Fast Fleets 360 calculates delivery from pickup to your address and adds a {formatMoney(platformFee)} platform fee.
+              Fast Fleets 360 estimates delivery after your address and adds a {formatMoney(platformFee)} platform fee.
             </p>
           </div>
 
@@ -345,7 +345,7 @@ function MallStoreCard({
           <div className="flex items-start justify-between gap-3">
             <span className="min-w-0">
               <strong className="line-clamp-1 block text-base font-black leading-tight text-fleet-night">{mall.name}</strong>
-              <span className="mt-1 line-clamp-2 block text-xs font-bold leading-5 text-slate-500">Shop vendor-specific products with Fast Fleets 360 dispatch.</span>
+              <span className="mt-1 line-clamp-1 block text-xs font-bold leading-5 text-slate-500">Vendor stores with dispatch-ready items.</span>
             </span>
             <ChevronDown className="mt-0.5 h-5 w-5 shrink-0 text-fleet-ember transition group-open:rotate-180" />
           </div>

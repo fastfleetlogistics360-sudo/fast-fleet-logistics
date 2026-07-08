@@ -15,6 +15,7 @@ import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-stat
 import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { RoutePreview } from "@/components/maps/route-preview";
 import { useLiveDeliveryTracking } from "@/components/realtime/use-live-delivery-tracking";
+import { ReviewPrompt } from "@/components/reviews/review-prompt";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
 import { BackButton } from "@/components/ui/back-button";
@@ -257,6 +258,27 @@ export function CustomerDashboard() {
   const firstName = profile.full_name?.trim().split(/\s+/)[0] || "there";
   const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || null;
   const trackedOrder = orders.find((order) => order.delivery_code.toLowerCase() === searchCode.trim().toLowerCase()) || activeOrder;
+  const reviewableOrder = useMemo(() => orders.find((order) => String(order.status) === "delivered" && !String(order.id).startsWith("local-")), [orders]);
+  const reviewSubject = useMemo(() => {
+    if (!reviewableOrder) return null;
+    const marketplaceOrder = isBusinessMarketplaceOrder(reviewableOrder);
+    const deliveryId = reviewableOrder.delivery_id || (!marketplaceOrder ? reviewableOrder.id : null);
+    if (!marketplaceOrder && !deliveryId) return null;
+    return {
+      reviewerRole: "customer" as const,
+      subjectType: marketplaceOrder ? ("business_order" as const) : ("customer_delivery" as const),
+      orderId: marketplaceOrder ? reviewableOrder.id : null,
+      deliveryId,
+      targetRiderProfileId: reviewableOrder.rider_id || null,
+      title: marketplaceOrder ? "How was this marketplace order?" : "How was this delivery?",
+      body: "Your review helps us improve rider, store, and support quality.",
+      metadata: {
+        delivery_code: reviewableOrder.delivery_code,
+        source: reviewableOrder.source || null,
+        marketplace_kind: reviewableOrder.marketplace_kind || null
+      }
+    };
+  }, [reviewableOrder]);
   const { text: greetingText } = greeting();
   const balance = Number(wallet.balance_ngn ?? wallet.balance ?? 0);
   const customerState = normalizeState(profile.lga || profile.default_zone) || "Lagos";
@@ -465,6 +487,7 @@ export function CustomerDashboard() {
       </div>
       <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
       {selectedOrder ? <OrderSheet order={selectedOrder} onClose={() => setSelectedOrder(null)} onLiveDeliveryChange={handleLiveDeliveryChange} /> : null}
+      <ReviewPrompt subject={reviewSubject} />
     </section>
   );
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { convertMarketplaceDeliveryToBusinessOrder } from "@/lib/marketplace-order-repair";
+import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { isPendingSquadStatus, isSuccessfulSquadStatus, verifySquadTransaction, type SquadTransaction } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -95,20 +96,18 @@ async function verifyBusinessOrderPayment(db: SupabaseClient, userId: string, re
       counterparty: userId,
       notes: "Squad linked marketplace order checkout was verified successfully."
     }),
-    db.from("notifications").insert({
+    insertNotificationWithPush(db, {
       user_id: order.business_id,
       title: "New paid marketplace order",
       body: `${order.order_code || reference} is paid and waiting for your team to prepare.`,
       type: "business_order_received",
-      channel: "in_app",
       metadata: { order_id: order.id, order_code: order.order_code || reference, business_profile_id: order.business_profile_id }
     }),
-    db.from("notifications").insert({
+    insertNotificationWithPush(db, {
       user_id: userId,
       title: "Marketplace payment confirmed",
       body: `${order.order_code || reference} has been sent to the business.`,
       type: "order_update",
-      channel: "in_app",
       metadata: { order_id: order.id, order_code: order.order_code || reference, status: "received" }
     })
   ]);

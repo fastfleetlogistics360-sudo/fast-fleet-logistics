@@ -220,6 +220,34 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["notifications"]["Row"]>;
       };
+      reviews: {
+        Row: {
+          id: string;
+          unique_review_key: string;
+          reviewer_id: string | null;
+          reviewer_role: "customer" | "rider" | "business";
+          subject_type: "customer_delivery" | "rider_delivery" | "business_order";
+          delivery_id: string | null;
+          order_id: string | null;
+          target_user_id: string | null;
+          target_profile_id: string | null;
+          target_rider_profile_id: string | null;
+          target_business_profile_id: string | null;
+          rating: number;
+          improvement_note: string | null;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["reviews"]["Row"]> & {
+          unique_review_key: string;
+          reviewer_id: string;
+          reviewer_role: "customer" | "rider" | "business";
+          subject_type: "customer_delivery" | "rider_delivery" | "business_order";
+          rating: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["reviews"]["Row"]>;
+      };
       rider_documents: {
         Row: {
           id: string;
@@ -292,6 +320,12 @@ export interface Database {
           user_id: string;
           endpoint: string;
           keys: Json;
+          platform: string;
+          provider: string;
+          token: string | null;
+          device_id: string | null;
+          created_at: string;
+          last_seen_at: string;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["push_subscriptions"]["Row"]> & {

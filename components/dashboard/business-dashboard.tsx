@@ -14,6 +14,7 @@ import { uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
+import { ReviewPrompt } from "@/components/reviews/review-prompt";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
 import { RoutePreview } from "@/components/maps/route-preview";
@@ -219,6 +220,37 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
     return { today, monthSpend, active, addresses: addresses.length };
   }, [addresses.length, orders]);
   const filteredOrders = historyStatus === "all" ? orders : orders.filter((order) => order.status === historyStatus);
+  const completedBusinessOrder = useMemo(() => businessOrders.find((order) => String(order.status) === "delivered") || null, [businessOrders]);
+  const completedDispatchOrder = useMemo(() => orders.find((order) => String(order.status) === "delivered") || null, [orders]);
+  const reviewSubject = useMemo(() => {
+    if (completedBusinessOrder) {
+      return {
+        reviewerRole: "business" as const,
+        subjectType: "business_order" as const,
+        orderId: completedBusinessOrder.id,
+        deliveryId: completedBusinessOrder.delivery_id || null,
+        targetBusinessProfileId: profile.id || null,
+        title: "How was this marketplace order?",
+        body: "Rate the order flow so operations can improve fulfillment quality.",
+        metadata: {
+          order_code: completedBusinessOrder.order_code || null,
+          marketplace_kind: completedBusinessOrder.marketplace_kind || null
+        }
+      };
+    }
+    if (!completedDispatchOrder) return null;
+    return {
+      reviewerRole: "business" as const,
+      subjectType: "business_order" as const,
+      deliveryId: completedDispatchOrder.id,
+      targetBusinessProfileId: profile.id || null,
+      title: "How was this completed dispatch?",
+      body: "Your feedback helps us improve rider assignment and delivery reliability.",
+      metadata: {
+        delivery_code: completedDispatchOrder.delivery_code
+      }
+    };
+  }, [completedBusinessOrder, completedDispatchOrder, profile.id]);
 
   useEffect(() => {
     let mounted = true;
@@ -558,6 +590,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
       </div>
       <BusinessMobileTabs activeTab={activeTab} onChange={setActiveTab} disabled={kycStatus !== "active"} />
       {withdrawalOpen ? <BusinessWithdrawalModal amount={withdrawalAmount} onAmount={setWithdrawalAmount} profile={profile} loading={withdrawalLoading} message={withdrawalMessage} onClose={() => setWithdrawalOpen(false)} onSubmit={requestWithdrawal} /> : null}
+      <ReviewPrompt subject={reviewSubject} />
     </section>
   );
 }

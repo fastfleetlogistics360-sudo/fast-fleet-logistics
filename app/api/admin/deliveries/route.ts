@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import { releaseBicycleAssetForDelivery } from "@/lib/fleet-assets";
+import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { creditRiderDeliveryWallet } from "@/lib/wallet-ledger";
 import type { DeliveryStatus } from "@/types/domain";
 
@@ -95,21 +96,19 @@ export async function PATCH(request: Request) {
 
   const riderProfiles = data.rider_profiles as { user_id?: string | null } | null;
   await Promise.allSettled([
-    supabase.from("notifications").insert({
+    insertNotificationWithPush(supabase, {
       user_id: data.customer_id,
       title: status === "delivered" ? "Delivery completed" : "Delivery updated",
       body: `${data.delivery_code} is now ${status.replaceAll("_", " ")}.`,
       type: status === "delivered" ? "delivery_completed" : "delivery_update",
-      channel: "in_app",
       metadata: { delivery_id: data.id, delivery_code: data.delivery_code, status }
     }),
     riderProfiles?.user_id
-      ? supabase.from("notifications").insert({
+      ? insertNotificationWithPush(supabase, {
           user_id: riderProfiles.user_id,
           title: "Delivery timeline updated",
           body: `${data.delivery_code} is now ${status.replaceAll("_", " ")}.`,
           type: "delivery_update",
-          channel: "in_app",
           metadata: { delivery_id: data.id, delivery_code: data.delivery_code, status }
         })
       : Promise.resolve()

@@ -6,6 +6,7 @@ import { isBicycleDelivery, loadAssignedBicycleAsset } from "@/lib/fleet-assets"
 import { normalizeState } from "@/lib/launch-states";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import { repairMarketplaceDeliveriesForBusiness } from "@/lib/marketplace-order-repair";
+import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -190,21 +191,22 @@ export async function PATCH(request: Request) {
       .single();
     if (updateError) throw updateError;
 
+    const customerId = typeof order.customer_id === "string" ? order.customer_id : "";
     await Promise.allSettled([
-      db.from("notifications").insert({
-        user_id: order.customer_id,
-        title: "Order status updated",
-        body: `${String(order.order_code || "Your order")} is ${status.replaceAll("_", " ")}.`,
-        type: "order_update",
-        channel: "in_app",
-        metadata: { order_id: id, delivery_id: deliveryId, status }
-      }),
-      db.from("notifications").insert({
+      customerId
+        ? insertNotificationWithPush(db, {
+            user_id: customerId,
+            title: "Order status updated",
+            body: `${String(order.order_code || "Your order")} is ${status.replaceAll("_", " ")}.`,
+            type: "order_update",
+            metadata: { order_id: id, delivery_id: deliveryId, status }
+          })
+        : Promise.resolve(),
+      insertNotificationWithPush(db, {
         user_id: user.id,
         title: status === "ready_for_pickup" ? "Dispatch request sent" : "Business order updated",
         body: `${String(order.order_code || "Order")} is ${status.replaceAll("_", " ")}.`,
         type: "business_order_update",
-        channel: "in_app",
         metadata: { order_id: id, delivery_id: deliveryId, status }
       })
     ]);
@@ -264,8 +266,7 @@ async function notifyApprovedRiders(db: SupabaseClient, deliveryId: string, deli
       title: "New dispatch request",
       body: `${deliveryCode} is ready for pickup.`,
       type: "dispatch_request",
-      channel: "in_app",
       metadata: { delivery_id: deliveryId, delivery_code: deliveryCode }
     }));
-  if (rows.length) await db.from("notifications").insert(rows);
+  if (rows.length) await Promise.allSettled(rows.map((row) => insertNotificationWithPush(db, row)));
 }

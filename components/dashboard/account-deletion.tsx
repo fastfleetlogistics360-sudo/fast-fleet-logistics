@@ -17,18 +17,10 @@ export function AccountDeletionButton({ className }: { className?: string }) {
     setLoading(true);
     setError(null);
     try {
+      const response = await fetch("/api/account/delete", { method: "POST" });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error || "Could not delete your account right now.");
       const supabase = createClient();
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Your session has expired. Sign in again to delete your account.");
-
-      const deletedAt = new Date().toISOString();
-      await Promise.allSettled([
-        supabase.from("profiles").update({ deleted_at: deletedAt, email: null, phone: null, full_name: "Deleted user" }).eq("user_id", user.id),
-        supabase.from("users").update({ email: null, phone: null, full_name: "Deleted user", updated_at: deletedAt }).eq("id", user.id),
-        supabase.from("account_deletion_requests").insert({ user_id: user.id, requested_at: deletedAt, status: "queued" })
-      ]);
       await supabase.auth.signOut();
       window.location.assign("/auth");
     } catch (nextError) {
@@ -58,7 +50,7 @@ export function AccountDeletionButton({ className }: { className?: string }) {
             </div>
             <h2 className="mt-4 text-2xl font-black text-fleet-night">Delete my account</h2>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-              This immediately anonymizes your profile, signs you out, and queues eligible account data for permanent deletion after the retention window. Operational records such as payments, deliveries, and support history may be retained where legally required. Type DELETE to confirm.
+              This removes your sign-in access, deletes stored device notifications, strips personal profile details, and anonymizes retained delivery/support records where required for operations. Type DELETE to confirm.
             </p>
             <label className="form-field mt-5">
               <span className="form-label">Confirmation</span>

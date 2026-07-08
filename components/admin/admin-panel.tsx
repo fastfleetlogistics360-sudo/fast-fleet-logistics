@@ -32,6 +32,7 @@ import {
   Send,
   ShieldAlert,
   SlidersHorizontal,
+  Star,
   Store as StoreIcon,
   TicketCheck,
   Trash2,
@@ -47,7 +48,8 @@ import { defaultLaunchStateRecords, launchStatusLabel, rememberLiveState } from 
 import type { LaunchStateRecord } from "@/lib/launch-states";
 import { marketplaceListingRetryDate, marketplaceListingStatusLabel } from "@/lib/marketplace-listing";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
-import { formatMoney } from "@/lib/format";
+import { cn } from "@/lib/cn";
+import { formatDateTime, formatMoney } from "@/lib/format";
 import type { FleetAssetStatus } from "@/lib/fleet-assets";
 import { riderReviewLabel } from "@/lib/kyc";
 import { normalizeRiderAccountType, riderAccountTypeLabel, riderAccountTypes, type RiderAccountType } from "@/lib/rider-account-type";
@@ -120,6 +122,7 @@ type AdminSectionId =
   | "fleet-assets"
   | "ops-control"
   | "field-insights"
+  | "reviews"
   | "risk-signals";
 
 const adminSectionIds = new Set<string>([
@@ -137,6 +140,7 @@ const adminSectionIds = new Set<string>([
   "fleet-assets",
   "ops-control",
   "field-insights",
+  "reviews",
   "risk-signals"
 ]);
 
@@ -181,6 +185,7 @@ const adminNavGroups: Array<{
       { id: "fleet-assets", label: "Fleet assets", icon: Bike, count: (stats) => String(stats.fleetAssets) },
       { id: "ops-control", label: "Launch & pricing", icon: SlidersHorizontal },
       { id: "field-insights", label: "Field insights", icon: Map },
+      { id: "reviews", label: "Reviews", icon: Star, count: (stats) => String(stats.reviews) },
       { id: "risk-signals", label: "Risk & support", icon: AlertTriangle, count: (stats) => String(stats.openRisk + stats.openSupport) }
     ]
   }
@@ -195,6 +200,7 @@ type AdminNavStats = {
   heroSlides: number;
   hubPromotions: number;
   fleetAssets: number;
+  reviews: number;
   openRisk: number;
   openSupport: number;
 };
@@ -402,6 +408,20 @@ type RiskSignal = {
   created_at: string;
   users?: { full_name?: string | null; email?: string | null; phone?: string | null } | null;
   deliveries?: { delivery_code?: string | null; status?: string | null; price_ngn?: number | null } | null;
+};
+
+type AdminReview = {
+  id: string;
+  reviewer_role: "customer" | "rider" | "business" | string;
+  subject_type: "customer_delivery" | "rider_delivery" | "business_order" | string;
+  rating: number;
+  improvement_note?: string | null;
+  metadata?: Record<string, unknown> | null;
+  delivery_id?: string | null;
+  order_id?: string | null;
+  target_rider_profile_id?: string | null;
+  target_business_profile_id?: string | null;
+  created_at: string;
 };
 
 type SupportTicket = {
@@ -781,6 +801,7 @@ export function AdminPanel() {
   const [companyLogSearch, setCompanyLogSearch] = useState("");
   const [companyLogCategory, setCompanyLogCategory] = useState<"all" | CompanyTransactionCategory>("all");
   const [siteControls, setSiteControls] = useState<SiteControls>(defaultSiteControls);
+  const [adminReviews, setAdminReviews] = useState<AdminReview[]>([]);
   const [riskSignals, setRiskSignals] = useState<RiskSignal[]>(demoRiskSignals);
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(demoSupportTickets);
   const [supportReplyDrafts, setSupportReplyDrafts] = useState<Record<string, string>>({});
@@ -795,6 +816,7 @@ export function AdminPanel() {
   const activeDeliveryCount = useMemo(() => adminDeliveries.filter((delivery) => !["delivered", "cancelled"].includes(delivery.status)).length, [adminDeliveries]);
   const pendingWithdrawalCount = useMemo(() => adminWithdrawals.filter((withdrawal) => withdrawal.status === "pending").length, [adminWithdrawals]);
   const approvedFleetRiders = useMemo(() => adminRiders.filter((rider) => rider.application_status === "approved"), [adminRiders]);
+  const reviewCount = adminReviews.length;
   const openRiskCount = useMemo(() => riskSignals.filter((signal) => !signal.resolved_at).length, [riskSignals]);
   const openSupportCount = useMemo(() => supportTickets.filter((ticket) => !["resolved", "closed"].includes(ticket.status)).length, [supportTickets]);
   const navStats = useMemo<AdminNavStats>(
@@ -807,10 +829,11 @@ export function AdminPanel() {
       heroSlides: heroSlides.filter((slide) => slide.enabled).length,
       hubPromotions: hubPromotionSlides.filter((slide) => slide.enabled).length,
       fleetAssets: fleetAssets.length,
+      reviews: reviewCount,
       openRisk: openRiskCount,
       openSupport: openSupportCount
     }),
-    [activeDeliveryCount, fleetAssets.length, heroSlides, hubPromotionSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingMarketplaceListingCount, pendingRiderCount, pendingWithdrawalCount]
+    [activeDeliveryCount, fleetAssets.length, heroSlides, hubPromotionSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingMarketplaceListingCount, pendingRiderCount, pendingWithdrawalCount, reviewCount]
   );
   const companyLogSummary = useMemo(() => summarizeCompanyLogs(companyLogs), [companyLogs]);
   const filteredCompanyLogs = useMemo(() => {
@@ -846,6 +869,7 @@ export function AdminPanel() {
         siteControlsResponse,
         heroSlidesResponse,
         hubPromotionSlidesResponse,
+        reviewsResponse,
         riskSignalsResponse,
         restaurantsResponse,
         mallsResponse
@@ -861,6 +885,7 @@ export function AdminPanel() {
         fetch("/api/admin/site-controls"),
         fetch("/api/admin/main-hero-slides"),
         fetch("/api/admin/hub-promotion-slides"),
+        fetch("/api/admin/reviews"),
         fetch("/api/admin/risk-signals"),
         fetch("/api/admin/restaurants"),
         fetch("/api/admin/malls")
@@ -876,6 +901,7 @@ export function AdminPanel() {
       const siteControlsResult = await siteControlsResponse.json().catch(() => ({}));
       const heroSlidesResult = await heroSlidesResponse.json().catch(() => ({}));
       const hubPromotionSlidesResult = await hubPromotionSlidesResponse.json().catch(() => ({}));
+      const reviewsResult = await reviewsResponse.json().catch(() => ({}));
       const riskSignalsResult = await riskSignalsResponse.json().catch(() => ({}));
       const restaurantsResult = await restaurantsResponse.json().catch(() => ({}));
       const mallsResult = await mallsResponse.json().catch(() => ({}));
@@ -891,6 +917,7 @@ export function AdminPanel() {
         ["site controls", siteControlsResponse, siteControlsResult],
         ["main hero", heroSlidesResponse, heroSlidesResult],
         ["Hub promotions", hubPromotionSlidesResponse, hubPromotionSlidesResult],
+        ["reviews", reviewsResponse, reviewsResult],
         ["risk/support", riskSignalsResponse, riskSignalsResult],
         ["restaurants", restaurantsResponse, restaurantsResult],
         ["malls", mallsResponse, mallsResult]
@@ -920,6 +947,7 @@ export function AdminPanel() {
         const savedSlides = readDemoHubPromotionSlides();
         setHubPromotionSlides(hubPromotionSlidesResult.demo && savedSlides.length > 0 ? savedSlides : normalizeHubPromotionSlides(hubPromotionSlidesResult.slides));
       }
+      if (Array.isArray(reviewsResult.reviews)) setAdminReviews(reviewsResult.reviews);
       if (Array.isArray(riskSignalsResult.riskSignals)) setRiskSignals(riskSignalsResult.riskSignals);
       if (Array.isArray(riskSignalsResult.supportTickets)) setSupportTickets(riskSignalsResult.supportTickets);
       if (Array.isArray(restaurantsResult.restaurants)) {
@@ -930,8 +958,8 @@ export function AdminPanel() {
         const savedMalls = readDemoMallMenus();
         setMallMenus(mallsResult.demo && savedMalls.length > 0 ? savedMalls : normalizeShoppingMalls(mallsResult.malls));
       }
-      if (statesResult.demo || ridersResult.demo || fleetAssetsResult.demo || businessesResult.demo || marketplaceListingsResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
-        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, bicycle fleet assets, business KYC, marketplace listings, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
+      if (statesResult.demo || ridersResult.demo || fleetAssetsResult.demo || businessesResult.demo || marketplaceListingsResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || reviewsResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
+        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, bicycle fleet assets, business KYC, marketplace listings, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, reviews, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
       } else if (failedSections.length > 0) {
         setAdminMessage(`Some admin sections did not load: ${failedSections.join("; ")}`);
       }
@@ -1883,6 +1911,13 @@ export function AdminPanel() {
           count={`${openRiskCount + openSupportCount} open`}
           onClick={() => openAdminSection("risk-signals")}
         />
+        <ActionCard
+          icon={Star}
+          title="Reviews"
+          body="Read customer, rider, and business ratings after completed jobs."
+          count={`${adminReviews.length} saved`}
+          onClick={() => openAdminSection("reviews")}
+        />
       </div>
 
       <DeliveryTimelineSection
@@ -2196,6 +2231,8 @@ export function AdminPanel() {
         <OpsPanel icon={TicketCheck} title="Support tickets" value={`${openSupportCount} open`} helper="Delivery edits, refund checks, business account requests." />
         <OpsPanel icon={AlertTriangle} title="Risk signals" value={`${openRiskCount} flags`} helper="Fraud, payment mismatch, and location exception queue." />
       </div>
+
+      <ReviewsSection reviews={adminReviews} />
 
       <RiskSignalsSection
         riskSignals={riskSignals}
@@ -3838,6 +3875,63 @@ function SiteControlsSection({
       </div>
     </Card>
   );
+}
+
+function ReviewsSection({ reviews }: { reviews: AdminReview[] }) {
+  const lowScores = reviews.filter((review) => Number(review.rating) <= 3).length;
+  return (
+    <Card id="reviews" className="mt-6 scroll-mt-24 overflow-hidden">
+      <div className="flex items-center justify-between gap-4 border-b border-fleet-line p-5">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-fleet bg-fleet-night text-white">
+            <Star className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-xl font-black text-fleet-night">Reviews</h2>
+            <span className="text-sm font-bold text-slate-500">Customer, rider, and business feedback after completed work</span>
+          </div>
+        </div>
+        <StatusBadge tone={lowScores ? "amber" : "green"}>{lowScores} low scores</StatusBadge>
+      </div>
+      <div className="grid gap-3 p-4 xl:grid-cols-2">
+        {reviews.map((review) => (
+          <article key={review.id} className="rounded-fleet border border-fleet-line bg-white p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <strong className="block text-base font-black capitalize text-fleet-night">{review.subject_type.replaceAll("_", " ")}</strong>
+                <span className="mt-1 block text-xs font-bold text-slate-500">
+                  {review.reviewer_role} · {formatDateTime(review.created_at)}
+                </span>
+              </div>
+              <span className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black", review.rating <= 3 ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800")}>
+                <Star className="h-3.5 w-3.5 fill-current" />
+                {review.rating}/5
+              </span>
+            </div>
+            {review.improvement_note ? (
+              <p className="mt-3 rounded-fleet bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-900">{review.improvement_note}</p>
+            ) : (
+              <p className="mt-3 rounded-fleet bg-fleet-paper p-3 text-sm font-bold leading-6 text-slate-500">No improvement note was submitted.</p>
+            )}
+            <p className="mt-3 text-xs font-bold leading-5 text-slate-500">{reviewMetadataSummary(review)}</p>
+          </article>
+        ))}
+        {reviews.length === 0 ? <div className="rounded-fleet bg-fleet-paper p-5 text-sm font-bold text-slate-500">No completed-job reviews yet.</div> : null}
+      </div>
+    </Card>
+  );
+}
+
+function reviewMetadataSummary(review: AdminReview) {
+  const metadata = review.metadata || {};
+  const values = [
+    metadata.delivery_code ? `Delivery ${String(metadata.delivery_code)}` : null,
+    metadata.order_code ? `Order ${String(metadata.order_code)}` : null,
+    metadata.marketplace_kind ? `Marketplace ${String(metadata.marketplace_kind)}` : null,
+    review.delivery_id ? `Delivery ID ${review.delivery_id}` : null,
+    review.order_id ? `Order ID ${review.order_id}` : null
+  ].filter(Boolean);
+  return values.length ? values.join(" · ") : "No extra review context.";
 }
 
 function RiskSignalsSection({

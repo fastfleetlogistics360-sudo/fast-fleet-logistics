@@ -60,7 +60,7 @@ const socialItems: Array<{ href: string; label: string; icon: (props: ComponentP
   { href: "https://www.tiktok.com/@fastfleets360", label: "TikTok", icon: TikTokIcon, hover: "hover:bg-black" }
 ];
 
-const siteChromeRoutes = new Set(["/main", "/how-it-works", "/privacy", "/terms", "/cookies", "/ndpr", "/support", "/offline", "/services", "/updates", "/about", "/hub"]);
+const siteChromeRoutes = new Set(["/main", "/how-it-works", "/privacy", "/terms", "/cookies", "/ndpr", "/support", "/offline", "/services", "/updates", "/about"]);
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();

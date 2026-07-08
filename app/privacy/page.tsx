@@ -20,7 +20,7 @@ const sections = [
   },
   {
     title: "4. Retention periods",
-    body: "Active account profile records are retained while the account remains active. Booking drafts and support chat metadata are normally retained for up to 24 months. Delivery records, proof of delivery, rider assignment logs, wallet transactions, refund records, payout records, fraud signals, and dispute evidence may be retained for up to 7 years where Nigerian tax, accounting, payment, safety, anti-fraud, or legal obligations require it. When an account is deleted in-app, Fast Fleets 360 flags the profile with deleted_at, removes direct contact fields, signs the user out, and queues eligible account data for hard deletion after 90 days."
+    body: "Active account profile records are retained while the account remains active. Booking drafts and support chat metadata are normally retained for up to 24 months. Delivery records, proof of delivery, rider assignment logs, wallet transactions, refund records, payout records, fraud signals, and dispute evidence may be retained for up to 7 years where Nigerian tax, accounting, payment, safety, anti-fraud, or legal obligations require it. When an account is deleted in-app, Fast Fleets 360 removes sign-in access, deletes stored device notification tokens, removes direct contact fields, deletes eligible saved preferences and KYC documents, and anonymizes retained operational records."
   },
   {
     title: "5. User rights",

@@ -7,8 +7,6 @@ import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { safeDashboardRedirectForRole } from "@/lib/auth/roles";
 import { cn } from "@/lib/cn";
-import { initials } from "@/lib/format";
-import { uploadProfilePhoto } from "@/lib/storage";
 import type { UserRole } from "@/types/domain";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,7 +36,6 @@ export function ChooseAccountTypeForm() {
   const returnTo = searchParams.get("returnTo");
   const [selected, setSelected] = useState<Exclude<UserRole, "admin">>("customer");
   const [customerState, setCustomerState] = useState("Lagos");
-  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -55,16 +52,13 @@ export function ChooseAccountTypeForm() {
       const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "Fast Fleets 360 user";
       const now = new Date().toISOString();
       const selectedState = selected === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos";
-      if (!profilePhotoFile) throw new Error("Upload a profile picture before continuing.");
-      const profilePhoto = await uploadProfilePhoto(user.id, profilePhotoFile);
       const [metadataResult, usersResult, profilesResult] = await Promise.allSettled([
-        supabase.auth.updateUser({ data: { account_type: selected, role: selected, avatar_url: profilePhoto.publicUrl, default_zone: selectedState, state: selected === "customer" ? selectedState : undefined } }),
+        supabase.auth.updateUser({ data: { account_type: selected, role: selected, default_zone: selectedState, state: selected === "customer" ? selectedState : undefined } }),
         supabase.from("users").upsert({
           id: user.id,
           email: user.email || null,
           phone: user.phone || null,
           full_name: fullName,
-          avatar_url: profilePhoto.publicUrl,
           role: selected,
           default_zone: selectedState,
           updated_at: now
@@ -75,7 +69,6 @@ export function ChooseAccountTypeForm() {
           email: user.email || null,
           phone: user.phone || null,
           full_name: fullName,
-          avatar_url: profilePhoto.publicUrl,
           account_type: selected,
           lga: selectedState,
           updated_at: now
@@ -135,21 +128,9 @@ export function ChooseAccountTypeForm() {
         </label>
       ) : null}
 
-      <label className="form-field mt-5">
-        <span className="form-label">Profile picture</span>
-        <span className="flex items-center gap-3 rounded-fleet border border-fleet-line bg-white p-3">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-fleet-navy text-sm font-black text-white">
-            {initials(profilePhotoFile?.name || "User")}
-          </span>
-          <span className="min-w-0 flex-1 text-sm font-bold text-slate-600">{profilePhotoFile?.name || "Upload a clear profile picture for this account."}</span>
-          <span className="rounded-fleet bg-fleet-paper px-3 py-2 text-xs font-black text-fleet-night">Choose</span>
-          <input className="sr-only" type="file" accept="image/*" onChange={(event) => setProfilePhotoFile(event.target.files?.[0] || null)} />
-        </span>
-      </label>
-
       {message ? <div className="mt-5 rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">{message}</div> : null}
 
-      <Button type="button" className="mt-6 w-full bg-fleet-navy hover:bg-fleet-night" onClick={saveAccountType} disabled={loading || !profilePhotoFile}>
+      <Button type="button" className="mt-6 w-full bg-fleet-navy hover:bg-fleet-night" onClick={saveAccountType} disabled={loading}>
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         {selected === "rider" ? "Continue to rider KYC" : selected === "business" ? "Continue to business KYC" : "Continue to dashboard"}
       </Button>

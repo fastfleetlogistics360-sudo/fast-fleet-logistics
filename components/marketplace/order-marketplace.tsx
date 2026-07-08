@@ -188,17 +188,17 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
     <CinematicPageHero
       eyebrow={eyebrow}
       title={title}
-      body={`Choose items, confirm the delivery address, and checkout through Fast Fleets 360 with transparent fees and Squad payment flow.`}
+      body="Choose items, add your address, and pay with Squad."
       image={kind === "restaurant" ? "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=2200&q=84" : "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=2200&q=84"}
     />
     <section className="section-wrap -mt-8 pb-28 sm:-mt-10 sm:pb-12">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="min-w-0">
           <div className="rounded-fleet border border-white/70 bg-white/80 p-4 shadow-lift backdrop-blur-xl sm:p-5">
-          <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Marketplace lane</span>
-          <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Pick, pack, and dispatch.</h2>
+          <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Checkout</span>
+          <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Choose. Add. Pay.</h2>
           <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
-            Open a store, pick items with the plus button, then checkout through Squad. Fast Fleets 360 calculates delivery from pickup to your address and adds a {formatMoney(platformFee)} platform fee.
+            Fast Fleets 360 estimates delivery after your address and adds a {formatMoney(platformFee)} platform fee.
           </p>
           </div>
 
@@ -324,7 +324,7 @@ function RestaurantStoreCard({
           <div className="flex items-start justify-between gap-3">
             <span className="min-w-0">
               <strong className="line-clamp-1 block text-base font-black leading-tight text-fleet-night">{store.name}</strong>
-              <span className="mt-1 line-clamp-2 block text-xs font-bold leading-5 text-slate-500">{store.description}</span>
+              <span className="mt-1 line-clamp-1 block text-xs font-bold leading-5 text-slate-500">{store.area}</span>
             </span>
             <ChevronDown className="mt-0.5 h-5 w-5 shrink-0 text-fleet-ember transition group-open:rotate-180" />
           </div>

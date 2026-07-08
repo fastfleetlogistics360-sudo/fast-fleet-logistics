@@ -18,6 +18,7 @@ import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-stat
 import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { RoutePreview } from "@/components/maps/route-preview";
 import type { LiveRiderLocation } from "@/components/realtime/use-live-delivery-tracking";
+import { ReviewPrompt } from "@/components/reviews/review-prompt";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
 import { BackButton } from "@/components/ui/back-button";
@@ -353,9 +354,26 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 
   const incomingJob = jobs.find((job) => job.status === "searching") || null;
   const activeJob = jobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status)) || null;
+  const latestCompletedTrip = jobs.find((job) => job.status === "delivered") || null;
   const recentTrips = jobs.filter((job) => job.status === "delivered").slice(0, 5);
   const firstName = (profile.full_name || "Rider").split(/\s+/)[0] || "Rider";
   const todayEarnings = jobs.filter((job) => job.status === "delivered").reduce((sum, job) => sum + Number(job.price_ngn || 0), 0);
+  const reviewSubject = useMemo(() => {
+    const trip = latestCompletedTrip;
+    if (!trip?.id) return null;
+    return {
+      reviewerRole: "rider" as const,
+      subjectType: "rider_delivery" as const,
+      deliveryId: trip.id,
+      title: "How was this delivery?",
+      body: "Rate the handoff so dispatch can spot issues early.",
+      metadata: {
+        delivery_code: trip.delivery_code,
+        pickup_address: trip.pickup_address,
+        dropoff_address: trip.dropoff_address
+      }
+    };
+  }, [latestCompletedTrip]);
 
   useEffect(() => {
     if (!onlineSince) return;
@@ -871,6 +889,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	      <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
 	      {online && incomingJob ? <IncomingJobModal job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={respondToJob} /> : null}
 	      {withdrawalOpen ? <WithdrawalModal amount={withdrawalAmount} onAmount={setWithdrawalAmount} profile={profile} loading={withdrawalLoading} message={withdrawalMessage} onClose={() => setWithdrawalOpen(false)} onSubmit={requestWithdrawal} /> : null}
+        <ReviewPrompt subject={reviewSubject} />
     </section>
   );
 }

@@ -28,14 +28,14 @@ FastFleet shares data only as needed to operate the service:
 - Data is encrypted in transit.
 - Authentication, role checks, Supabase Row Level Security, storage policies, and admin review workflows restrict access.
 - Account deletion is available inside customer, rider, and business dashboard account settings through a red "Delete my account" button.
-- Eligible profile/contact records are anonymized immediately and queued for hard deletion after the retention window.
+- Sign-in access is removed, stored device notification tokens are deleted, eligible saved preferences and KYC documents are removed, and retained operational records are anonymized where required.
 
 ## Retention And Deletion
 
 - Active account profile data is retained while the account remains active.
 - Booking drafts and support metadata are normally retained for up to 24 months.
 - Delivery records, proof of delivery, wallet transactions, refund records, payout records, fraud signals, and dispute evidence may be retained for up to 7 years when required for tax, accounting, payment, safety, anti-fraud, or legal obligations.
-- Deleted accounts are queued in `account_deletion_requests` and direct contact fields are removed from profile records.
+- Deleted accounts are recorded in `account_deletion_requests`; direct contact fields are removed from profile records and retained delivery/support records are anonymized for operational, accounting, safety, anti-fraud, or legal retention needs.
 
 ## Tracking
 

@@ -9,7 +9,7 @@
 
 ## Store Submission Status
 
-- In-app account deletion: implemented in customer, rider, and business account settings with a red `Delete my account` action, confirmation modal, immediate profile anonymization, Supabase sign-out, and an `account_deletion_requests` queue record.
+- In-app account deletion: implemented in customer, rider, and business account settings with a red `Delete my account` action, confirmation modal, immediate auth access removal, device notification token deletion, personal profile anonymization, eligible saved/KYC data cleanup, Supabase sign-out, and a completed `account_deletion_requests` audit record.
 - Native app binary: Capacitor wrapper config has been added in `capacitor.config.ts`. Native projects and signed `.ipa` / `.aab` files still require running the native add/sync commands and adding the Android/iOS location permission entries listed in `store-submission/native-build-checklist.md`.
 - Store listing assets: generated in `store-assets/` for App Store screenshots/icon and Play Store screenshots/icon/feature graphic.
 - Google Play data safety form: drafted in `store-submission/google-play-data-safety.md`.

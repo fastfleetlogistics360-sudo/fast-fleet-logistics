@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isBicycleDelivery, loadAssignedBicycleAsset, markBicycleAssetBusy, releaseBicycleAssetForDelivery } from "@/lib/fleet-assets";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
+import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import type { DeliveryStatus } from "@/types/domain";
 
@@ -373,8 +374,7 @@ async function syncLinkedBusinessOrder(db: SupabaseClient, deliveryId: string, s
       title: "Order status updated",
       body: `${order?.order_code || "Order"} is ${label}.`,
       type: "order_update",
-      channel: "in_app",
       metadata: { order_id: order?.id, delivery_id: deliveryId, status }
     }));
-  if (notifications.length) await db.from("notifications").insert(notifications);
+  if (notifications.length) await Promise.allSettled(notifications.map((notification) => insertNotificationWithPush(db, notification)));
 }

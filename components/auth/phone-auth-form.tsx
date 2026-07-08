@@ -100,11 +100,11 @@ export function PhoneAuthForm({
   const targetRoleHome = roleHome[role];
   const destination = returnToOverride || returnTo || "/hub";
   const safeDestination = destination.startsWith("/") && !destination.startsWith("//") ? destination : "/hub";
-  const lockedRiderSignup = mode === "signup" && effectiveLockedRole === "rider";
+  const signupNeedsProfilePhoto = mode === "signup" && role !== "rider";
   const emailValid = isValidEmail(email);
   const passwordValid = password.trim().length >= 6;
   const nameValid = mode === "login" || fullName.trim().length >= 2;
-  const profilePhotoValid = mode === "login" || lockedRiderSignup || Boolean(profilePhotoFile);
+  const profilePhotoValid = mode === "login" || !signupNeedsProfilePhoto || Boolean(profilePhotoFile);
   const customerStateValid = mode === "login" || role !== "customer" || Boolean(normalizeState(customerState));
   const canSubmit = useMemo(() => {
     return emailValid && passwordValid && nameValid && profilePhotoValid && customerStateValid;
@@ -472,7 +472,7 @@ export function PhoneAuthForm({
           </label>
         ) : null}
 
-        {mode === "signup" && !lockedRiderSignup ? (
+        {signupNeedsProfilePhoto ? (
           <label className="form-field">
             <span className="form-label">Profile picture</span>
               <span className="flex items-center gap-3 rounded-[16px] border border-fleet-line bg-white p-3">

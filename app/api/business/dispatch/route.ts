@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { createDeliveryQuote } from "@/lib/delivery-quotes";
 import { loadFareConfig } from "@/lib/fare-settings";
+import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createClient } from "@/lib/supabase/server";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
@@ -142,12 +143,11 @@ export async function POST(request: Request) {
         title: "Business dispatch created",
         body: "Wallet payment received. Fast Fleets 360 is finding a courier."
       }),
-      supabase.from("notifications").insert({
+      insertNotificationWithPush(supabase, {
         user_id: user.id,
         title: "Dispatch created",
         body: `${delivery.delivery_code} is ${delivery.status.replaceAll("_", " ")}.`,
         type: "dispatch_created",
-        channel: "in_app",
         metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code }
       })
     ]);
