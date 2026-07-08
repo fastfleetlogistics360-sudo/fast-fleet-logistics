@@ -3,7 +3,10 @@ import { loadFareConfig } from "@/lib/fare-settings";
 import { createDeliveryQuote, type DeliveryQuoteInput } from "@/lib/delivery-quotes";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
+import { quoteLaunchDeliveryPromo } from "@/lib/promos/launch-first-150";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
 const vehicleTypes = new Set(["bike", "car", "van"]);
@@ -42,26 +45,37 @@ export async function POST(request: Request) {
     }
 
     const fareConfig = await loadFareConfig();
-    const quote = await createDeliveryQuote({
-      pickup: {
-        address: pickup,
-        placeId: payload.pickupPlaceId,
-        latitude: payload.pickupLatitude,
-        longitude: payload.pickupLongitude
-      },
-      dropoff: {
-        address: dropoff,
-        placeId: payload.dropoffPlaceId,
-        latitude: payload.dropoffLatitude,
-        longitude: payload.dropoffLongitude
-      },
-      pickupState: extractNigerianState(pickup) || extractNigerianState(payload.pickupState),
-      dropoffState: extractNigerianState(dropoff) || extractNigerianState(payload.dropoffState),
-      vehicle,
-      speed,
-      parcelType: payload.parcel,
-      fareConfig
-    } satisfies DeliveryQuoteInput);
+    const [quote, supabase] = await Promise.all([
+      createDeliveryQuote({
+        pickup: {
+          address: pickup,
+          placeId: payload.pickupPlaceId,
+          latitude: payload.pickupLatitude,
+          longitude: payload.pickupLongitude
+        },
+        dropoff: {
+          address: dropoff,
+          placeId: payload.dropoffPlaceId,
+          latitude: payload.dropoffLatitude,
+          longitude: payload.dropoffLongitude
+        },
+        pickupState: extractNigerianState(pickup) || extractNigerianState(payload.pickupState),
+        dropoffState: extractNigerianState(dropoff) || extractNigerianState(payload.dropoffState),
+        vehicle,
+        speed,
+        parcelType: payload.parcel,
+        fareConfig
+      } satisfies DeliveryQuoteInput),
+      createClient()
+    ]);
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    const admin = createAdminClient();
+    const promo = user ? await quoteLaunchDeliveryPromo(admin || supabase, user.id, quote) : null;
+    const fare = promo?.applied
+      ? { ...quote.fare, deliveryFee: promo.deliveryFee, platformFee: promo.platformFee, total: promo.total }
+      : quote.fare;
 
     return NextResponse.json({
       distanceKm: quote.distanceKm,
@@ -69,14 +83,18 @@ export async function POST(request: Request) {
       baseFare: quote.fare.baseFare,
       distanceFare: quote.fare.distanceFare,
       speedMultiplier: quote.fare.speedMultiplier,
-      deliveryFee: quote.fare.deliveryFee,
-      platformFee: quote.fare.platformFee,
-      total: quote.fare.total,
+      deliveryFee: fare.deliveryFee,
+      platformFee: fare.platformFee,
+      total: fare.total,
+      originalDeliveryFee: quote.fare.deliveryFee,
+      originalPlatformFee: quote.fare.platformFee,
+      originalTotal: quote.fare.total,
       currency: quote.fare.currency,
       routeType: quote.routeType,
       routeSource: quote.routeSource,
       bicycleEligible: quote.bicycleEligible,
-      vehicleSubtype: quote.vehicleSubtype
+      vehicleSubtype: quote.vehicleSubtype,
+      launchPromo: promo
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not estimate delivery." }, { status: 500 });

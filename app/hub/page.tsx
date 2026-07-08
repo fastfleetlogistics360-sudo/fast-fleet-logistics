@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { QuickActionHub } from "@/components/hub/quick-action-hub";
 import { enabledHubPromotionSlides, hubPromotionSlidesSettingsKey, type HubPromotionSlide } from "@/lib/hub-promotion-slides";
 import { parseUserRole, roleHome } from "@/lib/auth/roles";
+import { getLaunchPromoAnnouncement } from "@/lib/promos/launch-first-150";
 import type { UserRole } from "@/types/domain";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -26,7 +27,12 @@ export default async function HubPage() {
 
   const role = parseUserRole(profile?.account_type || user.user_metadata?.account_type || user.user_metadata?.role);
   if (!role) redirect("/choose-account-type?returnTo=/hub");
-  const [promotionSlides, glance] = await Promise.all([loadHubPromotionSlides(), loadHubGlance(user.id, role)]);
+  const admin = createAdminClient();
+  const [promotionSlides, glance, launchPromo] = await Promise.all([
+    loadHubPromotionSlides(),
+    loadHubGlance(user.id, role),
+    getLaunchPromoAnnouncement(admin || supabase, user.id)
+  ]);
 
   return (
     <QuickActionHub
@@ -36,6 +42,7 @@ export default async function HubPage() {
       avatarUrl={account?.avatar_url || profile?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || null}
       promotionSlides={promotionSlides}
       glance={glance}
+      launchPromo={launchPromo}
     />
   );
 }

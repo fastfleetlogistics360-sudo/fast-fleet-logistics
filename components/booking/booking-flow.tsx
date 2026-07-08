@@ -70,6 +70,20 @@ type BookingEstimate = FareEstimate & {
   routeSource?: string;
   bicycleEligible?: boolean;
   vehicleSubtype?: string | null;
+  originalDeliveryFee?: number;
+  originalPlatformFee?: number;
+  originalTotal?: number;
+  launchPromo?: {
+    applied?: boolean;
+    eligible?: boolean;
+    reason?: string | null;
+    totalDiscount?: number;
+    deliveryDiscount?: number;
+    platformFeeDiscount?: number;
+    remainingRedemptions?: number;
+    maxRedemptions?: number;
+    discountCapNgn?: number;
+  } | null;
 };
 
 export function BookingFlow() {
@@ -467,11 +481,13 @@ export function BookingFlow() {
               <StatusBadge tone="green">{estimate.etaMinutes} min ETA</StatusBadge>
             </div>
             <div className="mt-5 grid gap-3">
+              {estimate.launchPromo?.applied && estimate.originalTotal ? <SummaryRow label="Original total" value={formatMoney(estimate.originalTotal)} muted /> : null}
               <SummaryRow label="Distance" value={`${estimate.distanceKm.toFixed(1)} km`} />
               <SummaryRow label="Vehicle" value={vehicleLabel(selectedVehicle)} />
               <SummaryRow label="Speed" value={speedLabel(selectedSpeed)} />
               <SummaryRow label="Delivery fee" value={formatMoney(estimate.deliveryFee)} />
               <SummaryRow label="Platform fee" value={formatMoney(estimate.platformFee)} />
+              {estimate.launchPromo?.applied ? <SummaryRow label="Launch promo" value={`-${formatMoney(estimate.launchPromo.totalDiscount || 0)}`} highlight /> : null}
             </div>
           </Card>
         ) : (
@@ -573,9 +589,17 @@ function EstimatePanel({ estimate, vehicle, speed }: { estimate: BookingEstimate
     <div className="rounded-fleet border border-fleet-line bg-white p-5 shadow-[0_14px_36px_rgba(8,17,31,0.07)]">
       <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Fare estimate</span>
       <strong className="mt-2 block text-4xl font-black text-fleet-night">{formatMoney(estimate.total)}</strong>
+      {estimate.launchPromo?.applied && estimate.originalTotal ? (
+        <p className="mt-2 text-sm font-black text-emerald-700">
+          Launch promo applied. Original total <span className="text-slate-500 line-through">{formatMoney(estimate.originalTotal)}</span>
+        </p>
+      ) : estimate.launchPromo && !estimate.launchPromo.applied && estimate.launchPromo.reason ? (
+        <p className="mt-2 text-sm font-bold text-slate-500">{estimate.launchPromo.reason}</p>
+      ) : null}
       <div className="mt-5 grid gap-3">
         <SummaryRow label="Delivery fee" value={formatMoney(estimate.deliveryFee)} />
         <SummaryRow label="Platform fee" value={formatMoney(estimate.platformFee)} />
+        {estimate.launchPromo?.applied ? <SummaryRow label="Launch promo" value={`-${formatMoney(estimate.launchPromo.totalDiscount || 0)}`} highlight /> : null}
         <SummaryRow label="ETA" value={`${estimate.etaMinutes} minutes`} />
         <SummaryRow label="Route distance" value={`${estimate.distanceKm.toFixed(1)} km`} />
         <SummaryRow label="Vehicle" value={vehicleLabel(vehicle)} />
@@ -598,11 +622,11 @@ function PendingSummaryCard() {
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function SummaryRow({ label, value, highlight = false, muted = false }: { label: string; value: string; highlight?: boolean; muted?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-fleet bg-fleet-paper px-3 py-2 text-sm">
-      <span className="font-bold text-slate-500">{label}</span>
-      <strong className="text-right font-black text-fleet-night">{value}</strong>
+    <div className={`flex items-center justify-between gap-4 rounded-fleet px-3 py-2 text-sm ${highlight ? "bg-emerald-50 text-emerald-700" : "bg-fleet-paper"}`}>
+      <span className={`font-bold ${highlight ? "text-emerald-700" : "text-slate-500"}`}>{label}</span>
+      <strong className={`text-right font-black ${highlight ? "text-emerald-700" : muted ? "text-slate-500 line-through" : "text-fleet-night"}`}>{value}</strong>
     </div>
   );
 }

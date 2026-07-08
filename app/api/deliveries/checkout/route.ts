@@ -6,6 +6,7 @@ import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { generatePaymentReference, initiateSquadPayment, paymentChannelsFor } from "@/lib/payments/squad";
+import { launchPromoMetadata, quoteLaunchDeliveryPromo, redeemLaunchDeliveryPromo, reserveLaunchDeliveryPromo, voidLaunchDeliveryPromo } from "@/lib/promos/launch-first-150";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -91,15 +92,22 @@ export async function POST(request: Request) {
     });
     const estimate = quote.fare;
 
-    if (Number(payload.total || 0) !== estimate.total) {
-      return NextResponse.json({ error: "Delivery total changed. Review the estimate and try again." }, { status: 400 });
-    }
-
     const supabase = await createClient();
     const {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in before booking delivery." }, { status: 401 });
+    const admin = createAdminClient();
+    const db = admin || supabase;
+    const promo = await quoteLaunchDeliveryPromo(db, user.id, quote);
+    const promoMetadata = launchPromoMetadata(promo);
+    const payableFare = promo.applied
+      ? { ...estimate, deliveryFee: promo.deliveryFee, platformFee: promo.platformFee, total: promo.total }
+      : estimate;
+
+    if (Number(payload.total || 0) !== payableFare.total) {
+      return NextResponse.json({ error: "Delivery total changed. Review the estimate and try again." }, { status: 400 });
+    }
 
     const { data: profile } = await supabase.from("users").select("email, phone, full_name").eq("id", user.id).maybeSingle();
     const email = user.email || profile?.email || "";
@@ -107,8 +115,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Add an email address to your account before Squad checkout." }, { status: 400 });
     }
 
-    const admin = createAdminClient();
-    const db = admin || supabase;
     const code = `FF-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
     const squadReference = generatePaymentReference("FFD");
     const metadata = {
@@ -124,6 +130,11 @@ export async function POST(request: Request) {
       vehicle_subtype: quote.vehicleSubtype,
       delivery_fee_ngn: estimate.deliveryFee,
       platform_fee_ngn: estimate.platformFee,
+      payable_delivery_fee_ngn: payableFare.deliveryFee,
+      payable_platform_fee_ngn: payableFare.platformFee,
+      payable_total_ngn: payableFare.total,
+      original_total_ngn: estimate.total,
+      launch_promo: promoMetadata,
       payment_choice: paymentMethod,
       payment_provider: paymentMethod === "wallet" ? "wallet" : "squad",
       provider_reference: paymentMethod === "wallet" ? null : squadReference
@@ -143,7 +154,7 @@ export async function POST(request: Request) {
         delivery_speed: speed,
         payment_method: paymentMethod,
         status: "pending_payment",
-        price_ngn: estimate.total,
+        price_ngn: payableFare.total,
         delivery_fee_ngn: estimate.deliveryFee,
         platform_fee_ngn: estimate.platformFee,
         distance_km: estimate.distanceKm,
@@ -159,16 +170,25 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) throw insertError;
+    if (promoMetadata) {
+      const reservation = await reserveLaunchDeliveryPromo(db, delivery.id);
+      if (!reservation.reserved) {
+        await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, launch_promo_error: "reservation_failed" } }).eq("id", delivery.id);
+        return NextResponse.json({ error: "Launch promo slots changed. Review the estimate and try again." }, { status: 400 });
+      }
+    }
 
     if (paymentMethod === "wallet") {
       const { error: paymentError } = await supabase.rpc("pay_delivery_from_wallet", {
         target_delivery_id: delivery.id,
         next_metadata: {
           source: "booking_checkout",
-          delivery_code: code
+          delivery_code: code,
+          launch_promo: promoMetadata
         }
       });
       if (paymentError) {
+        if (promoMetadata) await voidLaunchDeliveryPromo(db, delivery.id, "wallet_payment_failed");
         await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, wallet_error: paymentError.message } }).eq("id", delivery.id);
         return NextResponse.json(
           { error: `${paymentError.message}. Top up your wallet or choose card/transfer instead.` },
@@ -184,13 +204,14 @@ export async function POST(request: Request) {
         body: "Wallet payment received. Fast Fleets 360 is notifying online drivers."
       });
       await recordDeliveryIncome({
-        amountNgn: estimate.total,
+        amountNgn: payableFare.total,
         deliveryCode: delivery.delivery_code,
         paymentMethod: "wallet",
         reference: `${delivery.delivery_code}-wallet-checkout`,
         counterparty: profile?.full_name || email || user.id,
         notes: "Customer wallet balance was debited for this delivery."
       });
+      if (promoMetadata) await redeemLaunchDeliveryPromo(db, delivery.id);
 
       return NextResponse.json({
         deliveryId: delivery.id,
@@ -210,7 +231,7 @@ export async function POST(request: Request) {
     let squadCheckout;
     try {
       squadCheckout = await initiateSquadPayment({
-        amountNgn: estimate.total,
+        amountNgn: payableFare.total,
         email,
         reference: squadReference,
         callbackUrl: callbackUrl.toString(),
@@ -232,11 +253,17 @@ export async function POST(request: Request) {
           vehicle_subtype: quote.vehicleSubtype,
           delivery_fee_ngn: estimate.deliveryFee,
           platform_fee_ngn: estimate.platformFee,
+          payable_delivery_fee_ngn: payableFare.deliveryFee,
+          payable_platform_fee_ngn: payableFare.platformFee,
+          payable_total_ngn: payableFare.total,
+          original_total_ngn: estimate.total,
+          launch_promo: promoMetadata,
           customer_phone: profile?.phone || user.phone || String(payload.dropoffContact || payload.pickupContact || "").trim() || null,
           customer_name: profile?.full_name || null
         }
       });
     } catch (error) {
+      if (promoMetadata) await voidLaunchDeliveryPromo(db, delivery.id, "squad_initialize_failed");
       await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, squad_error: error instanceof Error ? error.message : "initialize_failed" } }).eq("id", delivery.id);
       return NextResponse.json({ error: error instanceof Error ? error.message : "Squad could not initialize this payment." }, { status: 502 });
     }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { isPendingSquadStatus, isSuccessfulSquadStatus, verifySquadTransaction } from "@/lib/payments/squad";
+import { redeemLaunchDeliveryPromo, voidLaunchDeliveryPromo } from "@/lib/promos/launch-first-150";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
           { status: 202 }
         );
       }
+      await voidLaunchDeliveryPromo(db, delivery.id, `squad_status_${squadStatus}`);
       return NextResponse.json({ error: `Payment status is ${squadStatus}.` }, { status: 400 });
     }
 
@@ -113,6 +115,7 @@ export async function GET(request: NextRequest) {
       counterparty: user.email || user.id,
       notes: "Squad delivery checkout was verified successfully."
     });
+    await redeemLaunchDeliveryPromo(db, delivery.id);
 
     return NextResponse.json({
       deliveryId: delivery.id,

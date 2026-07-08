@@ -450,6 +450,73 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["platform_launch_states"]["Row"]>;
       };
+      promo_campaigns: {
+        Row: {
+          key: string;
+          title: string;
+          status: "draft" | "active" | "paused" | "ended";
+          enrollment_limit: number;
+          max_redemptions_per_user: number;
+          discount_percent: number;
+          discount_cap_ngn: number;
+          waive_platform_fee: boolean;
+          starts_at: string | null;
+          ends_at: string | null;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["promo_campaigns"]["Row"]> & {
+          key: string;
+          title: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["promo_campaigns"]["Row"]>;
+      };
+      promo_enrollments: {
+        Row: {
+          id: string;
+          campaign_key: string;
+          user_id: string;
+          enrollment_rank: number | null;
+          status: "active" | "paused" | "removed";
+          announcement_seen_at: string | null;
+          redemption_count: number;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["promo_enrollments"]["Row"]> & {
+          campaign_key: string;
+          user_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["promo_enrollments"]["Row"]>;
+      };
+      promo_redemptions: {
+        Row: {
+          id: string;
+          campaign_key: string;
+          user_id: string;
+          delivery_id: string | null;
+          redemption_slot: number;
+          status: "pending" | "redeemed" | "void";
+          original_total_ngn: number;
+          final_total_ngn: number;
+          delivery_discount_ngn: number;
+          platform_fee_discount_ngn: number;
+          total_discount_ngn: number;
+          redeemed_at: string | null;
+          voided_at: string | null;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["promo_redemptions"]["Row"]> & {
+          campaign_key: string;
+          user_id: string;
+          redemption_slot: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["promo_redemptions"]["Row"]>;
+      };
       state_waitlist: {
         Row: {
           id: string;

@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, BellRing, BookOpenText, Compass, Headphones, LayoutDashboard, MapPinned, PackageCheck, ShoppingBag, Store, Truck, Utensils } from "lucide-react";
+import { ArrowRight, BellRing, BookOpenText, Compass, Gift, Headphones, LayoutDashboard, MapPinned, PackageCheck, ShoppingBag, Store, Truck, Utensils, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { UserRole } from "@/types/domain";
 import type { HubPromotionSlide } from "@/lib/hub-promotion-slides";
+import type { LaunchPromoAnnouncement } from "@/lib/promos/launch-first-150";
 import { roleHome } from "@/lib/auth/roles";
 import { saveReturningProfile } from "@/lib/auth/returning-profile";
 import { HubPromotionCarousel } from "@/components/hub/hub-promotion-carousel";
@@ -45,7 +47,8 @@ export function QuickActionHub({
   email,
   avatarUrl,
   promotionSlides,
-  glance
+  glance,
+  launchPromo
 }: {
   role: UserRole;
   fullName: string | null;
@@ -53,13 +56,20 @@ export function QuickActionHub({
   avatarUrl: string | null;
   promotionSlides: HubPromotionSlide[];
   glance: HubGlance;
+  launchPromo: LaunchPromoAnnouncement | null;
 }) {
   const reduceMotion = useReducedMotion();
   const name = firstName(fullName, email);
+  const [promoOpen, setPromoOpen] = useState(Boolean(launchPromo));
 
   useEffect(() => {
     saveReturningProfile({ fullName: fullName || name, email });
   }, [email, fullName, name]);
+
+  function markPromoSeen() {
+    setPromoOpen(false);
+    fetch("/api/promos/launch-first-150/seen", { method: "POST" }).catch(() => null);
+  }
 
   const marketplaceActions: HubAction[] = role === "business"
     ? [{ title: "Marketplace Listing", href: "/marketplace/listing", icon: Store, tone: "navy" }]
@@ -115,6 +125,55 @@ export function QuickActionHub({
         </motion.section>
 
         <HubPromotionCarousel slides={promotionSlides} />
+        {launchPromo && promoOpen ? (
+          <motion.section
+            initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
+            animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            className="mt-4 overflow-hidden rounded-[24px] border border-[#ffd69b] bg-[linear-gradient(135deg,#fffaf2,#ffffff_46%,#fff3e2)] p-4 shadow-[0_18px_52px_rgba(244,126,24,0.18)] ring-1 ring-fleet-gold/25 sm:p-5"
+            aria-label="Launch promo"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[16px] bg-fleet-night text-white shadow-[0_12px_26px_rgba(8,17,31,0.18)]">
+                <Gift className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="text-[0.68rem] font-black uppercase tracking-[0.18em] text-fleet-ember">Launch benefit unlocked</span>
+                <h2 className="mt-1 text-xl font-black leading-tight text-fleet-night sm:text-2xl">Hooray, you’re one of our first 150 FastFleets 360 users.</h2>
+                <div className="mt-4 grid gap-2 text-sm font-bold leading-6 text-slate-700">
+                  <BenefitLine>Zero platform fee on eligible launch deliveries</BenefitLine>
+                  <BenefitLine>50% off your first two bike-size deliveries</BenefitLine>
+                  <BenefitLine>Discount capped at ₦{launchPromo.discountCapNgn.toLocaleString("en-NG")} per delivery</BenefitLine>
+                  <BenefitLine>Applied automatically at checkout</BenefitLine>
+                </div>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Link
+                    href="/book"
+                    onClick={markPromoSeen}
+                    className="inline-flex h-11 items-center justify-center rounded-[15px] bg-fleet-night px-4 text-sm font-black text-white shadow-[0_12px_26px_rgba(8,17,31,0.16)] transition hover:-translate-y-0.5"
+                  >
+                    Start a delivery
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={markPromoSeen}
+                    className="inline-flex h-11 items-center justify-center rounded-[15px] border border-fleet-line bg-white px-4 text-sm font-black text-fleet-night transition hover:border-fleet-gold"
+                  >
+                    Got it
+                  </button>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={markPromoSeen}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-fleet-line bg-white text-slate-500 transition hover:border-fleet-gold hover:text-fleet-night"
+                aria-label="Dismiss launch promo"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </motion.section>
+        ) : null}
 
         <section className="mt-5 rounded-[22px] border border-white/80 bg-white/[0.90] p-3 shadow-[0_18px_48px_rgba(8,17,31,0.08)] ring-1 ring-fleet-line/35 backdrop-blur-2xl sm:p-4" aria-labelledby="quick-actions-title">
           <div className="flex items-center justify-between gap-3 px-1 pb-3">
@@ -162,5 +221,14 @@ export function QuickActionHub({
         </section>
       </div>
     </main>
+  );
+}
+
+function BenefitLine({ children }: { children: ReactNode }) {
+  return (
+    <span className="flex gap-2 rounded-[14px] bg-white/70 px-3 py-2 ring-1 ring-fleet-line/50">
+      <PackageCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+      <span>{children}</span>
+    </span>
   );
 }
