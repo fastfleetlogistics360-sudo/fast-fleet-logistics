@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Bike, Clock3, MapPin, MessageCircle, Navigation2, Phone, Route, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Bike, Clock3, MapPin, MessageCircle, Navigation2, PackageCheck, Phone, Route, ShieldCheck, Store } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -33,6 +33,7 @@ export type DeliveryLocation = LatLng & {
 export type TrackingOrder = {
   id: string;
   delivery_code: string;
+  tracking_kind?: "delivery" | "marketplace_order";
   pickup_address: string;
   pickup_latitude?: number | null;
   pickup_longitude?: number | null;
@@ -47,6 +48,16 @@ export type TrackingOrder = {
   updated_at?: string | null;
   metadata?: Record<string, unknown> | null;
   rider_id?: string | null;
+  marketplace_order?: {
+    id: string;
+    order_code?: string | null;
+    status?: string | null;
+    delivery_id?: string | null;
+    marketplace_kind?: string | null;
+    items?: Array<{ name?: string; productName?: string; quantity?: number; store?: string; vendorName?: string }> | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  } | null;
   rider?: {
     full_name?: string | null;
     phone?: string | null;
@@ -68,6 +79,15 @@ const statusSteps = [
   { keys: ["delivered"], label: "Delivered" }
 ];
 
+const marketplaceStatusSteps = [
+  { keys: ["pending", "received"], label: "Order received" },
+  { keys: ["preparing"], label: "Preparing" },
+  { keys: ["packing"], label: "Packing" },
+  { keys: ["ready_for_pickup"], label: "Ready for pickup" },
+  { keys: ["rider_assigned", "accepted"], label: "Rider assigned" },
+  { keys: ["picked_up", "in_transit", "delivered"], label: "Dispatch started" }
+];
+
 export function LiveOrderTracking({
   initialOrder,
   initialLocation
@@ -77,8 +97,9 @@ export function LiveOrderTracking({
 }) {
   const [order, setOrder] = useState(initialOrder);
   const [location, setLocation] = useState<DeliveryLocation | null>(initialLocation);
+  const marketplaceOnly = order.tracking_kind === "marketplace_order";
   const [connectionState, setConnectionState] = useState<"loading" | "live" | "offline" | "complete">(
-    isComplete(initialOrder.status) ? "complete" : initialLocation ? "live" : "loading"
+    isComplete(initialOrder.status) ? "complete" : initialOrder.tracking_kind === "marketplace_order" ? "loading" : initialLocation ? "live" : "loading"
   );
   const orderStatusRef = useRef(initialOrder.status);
   const hasLocationRef = useRef(Boolean(initialLocation));
@@ -92,6 +113,7 @@ export function LiveOrderTracking({
   }, [location]);
 
   useEffect(() => {
+    if (initialOrder.tracking_kind === "marketplace_order") return;
     const supabase = createClient();
     const locationChannel = supabase
       .channel(`customer-delivery-location:${initialOrder.id}`)
@@ -135,6 +157,75 @@ export function LiveOrderTracking({
       supabase.removeChannel(orderChannel);
     };
   }, [initialOrder.id]);
+
+  useEffect(() => {
+    if (!initialOrder.marketplace_order?.id) return;
+    const supabase = createClient();
+    const orderChannel = supabase
+      .channel(`customer-marketplace-order:${initialOrder.marketplace_order.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `id=eq.${initialOrder.marketplace_order.id}` },
+        (payload) => {
+          const next = payload.new as Partial<NonNullable<TrackingOrder["marketplace_order"]>>;
+          setOrder((current) => ({
+            ...current,
+            status: current.tracking_kind === "marketplace_order" ? String(next.status || current.status) : current.status,
+            marketplace_order: {
+              ...(current.marketplace_order || initialOrder.marketplace_order),
+              ...next
+            } as NonNullable<TrackingOrder["marketplace_order"]>
+          }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(orderChannel);
+    };
+  }, [initialOrder.marketplace_order?.id]);
+
+  useEffect(() => {
+    if (!order.delivery_code || isComplete(order.status)) return;
+    let stopped = false;
+    async function refreshTracking() {
+      const response = await fetch(`/api/tracking?code=${encodeURIComponent(order.delivery_code)}`, { cache: "no-store" }).catch(() => null);
+      if (!response?.ok || stopped) return;
+      const payload = (await response.json().catch(() => ({}))) as {
+        delivery?: Partial<TrackingOrder> & { last_location?: DeliveryLocation | null };
+      };
+      const delivery = payload.delivery;
+      if (!delivery) return;
+      setOrder((current) => ({
+        ...current,
+        id: delivery.id || current.id,
+        tracking_kind: current.tracking_kind === "marketplace_order" && isMarketplacePrepStatus(String(delivery.status || current.status)) ? "marketplace_order" : "delivery",
+        pickup_address: delivery.pickup_address || current.pickup_address,
+        dropoff_address: delivery.dropoff_address || current.dropoff_address,
+        status: String(delivery.status || current.status),
+        price_ngn: Number(delivery.price_ngn ?? current.price_ngn),
+        eta_minutes: delivery.eta_minutes == null ? current.eta_minutes : Number(delivery.eta_minutes),
+        metadata: delivery.metadata === undefined ? current.metadata : delivery.metadata || null,
+        rider_id: delivery.rider_id === undefined ? current.rider_id : delivery.rider_id || null,
+        rider: delivery.rider || current.rider
+      }));
+      if (delivery.last_location?.latitude && delivery.last_location.longitude) {
+        setLocation({
+          ...delivery.last_location,
+          latitude: Number(delivery.last_location.latitude),
+          longitude: Number(delivery.last_location.longitude)
+        });
+      }
+    }
+    const timer = window.setInterval(() => {
+      void refreshTracking();
+    }, 25000);
+    void refreshTracking();
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [order.delivery_code, order.status]);
 
   useEffect(() => {
     if (isComplete(order.status)) setConnectionState("complete");
@@ -199,6 +290,8 @@ export function LiveOrderTracking({
   const riderName = order.rider?.full_name || "Rider pending";
   const riderTag = order.rider_id ? riderAccountTypeLabel(order.rider?.rider_account_type) : "Rider tag pending";
   const completed = isComplete(order.status);
+  const marketplaceStatus = order.marketplace_order?.status || (marketplaceOnly ? order.status : null);
+  const showPickupProof = !marketplaceOnly && !order.marketplace_order;
 
   return (
     <section className="min-h-screen bg-fleet-paper">
@@ -208,22 +301,42 @@ export function LiveOrderTracking({
             <div>
               <Link href="/dashboard" className="text-sm font-black text-fleet-ember">Back to dashboard</Link>
               <h1 className="mt-2 text-3xl font-black text-fleet-night sm:text-5xl">{order.delivery_code}</h1>
-              <p className="mt-2 text-sm font-semibold text-slate-600">Live delivery tracking from pickup to drop-off.</p>
+              <p className="mt-2 text-sm font-semibold text-slate-600">
+                {marketplaceOnly ? "Marketplace order status from business preparation to dispatch." : "Live delivery tracking from pickup to drop-off."}
+              </p>
             </div>
-            <StatusBadge tone={completed ? "green" : stale ? "amber" : "blue"}>{connectionLabel(connectionState, stale)}</StatusBadge>
+            <StatusBadge tone={completed ? "green" : marketplaceOnly || stale ? "amber" : "blue"}>{marketplaceOnly ? "Preparing" : connectionLabel(connectionState, stale)}</StatusBadge>
           </div>
 
-          <Card className="overflow-hidden p-0">
-            <LiveTrackingMap order={order} pickup={pickup} dropoff={dropoff} location={location} />
-          </Card>
+          {marketplaceOnly ? <MarketplacePreparationHero order={order} /> : (
+            <Card className="overflow-hidden p-0">
+              <LiveTrackingMap order={order} pickup={pickup} dropoff={dropoff} location={location} />
+            </Card>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <MetricCard icon={Clock3} label="ETA" value={completed ? "Delivered" : etaMinutes ? `${etaMinutes} min` : "Calculating"} />
-            <MetricCard icon={Route} label="Remaining" value={completed ? "0 km" : remainingKm ? `${remainingKm.toFixed(1)} km` : "Waiting"} />
+            <MetricCard icon={Clock3} label="ETA" value={marketplaceOnly ? "After pickup" : completed ? "Delivered" : etaMinutes ? `${etaMinutes} min` : "Calculating"} />
+            <MetricCard icon={Route} label="Remaining" value={marketplaceOnly ? "Dispatch pending" : completed ? "0 km" : remainingKm ? `${remainingKm.toFixed(1)} km` : "Waiting"} />
             <MetricCard icon={Navigation2} label="Status" value={statusLabel(order.status)} />
           </div>
 
-          <Card className="p-4 sm:p-5">
+          {order.marketplace_order ? (
+            <Card className="p-4 sm:p-5">
+              <h2 className="text-xl font-black text-fleet-night">Marketplace progress</h2>
+              <div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                {marketplaceStatusSteps.map((step) => {
+                  const active = step.keys.includes(String(marketplaceStatus || order.status)) || isMarketplaceStepDone(step.label, String(marketplaceStatus || order.status));
+                  return (
+                    <div key={step.label} className={cn("rounded-fleet border p-3", active ? "border-fleet-leaf bg-emerald-50 text-emerald-800" : "border-fleet-line bg-white text-slate-500")}>
+                      <span className="block text-xs font-black uppercase leading-5">{step.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          ) : null}
+
+          {!marketplaceOnly ? <Card className="p-4 sm:p-5">
             <h2 className="text-xl font-black text-fleet-night">Delivery progress</h2>
             <div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
               {statusSteps.map((step) => {
@@ -235,12 +348,12 @@ export function LiveOrderTracking({
                 );
               })}
             </div>
-          </Card>
-          <PackagePickupProof deliveryId={order.id} metadata={order.metadata} status={order.status} />
+          </Card> : null}
+          {showPickupProof ? <PackagePickupProof deliveryId={order.id} metadata={order.metadata} status={order.status} /> : null}
         </main>
 
         <aside className="grid content-start gap-5">
-          <Card className="p-5">
+          {!marketplaceOnly ? <Card className="p-5">
             <div className="flex items-start gap-3">
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-fleet bg-fleet-navy text-white">
                 <Bike className="h-5 w-5" />
@@ -270,7 +383,20 @@ export function LiveOrderTracking({
                 Report issue
               </LinkButton>
             </div>
-          </Card>
+          </Card> : (
+            <Card className="p-5">
+              <div className="flex items-start gap-3">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-fleet bg-fleet-navy text-white">
+                  <Store className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Business order</p>
+                  <h2 className="mt-1 text-xl font-black text-fleet-night">{statusLabel(order.status)}</h2>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">Dispatch tracking will appear here when the business marks the order ready and a rider is assigned.</p>
+                </div>
+              </div>
+            </Card>
+          )}
 
           <Card className="p-5">
             <h2 className="text-xl font-black text-fleet-night">Route details</h2>
@@ -282,10 +408,41 @@ export function LiveOrderTracking({
             </div>
           </Card>
 
-          <TrackingStateCard state={connectionState} stale={stale} completed={completed} location={location} />
+          <TrackingStateCard state={connectionState} stale={stale} completed={completed} location={location} marketplaceOnly={marketplaceOnly} />
         </aside>
       </div>
     </section>
+  );
+}
+
+function MarketplacePreparationHero({ order }: { order: TrackingOrder }) {
+  const items = order.marketplace_order?.items || [];
+  const itemLabel = items.length ? `${items.length} item${items.length === 1 ? "" : "s"}` : order.marketplace_order?.marketplace_kind || "Marketplace order";
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="grid min-h-[360px] content-between bg-[linear-gradient(135deg,#071c35,#123b66_54%,#f47e18)] p-5 text-white sm:p-7">
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-fleet bg-white/12 px-3 py-1 text-xs font-black uppercase tracking-[0.14em]">
+            <PackageCheck className="h-4 w-4" />
+            {itemLabel}
+          </span>
+          <h2 className="mt-5 max-w-2xl text-3xl font-black leading-tight sm:text-5xl">{statusLabel(order.status)}</h2>
+          <p className="mt-3 max-w-xl text-sm font-semibold leading-6 text-white/80">
+            The business is preparing this order. Fast Fleets 360 delivery tracking will take over here after pickup dispatch starts.
+          </p>
+        </div>
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-fleet bg-white/12 p-4">
+            <span className="text-xs font-black uppercase tracking-[0.14em] text-white/65">Pickup</span>
+            <strong className="mt-1 block text-sm font-black leading-6">{order.pickup_address}</strong>
+          </div>
+          <div className="rounded-fleet bg-white/12 p-4">
+            <span className="text-xs font-black uppercase tracking-[0.14em] text-white/65">Drop-off</span>
+            <strong className="mt-1 block text-sm font-black leading-6">{order.dropoff_address}</strong>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -322,11 +479,13 @@ function LiveTrackingMap({
   );
 }
 
-function TrackingStateCard({ state, stale, completed, location }: { state: string; stale: boolean; completed: boolean; location: DeliveryLocation | null }) {
-  const title = completed ? "Delivery completed" : !location ? "No rider location yet" : stale ? "Rider may be offline" : state === "loading" ? "Connecting to rider" : "Rider is live";
+function TrackingStateCard({ state, stale, completed, location, marketplaceOnly }: { state: string; stale: boolean; completed: boolean; location: DeliveryLocation | null; marketplaceOnly?: boolean }) {
+  const title = marketplaceOnly ? "Waiting for dispatch" : completed ? "Delivery completed" : !location ? "No rider location yet" : stale ? "Rider may be offline" : state === "loading" ? "Connecting to rider" : "Rider is live";
   const body = completed
     ? "This delivery is closed. The last known route position remains available for support."
-    : !location
+    : marketplaceOnly
+      ? "The delivery map, rider details, and package proof section will appear after a rider is assigned to this marketplace order."
+      : !location
       ? "The map will update once the rider starts delivery tracking from the rider app."
       : stale
         ? "Showing the last known rider position while realtime reconnects."
@@ -418,6 +577,12 @@ function isComplete(status: string) {
 }
 
 function statusLabel(status: string) {
+  if (status === "pending") return "Order pending";
+  if (status === "received") return "Order received";
+  if (status === "preparing") return "Preparing order";
+  if (status === "packing") return "Packing order";
+  if (status === "ready_for_pickup") return "Ready for pickup";
+  if (status === "rider_assigned") return "Rider assigned";
   if (status === "pending_payment") return "Awaiting payment";
   if (status === "searching") return "Finding rider";
   if (status === "accepted") return "Rider assigned";
@@ -427,6 +592,29 @@ function statusLabel(status: string) {
   if (status === "delivered") return "Delivered";
   if (status === "cancelled") return "Cancelled";
   return status.replaceAll("_", " ");
+}
+
+function isMarketplacePrepStatus(status: string) {
+  return ["pending", "received", "preparing", "packing", "ready_for_pickup"].includes(status);
+}
+
+function isMarketplaceStepDone(label: string, status: string) {
+  const order = ["Order received", "Preparing", "Packing", "Ready for pickup", "Rider assigned", "Dispatch started"];
+  const statusIndex =
+    status === "delivered" || status === "in_transit" || status === "picked_up"
+      ? 5
+      : status === "rider_assigned" || status === "accepted"
+        ? 4
+        : status === "ready_for_pickup"
+          ? 3
+          : status === "packing"
+            ? 2
+            : status === "preparing"
+              ? 1
+              : status === "received" || status === "pending"
+                ? 0
+                : -1;
+  return order.indexOf(label) <= statusIndex;
 }
 
 function isStepDone(label: string, status: string) {

@@ -13,6 +13,7 @@ import { generatePaymentReference, initiateSquadPayment } from "@/lib/payments/s
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { accountTrackingHref } from "@/lib/tracking-links";
 
 export async function POST(request: Request) {
   try {
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
     const callbackUrl = new URL(`${siteUrl}/marketplace/callback`);
     callbackUrl.searchParams.set("reference", reference);
     callbackUrl.searchParams.set("code", reference);
-    callbackUrl.searchParams.set("returnTo", `/track?code=${encodeURIComponent(reference)}`);
+    callbackUrl.searchParams.set("returnTo", accountTrackingHref(reference));
     const pickupAddress = estimate.pickupAddress;
 
     if (business) {

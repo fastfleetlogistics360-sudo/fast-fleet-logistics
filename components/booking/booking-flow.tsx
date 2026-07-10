@@ -15,6 +15,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { sanitizeAddressText, isUsableAddressText } from "@/lib/location/address-formatting";
 import { currentLocationUpdatedEvent, readStoredCurrentLocation, type StoredCurrentLocation } from "@/lib/location/current-location";
 import { extractNigerianState } from "@/lib/location/state-matching";
+import { accountTrackingHref } from "@/lib/tracking-links";
 
 const steps = [
   "Pickup",
@@ -293,7 +294,7 @@ export function BookingFlow() {
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <LinkButton href={`/track?code=${deliveryCode}`} className="w-full">
+          <LinkButton href={accountTrackingHref(deliveryCode)} className="w-full">
             Track delivery
           </LinkButton>
           <LinkButton href="/dashboard" variant="secondary" className="w-full">

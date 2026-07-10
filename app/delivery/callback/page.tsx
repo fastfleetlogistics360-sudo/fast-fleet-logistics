@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { formatMoney } from "@/lib/format";
+import { accountTrackingHref } from "@/lib/tracking-links";
 import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
 
@@ -26,7 +27,7 @@ function DeliveryCallbackContent() {
   const reference = searchParams.get("reference") || searchParams.get("transaction_ref") || searchParams.get("TransactionRef") || searchParams.get("trxref");
   const code = searchParams.get("code") || "";
   const deliveryId = searchParams.get("deliveryId") || "";
-  const returnTo = sanitizeReturnTo(searchParams.get("returnTo"), code ? `/track?code=${encodeURIComponent(code)}` : "/dashboard");
+  const returnTo = sanitizeReturnTo(searchParams.get("returnTo"), code ? accountTrackingHref(code) : "/dashboard");
   const [state, setState] = useState<VerificationState>({
     status: "loading",
     message: "Confirming delivery payment with Squad..."

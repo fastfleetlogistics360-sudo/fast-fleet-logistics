@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DEFAULT_LIVE_STATES, NIGERIAN_STATES, launchStatusLabel, normalizeLaunchStatus, normalizeState, rolloutWaveForState } from "@/lib/launch-states";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
+import { accountTrackingHref } from "@/lib/tracking-links";
 import type { LaunchStateStatus } from "@/lib/launch-states";
 import { type PickupProof, metadataRecord } from "@/lib/pickup-proof";
 
@@ -722,6 +723,7 @@ function HomeTab({
   if (loading) return <DashboardSkeleton />;
   const completedOrders = orders.filter((order) => order.status === "delivered");
   const activeOrders = orders.filter((order) => !["delivered", "cancelled"].includes(order.status));
+  const walletTrackHref = activeOrders[0] ? trackHref(activeOrders[0]) : orders[0] ? trackHref(orders[0]) : "/track";
   const monthlySpend = orders
     .filter((order) => {
       const createdAt = new Date(order.created_at);
@@ -741,6 +743,7 @@ function HomeTab({
           accountKind="customer"
           kycStatus={profile.kyc_status === "approved" ? "verified" : profile.kyc_status === "rejected" ? "more_info_needed" : "pending"}
           returnTo="/dashboard"
+          trackHref={walletTrackHref}
           transactionHref="/dashboard#transactions"
         />
       </div>
@@ -791,7 +794,7 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
 }
 
 function trackHref(order: OrderRow) {
-  return `/track?code=${encodeURIComponent(order.delivery_code)}`;
+  return accountTrackingHref(order.delivery_code || order.delivery_id || order.id);
 }
 
 function detailsHref(order: OrderRow) {
@@ -844,11 +847,7 @@ function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?:
           {!compact ? (
             businessOrder && !liveDelivery ? <Button type="button" size="sm" variant="secondary" onClick={onSelect}>View details</Button> : <LinkButton href={detailsHref(order)} size="sm" variant="secondary">View details</LinkButton>
           ) : null}
-          {businessOrder && !liveDelivery ? (
-            <Button type="button" size="sm" variant="secondary" onClick={onSelect}>Status updates</Button>
-          ) : (
-            <LinkButton href={trackHref(order)} size="sm" variant="secondary">Live track</LinkButton>
-          )}
+          <LinkButton href={trackHref(order)} size="sm" variant="secondary">{businessOrder && !liveDelivery ? "Status updates" : "Live track"}</LinkButton>
           <LinkButton href={`/book?reorder=${order.delivery_code}`} size="sm">Re-order</LinkButton>
         </div>
       </div>
@@ -887,6 +886,9 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange, onPic
             )}
           </Card>
           {!vendorOrder ? <PackagePickupProof deliveryId={order.id} metadata={order.metadata} status={String(order.status)} onProofChange={(proof) => onPickupProofChange(order.id, proof)} /> : null}
+          <LinkButton href={trackHref(order)} className="w-full bg-fleet-navy hover:bg-fleet-night">
+            Open full tracking
+          </LinkButton>
           {!vendorOrder ? (
             <DeliveryRouteMap
               label="Live delivery map"
@@ -1108,9 +1110,9 @@ function OrderSheet({ order, onClose, onLiveDeliveryChange, onPickupProofChange 
         {!vendorOrder ? <div className="mt-5 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">
           Driver: {order.rider_profiles?.users?.full_name || "Pending"} · Plate: {order.rider_profiles?.plate_number || "Pending"} · {order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Driver tag pending"}
         </div> : null}
-        {!vendorOrder ? <LinkButton href={trackHref(order)} className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night">
-          Open live tracking
-        </LinkButton> : null}
+        <LinkButton href={trackHref(order)} className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night">
+          Open full tracking
+        </LinkButton>
         {!vendorOrder ? <DeliveryRouteMap
           compact
           className="mt-4"

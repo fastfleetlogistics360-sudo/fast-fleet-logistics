@@ -10,6 +10,7 @@ import { launchPromoMetadata, quoteLaunchDeliveryPromo, redeemLaunchDeliveryProm
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { accountTrackingHref } from "@/lib/tracking-links";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
 const paymentMethods = new Set(["card", "wallet", "transfer"]);
@@ -226,7 +227,7 @@ export async function POST(request: Request) {
     callbackUrl.searchParams.set("reference", squadReference);
     callbackUrl.searchParams.set("code", delivery.delivery_code);
     callbackUrl.searchParams.set("deliveryId", delivery.id);
-    callbackUrl.searchParams.set("returnTo", `/track?code=${encodeURIComponent(delivery.delivery_code)}`);
+    callbackUrl.searchParams.set("returnTo", accountTrackingHref(delivery.delivery_code));
 
     let squadCheckout;
     try {
