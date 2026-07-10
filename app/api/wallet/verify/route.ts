@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isSuccessfulSquadStatus, verifySquadTransaction } from "@/lib/payments/squad";
+import { getSquadPaymentEnvironment, isSuccessfulSquadStatus, verifySquadTransaction } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
@@ -27,11 +27,14 @@ export async function GET(request: NextRequest) {
     }
 
     const squadTransaction = await verifySquadTransaction(reference);
+    const paymentEnvironment = getSquadPaymentEnvironment();
 
     if (!isSuccessfulSquadStatus(squadTransaction.status)) {
       await supabase.rpc("mark_wallet_funding_failed", {
         next_provider_reference: reference,
         next_metadata: {
+          payment_environment: paymentEnvironment,
+          squad_environment: paymentEnvironment,
           provider_status: squadTransaction.status,
           gateway_reference: squadTransaction.gatewayReference,
           channel: squadTransaction.channel,
@@ -46,6 +49,8 @@ export async function GET(request: NextRequest) {
       next_provider_reference: reference,
       next_amount_ngn: amountNgn,
       next_metadata: {
+        payment_environment: paymentEnvironment,
+        squad_environment: paymentEnvironment,
         paid_at: squadTransaction.paidAt,
         channel: squadTransaction.channel,
         currency: squadTransaction.currency,

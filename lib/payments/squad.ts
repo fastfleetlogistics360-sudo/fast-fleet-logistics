@@ -57,6 +57,15 @@ export function getSquadBaseUrl() {
   return key.startsWith("sandbox_") ? SQUAD_SANDBOX_BASE_URL : SQUAD_PRODUCTION_BASE_URL;
 }
 
+export function getSquadPaymentEnvironment() {
+  const explicit = process.env.SQUAD_BASE_URL?.trim().toLowerCase() || "";
+  if (explicit.includes("sandbox")) return "sandbox";
+
+  const key = getSquadSecretKey();
+  if (!key) return "unknown";
+  return key.startsWith("sandbox_") ? "sandbox" : "live";
+}
+
 export function assertSquadConfigured() {
   const secretKey = getSquadSecretKey();
   if (!secretKey) {

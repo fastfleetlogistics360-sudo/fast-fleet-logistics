@@ -115,6 +115,7 @@ type AdminSectionId =
   | "delivery-timelines"
   | "withdrawal-review"
   | "company-transaction-logs"
+  | "promo-report"
   | "main-hero"
   | "hub-promotions"
   | "restaurant-menus"
@@ -133,6 +134,7 @@ const adminSectionIds = new Set<string>([
   "delivery-timelines",
   "withdrawal-review",
   "company-transaction-logs",
+  "promo-report",
   "main-hero",
   "hub-promotions",
   "restaurant-menus",
@@ -167,7 +169,8 @@ const adminNavGroups: Array<{
     title: "Money",
     items: [
       { id: "withdrawal-review", label: "Withdrawals", icon: CircleDollarSign, count: (stats) => String(stats.pendingWithdrawals) },
-      { id: "company-transaction-logs", label: "Company books", icon: ReceiptText }
+      { id: "company-transaction-logs", label: "Company books", icon: ReceiptText },
+      { id: "promo-report", label: "Promo report", icon: TicketCheck, count: (stats) => String(stats.promoRedemptions) }
     ]
   },
   {
@@ -197,6 +200,7 @@ type AdminNavStats = {
   pendingMarketplaceListings: number;
   activeDeliveries: number;
   pendingWithdrawals: number;
+  promoRedemptions: number;
   heroSlides: number;
   hubPromotions: number;
   fleetAssets: number;
@@ -422,6 +426,118 @@ type AdminReview = {
   target_rider_profile_id?: string | null;
   target_business_profile_id?: string | null;
   created_at: string;
+};
+
+type PromoReportUser = {
+  id?: string | null;
+  full_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  role?: string | null;
+  created_at?: string | null;
+};
+
+type AdminPromoEnrollment = {
+  id: string;
+  campaign_key: string;
+  user_id: string;
+  enrollment_rank?: number | string | null;
+  status: string;
+  announcement_seen_at?: string | null;
+  redemption_count?: number | string | null;
+  created_at: string;
+  updated_at?: string | null;
+  users?: PromoReportUser | null;
+};
+
+type AdminPromoRedemption = {
+  id: string;
+  campaign_key: string;
+  user_id: string;
+  delivery_id?: string | null;
+  redemption_slot: number;
+  status: "pending" | "redeemed" | "void" | string;
+  original_total_ngn?: number | string | null;
+  final_total_ngn?: number | string | null;
+  delivery_discount_ngn?: number | string | null;
+  platform_fee_discount_ngn?: number | string | null;
+  total_discount_ngn?: number | string | null;
+  redeemed_at?: string | null;
+  voided_at?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  users?: PromoReportUser | null;
+  deliveries?: {
+    id?: string | null;
+    delivery_code?: string | null;
+    status?: string | null;
+    price_ngn?: number | string | null;
+    created_at?: string | null;
+  } | null;
+};
+
+type AdminWalletFunding = {
+  id: string;
+  wallet_id: string;
+  amount_ngn: number | string;
+  status: string;
+  provider?: string | null;
+  provider_reference?: string | null;
+  payment_environment: "sandbox" | "live" | "unknown_legacy" | string;
+  created_at: string;
+  wallet?: {
+    id?: string | null;
+    user_id?: string | null;
+    wallet_type?: string | null;
+    balance_ngn?: number | string | null;
+    locked_balance_ngn?: number | string | null;
+  } | null;
+  users?: PromoReportUser | null;
+};
+
+type AdminPromoReport = {
+  campaign: {
+    key?: string | null;
+    title?: string | null;
+    status?: string | null;
+    enrollment_limit?: number | string | null;
+    max_redemptions_per_user?: number | string | null;
+    discount_percent?: number | string | null;
+    discount_cap_ngn?: number | string | null;
+    waive_platform_fee?: boolean | null;
+  } | null;
+  enrollments: AdminPromoEnrollment[];
+  redemptions: AdminPromoRedemption[];
+  walletFunding: AdminWalletFunding[];
+  summary: {
+    enrolled: number;
+    activeEnrollments: number;
+    redeemedCount: number;
+    pendingRedemptions: number;
+    voidRedemptions: number;
+    totalDiscountNgn: number;
+    sandboxFundingNgn: number;
+    liveFundingNgn: number;
+    unknownFundingNgn: number;
+  };
+};
+
+const emptyPromoReport: AdminPromoReport = {
+  campaign: null,
+  enrollments: [],
+  redemptions: [],
+  walletFunding: [],
+  summary: {
+    enrolled: 0,
+    activeEnrollments: 0,
+    redeemedCount: 0,
+    pendingRedemptions: 0,
+    voidRedemptions: 0,
+    totalDiscountNgn: 0,
+    sandboxFundingNgn: 0,
+    liveFundingNgn: 0,
+    unknownFundingNgn: 0
+  }
 };
 
 type SupportTicket = {
@@ -791,6 +907,7 @@ export function AdminPanel() {
   const [adminDeliveries, setAdminDeliveries] = useState<AdminDelivery[]>(demoDeliveries);
   const [adminWithdrawals, setAdminWithdrawals] = useState<AdminWithdrawal[]>(demoWithdrawals);
   const [companyLogs, setCompanyLogs] = useState<CompanyTransactionLog[]>(demoCompanyTransactionLogs);
+  const [promoReport, setPromoReport] = useState<AdminPromoReport>(emptyPromoReport);
   const [heroSlides, setHeroSlides] = useState<MainHeroSlide[]>(defaultMainHeroSlides);
   const [heroUploadProgress, setHeroUploadProgress] = useState<Record<string, number>>({});
   const [hubPromotionSlides, setHubPromotionSlides] = useState<HubPromotionSlide[]>(defaultHubPromotionSlides);
@@ -815,6 +932,7 @@ export function AdminPanel() {
   const pendingMarketplaceListingCount = useMemo(() => adminMarketplaceListings.filter((application) => application.status === "submitted").length, [adminMarketplaceListings]);
   const activeDeliveryCount = useMemo(() => adminDeliveries.filter((delivery) => !["delivered", "cancelled"].includes(delivery.status)).length, [adminDeliveries]);
   const pendingWithdrawalCount = useMemo(() => adminWithdrawals.filter((withdrawal) => withdrawal.status === "pending").length, [adminWithdrawals]);
+  const promoRedemptionCount = promoReport.redemptions.length;
   const approvedFleetRiders = useMemo(() => adminRiders.filter((rider) => rider.application_status === "approved"), [adminRiders]);
   const reviewCount = adminReviews.length;
   const openRiskCount = useMemo(() => riskSignals.filter((signal) => !signal.resolved_at).length, [riskSignals]);
@@ -826,6 +944,7 @@ export function AdminPanel() {
       pendingMarketplaceListings: pendingMarketplaceListingCount,
       activeDeliveries: activeDeliveryCount,
       pendingWithdrawals: pendingWithdrawalCount,
+      promoRedemptions: promoRedemptionCount,
       heroSlides: heroSlides.filter((slide) => slide.enabled).length,
       hubPromotions: hubPromotionSlides.filter((slide) => slide.enabled).length,
       fleetAssets: fleetAssets.length,
@@ -833,7 +952,7 @@ export function AdminPanel() {
       openRisk: openRiskCount,
       openSupport: openSupportCount
     }),
-    [activeDeliveryCount, fleetAssets.length, heroSlides, hubPromotionSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingMarketplaceListingCount, pendingRiderCount, pendingWithdrawalCount, reviewCount]
+    [activeDeliveryCount, fleetAssets.length, heroSlides, hubPromotionSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingMarketplaceListingCount, pendingRiderCount, pendingWithdrawalCount, promoRedemptionCount, reviewCount]
   );
   const companyLogSummary = useMemo(() => summarizeCompanyLogs(companyLogs), [companyLogs]);
   const filteredCompanyLogs = useMemo(() => {
@@ -866,6 +985,7 @@ export function AdminPanel() {
         deliveriesResponse,
         withdrawalsResponse,
         companyLogsResponse,
+        promoReportResponse,
         siteControlsResponse,
         heroSlidesResponse,
         hubPromotionSlidesResponse,
@@ -882,6 +1002,7 @@ export function AdminPanel() {
         fetch("/api/admin/deliveries"),
         fetch("/api/admin/withdrawals"),
         fetch("/api/admin/company-transactions"),
+        fetch("/api/admin/promo-report"),
         fetch("/api/admin/site-controls"),
         fetch("/api/admin/main-hero-slides"),
         fetch("/api/admin/hub-promotion-slides"),
@@ -898,6 +1019,7 @@ export function AdminPanel() {
       const deliveriesResult = await deliveriesResponse.json().catch(() => ({}));
       const withdrawalsResult = await withdrawalsResponse.json().catch(() => ({}));
       const companyLogsResult = await companyLogsResponse.json().catch(() => ({}));
+      const promoReportResult = await promoReportResponse.json().catch(() => ({}));
       const siteControlsResult = await siteControlsResponse.json().catch(() => ({}));
       const heroSlidesResult = await heroSlidesResponse.json().catch(() => ({}));
       const hubPromotionSlidesResult = await hubPromotionSlidesResponse.json().catch(() => ({}));
@@ -914,6 +1036,7 @@ export function AdminPanel() {
         ["deliveries", deliveriesResponse, deliveriesResult],
         ["withdrawals", withdrawalsResponse, withdrawalsResult],
         ["company logs", companyLogsResponse, companyLogsResult],
+        ["promo report", promoReportResponse, promoReportResult],
         ["site controls", siteControlsResponse, siteControlsResult],
         ["main hero", heroSlidesResponse, heroSlidesResult],
         ["Hub promotions", hubPromotionSlidesResponse, hubPromotionSlidesResult],
@@ -938,6 +1061,15 @@ export function AdminPanel() {
         const savedLogs = readDemoCompanyLogs();
         setCompanyLogs(companyLogsResult.demo && savedLogs.length > 0 ? savedLogs : companyLogsResult.logs);
       }
+      if (Array.isArray(promoReportResult.enrollments) && Array.isArray(promoReportResult.redemptions) && Array.isArray(promoReportResult.walletFunding)) {
+        setPromoReport({
+          campaign: promoReportResult.campaign || null,
+          enrollments: promoReportResult.enrollments,
+          redemptions: promoReportResult.redemptions,
+          walletFunding: promoReportResult.walletFunding,
+          summary: promoReportResult.summary || emptyPromoReport.summary
+        });
+      }
       if (siteControlsResult.controls) setSiteControls(normalizeSiteControls(siteControlsResult.controls));
       if (Array.isArray(heroSlidesResult.slides)) {
         const savedSlides = readDemoHeroSlides();
@@ -958,7 +1090,7 @@ export function AdminPanel() {
         const savedMalls = readDemoMallMenus();
         setMallMenus(mallsResult.demo && savedMalls.length > 0 ? savedMalls : normalizeShoppingMalls(mallsResult.malls));
       }
-      if (statesResult.demo || ridersResult.demo || fleetAssetsResult.demo || businessesResult.demo || marketplaceListingsResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || reviewsResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
+      if (statesResult.demo || ridersResult.demo || fleetAssetsResult.demo || businessesResult.demo || marketplaceListingsResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || promoReportResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || reviewsResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
         setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, bicycle fleet assets, business KYC, marketplace listings, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, reviews, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
       } else if (failedSections.length > 0) {
         setAdminMessage(`Some admin sections did not load: ${failedSections.join("; ")}`);
@@ -1870,6 +2002,13 @@ export function AdminPanel() {
           onClick={() => openAdminSection("withdrawal-review")}
         />
         <ActionCard
+          icon={TicketCheck}
+          title="First-150 promo report"
+          body="View enrolled users, redeemed discounts, and wallet funding environment evidence."
+          count={`${promoReport.summary.redeemedCount} redeemed`}
+          onClick={() => openAdminSection("promo-report")}
+        />
+        <ActionCard
           icon={FilePenLine}
           title="Site controls"
           body="Manage platform switches, launch content, wallet policy, and support flow."
@@ -1941,6 +2080,8 @@ export function AdminPanel() {
         onEdit={editCompanyLog}
         onExport={exportCompanyLogs}
       />
+
+      <PromoReportSection report={promoReport} />
 
       <MainHeroSlidesSection
         slides={heroSlides}
@@ -2746,6 +2887,193 @@ function CompanyTransactionSection({
       </div>
     </Card>
   );
+}
+
+function PromoReportSection({ report }: { report: AdminPromoReport }) {
+  const campaign = report.campaign;
+  const latestEnrollments = report.enrollments.slice(0, 12);
+  const latestRedemptions = report.redemptions.slice(0, 12);
+  const recentFunding = report.walletFunding.slice(0, 12);
+  return (
+    <Card id="promo-report" className="mt-6 scroll-mt-24 overflow-hidden">
+      <div className="flex flex-col gap-4 border-b border-fleet-line p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-fleet bg-fleet-night text-white">
+            <TicketCheck className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-xl font-black text-fleet-night">First-150 promo report</h2>
+            <span className="text-sm font-bold text-slate-500">Read-only enrollment, redemption, and wallet funding evidence</span>
+          </div>
+        </div>
+        <StatusBadge tone={campaign?.status === "active" ? "green" : "amber"}>
+          {campaign?.title || "Launch promo"}
+        </StatusBadge>
+      </div>
+
+      <div className="grid gap-4 p-4">
+        <div className="grid gap-3 md:grid-cols-4">
+          <FinanceStat label="Enrolled" value={`${report.summary.activeEnrollments}/${Number(campaign?.enrollment_limit || 150)}`} tone="text-fleet-night" />
+          <FinanceStat label="Redeemed" value={`${report.summary.redeemedCount}`} tone="text-emerald-700" />
+          <FinanceStat label="Discount given" value={formatMoney(report.summary.totalDiscountNgn)} tone="text-fleet-ember" />
+          <FinanceStat label="Legacy test funds" value={formatMoney(report.summary.unknownFundingNgn)} tone={report.summary.unknownFundingNgn ? "text-amber-700" : "text-slate-600"} />
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="rounded-fleet border border-fleet-line bg-white">
+            <div className="flex items-center justify-between gap-3 border-b border-fleet-line p-4">
+              <div>
+                <h3 className="text-base font-black text-fleet-night">Enrolled users</h3>
+                <p className="mt-1 text-xs font-bold text-slate-500">Qualified accounts and first-150 rank</p>
+              </div>
+              <StatusBadge tone="blue">{report.enrollments.length} users</StatusBadge>
+            </div>
+            <div className="max-h-[480px] overflow-auto">
+              <table className="w-full min-w-[620px] text-left text-sm">
+                <thead className="sticky top-0 bg-fleet-paper text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">User</th>
+                    <th className="px-4 py-3">Rank</th>
+                    <th className="px-4 py-3">Redemptions</th>
+                    <th className="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latestEnrollments.map((enrollment) => (
+                    <tr key={enrollment.id} className="border-t border-fleet-line align-top">
+                      <td className="px-4 py-4">
+                        <strong className="block font-black text-fleet-night">{promoUserName(enrollment.users)}</strong>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">{enrollment.users?.email || enrollment.users?.phone || enrollment.user_id}</span>
+                      </td>
+                      <td className="px-4 py-4 font-black text-fleet-night">#{enrollment.enrollment_rank || "--"}</td>
+                      <td className="px-4 py-4 font-bold text-slate-600">{Number(enrollment.redemption_count || 0)}</td>
+                      <td className="px-4 py-4">
+                        <StatusBadge tone={enrollment.status === "active" ? "green" : "amber"}>{enrollment.status}</StatusBadge>
+                        <span className="mt-2 block text-xs font-bold text-slate-500">{enrollment.announcement_seen_at ? "Seen" : "Not seen"}</span>
+                      </td>
+                    </tr>
+                  ))}
+                  {latestEnrollments.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-8 text-center text-sm font-bold text-slate-500" colSpan={4}>No promo enrollments yet.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="rounded-fleet border border-fleet-line bg-white">
+            <div className="flex items-center justify-between gap-3 border-b border-fleet-line p-4">
+              <div>
+                <h3 className="text-base font-black text-fleet-night">Promo redemptions</h3>
+                <p className="mt-1 text-xs font-bold text-slate-500">Discounts already used on deliveries</p>
+              </div>
+              <StatusBadge tone={report.summary.pendingRedemptions ? "amber" : "green"}>{report.summary.pendingRedemptions} pending</StatusBadge>
+            </div>
+            <div className="max-h-[480px] overflow-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="sticky top-0 bg-fleet-paper text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">User / delivery</th>
+                    <th className="px-4 py-3">Slot</th>
+                    <th className="px-4 py-3">Discount</th>
+                    <th className="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latestRedemptions.map((redemption) => (
+                    <tr key={redemption.id} className="border-t border-fleet-line align-top">
+                      <td className="px-4 py-4">
+                        <strong className="block font-black text-fleet-night">{promoUserName(redemption.users)}</strong>
+                        <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+                          {redemption.deliveries?.delivery_code || "No delivery"} · {formatDateTime(redemption.redeemed_at || redemption.created_at)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 font-black text-fleet-night">#{redemption.redemption_slot}</td>
+                      <td className="px-4 py-4">
+                        <strong className="block text-emerald-700">{formatMoney(Number(redemption.total_discount_ngn || 0))}</strong>
+                        <span className="mt-1 block text-xs font-bold text-slate-500">{formatMoney(Number(redemption.original_total_ngn || 0))} to {formatMoney(Number(redemption.final_total_ngn || 0))}</span>
+                      </td>
+                      <td className="px-4 py-4"><StatusBadge tone={redemption.status === "redeemed" ? "green" : redemption.status === "void" ? "red" : "amber"}>{redemption.status}</StatusBadge></td>
+                    </tr>
+                  ))}
+                  {latestRedemptions.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-8 text-center text-sm font-bold text-slate-500" colSpan={4}>No promo redemptions yet.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-fleet border border-fleet-line bg-white">
+          <div className="flex flex-col gap-3 border-b border-fleet-line p-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-base font-black text-fleet-night">Wallet funding environment</h3>
+              <p className="mt-1 text-xs font-bold text-slate-500">Use this before live launch to identify sandbox and legacy credits</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge tone="amber">Sandbox {formatMoney(report.summary.sandboxFundingNgn)}</StatusBadge>
+              <StatusBadge tone="green">Live {formatMoney(report.summary.liveFundingNgn)}</StatusBadge>
+              <StatusBadge tone={report.summary.unknownFundingNgn ? "red" : "neutral"}>Legacy {formatMoney(report.summary.unknownFundingNgn)}</StatusBadge>
+            </div>
+          </div>
+          <div className="max-h-[420px] overflow-auto">
+            <table className="w-full min-w-[840px] text-left text-sm">
+              <thead className="sticky top-0 bg-fleet-paper text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">User</th>
+                  <th className="px-4 py-3">Wallet</th>
+                  <th className="px-4 py-3">Amount</th>
+                  <th className="px-4 py-3">Environment</th>
+                  <th className="px-4 py-3">Reference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentFunding.map((funding) => (
+                  <tr key={funding.id} className="border-t border-fleet-line align-top">
+                    <td className="px-4 py-4">
+                      <strong className="block font-black text-fleet-night">{promoUserName(funding.users)}</strong>
+                      <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">{funding.users?.email || funding.users?.phone || funding.wallet?.user_id || "No user"}</span>
+                    </td>
+                    <td className="px-4 py-4 font-bold capitalize text-slate-600">{funding.wallet?.wallet_type || "wallet"}</td>
+                    <td className="px-4 py-4">
+                      <strong className="block text-fleet-night">{formatMoney(Number(funding.amount_ngn || 0))}</strong>
+                      <span className="mt-1 block text-xs font-bold text-slate-500">{formatDateTime(funding.created_at)}</span>
+                    </td>
+                    <td className="px-4 py-4"><StatusBadge tone={walletEnvironmentTone(funding.payment_environment)}>{funding.payment_environment.replaceAll("_", " ")}</StatusBadge></td>
+                    <td className="px-4 py-4">
+                      <span className="block max-w-[220px] truncate text-xs font-bold text-slate-500">{funding.provider_reference || "No reference"}</span>
+                      <StatusBadge tone={funding.status === "successful" ? "green" : funding.status === "failed" ? "red" : "amber"} className="mt-2">{funding.status}</StatusBadge>
+                    </td>
+                  </tr>
+                ))}
+                {recentFunding.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-8 text-center text-sm font-bold text-slate-500" colSpan={5}>No wallet funding records yet.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function promoUserName(user: PromoReportUser | null | undefined) {
+  return user?.full_name || user?.email || user?.phone || "Unknown user";
+}
+
+function walletEnvironmentTone(environment: string): "green" | "amber" | "red" | "neutral" {
+  if (environment === "live") return "green";
+  if (environment === "sandbox") return "amber";
+  if (environment === "unknown_legacy") return "red";
+  return "neutral";
 }
 
 function RestaurantMenuSection({

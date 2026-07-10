@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
-import { generatePaymentReference, initiateSquadPayment } from "@/lib/payments/squad";
+import { generatePaymentReference, getSquadPaymentEnvironment, initiateSquadPayment } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import type { WalletType } from "@/types/domain";
@@ -43,6 +43,7 @@ export async function POST(request: Request) {
     }
 
     const reference = generatePaymentReference("FFW");
+    const paymentEnvironment = getSquadPaymentEnvironment();
 
     const { error: fundingError } = await supabase.rpc("create_wallet_funding", {
       next_user_id: user.id,
@@ -52,6 +53,8 @@ export async function POST(request: Request) {
       next_provider_reference: reference,
       next_metadata: {
         source: "dashboard",
+        payment_environment: paymentEnvironment,
+        squad_environment: paymentEnvironment,
         wallet_type: walletType,
         return_to: safeReturnTo,
         email,
@@ -77,6 +80,8 @@ export async function POST(request: Request) {
         customerName: profile?.full_name || null,
         metadata: {
           source: "wallet_topup",
+          payment_environment: paymentEnvironment,
+          squad_environment: paymentEnvironment,
           wallet_type: walletType,
           user_id: user.id
         }
@@ -90,6 +95,8 @@ export async function POST(request: Request) {
       await supabase.rpc("mark_wallet_funding_failed", {
         next_provider_reference: reference,
         next_metadata: {
+          payment_environment: paymentEnvironment,
+          squad_environment: paymentEnvironment,
           squad_initialize_error: error instanceof Error ? error.message : "Squad initialization failed"
         }
       });
