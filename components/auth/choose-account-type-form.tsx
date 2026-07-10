@@ -78,6 +78,7 @@ export function ChooseAccountTypeForm() {
       const failed = [metadataResult, usersResult, profilesResult].find((result) => result.status === "rejected");
       if (failed?.status === "rejected") throw failed.reason;
 
+      await fetch("/api/promos/launch-first-150/enroll", { method: "POST" }).catch(() => null);
       const destination = returnTo || "/hub";
       router.replace(safeDashboardRedirectForRole(destination, selected));
       router.refresh();

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { normalizeState } from "@/lib/launch-states";
+import { ensureLaunchPromoEnrollment } from "@/lib/promos/launch-first-150";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
     default_zone: form.state,
     updated_at: now
   });
+  await ensureLaunchPromoEnrollment(db, user.id);
 
   const profilePayload = {
     user_id: user.id,

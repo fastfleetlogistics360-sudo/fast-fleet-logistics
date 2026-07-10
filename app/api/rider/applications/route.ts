@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { ensureLaunchPromoEnrollment } from "@/lib/promos/launch-first-150";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -161,6 +162,7 @@ export async function POST(request: NextRequest) {
       updated_at: now
     })
   ]);
+  await ensureLaunchPromoEnrollment(db, user.id);
 
   const application = await db
     .from("rider_applications")

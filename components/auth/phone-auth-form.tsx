@@ -174,6 +174,7 @@ export function PhoneAuthForm({
     ]);
 
     saveReturningProfile({ fullName: profilePayload.full_name, email: profilePayload.email });
+    await fetch("/api/promos/launch-first-150/enroll", { method: "POST" }).catch(() => null);
   }
 
   async function getSavedRole(userId: string, fallback: UserRole) {

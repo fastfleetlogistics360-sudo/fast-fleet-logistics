@@ -252,6 +252,70 @@ export async function getLaunchPromoStatus(db: SupabaseLike, userId: string, opt
   }
 }
 
+export async function ensureLaunchPromoEnrollment(db: SupabaseLike, userId: string): Promise<LaunchPromoStatus | null> {
+  return getLaunchPromoStatus(db, userId, { enroll: true });
+}
+
+export async function syncLaunchPromoEnrollments(db: SupabaseLike) {
+  try {
+    const campaign = normalizeCampaign(await loadCampaign(db));
+    if (!campaign.active) {
+      return { synced: false, eligible: 0, inserted: 0, reason: "inactive_campaign" };
+    }
+
+    const { data: users, error: usersError } = await dbClient(db)
+      .from("users")
+      .select("id")
+      .neq("role", "admin")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(campaign.enrollmentLimit);
+    if (usersError) throw usersError;
+
+    const eligibleUsers = (users || []).filter((user: { id?: string | null }) => Boolean(user.id));
+    const eligibleIds = eligibleUsers.map((user: { id?: string | null }) => String(user.id));
+    if (eligibleIds.length === 0) {
+      return { synced: true, eligible: 0, inserted: 0 };
+    }
+
+    const { data: existing, error: existingError } = await dbClient(db)
+      .from("promo_enrollments")
+      .select("user_id")
+      .eq("campaign_key", launchFirst150CampaignKey)
+      .in("user_id", eligibleIds);
+    if (existingError) {
+      if (isMissingPromoTable(existingError)) return { synced: false, eligible: eligibleIds.length, inserted: 0, reason: "missing_table" };
+      throw existingError;
+    }
+
+    const existingIds = new Set((existing || []).map((row: { user_id?: string | null }) => row.user_id).filter(Boolean));
+    const rows = eligibleUsers
+      .map((user: { id?: string | null }, index: number) => ({
+        campaign_key: launchFirst150CampaignKey,
+        user_id: String(user.id),
+        enrollment_rank: index + 1,
+        status: "active"
+      }))
+      .filter((row: { user_id: string }) => !existingIds.has(row.user_id));
+
+    if (rows.length === 0) {
+      return { synced: true, eligible: eligibleIds.length, inserted: 0 };
+    }
+
+    const { error: insertError } = await dbClient(db)
+      .from("promo_enrollments")
+      .upsert(rows, { onConflict: "campaign_key,user_id" });
+    if (insertError) {
+      if (isMissingPromoTable(insertError)) return { synced: false, eligible: eligibleIds.length, inserted: 0, reason: "missing_table" };
+      throw insertError;
+    }
+
+    return { synced: true, eligible: eligibleIds.length, inserted: rows.length };
+  } catch {
+    return { synced: false, eligible: 0, inserted: 0, reason: "sync_failed" };
+  }
+}
+
 export async function getLaunchPromoAnnouncement(db: SupabaseLike, userId: string): Promise<LaunchPromoAnnouncement | null> {
   const status = await getLaunchPromoStatus(db, userId, { enroll: true });
   if (!status?.enrolled || status.announcementSeen || status.remainingRedemptions <= 0) return null;

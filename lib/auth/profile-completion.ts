@@ -1,5 +1,7 @@
 import type { createServerClient } from "@supabase/ssr";
 import { normalizeState } from "@/lib/launch-states";
+import { ensureLaunchPromoEnrollment } from "@/lib/promos/launch-first-150";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserRole } from "@/types/domain";
 
 type SupabaseServerClient = ReturnType<typeof createServerClient>;
@@ -39,4 +41,6 @@ export async function upsertRoleProfile(supabase: SupabaseServerClient, user: Au
       updated_at: now
     })
   ]);
+
+  await ensureLaunchPromoEnrollment(createAdminClient() || supabase, user.id);
 }

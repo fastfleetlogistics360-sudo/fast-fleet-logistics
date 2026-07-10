@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
+import { syncLaunchPromoEnrollments } from "@/lib/promos/launch-first-150";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 
@@ -43,6 +44,7 @@ export async function GET() {
     return NextResponse.json(missingServiceResponse("promo reporting"), { status: 503 });
   }
 
+  const sync = await syncLaunchPromoEnrollments(supabase);
   const [campaignResult, enrollmentResult, redemptionResult, fundingResult] = await Promise.all([
     supabase
       .from("promo_campaigns")
@@ -140,6 +142,7 @@ export async function GET() {
     enrollments: enrichedEnrollments,
     redemptions: enrichedRedemptions,
     walletFunding,
+    sync,
     summary: buildSummary(enrichedEnrollments, enrichedRedemptions, walletFunding)
   });
 }
