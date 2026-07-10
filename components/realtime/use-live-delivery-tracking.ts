@@ -16,6 +16,7 @@ type LiveDeliveryPatch = {
   rider_id?: string | null;
   status?: string | null;
   eta_minutes?: number | null;
+  metadata?: Record<string, unknown> | null;
   updated_at?: string | null;
 };
 

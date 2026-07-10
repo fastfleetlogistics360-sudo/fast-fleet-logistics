@@ -16,6 +16,7 @@ import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { RoutePreview } from "@/components/maps/route-preview";
 import { useLiveDeliveryTracking } from "@/components/realtime/use-live-delivery-tracking";
 import { ReviewPrompt } from "@/components/reviews/review-prompt";
+import { PackagePickupProof } from "@/components/tracking/package-pickup-proof";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
 import { BackButton } from "@/components/ui/back-button";
@@ -26,6 +27,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { DEFAULT_LIVE_STATES, NIGERIAN_STATES, launchStatusLabel, normalizeLaunchStatus, normalizeState, rolloutWaveForState } from "@/lib/launch-states";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import type { LaunchStateStatus } from "@/lib/launch-states";
+import { type PickupProof, metadataRecord } from "@/lib/pickup-proof";
 
 type CustomerTab = "home" | "orders" | "track" | "account";
 type OrderStatus = "pending" | "assigned" | "searching" | "accepted" | "rider_arrived" | "picked_up" | "in_transit" | "delivered" | "cancelled";
@@ -80,6 +82,7 @@ type OrderRow = {
   created_at: string;
   delivered_at?: string | null;
   proof_url?: string | null;
+  metadata?: Record<string, unknown> | null;
   rider_profiles?: {
     plate_number?: string | null;
     vehicle_type?: string | null;
@@ -401,7 +404,7 @@ export function CustomerDashboard() {
     }
   }
 
-  const handleLiveDeliveryChange = useCallback((delivery: { id?: string; rider_id?: string | null; status?: string | null; eta_minutes?: number | null }) => {
+  const handleLiveDeliveryChange = useCallback((delivery: { id?: string; rider_id?: string | null; status?: string | null; eta_minutes?: number | null; metadata?: Record<string, unknown> | null }) => {
     if (!delivery.id) return;
     setOrders((current) =>
       current.map((order) =>
@@ -409,7 +412,8 @@ export function CustomerDashboard() {
           ? {
               ...order,
               rider_id: delivery.rider_id === undefined ? order.rider_id : delivery.rider_id,
-              status: delivery.status || order.status
+              status: delivery.status || order.status,
+              metadata: delivery.metadata === undefined ? order.metadata : delivery.metadata
             }
           : order
       )
@@ -419,9 +423,23 @@ export function CustomerDashboard() {
       return {
         ...current,
         rider_id: delivery.rider_id === undefined ? current.rider_id : delivery.rider_id,
-        status: delivery.status || current.status
+        status: delivery.status || current.status,
+        metadata: delivery.metadata === undefined ? current.metadata : delivery.metadata
       };
     });
+  }, []);
+
+  const handlePickupProofChange = useCallback((deliveryId: string, proof: PickupProof) => {
+    const applyProof = (order: OrderRow) => ({
+      ...order,
+      metadata: {
+        ...metadataRecord(order.metadata),
+        pickup_proof_required: true,
+        pickup_proof: proof
+      }
+    });
+    setOrders((current) => current.map((order) => (order.id === deliveryId ? applyProof(order) : order)));
+    setSelectedOrder((current) => (current?.id === deliveryId ? applyProof(current) : current));
   }, []);
 
   async function joinStateWaitlist() {
@@ -465,7 +483,7 @@ export function CustomerDashboard() {
             <OrdersTab loading={loading} orders={filteredOrders} filter={orderFilter} onFilter={setOrderFilter} onSelectOrder={setSelectedOrder} />
           ) : null}
           {activeTab === "track" && !stateIsOperational ? <TrackingPreview state={customerState} /> : null}
-          {activeTab === "track" && stateIsOperational ? <TrackTab order={trackedOrder} searchCode={searchCode} onSearchCode={setSearchCode} onLiveDeliveryChange={handleLiveDeliveryChange} /> : null}
+          {activeTab === "track" && stateIsOperational ? <TrackTab order={trackedOrder} searchCode={searchCode} onSearchCode={setSearchCode} onLiveDeliveryChange={handleLiveDeliveryChange} onPickupProofChange={handlePickupProofChange} /> : null}
           {activeTab === "account" ? (
             <AccountTab
               profile={profile}
@@ -486,7 +504,7 @@ export function CustomerDashboard() {
         </main>
       </div>
       <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
-      {selectedOrder ? <OrderSheet order={selectedOrder} onClose={() => setSelectedOrder(null)} onLiveDeliveryChange={handleLiveDeliveryChange} /> : null}
+      {selectedOrder ? <OrderSheet order={selectedOrder} onClose={() => setSelectedOrder(null)} onLiveDeliveryChange={handleLiveDeliveryChange} onPickupProofChange={handlePickupProofChange} /> : null}
       <ReviewPrompt subject={reviewSubject} />
     </section>
   );
@@ -838,7 +856,7 @@ function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?:
   );
 }
 
-function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange }: { order: OrderRow | null; searchCode: string; onSearchCode: (value: string) => void; onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null }) => void }) {
+function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange, onPickupProofChange }: { order: OrderRow | null; searchCode: string; onSearchCode: (value: string) => void; onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null; metadata?: Record<string, unknown> | null }) => void; onPickupProofChange: (deliveryId: string, proof: PickupProof) => void }) {
   const steps = ["Booked", "Rider assigned", "Picked up", "In transit", "Delivered"];
   const currentStep = order ? customerStepIndex(order.status) : 0;
   const vendorOrder = order && isBusinessMarketplaceOrder(order) && !hasLiveDelivery(order);
@@ -868,6 +886,7 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange }: { o
               </div>
             )}
           </Card>
+          {!vendorOrder ? <PackagePickupProof deliveryId={order.id} metadata={order.metadata} status={String(order.status)} onProofChange={(proof) => onPickupProofChange(order.id, proof)} /> : null}
           {!vendorOrder ? (
             <DeliveryRouteMap
               label="Live delivery map"
@@ -1061,7 +1080,7 @@ function Field({ label, value, onChange, readOnly }: { label: string; value: str
   );
 }
 
-function OrderSheet({ order, onClose, onLiveDeliveryChange }: { order: OrderRow; onClose: () => void; onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null }) => void }) {
+function OrderSheet({ order, onClose, onLiveDeliveryChange, onPickupProofChange }: { order: OrderRow; onClose: () => void; onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null; metadata?: Record<string, unknown> | null }) => void; onPickupProofChange: (deliveryId: string, proof: PickupProof) => void }) {
   const vendorOrder = isBusinessMarketplaceOrder(order) && !hasLiveDelivery(order);
   const routeLabel = orderRouteLabel(order);
   return (
@@ -1099,6 +1118,7 @@ function OrderSheet({ order, onClose, onLiveDeliveryChange }: { order: OrderRow;
           order={order}
           onLiveDeliveryChange={onLiveDeliveryChange}
         /> : null}
+        {!vendorOrder ? <PackagePickupProof deliveryId={order.id} metadata={order.metadata} status={String(order.status)} className="mt-4" onProofChange={(proof) => onPickupProofChange(order.id, proof)} /> : null}
         {order.proof_url ? (
           <Image src={order.proof_url} alt="Proof of delivery" width={720} height={360} unoptimized className="mt-4 max-h-64 w-full rounded-fleet object-cover" />
         ) : null}
@@ -1119,7 +1139,7 @@ function DeliveryRouteMap({
   compact?: boolean;
   className?: string;
   label: string;
-  onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null }) => void;
+  onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null; metadata?: Record<string, unknown> | null }) => void;
 }) {
   const { delivery, riderLocation } = useLiveDeliveryTracking({
     deliveryId: order?.id,
@@ -1172,6 +1192,7 @@ function readLocalDeliveries(): OrderRow[] {
         created_at: item.created_at || new Date().toISOString(),
         delivered_at: item.delivered_at || null,
         proof_url: item.proof_url || null,
+        metadata: item.metadata || null,
         rider_profiles: item.rider_profiles || null
       }));
   } catch {

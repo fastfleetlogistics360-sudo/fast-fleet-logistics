@@ -26,6 +26,7 @@ type DeliveryRow = {
   eta_minutes?: number | null;
   created_at: string;
   updated_at?: string | null;
+  metadata?: Record<string, unknown> | null;
   rider_id?: string | null;
     rider_profiles?: {
     plate_number?: string | null;
@@ -55,7 +56,7 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
   const query = supabase
     .from("deliveries")
     .select(
-      "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, dropoff_latitude, dropoff_longitude, status, price_ngn, distance_km, eta_minutes, created_at, updated_at, rider_id, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))"
+      "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, dropoff_latitude, dropoff_longitude, status, price_ngn, distance_km, eta_minutes, created_at, updated_at, metadata, rider_id, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))"
     )
     .eq("customer_id", user.id);
 
@@ -101,6 +102,7 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
     eta_minutes: result.data.eta_minutes == null ? null : Number(result.data.eta_minutes),
     created_at: result.data.created_at,
     updated_at: result.data.updated_at,
+    metadata: result.data.metadata || null,
     rider_id: result.data.rider_id,
     rider: {
       full_name: riderProfile?.users?.full_name || null,

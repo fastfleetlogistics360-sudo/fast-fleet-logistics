@@ -11,8 +11,9 @@ import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { geolocationErrorMessage, getLocationPermissionState, requestCurrentPosition } from "@/lib/location/geolocation";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
+import { isCustomerPickupProofRequired, pickupProofFromMetadata, pickupProofNeedsUpload, pickupProofReviewExpired, pickupProofReviewSecondsRemaining, pickupProofStatusMessage } from "@/lib/pickup-proof";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
-import { uploadProfilePhoto } from "@/lib/storage";
+import { compressImage, uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -258,6 +259,20 @@ async function saveRiderAvailability(options: { online?: boolean; vehicleType?: 
   const payload = (await response.json().catch(() => ({}))) as { profile?: RiderProfile | null; error?: string };
   if (!response.ok) throw new Error(payload.error || "Could not update rider availability.");
   return payload.profile || null;
+}
+
+async function uploadPickupProof(deliveryId: string, file: File) {
+  const body = new FormData();
+  body.set("deliveryId", deliveryId);
+  body.set("file", await compressImage(file, 1280, 0.78));
+
+  const response = await fetch("/api/rider/pickup-proof", {
+    method: "POST",
+    body
+  });
+  const payload = (await response.json().catch(() => ({}))) as { job?: JobRow; error?: string };
+  if (!response.ok || !payload.job) throw new Error(payload.error || "Could not upload package photo.");
+  return payload.job;
 }
 
 function mergeJobs(jobs: JobRow[]) {
@@ -763,15 +778,23 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 
   async function advanceJob(job: JobRow) {
     try {
-      const supabase = createClient();
-      if (job.status === "picked_up" && proofFile) {
-        const extension = proofFile.name.split(".").pop() || "jpg";
-        const path = `${profile.id || "rider"}/${job.id}-${Date.now()}.${extension}`;
-        const { error: uploadError } = await supabase.storage.from("delivery-proofs").upload(path, proofFile);
-        if (uploadError) throw uploadError;
-        const { data } = supabase.storage.from("delivery-proofs").getPublicUrl(path);
-        const { error: proofError } = await supabase.from("deliveries").update({ proof_url: data.publicUrl }).eq("id", job.id);
-        if (proofError) throw proofError;
+      if (job.status === "picked_up" && isCustomerPickupProofRequired(job.metadata)) {
+        const proof = pickupProofFromMetadata(job.metadata);
+        if (pickupProofNeedsUpload(job.metadata)) {
+          if (!proofFile) {
+            setTrackingMessage("Upload the package photo before starting the trip.");
+            return;
+          }
+          const uploadedJob = await uploadPickupProof(job.id, proofFile);
+          setJobs((current) => current.map((item) => item.id === job.id ? uploadedJob : item));
+          setProofFile(null);
+          setTrackingMessage("Package photo sent to the customer for confirmation.");
+          return;
+        }
+        if (proof?.status === "pending" && !pickupProofReviewExpired(proof)) {
+          setTrackingMessage("Waiting for customer package confirmation. You can start the trip after approval or when the review window ends.");
+          return;
+        }
       }
       const response = await fetch("/api/rider/jobs", {
         method: "POST",
@@ -1035,7 +1058,26 @@ function IncomingJobModal({ job, expires, pickupEtaMinutes, pickupEtaLoading, li
 }
 
 function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessage, onStartTracking, onStopTracking, onProofFile, onAdvance }: { job: JobRow; proofFile: File | null; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; onStartTracking: () => void; onStopTracking: () => void; onProofFile: (file: File | null) => void; onAdvance: (job: JobRow) => void }) {
-  const label = job.status === "accepted" ? "I've arrived at pickup" : job.status === "rider_arrived" ? "Package collected" : job.status === "picked_up" ? "Start trip" : job.status === "in_transit" ? "Delivered" : "Complete delivery";
+  const proofRequired = job.status === "picked_up" && isCustomerPickupProofRequired(job.metadata);
+  const proof = pickupProofFromMetadata(job.metadata);
+  const needsUpload = proofRequired && pickupProofNeedsUpload(job.metadata);
+  const pendingReview = proofRequired && proof?.status === "pending" && !pickupProofReviewExpired(proof);
+  const reviewSeconds = pickupProofReviewSecondsRemaining(proof);
+  const label =
+    job.status === "accepted"
+      ? "I've arrived at pickup"
+      : job.status === "rider_arrived"
+        ? "Package collected"
+        : job.status === "picked_up" && needsUpload
+          ? "Upload package photo"
+          : job.status === "picked_up" && pendingReview
+            ? "Waiting for customer"
+            : job.status === "picked_up"
+              ? "Start trip"
+              : job.status === "in_transit"
+                ? "Delivered"
+                : "Complete delivery";
+  const actionDisabled = Boolean((needsUpload && !proofFile) || pendingReview);
   const customerName = job.users?.full_name || "Customer";
   return (
     <Card className="p-5">
@@ -1061,12 +1103,28 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
         customerAvatarUrl={job.users?.avatar_url}
         customerName={customerName}
       />
-      {job.status === "picked_up" ? (
-        <label className="form-field mt-4">
-          <span className="form-label">Proof of delivery photo</span>
-          <input className="form-input py-3" type="file" accept="image/*" onChange={(event) => onProofFile(event.target.files?.[0] || null)} />
-          {proofFile ? <span className="text-xs font-bold text-slate-500">{proofFile.name}</span> : null}
-        </label>
+      {proofRequired ? (
+        <div className="mt-4 rounded-fleet border border-fleet-line bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <span className="text-xs font-black uppercase tracking-[0.12em] text-fleet-ember">Package confirmation</span>
+              <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
+                {pickupProofStatusMessage(proof)} {pendingReview && reviewSeconds ? `Auto-release in ${Math.ceil(reviewSeconds / 60)} min.` : ""}
+              </p>
+            </div>
+            <StatusBadge tone={proof?.status === "approved" || proof?.status === "auto_approved" ? "green" : proof?.status === "rejected" ? "red" : "amber"}>
+              {proof?.status ? proof.status.replaceAll("_", " ") : "Needed"}
+            </StatusBadge>
+          </div>
+          {proof?.url ? <Image src={proof.url} alt="Package pickup proof" width={720} height={360} unoptimized className="mt-3 max-h-64 w-full rounded-fleet object-cover" /> : null}
+          {needsUpload ? (
+            <label className="form-field mt-3">
+              <span className="form-label">Package pickup photo</span>
+              <input className="form-input py-3" type="file" accept="image/*" onChange={(event) => onProofFile(event.target.files?.[0] || null)} />
+              {proofFile ? <span className="text-xs font-bold text-slate-500">{proofFile.name}</span> : null}
+            </label>
+          ) : null}
+        </div>
       ) : null}
 	      <div className="mt-4 grid gap-2">
 	        {(job.dropoff_contact || job.pickup_contact || job.users?.phone) ? (
@@ -1079,7 +1137,7 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
         </Button>
       </div>
       {trackingMessage ? <div className="mt-3 rounded-fleet bg-fleet-paper p-3 text-xs font-bold leading-5 text-slate-600">{trackingMessage}</div> : null}
-      <Button type="button" className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night" onClick={() => onAdvance(job)}>{label}</Button>
+      <Button type="button" className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night" disabled={actionDisabled} onClick={() => onAdvance(job)}>{label}</Button>
     </Card>
   );
 }

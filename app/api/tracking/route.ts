@@ -14,6 +14,7 @@ type DeliveryRow = {
   price_ngn: number | string;
   eta_minutes: number | null;
   created_at?: string | null;
+  metadata?: Record<string, unknown> | null;
   rider_profiles?: {
     user_id?: string | null;
     plate_number?: string | null;
@@ -55,10 +56,10 @@ export async function GET(request: Request) {
   }
 
   const { data, error } = await supabase
-	    .from("deliveries")
-	    .select(
-	      "id, rider_id, delivery_code, pickup_address, dropoff_address, status, vehicle_type, delivery_speed, price_ngn, eta_minutes, created_at, rider_profiles:rider_profiles!deliveries_rider_id_fkey(user_id, plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))"
-	    )
+    .from("deliveries")
+    .select(
+      "id, rider_id, delivery_code, pickup_address, dropoff_address, status, vehicle_type, delivery_speed, price_ngn, eta_minutes, created_at, metadata, rider_profiles:rider_profiles!deliveries_rider_id_fkey(user_id, plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))"
+    )
     .eq("delivery_code", code)
     .maybeSingle<DeliveryRow>();
 
@@ -129,16 +130,17 @@ export async function GET(request: Request) {
       price_ngn: Number(data.price_ngn || 0),
       eta_minutes: data.eta_minutes || 0,
       created_at: data.created_at || null,
-	      rider: {
-	        full_name: data.rider_profiles?.users?.full_name || profileFallback?.full_name || null,
-	        phone: data.rider_profiles?.users?.phone || profileFallback?.phone || null,
-	        email: data.rider_profiles?.users?.email || profileFallback?.email || null,
-	        avatar_url: data.rider_profiles?.users?.avatar_url || profileFallback?.avatar_url || null,
-	        vehicle_type: data.rider_profiles?.vehicle_type || null,
-	        plate_number: data.rider_profiles?.plate_number || null,
-	        vehicle_color: data.rider_profiles?.vehicle_color || null,
-	        rider_account_type: normalizeRiderAccountType(data.rider_profiles?.rider_account_type)
-	      },
+      metadata: data.metadata || null,
+      rider: {
+        full_name: data.rider_profiles?.users?.full_name || profileFallback?.full_name || null,
+        phone: data.rider_profiles?.users?.phone || profileFallback?.phone || null,
+        email: data.rider_profiles?.users?.email || profileFallback?.email || null,
+        avatar_url: data.rider_profiles?.users?.avatar_url || profileFallback?.avatar_url || null,
+        vehicle_type: data.rider_profiles?.vehicle_type || null,
+        plate_number: data.rider_profiles?.plate_number || null,
+        vehicle_color: data.rider_profiles?.vehicle_color || null,
+        rider_account_type: normalizeRiderAccountType(data.rider_profiles?.rider_account_type)
+      },
       last_location: lastLocation
     }
   });

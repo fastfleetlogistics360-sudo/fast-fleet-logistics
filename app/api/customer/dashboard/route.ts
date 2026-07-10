@@ -4,10 +4,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const orderSelectWithRiderTag =
-  "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, avatar_url))";
+  "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, metadata, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, avatar_url))";
 
 const orderSelectWithoutRiderTag =
-  "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, avatar_url))";
+  "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, metadata, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, avatar_url))";
 
 const businessOrderSelect =
   "id, rider_id, order_code, delivery_id, marketplace_kind, items, pickup_address, dropoff_address, package_type, status, amount, created_at, updated_at, delivered_at, proof_of_delivery_url";
@@ -97,6 +97,7 @@ async function loadOrders(db: SupabaseClient, userId: string) {
       created_at: order.created_at,
       delivered_at: order.delivered_at,
       proof_url: order.proof_of_delivery_url,
+      metadata: null,
       marketplace_kind: order.marketplace_kind,
       items: order.items,
       source: "business_marketplace_order"

@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
 import { FastFleetMap } from "@/components/maps/fastfleet-map";
+import { PackagePickupProof } from "@/components/tracking/package-pickup-proof";
 import { LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -44,6 +45,7 @@ export type TrackingOrder = {
   eta_minutes?: number | null;
   created_at: string;
   updated_at?: string | null;
+  metadata?: Record<string, unknown> | null;
   rider_id?: string | null;
   rider?: {
     full_name?: string | null;
@@ -234,6 +236,7 @@ export function LiveOrderTracking({
               })}
             </div>
           </Card>
+          <PackagePickupProof deliveryId={order.id} metadata={order.metadata} status={order.status} />
         </main>
 
         <aside className="grid content-start gap-5">

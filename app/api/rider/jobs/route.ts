@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isBicycleDelivery, loadAssignedBicycleAsset, markBicycleAssetBusy, releaseBicycleAssetForDelivery } from "@/lib/fleet-assets";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
+import { isCustomerPickupProofRequired, metadataRecord, pickupProofFromMetadata, pickupProofReviewExpired } from "@/lib/pickup-proof";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import type { DeliveryStatus } from "@/types/domain";
 
@@ -159,9 +160,9 @@ export async function POST(request: Request) {
 
     const { data: current, error: currentError } = await db
       .from("deliveries")
-      .select("id, status, rider_id")
+      .select("id, status, rider_id, metadata")
       .eq("id", id)
-      .single<{ id: string; status: string; rider_id?: string | null }>();
+      .single<{ id: string; status: string; rider_id?: string | null; metadata?: Record<string, unknown> | null }>();
     if (currentError) throw currentError;
 
     if (current.rider_id !== rider.id) {
@@ -171,6 +172,30 @@ export async function POST(request: Request) {
     const nextStatus = statusFlow[String(current.status)] || "delivered";
     const timestamp = new Date().toISOString();
     const patch: Record<string, unknown> = { status: nextStatus, updated_at: timestamp };
+    if (current.status === "picked_up" && isCustomerPickupProofRequired(current.metadata)) {
+      const proof = pickupProofFromMetadata(current.metadata);
+      if (!proof?.url) {
+        return NextResponse.json({ error: "Upload the package photo before starting the trip." }, { status: 409 });
+      }
+      if (proof.status === "rejected" && !proof.can_continue) {
+        return NextResponse.json({ error: "Customer rejected this package photo. Upload a new photo before starting the trip." }, { status: 409 });
+      }
+      if (proof.status === "pending" && !pickupProofReviewExpired(proof)) {
+        return NextResponse.json({ error: "Waiting for customer package confirmation. The trip can start after approval or when the review window ends." }, { status: 409 });
+      }
+      if (proof.status === "pending" && pickupProofReviewExpired(proof)) {
+        patch.metadata = {
+          ...metadataRecord(current.metadata),
+          pickup_proof: {
+            ...proof,
+            status: "auto_approved",
+            reviewed_at: timestamp,
+            can_continue: true,
+            note: "Customer review window expired."
+          }
+        };
+      }
+    }
     if (nextStatus === "picked_up") patch.picked_up_at = timestamp;
     if (nextStatus === "delivered") patch.delivered_at = timestamp;
 
