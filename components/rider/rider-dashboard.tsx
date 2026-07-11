@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Banknote, Bike, Clock, Home, LayoutDashboard, Loader2, PackageCheck, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards } from "lucide-react";
+import { Banknote, Bike, Clock, Home, LayoutDashboard, Loader2, MessageCircle, Navigation2, PackageCheck, Phone, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -978,21 +978,20 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, prof
       {offerNotice ? <div className="rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-800">{offerNotice}</div> : null}
       {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
       {activeJob ? <ActiveJob job={activeJob} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} onStartTracking={onStartTracking} onStopTracking={onStopTracking} onProofFile={onProofFile} onAdvance={onAdvance} /> : null}
-      <Card className="overflow-hidden p-0">
+      {!activeJob ? <Card className="overflow-hidden p-0">
         <RoutePreview
           compact
           className="rounded-none border-0"
           label="Rider live map"
-          status={activeJob?.status}
+          status="searching"
           riderName={profile.full_name || "Fast Fleets 360 rider"}
-          pickupAddress={activeJob?.pickup_address || "Victoria Island, Lagos"}
-          dropoffAddress={activeJob?.dropoff_address || "Ikeja GRA, Lagos"}
+          pickupAddress="Victoria Island, Lagos"
+          dropoffAddress="Ikeja GRA, Lagos"
           riderLocation={liveLocation}
           riderAvatarUrl={profile.avatar_url}
-          customerAvatarUrl={activeJob?.users?.avatar_url}
-          customerName={activeJob?.users?.full_name || "Customer"}
+          customerName="Customer"
         />
-      </Card>
+      </Card> : null}
       <section>
         <h2 className="mb-3 text-xl font-black text-fleet-night">Recent trips</h2>
         <div className="grid gap-3">
@@ -1079,67 +1078,171 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
                 : "Complete delivery";
   const actionDisabled = Boolean((needsUpload && !proofFile) || pendingReview);
   const customerName = job.users?.full_name || "Customer";
+  const customerPhone = job.dropoff_contact || job.pickup_contact || job.users?.phone || "";
+  const messages = activeJobMessages(job, customerName, trackingActive, proofRequired, proof?.status || null, needsUpload, pendingReview);
   return (
-    <Card className="p-5">
-	      <StatusBadge tone="blue">Active delivery</StatusBadge>
-	      <h2 className="mt-3 text-xl font-black text-fleet-night">{job.delivery_code}</h2>
-	      <p className="mt-2 text-sm font-semibold text-slate-600">{job.pickup_address} to {job.dropoff_address}</p>
-	      <div className="mt-3 flex gap-3 rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-600">
-          <ProfileImage src={job.users?.avatar_url} name={customerName} className="h-12 w-12" />
-          <div className="grid min-w-0 gap-1">
-	          <span>Customer: {customerName}</span>
-	          <span>Phone: {job.dropoff_contact || job.pickup_contact || job.users?.phone || "Not provided"}</span>
+    <Card className="overflow-hidden p-0">
+      <div className="border-b border-fleet-line bg-white p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <StatusBadge tone="blue">Active delivery</StatusBadge>
+            <h2 className="mt-3 break-words text-2xl font-black text-fleet-night">{job.delivery_code}</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{job.pickup_address} to {job.dropoff_address}</p>
           </div>
-	      </div>
-	      <RoutePreview
-        compact
-        className="mt-4"
-        label="Active route"
-        status={job.status}
-        riderName="Your route"
-        pickupAddress={job.pickup_address}
-        dropoffAddress={job.dropoff_address}
-        riderLocation={liveLocation}
-        customerAvatarUrl={job.users?.avatar_url}
-        customerName={customerName}
-      />
-      {proofRequired ? (
-        <div className="mt-4 rounded-fleet border border-fleet-line bg-white p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <span className="text-xs font-black uppercase tracking-[0.12em] text-fleet-ember">Package confirmation</span>
-              <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
-                {pickupProofStatusMessage(proof)} {pendingReview && reviewSeconds ? `Auto-release in ${Math.ceil(reviewSeconds / 60)} min.` : ""}
-              </p>
-            </div>
-            <StatusBadge tone={proof?.status === "approved" || proof?.status === "auto_approved" ? "green" : proof?.status === "rejected" ? "red" : "amber"}>
-              {proof?.status ? proof.status.replaceAll("_", " ") : "Needed"}
-            </StatusBadge>
-          </div>
-          {proof?.url ? <Image src={proof.url} alt="Package pickup proof" width={720} height={360} unoptimized className="mt-3 max-h-64 w-full rounded-fleet object-cover" /> : null}
-          {needsUpload ? (
-            <label className="form-field mt-3">
-              <span className="form-label">Package pickup photo</span>
-              <input className="form-input py-3" type="file" accept="image/*" onChange={(event) => onProofFile(event.target.files?.[0] || null)} />
-              {proofFile ? <span className="text-xs font-bold text-slate-500">{proofFile.name}</span> : null}
-            </label>
-          ) : null}
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-fleet-navy text-white">
+            <MessageCircle className="h-5 w-5" />
+          </span>
         </div>
-      ) : null}
-	      <div className="mt-4 grid gap-2">
-	        {(job.dropoff_contact || job.pickup_contact || job.users?.phone) ? (
-	          <LinkButton href={`tel:${job.dropoff_contact || job.pickup_contact || job.users?.phone}`} variant="secondary" className="w-full">
-	            Call customer
-	          </LinkButton>
-	        ) : null}
-	        <Button type="button" variant={trackingActive ? "secondary" : "primary"} onClick={trackingActive ? onStopTracking : onStartTracking}>
-	          {trackingActive ? "Stop Delivery Tracking" : "Start Delivery Tracking"}
-        </Button>
       </div>
-      {trackingMessage ? <div className="mt-3 rounded-fleet bg-fleet-paper p-3 text-xs font-bold leading-5 text-slate-600">{trackingMessage}</div> : null}
-      <Button type="button" className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night" disabled={actionDisabled} onClick={() => onAdvance(job)}>{label}</Button>
+
+      <div className="bg-fleet-paper/70 p-3 sm:p-4">
+        <RoutePreview
+          compact
+          className="min-h-[260px] rounded-[18px]"
+          label="Live route"
+          status={job.status}
+          riderName="Your route"
+          pickupAddress={job.pickup_address}
+          dropoffAddress={job.dropoff_address}
+          riderLocation={liveLocation}
+          customerAvatarUrl={job.users?.avatar_url}
+          customerName={customerName}
+        />
+      </div>
+
+      <div className="grid gap-3 border-b border-fleet-line bg-white p-4 sm:grid-cols-3 sm:p-5">
+        <RiderRoomDetail icon={UserRound} label="Customer" value={customerName} />
+        <RiderRoomDetail icon={Phone} label="Phone" value={customerPhone || "Not provided"} />
+        <RiderRoomDetail icon={Navigation2} label="Next action" value={label} />
+      </div>
+
+      <div className="grid gap-3 bg-[#f7fafc] p-3 sm:p-5">
+        {messages.map((message) => <ActiveJobBubble key={message.key} message={message} />)}
+
+        {proofRequired ? (
+          <div className="rounded-[20px] border border-fleet-line bg-white p-4 shadow-[0_14px_36px_rgba(8,17,31,0.08)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className="text-xs font-black uppercase tracking-[0.12em] text-fleet-ember">FastConfirm™</span>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
+                  {pickupProofStatusMessage(proof)} {pendingReview && reviewSeconds ? `Auto-release in ${Math.ceil(reviewSeconds / 60)} min.` : ""}
+                </p>
+              </div>
+              <StatusBadge tone={proof?.status === "approved" || proof?.status === "auto_approved" ? "green" : proof?.status === "rejected" ? "red" : "amber"}>
+                {proof?.status ? proof.status.replaceAll("_", " ") : "Needed"}
+              </StatusBadge>
+            </div>
+            {proof?.url ? <Image src={proof.url} alt="Package pickup proof" width={720} height={360} unoptimized className="mt-3 max-h-64 w-full rounded-fleet object-cover" /> : null}
+            {needsUpload ? (
+              <label className="form-field mt-3">
+                <span className="form-label">Package pickup photo</span>
+                <input className="form-input py-3" type="file" accept="image/*" onChange={(event) => onProofFile(event.target.files?.[0] || null)} />
+                {proofFile ? <span className="text-xs font-bold text-slate-500">{proofFile.name}</span> : null}
+              </label>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {customerPhone ? (
+            <LinkButton href={`tel:${customerPhone}`} variant="secondary" className="w-full">
+              <Phone className="h-4 w-4" />
+              Call customer
+            </LinkButton>
+          ) : null}
+          <Button type="button" variant={trackingActive ? "secondary" : "primary"} onClick={trackingActive ? onStopTracking : onStartTracking}>
+            {trackingActive ? "Stop Delivery Tracking" : "Start Delivery Tracking"}
+          </Button>
+        </div>
+        {trackingMessage ? <div className="rounded-fleet bg-white p-3 text-xs font-bold leading-5 text-slate-600">{trackingMessage}</div> : null}
+        <Button type="button" className="w-full bg-fleet-navy hover:bg-fleet-night" disabled={actionDisabled} onClick={() => onAdvance(job)}>{label}</Button>
+      </div>
     </Card>
   );
+}
+
+function RiderRoomDetail({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-start gap-3 rounded-[16px] bg-fleet-paper p-3">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-fleet-ember">
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-500">{label}</span>
+        <strong className="mt-1 block break-words text-sm font-black text-fleet-night">{value}</strong>
+      </span>
+    </div>
+  );
+}
+
+type ActiveJobMessage = {
+  key: string;
+  meta: string;
+  title: string;
+  body: string;
+  active?: boolean;
+};
+
+function ActiveJobBubble({ message }: { message: ActiveJobMessage }) {
+  return (
+    <div className="flex justify-start">
+      <div className={cn("max-w-[92%] rounded-[20px] rounded-bl-md bg-white px-4 py-3 shadow-[0_14px_36px_rgba(8,17,31,0.08)] sm:max-w-[78%]", message.active && "ring-2 ring-fleet-gold/70")}>
+        <div className="flex items-center gap-2">
+          {message.active ? <span className="h-2.5 w-2.5 animate-pulseSoft rounded-full bg-fleet-gold" /> : null}
+          <span className="text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-500">{message.meta}</span>
+        </div>
+        <strong className="mt-1 block text-sm font-black leading-5 text-fleet-night">{message.title}</strong>
+        <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">{message.body}</p>
+      </div>
+    </div>
+  );
+}
+
+function activeJobMessages(job: JobRow, customerName: string, trackingActive: boolean, proofRequired: boolean, proofStatus: string | null, needsUpload: boolean, pendingReview: boolean): ActiveJobMessage[] {
+  const messages: ActiveJobMessage[] = [
+    {
+      key: "accepted",
+      meta: "Dispatch",
+      title: "You accepted this job",
+      body: `Head to pickup and keep ${customerName} updated through the delivery timeline.`,
+      active: job.status === "accepted"
+    },
+    {
+      key: "rider_arrived",
+      meta: "Pickup",
+      title: "You are at pickup",
+      body: "Confirm the package handoff when it is collected from the sender.",
+      active: job.status === "rider_arrived"
+    },
+    {
+      key: "picked_up",
+      meta: "FastConfirm™",
+      title: proofRequired ? "Package photo review" : "Package collected",
+      body: proofRequired
+        ? needsUpload
+          ? "Upload a clear package photo so the customer can confirm it before the trip starts."
+          : pendingReview
+            ? "Waiting for the customer to confirm the package photo."
+            : `FastConfirm™ status: ${proofStatus ? proofStatus.replaceAll("_", " ") : "ready"}.`
+        : "Package pickup has been marked complete. Start the trip when ready.",
+      active: job.status === "picked_up"
+    },
+    {
+      key: "in_transit",
+      meta: trackingActive ? "Live movement" : "Tracking",
+      title: "Trip in progress",
+      body: trackingActive ? "Live delivery tracking is sharing your route movement." : "Start delivery tracking so the customer can follow the route.",
+      active: job.status === "in_transit"
+    }
+  ];
+  return messages.filter((message) => isActiveJobMessageVisible(message.key, job.status));
+}
+
+function isActiveJobMessageVisible(key: string, status: string) {
+  const order = ["accepted", "rider_arrived", "picked_up", "in_transit"];
+  const statusIndex = order.indexOf(status);
+  const messageIndex = order.indexOf(key);
+  return statusIndex >= 0 && messageIndex <= statusIndex;
 }
 
 function JobsTab({ loading, jobs, online, onToggleOnline }: { loading: boolean; jobs: JobRow[]; online: boolean; onToggleOnline: () => void }) {

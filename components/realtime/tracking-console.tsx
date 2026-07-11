@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Bike, CheckCircle2, Clock3, MapPinned, PackageCheck, Search } from "lucide-react";
+import { Bike, CheckCircle2, Clock3, MapPinned, MessageCircle, PackageCheck, Search } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { initials } from "@/lib/format";
@@ -54,6 +54,7 @@ export function TrackingConsole() {
   const [loading, setLoading] = useState(false);
   const currentIndex = useMemo(() => timelineIndex(delivery?.status), [delivery?.status]);
   const locationLabel = useMemo(() => formatLocation(delivery?.last_location), [delivery?.last_location]);
+  const ongoingDelivery = Boolean(delivery && isOngoingDeliveryStatus(delivery.status));
 
   async function loadDelivery(nextCode = code) {
     const trackingCode = nextCode.trim().toUpperCase();
@@ -111,7 +112,9 @@ export function TrackingConsole() {
           {message ? <p className="mt-3 text-sm font-bold text-slate-600">{message}</p> : null}
         </Card>
 
-        {delivery ? (
+        {delivery ? ongoingDelivery ? (
+          <PublicTrackingRoom delivery={delivery} locationLabel={locationLabel} />
+        ) : (
           <RoutePreview
             label="Active delivery route"
             status={delivery.status}
@@ -191,6 +194,113 @@ export function TrackingConsole() {
       </div>
     </section>
   );
+}
+
+function PublicTrackingRoom({ delivery, locationLabel }: { delivery: TrackedDelivery; locationLabel: string }) {
+  const messages = publicTrackingMessages(delivery, locationLabel);
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="border-b border-fleet-line bg-white p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Live delivery room</span>
+            <h2 className="mt-1 break-words text-2xl font-black text-fleet-night">{delivery.delivery_code}</h2>
+            <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">{delivery.status.replaceAll("_", " ")} · {delivery.eta_minutes ? `${delivery.eta_minutes} min ETA` : "ETA updating"}</p>
+          </div>
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-fleet-navy text-white">
+            <MessageCircle className="h-5 w-5" />
+          </span>
+        </div>
+      </div>
+      <div className="bg-fleet-paper/70 p-3 sm:p-4">
+        <RoutePreview
+          compact
+          className="min-h-[260px] rounded-[18px]"
+          label="Live route"
+          status={delivery.status}
+          riderName={delivery.rider?.full_name || "Verified rider"}
+          pickupAddress={delivery.pickup_address}
+          dropoffAddress={delivery.dropoff_address}
+          riderLocation={delivery.last_location}
+          riderAvatarUrl={delivery.rider?.avatar_url}
+        />
+      </div>
+      <div className="grid gap-3 bg-[#f7fafc] p-3 sm:p-5">
+        {messages.map((message) => (
+          <PublicTrackingBubble key={message.key} message={message} />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+type PublicTrackingMessage = {
+  key: string;
+  meta: string;
+  title: string;
+  body: string;
+  active?: boolean;
+};
+
+function PublicTrackingBubble({ message }: { message: PublicTrackingMessage }) {
+  return (
+    <div className="flex justify-start">
+      <div className={`max-w-[92%] rounded-[20px] rounded-bl-md bg-white px-4 py-3 shadow-[0_14px_36px_rgba(8,17,31,0.08)] sm:max-w-[78%] ${message.active ? "ring-2 ring-fleet-gold/70" : ""}`}>
+        <div className="flex items-center gap-2">
+          {message.active ? <span className="h-2.5 w-2.5 animate-pulseSoft rounded-full bg-fleet-gold" /> : null}
+          <span className="text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-500">{message.meta}</span>
+        </div>
+        <strong className="mt-1 block text-sm font-black leading-5 text-fleet-night">{message.title}</strong>
+        <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">{message.body}</p>
+      </div>
+    </div>
+  );
+}
+
+function publicTrackingMessages(delivery: TrackedDelivery, locationLabel: string): PublicTrackingMessage[] {
+  const current = delivery.status;
+  const messages: PublicTrackingMessage[] = [
+    {
+      key: "accepted",
+      meta: "Dispatch",
+      title: "Rider assigned",
+      body: `${delivery.rider?.full_name || "A verified rider"} has accepted the delivery.`,
+      active: current === "accepted"
+    },
+    {
+      key: "rider_arrived",
+      meta: "Pickup",
+      title: "Rider at pickup",
+      body: "The rider is at the pickup point and preparing the handoff.",
+      active: current === "rider_arrived"
+    },
+    {
+      key: "picked_up",
+      meta: "FastConfirm™",
+      title: "Package picked up",
+      body: "Pickup has been marked complete. Use the authenticated tracking page for any customer FastConfirm™ action.",
+      active: current === "picked_up"
+    },
+    {
+      key: "in_transit",
+      meta: "Live movement",
+      title: "Rider is on the way",
+      body: locationLabel ? `Latest rider movement: ${locationLabel}.` : "Rider movement will update here as location pings arrive.",
+      active: current === "in_transit"
+    }
+  ];
+  return messages.filter((message) => isPublicTrackingMessageVisible(message.key, current));
+}
+
+function isPublicTrackingMessageVisible(key: string, status: string) {
+  const order = ["accepted", "rider_arrived", "picked_up", "in_transit"];
+  const statusIndex = order.indexOf(status);
+  const messageIndex = order.indexOf(key);
+  return statusIndex >= 0 && messageIndex <= statusIndex;
+}
+
+function isOngoingDeliveryStatus(status?: string) {
+  return ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(String(status || ""));
 }
 
 function timelineIndex(status?: string) {

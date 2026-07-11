@@ -779,6 +779,7 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
                   </Button>
                 ))}
               </div>
+              {isBusinessDispatchActive(order.status) ? <BusinessOrderObserver order={order} /> : null}
             </article>
           ))
         ) : (
@@ -787,6 +788,34 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
       </div>
     </Card>
   );
+}
+
+function BusinessOrderObserver({ order }: { order: BusinessOrderRow }) {
+  return (
+    <div className="mt-4 rounded-[20px] border border-fleet-line bg-[#f7fafc] p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">Marketplace dispatch room</span>
+          <h3 className="mt-1 text-sm font-black text-fleet-night">{businessOrderLabel(order.status)}</h3>
+        </div>
+        <StatusBadge tone={businessOrderTone(order.status)}>Observer</StatusBadge>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-[16px] bg-white p-3 text-sm font-bold leading-5 text-slate-600">
+          <span className="block text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-500">Customer handoff</span>
+          {order.dropoff_address || "Customer delivery address"}
+        </div>
+        <div className="rounded-[16px] bg-white p-3 text-sm font-bold leading-5 text-slate-600">
+          <span className="block text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-500">Business role</span>
+          Monitor pickup, transit, and delivery. FastConfirm™ decisions stay with the receiver.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function isBusinessDispatchActive(status: string) {
+  return ["rider_assigned", "picked_up", "in_transit"].includes(status);
 }
 
 function DispatchTab({ dispatch, onDispatch, estimate, loading, message, onSubmit, addresses, bulkRows, onCsv, onDownloadTemplate, onDispatchBulk, addressDraft, onAddressDraft, onAddAddress, onDeleteAddress }: { dispatch: DispatchForm; onDispatch: (form: DispatchForm) => void; estimate: number; loading: boolean; message: string | null; onSubmit: () => void; addresses: SavedAddress[]; bulkRows: BulkRow[]; onCsv: (text: string) => void; onDownloadTemplate: () => void; onDispatchBulk: () => void; addressDraft: { label: string; address: string }; onAddressDraft: (draft: { label: string; address: string }) => void; onAddAddress: () => void; onDeleteAddress: (id: string) => void }) {

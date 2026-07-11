@@ -71,7 +71,7 @@ export function PackagePickupProof({ deliveryId, metadata, status, className, re
     <div className={cn("rounded-fleet border border-fleet-line bg-white p-4", className)}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">Package confirmation</span>
+          <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">FastConfirm™</span>
           <h3 className="mt-1 text-lg font-black text-fleet-night">Check the pickup photo</h3>
           <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
             {pickupProofStatusMessage(proof)} {proof?.status === "pending" && secondsRemaining ? `Auto-confirmation in ${Math.ceil(secondsRemaining / 60)} min.` : ""}

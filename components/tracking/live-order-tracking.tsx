@@ -292,6 +292,23 @@ export function LiveOrderTracking({
   const completed = isComplete(order.status);
   const marketplaceStatus = order.marketplace_order?.status || (marketplaceOnly ? order.status : null);
   const showPickupProof = !marketplaceOnly && !order.marketplace_order;
+  const ongoingDelivery = !marketplaceOnly && isOngoingDelivery(order.status);
+
+  if (ongoingDelivery) {
+    return (
+      <OngoingDeliveryRoom
+        order={order}
+        pickup={pickup}
+        dropoff={dropoff}
+        location={location}
+        remainingKm={remainingKm}
+        etaMinutes={etaMinutes}
+        connectionState={connectionState}
+        stale={stale}
+        showPickupProof={showPickupProof}
+      />
+    );
+  }
 
   return (
     <section className="min-h-screen bg-fleet-paper">
@@ -415,6 +432,216 @@ export function LiveOrderTracking({
   );
 }
 
+function OngoingDeliveryRoom({
+  order,
+  pickup,
+  dropoff,
+  location,
+  remainingKm,
+  etaMinutes,
+  connectionState,
+  stale,
+  showPickupProof
+}: {
+  order: TrackingOrder;
+  pickup: LatLng | null;
+  dropoff: LatLng | null;
+  location: DeliveryLocation | null;
+  remainingKm: number;
+  etaMinutes: number;
+  connectionState: "loading" | "live" | "offline" | "complete";
+  stale: boolean;
+  showPickupProof: boolean;
+}) {
+  const riderName = order.rider?.full_name || "Rider pending";
+  const riderTag = order.rider_id ? riderAccountTypeLabel(order.rider?.rider_account_type) : "Rider tag pending";
+  const isMarketplaceDelivery = Boolean(order.marketplace_order);
+  const messages = deliveryRoomMessages(order, etaMinutes, remainingKm, location, stale);
+
+  return (
+    <section className="min-h-screen bg-[#eef3f7]">
+      <div className="mx-auto grid max-w-6xl gap-4 px-3 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:py-6">
+        <main className="min-w-0 overflow-hidden rounded-[24px] border border-white bg-white shadow-[0_24px_80px_rgba(8,17,31,0.12)]">
+          <div className="border-b border-fleet-line bg-white px-4 py-4 sm:px-5">
+            <Link href="/dashboard" className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">Back to dashboard</Link>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{isMarketplaceDelivery ? "Marketplace dispatch room" : "Live delivery room"}</p>
+                <h1 className="mt-1 break-words text-2xl font-black text-fleet-night sm:text-3xl">{order.delivery_code}</h1>
+                <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">{statusLabel(order.status)} · {etaMinutes ? `${etaMinutes} min ETA` : "ETA updating"}</p>
+              </div>
+              <StatusBadge tone={stale ? "amber" : "blue"}>{connectionLabel(connectionState, stale)}</StatusBadge>
+            </div>
+          </div>
+
+          <div className="bg-fleet-paper/70 p-3 sm:p-4">
+            <LiveTrackingMap order={order} pickup={pickup} dropoff={dropoff} location={location} compactRoom />
+          </div>
+
+          <div className="grid gap-3 border-b border-fleet-line bg-white px-4 py-4 sm:grid-cols-3 sm:px-5">
+            <MiniMetric label="ETA" value={etaMinutes ? `${etaMinutes} min` : "Updating"} />
+            <MiniMetric label="Remaining" value={remainingKm ? `${remainingKm.toFixed(1)} km` : "Waiting"} />
+            <MiniMetric label="Status" value={statusLabel(order.status)} />
+          </div>
+
+          <div className="grid gap-3 bg-[#f7fafc] px-3 py-4 sm:px-5">
+            {messages.map((message) => (
+              <DeliveryRoomBubble key={message.key} message={message} />
+            ))}
+            {isMarketplaceDelivery ? (
+              <DeliveryRoomBubble
+                message={{
+                  key: "business-observer",
+                  title: "Business can monitor the handoff",
+                  body: "The business sees rider assignment, pickup, transit, and completion status from its dashboard, while customer package decisions stay with the receiver.",
+                  meta: "Marketplace observer",
+                  tone: "system"
+                }}
+              />
+            ) : null}
+            {showPickupProof ? <PackagePickupProof deliveryId={order.id} metadata={order.metadata} status={order.status} className="mt-1 rounded-[20px]" /> : null}
+          </div>
+        </main>
+
+        <aside className="grid content-start gap-4">
+          <Card className="p-5">
+            <div className="flex items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-fleet bg-fleet-navy text-white">
+                <Bike className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Rider</p>
+                <h2 className="mt-1 text-xl font-black text-fleet-night">{riderName}</h2>
+                <p className="mt-1 text-sm font-semibold text-slate-600">
+                  {order.rider?.vehicle_color || "Vehicle"} {order.rider?.vehicle_type || "bike"} · {order.rider?.plate_number || "Plate pending"}
+                </p>
+                <span className="mt-2 inline-flex rounded-fleet bg-fleet-paper px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.12em] text-fleet-night">
+                  {riderTag}
+                </span>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-2">
+              <LinkButton href={`tel:${order.rider?.phone || ""}`} className="w-full" variant={order.rider?.phone ? "primary" : "secondary"}>
+                <Phone className="h-4 w-4" />
+                Call rider
+              </LinkButton>
+              <LinkButton href={`/support?topic=delivery-message&delivery=${order.delivery_code}`} variant="secondary" className="w-full">
+                <MessageCircle className="h-4 w-4" />
+                Message support
+              </LinkButton>
+              <LinkButton href={`/support?topic=delivery-issue&delivery=${order.delivery_code}`} variant="destructive" className="w-full">
+                <AlertTriangle className="h-4 w-4" />
+                Report issue
+              </LinkButton>
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="text-xl font-black text-fleet-night">Delivery details</h2>
+            <div className="mt-4 grid gap-3">
+              <InfoRow icon={MapPin} label="Pickup" value={order.pickup_address} />
+              <InfoRow icon={MapPin} label="Drop-off" value={order.dropoff_address} />
+              <InfoRow icon={ShieldCheck} label="Fee" value={formatMoney(order.price_ngn)} />
+              <InfoRow icon={Clock3} label="Created" value={formatDateTime(order.created_at)} />
+            </div>
+          </Card>
+
+          <TrackingStateCard state={connectionState} stale={stale} completed={false} location={location} marketplaceOnly={false} />
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[16px] bg-fleet-paper px-3 py-3">
+      <span className="block text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-500">{label}</span>
+      <strong className="mt-1 block text-sm font-black text-fleet-night">{value}</strong>
+    </div>
+  );
+}
+
+type DeliveryRoomMessage = {
+  key: string;
+  title: string;
+  body: string;
+  meta: string;
+  tone: "system" | "rider" | "customer";
+  active?: boolean;
+};
+
+function DeliveryRoomBubble({ message }: { message: DeliveryRoomMessage }) {
+  const fromRider = message.tone === "rider";
+  const fromCustomer = message.tone === "customer";
+  return (
+    <div className={cn("flex", fromRider ? "justify-start" : fromCustomer ? "justify-end" : "justify-center")}>
+      <div
+        className={cn(
+          "max-w-[92%] rounded-[20px] px-4 py-3 shadow-[0_14px_36px_rgba(8,17,31,0.08)] sm:max-w-[78%]",
+          fromRider && "rounded-bl-md bg-white text-fleet-night",
+          fromCustomer && "rounded-br-md bg-fleet-navy text-white",
+          message.tone === "system" && "bg-emerald-50 text-emerald-900",
+          message.active && "ring-2 ring-fleet-gold/70"
+        )}
+      >
+        <div className="flex items-center gap-2">
+          {message.active ? <span className="h-2.5 w-2.5 animate-pulseSoft rounded-full bg-fleet-gold" /> : null}
+          <span className={cn("text-[0.65rem] font-black uppercase tracking-[0.12em]", fromCustomer ? "text-white/70" : "text-slate-500")}>{message.meta}</span>
+        </div>
+        <strong className="mt-1 block text-sm font-black leading-5">{message.title}</strong>
+        <p className={cn("mt-1 text-sm font-semibold leading-6", fromCustomer ? "text-white/80" : "text-slate-600")}>{message.body}</p>
+      </div>
+    </div>
+  );
+}
+
+function deliveryRoomMessages(order: TrackingOrder, etaMinutes: number, remainingKm: number, location: DeliveryLocation | null, stale: boolean): DeliveryRoomMessage[] {
+  const current = order.status;
+  const messages: DeliveryRoomMessage[] = [
+    {
+      key: "accepted",
+      title: "Rider assigned",
+      body: `${order.rider?.full_name || "A verified rider"} has accepted this delivery.`,
+      meta: "Dispatch",
+      tone: "system",
+      active: current === "accepted"
+    },
+    {
+      key: "rider_arrived",
+      title: "Rider at pickup",
+      body: "The rider is at the pickup point and is checking the package handoff.",
+      meta: "Pickup",
+      tone: "rider",
+      active: current === "rider_arrived"
+    },
+    {
+      key: "picked_up",
+      title: "Package picked up",
+      body: "Pickup has been marked complete. FastConfirm™ appears here when a customer package photo review is required.",
+      meta: "FastConfirm™",
+      tone: "rider",
+      active: current === "picked_up"
+    },
+    {
+      key: "in_transit",
+      title: "Rider is on the way",
+      body: etaMinutes ? `${etaMinutes} min ETA${remainingKm ? ` · ${remainingKm.toFixed(1)} km remaining` : ""}.` : "Live ETA is updating from rider movement.",
+      meta: location && !stale ? "Live movement" : "Last known movement",
+      tone: "rider",
+      active: current === "in_transit"
+    }
+  ];
+  return messages.filter((message) => isRoomMessageVisible(message.key, current));
+}
+
+function isRoomMessageVisible(key: string, status: string) {
+  const order = ["accepted", "rider_arrived", "picked_up", "in_transit"];
+  const statusIndex = order.indexOf(status);
+  const messageIndex = order.indexOf(key);
+  return statusIndex >= 0 && messageIndex <= statusIndex;
+}
+
 function MarketplacePreparationHero({ order }: { order: TrackingOrder }) {
   const items = order.marketplace_order?.items || [];
   const itemLabel = items.length ? `${items.length} item${items.length === 1 ? "" : "s"}` : order.marketplace_order?.marketplace_kind || "Marketplace order";
@@ -450,18 +677,21 @@ function LiveTrackingMap({
   order,
   pickup,
   dropoff,
-  location
+  location,
+  compactRoom = false
 }: {
   order: TrackingOrder;
   pickup: LatLng | null;
   dropoff: LatLng | null;
   location: DeliveryLocation | null;
+  compactRoom?: boolean;
 }) {
   const displayLocation = useSmoothLocation(location);
   const updatedAt = location?.updated_at || null;
   return (
     <FastFleetMap
-      className="min-h-[62dvh] rounded-none border-0"
+      compact={compactRoom}
+      className={cn(compactRoom ? "min-h-[260px] rounded-[18px] border border-white" : "min-h-[62dvh] rounded-none border-0")}
       label="Live route"
       title={statusLabel(order.status)}
       subtitle={`${order.pickup_address} to ${order.dropoff_address}`}
@@ -574,6 +804,10 @@ function degreesToRadians(value: number) {
 
 function isComplete(status: string) {
   return status === "delivered" || status === "cancelled";
+}
+
+function isOngoingDelivery(status: string) {
+  return ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(status);
 }
 
 function statusLabel(status: string) {
