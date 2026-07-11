@@ -7,7 +7,7 @@ import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/st
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { isCustomerPickupProofRequired, metadataRecord, pickupProofFromMetadata, pickupProofReviewExpired } from "@/lib/pickup-proof";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
-import { accountTrackingHref } from "@/lib/tracking-links";
+import { accountMessengerHref } from "@/lib/tracking-links";
 import type { DeliveryStatus } from "@/types/domain";
 
 const statusFlow: Record<string, DeliveryStatus> = {
@@ -221,7 +221,7 @@ export async function POST(request: Request) {
             title: nextStatus === "delivered" ? "Delivery completed" : "Delivery updated",
             body: `${current.delivery_code || "Your delivery"} is now ${nextStatus.replaceAll("_", " ")}.`,
             type: nextStatus === "delivered" ? "delivery_completed" : "delivery_update",
-            metadata: { delivery_id: id, delivery_code: current.delivery_code || id, status: nextStatus, url: accountTrackingHref(current.delivery_code || id), tag: `ff-${current.delivery_code || id}` }
+            metadata: { delivery_id: id, delivery_code: current.delivery_code || id, status: nextStatus, url: accountMessengerHref(current.delivery_code || id), tag: `ff-${current.delivery_code || id}` }
           })
         : Promise.resolve(),
       syncLinkedBusinessOrder(db, id, mapDeliveryStatusToBusinessOrder(nextStatus))
@@ -415,7 +415,7 @@ async function syncLinkedBusinessOrder(db: SupabaseClient, deliveryId: string, s
           title: "Order status updated",
           body: `${order?.order_code || "Order"} is ${label}.`,
           type: "order_update",
-          metadata: { order_id: order?.id, order_code: orderCode, delivery_id: deliveryId, status, url: accountTrackingHref(orderCode), tag: `ff-${orderCode}` }
+          metadata: { order_id: order?.id, order_code: orderCode, delivery_id: deliveryId, status, url: accountMessengerHref(orderCode), tag: `ff-${orderCode}` }
         }
       : null,
     order?.business_id

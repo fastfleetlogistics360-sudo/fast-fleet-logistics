@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Clock3, Home, LayoutDashboard, LockKeyhole, MapPin, PackageCheck, Radar, Search, ShieldCheck, Sparkles, UserRound, Wallet } from "lucide-react";
+import { Bell, Clock3, Home, LayoutDashboard, LockKeyhole, MapPin, MessageCircle, PackageCheck, Radar, Search, ShieldCheck, Sparkles, UserRound, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -26,7 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DEFAULT_LIVE_STATES, NIGERIAN_STATES, launchStatusLabel, normalizeLaunchStatus, normalizeState, rolloutWaveForState } from "@/lib/launch-states";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
-import { accountTrackingHref, publicTrackingHref } from "@/lib/tracking-links";
+import { accountMessengerHref, accountTrackingHref, publicTrackingHref } from "@/lib/tracking-links";
 import type { LaunchStateStatus } from "@/lib/launch-states";
 import { type PickupProof, metadataRecord } from "@/lib/pickup-proof";
 
@@ -249,7 +249,6 @@ export function CustomerDashboard() {
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [orderFilter, setOrderFilter] = useState<"all" | "active" | "delivered" | "cancelled">("all");
-  const [selectedOrder, setSelectedOrder] = useState<OrderRow | null>(null);
   const [searchCode, setSearchCode] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [addressDraft, setAddressDraft] = useState({ label: "", address: "" });
@@ -321,7 +320,6 @@ export function CustomerDashboard() {
         const hydratedOrders = await enrichOrdersWithRiderDetails(mergedOrders);
         if (!mounted) return;
         setOrders(hydratedOrders);
-        setSelectedOrder((current) => (current ? hydratedOrders.find((order) => order.id === current.id) || current : current));
         setPromotions(payload.promotions || []);
         setAddresses(payload.addresses || []);
       } catch (error) {
@@ -419,15 +417,6 @@ export function CustomerDashboard() {
           : order
       )
     );
-    setSelectedOrder((current) => {
-      if (!current || current.id !== delivery.id) return current;
-      return {
-        ...current,
-        rider_id: delivery.rider_id === undefined ? current.rider_id : delivery.rider_id,
-        status: delivery.status || current.status,
-        metadata: delivery.metadata === undefined ? current.metadata : delivery.metadata
-      };
-    });
   }, []);
 
   const handlePickupProofChange = useCallback((deliveryId: string, proof: PickupProof) => {
@@ -440,7 +429,6 @@ export function CustomerDashboard() {
       }
     });
     setOrders((current) => current.map((order) => (order.id === deliveryId ? applyProof(order) : order)));
-    setSelectedOrder((current) => (current?.id === deliveryId ? applyProof(current) : current));
   }, []);
 
   async function joinStateWaitlist() {
@@ -481,7 +469,7 @@ export function CustomerDashboard() {
           ) : null}
           {activeTab === "orders" && !stateIsOperational ? <RestrictedOperationsPreview state={customerState} status={launchStatus} /> : null}
           {activeTab === "orders" && stateIsOperational ? (
-            <OrdersTab loading={loading} orders={filteredOrders} filter={orderFilter} onFilter={setOrderFilter} onSelectOrder={setSelectedOrder} />
+            <OrdersTab loading={loading} orders={filteredOrders} filter={orderFilter} onFilter={setOrderFilter} />
           ) : null}
           {activeTab === "track" && !stateIsOperational ? <TrackingPreview state={customerState} /> : null}
           {activeTab === "track" && stateIsOperational ? <TrackTab order={trackedOrder} searchCode={searchCode} onSearchCode={setSearchCode} onLiveDeliveryChange={handleLiveDeliveryChange} onPickupProofChange={handlePickupProofChange} /> : null}
@@ -505,7 +493,6 @@ export function CustomerDashboard() {
         </main>
       </div>
       <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
-      {selectedOrder ? <OrderSheet order={selectedOrder} onClose={() => setSelectedOrder(null)} onLiveDeliveryChange={handleLiveDeliveryChange} onPickupProofChange={handlePickupProofChange} /> : null}
       <ReviewPrompt subject={reviewSubject} />
     </section>
   );
@@ -798,6 +785,11 @@ function trackHref(order: OrderRow) {
   return accountTrackingHref(order.delivery_code || order.id);
 }
 
+function messengerHref(order: OrderRow) {
+  if (isLocalOrder(order)) return publicTrackingHref(order.delivery_code || order.id);
+  return accountMessengerHref(order.delivery_code || order.id);
+}
+
 function isLocalOrder(order: OrderRow) {
   return String(order.id || "").startsWith("local-");
 }
@@ -813,7 +805,7 @@ function ProfileImage({ src, name, className }: { src?: string | null; name: str
   return <span className={cn("grid shrink-0 place-items-center rounded-full bg-fleet-navy font-black text-white", className)}>{initials(name)}</span>;
 }
 
-function OrdersTab({ loading, orders, filter, onFilter, onSelectOrder }: { loading: boolean; orders: OrderRow[]; filter: "all" | "active" | "delivered" | "cancelled"; onFilter: (filter: "all" | "active" | "delivered" | "cancelled") => void; onSelectOrder: (order: OrderRow) => void }) {
+function OrdersTab({ loading, orders, filter, onFilter }: { loading: boolean; orders: OrderRow[]; filter: "all" | "active" | "delivered" | "cancelled"; onFilter: (filter: "all" | "active" | "delivered" | "cancelled") => void }) {
   if (loading) return <DashboardSkeleton />;
   return (
     <div className="grid gap-4">
@@ -823,7 +815,7 @@ function OrdersTab({ loading, orders, filter, onFilter, onSelectOrder }: { loadi
         ))}
       </div>
       {orders.length ? (
-        <div className="grid gap-3">{orders.map((order) => <OrderRowCard key={order.id} order={order} onSelect={() => onSelectOrder(order)} />)}</div>
+        <div className="grid gap-3">{orders.map((order) => <OrderRowCard key={order.id} order={order} />)}</div>
       ) : (
         <DashboardEmptyState title="No orders found" body="Try another filter or book a new delivery." ctaLabel="Book delivery" ctaHref="/book" />
       )}
@@ -831,7 +823,7 @@ function OrdersTab({ loading, orders, filter, onFilter, onSelectOrder }: { loadi
   );
 }
 
-function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?: boolean; onSelect: () => void }) {
+function OrderRowCard({ order, compact }: { order: OrderRow; compact?: boolean }) {
   const businessOrder = isBusinessMarketplaceOrder(order);
   const liveDelivery = hasLiveDelivery(order);
   const routeLabel = orderRouteLabel(order);
@@ -850,9 +842,12 @@ function OrderRowCard({ order, compact, onSelect }: { order: OrderRow; compact?:
         <strong className="text-sm font-black text-fleet-night">{formatMoney(order.price_ngn)}</strong>
         <div className="flex gap-2">
           {!compact ? (
-            businessOrder && !liveDelivery ? <Button type="button" size="sm" variant="secondary" onClick={onSelect}>View details</Button> : <LinkButton href={detailsHref(order)} size="sm" variant="secondary">View details</LinkButton>
+            businessOrder && !liveDelivery ? <LinkButton href={messengerHref(order)} size="sm" variant="secondary">View details</LinkButton> : <LinkButton href={detailsHref(order)} size="sm" variant="secondary">View details</LinkButton>
           ) : null}
-          <LinkButton href={trackHref(order)} size="sm" variant="secondary">{businessOrder && !liveDelivery ? "Status updates" : "Live track"}</LinkButton>
+          <LinkButton href={messengerHref(order)} size="sm" variant="secondary">
+            <MessageCircle className="h-3.5 w-3.5" />
+            {businessOrder && !liveDelivery ? "Status updates" : "Messenger"}
+          </LinkButton>
           <LinkButton href={`/book?reorder=${order.delivery_code}`} size="sm">Re-order</LinkButton>
         </div>
       </div>
@@ -891,9 +886,15 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange, onPic
             )}
           </Card>
           {!vendorOrder ? <PackagePickupProof deliveryId={order.id} metadata={order.metadata} status={String(order.status)} onProofChange={(proof) => onPickupProofChange(order.id, proof)} /> : null}
-          <LinkButton href={trackHref(order)} className="w-full bg-fleet-navy hover:bg-fleet-night">
-            Open full tracking
-          </LinkButton>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <LinkButton href={messengerHref(order)} className="w-full bg-fleet-navy hover:bg-fleet-night">
+              <MessageCircle className="h-4 w-4" />
+              Open messenger
+            </LinkButton>
+            <LinkButton href={trackHref(order)} variant="secondary" className="w-full">
+              Full tracking
+            </LinkButton>
+          </div>
           {!vendorOrder ? (
             <DeliveryRouteMap
               label="Live delivery map"
@@ -1084,54 +1085,6 @@ function Field({ label, value, onChange, readOnly }: { label: string; value: str
       <span className="form-label">{label}</span>
       <input className="form-input" value={value} onChange={(event) => onChange(event.target.value)} readOnly={readOnly} />
     </label>
-  );
-}
-
-function OrderSheet({ order, onClose, onLiveDeliveryChange, onPickupProofChange }: { order: OrderRow; onClose: () => void; onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null; metadata?: Record<string, unknown> | null }) => void; onPickupProofChange: (deliveryId: string, proof: PickupProof) => void }) {
-  const vendorOrder = isBusinessMarketplaceOrder(order) && !hasLiveDelivery(order);
-  const routeLabel = orderRouteLabel(order);
-  return (
-    <div className="fixed inset-0 z-[120] grid place-items-end bg-fleet-night/35 p-3 sm:place-items-center">
-      <Card className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-black text-fleet-night">{order.delivery_code}</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-600">{routeLabel}</p>
-          </div>
-          <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
-        </div>
-        {vendorOrder ? (
-          <CustomerVendorProgress status={String(order.status)} />
-        ) : (
-          <div className="mt-5 grid gap-3">
-            {["Booked", "Rider assigned", "Picked up", "Delivered"].map((item, index) => (
-              <div key={item} className="flex items-center gap-3 rounded-fleet bg-fleet-paper p-3">
-                <span className={cn("h-4 w-4 rounded-full", index === 0 || order.status === "delivered" || (index < 3 && !["pending", "assigned"].includes(order.status)) ? "bg-fleet-navy" : "bg-slate-200")} />
-                <span className="text-sm font-black text-fleet-night">{item}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        {!vendorOrder ? <div className="mt-5 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">
-          Driver: {order.rider_profiles?.users?.full_name || "Pending"} · Plate: {order.rider_profiles?.plate_number || "Pending"} · {order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Driver tag pending"}
-        </div> : null}
-        <LinkButton href={trackHref(order)} className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night">
-          Open full tracking
-        </LinkButton>
-        {!vendorOrder ? <DeliveryRouteMap
-          compact
-          className="mt-4"
-          label="Order live map"
-          order={order}
-          onLiveDeliveryChange={onLiveDeliveryChange}
-        /> : null}
-        {!vendorOrder ? <PackagePickupProof deliveryId={order.id} metadata={order.metadata} status={String(order.status)} className="mt-4" onProofChange={(proof) => onPickupProofChange(order.id, proof)} /> : null}
-        {order.proof_url ? (
-          <Image src={order.proof_url} alt="Proof of delivery" width={720} height={360} unoptimized className="mt-4 max-h-64 w-full rounded-fleet object-cover" />
-        ) : null}
-        <Button type="button" className="mt-5 w-full bg-fleet-navy hover:bg-fleet-night">Download receipt</Button>
-      </Card>
-    </div>
   );
 }
 

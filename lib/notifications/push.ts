@@ -1,5 +1,5 @@
 import { createCipheriv, createECDH, createHmac, createPrivateKey, createSign, randomBytes } from "node:crypto";
-import { accountTrackingHref } from "@/lib/tracking-links";
+import { accountMessengerHref } from "@/lib/tracking-links";
 
 type PushSubscriptionRow = {
   provider?: string | null;
@@ -120,7 +120,7 @@ function fallbackUrlFor(notification: NotificationPayload, metadata: Record<stri
   if (notification.type === "package_confirmation" && stringValue(metadata, "status") !== "pending") return "/rider/dashboard";
 
   const trackingCode = stringValue(metadata, "delivery_code") || stringValue(metadata, "order_code") || stringValue(metadata, "delivery_id") || stringValue(metadata, "order_id");
-  if (trackingCode && ["delivery_update", "delivery_completed", "order_update", "package_confirmation"].includes(notification.type)) return accountTrackingHref(trackingCode);
+  if (trackingCode && ["delivery_update", "delivery_completed", "order_update", "package_confirmation"].includes(notification.type)) return accountMessengerHref(trackingCode);
   return "/hub";
 }
 

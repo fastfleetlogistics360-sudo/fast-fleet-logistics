@@ -16,6 +16,15 @@ type NativePushAction = {
 type NativePushPlugin = {
   requestPermissions?: () => Promise<{ receive?: string }>;
   register?: () => Promise<void>;
+  createChannel?: (channel: {
+    id: string;
+    name: string;
+    description?: string;
+    importance?: 1 | 2 | 3 | 4 | 5;
+    visibility?: -1 | 0 | 1;
+    lights?: boolean;
+    vibration?: boolean;
+  }) => Promise<void>;
   addListener?: (
     event: "registration" | "registrationError" | "pushNotificationReceived" | "pushNotificationActionPerformed",
     callback: (payload: NativePushToken & NativePushAction & Record<string, unknown>) => void
@@ -91,6 +100,17 @@ export function PushNotificationRegistrar() {
       if (!plugin?.register) return;
       const permission = plugin.requestPermissions ? await plugin.requestPermissions().catch(() => null) : null;
       if (permission?.receive && permission.receive !== "granted") return;
+      if (window.Capacitor?.getPlatform?.() === "android") {
+        await plugin.createChannel?.({
+          id: "delivery_updates",
+          name: "Delivery updates",
+          description: "Order, rider, package, and wallet delivery alerts.",
+          importance: 5,
+          visibility: 1,
+          lights: true,
+          vibration: true
+        }).catch(() => null);
+      }
       const listener = await plugin.addListener?.("registration", (token) => {
         if (!token.value) return;
         void saveSubscription({

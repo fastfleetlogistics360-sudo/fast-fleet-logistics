@@ -7,7 +7,7 @@ import { isPendingSquadStatus, isSuccessfulSquadStatus, verifySquadTransaction, 
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { accountTrackingHref } from "@/lib/tracking-links";
+import { accountMessengerHref } from "@/lib/tracking-links";
 import { creditBusinessOrderWallet, recordCustomerMarketplacePayment } from "@/lib/wallet-ledger";
 
 export async function GET(request: NextRequest) {
@@ -109,7 +109,7 @@ async function verifyBusinessOrderPayment(db: SupabaseClient, userId: string, re
       title: "Marketplace payment confirmed",
       body: `${order.order_code || reference} has been sent to the business.`,
       type: "order_update",
-      metadata: { order_id: order.id, order_code: order.order_code || reference, status: "received", url: accountTrackingHref(order.order_code || reference), tag: `ff-${order.order_code || reference}` }
+      metadata: { order_id: order.id, order_code: order.order_code || reference, status: "received", url: accountMessengerHref(order.order_code || reference), tag: `ff-${order.order_code || reference}` }
     })
   ]);
   return {

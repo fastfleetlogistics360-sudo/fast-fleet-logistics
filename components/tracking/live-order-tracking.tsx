@@ -90,10 +90,12 @@ const marketplaceStatusSteps = [
 
 export function LiveOrderTracking({
   initialOrder,
-  initialLocation
+  initialLocation,
+  mode = "tracking"
 }: {
   initialOrder: TrackingOrder;
   initialLocation: DeliveryLocation | null;
+  mode?: "tracking" | "messenger";
 }) {
   const [order, setOrder] = useState(initialOrder);
   const [location, setLocation] = useState<DeliveryLocation | null>(initialLocation);
@@ -293,8 +295,9 @@ export function LiveOrderTracking({
   const marketplaceStatus = order.marketplace_order?.status || (marketplaceOnly ? order.status : null);
   const showPickupProof = !marketplaceOnly && !order.marketplace_order;
   const ongoingDelivery = !marketplaceOnly && isOngoingDelivery(order.status);
+  const showMessengerRoom = !marketplaceOnly && (ongoingDelivery || (mode === "messenger" && !completed));
 
-  if (ongoingDelivery) {
+  if (showMessengerRoom) {
     return (
       <OngoingDeliveryRoom
         order={order}
@@ -600,6 +603,30 @@ function deliveryRoomMessages(order: TrackingOrder, etaMinutes: number, remainin
   const current = order.status;
   const messages: DeliveryRoomMessage[] = [
     {
+      key: "pending",
+      title: "Order received",
+      body: "Fast Fleets 360 has the order and is preparing the dispatch handoff.",
+      meta: "Order room",
+      tone: "system",
+      active: current === "pending" || current === "received"
+    },
+    {
+      key: "searching",
+      title: "Finding a rider",
+      body: "Available riders are being checked for this route. This room updates when one accepts.",
+      meta: "Dispatch",
+      tone: "system",
+      active: current === "searching"
+    },
+    {
+      key: "assigned",
+      title: "Rider assignment started",
+      body: `${order.rider?.full_name || "A verified rider"} is being linked to this delivery.`,
+      meta: "Assignment",
+      tone: "system",
+      active: current === "assigned" || current === "rider_assigned"
+    },
+    {
       key: "accepted",
       title: "Rider assigned",
       body: `${order.rider?.full_name || "A verified rider"} has accepted this delivery.`,
@@ -636,8 +663,9 @@ function deliveryRoomMessages(order: TrackingOrder, etaMinutes: number, remainin
 }
 
 function isRoomMessageVisible(key: string, status: string) {
-  const order = ["accepted", "rider_arrived", "picked_up", "in_transit"];
-  const statusIndex = order.indexOf(status);
+  const order = ["pending", "searching", "assigned", "accepted", "rider_arrived", "picked_up", "in_transit"];
+  const normalizedStatus = status === "rider_assigned" ? "assigned" : status === "received" ? "pending" : status;
+  const statusIndex = order.indexOf(normalizedStatus);
   const messageIndex = order.indexOf(key);
   return statusIndex >= 0 && messageIndex <= statusIndex;
 }
@@ -819,6 +847,7 @@ function statusLabel(status: string) {
   if (status === "rider_assigned") return "Rider assigned";
   if (status === "pending_payment") return "Awaiting payment";
   if (status === "searching") return "Finding rider";
+  if (status === "assigned") return "Rider assigned";
   if (status === "accepted") return "Rider assigned";
   if (status === "rider_arrived") return "Rider at pickup";
   if (status === "picked_up") return "Package picked up";

@@ -9,7 +9,7 @@ import { repairMarketplaceDeliveriesForBusiness } from "@/lib/marketplace-order-
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { accountTrackingHref } from "@/lib/tracking-links";
+import { accountMessengerHref } from "@/lib/tracking-links";
 
 const businessProgress = new Set(["received", "preparing", "packing", "ready_for_pickup"]);
 
@@ -201,7 +201,7 @@ export async function PATCH(request: Request) {
             title: "Order status updated",
             body: `${String(order.order_code || "Your order")} is ${status.replaceAll("_", " ")}.`,
             type: "order_update",
-            metadata: { order_id: id, order_code: orderCode, delivery_id: deliveryId, status, url: accountTrackingHref(orderCode), tag: `ff-${orderCode}` }
+            metadata: { order_id: id, order_code: orderCode, delivery_id: deliveryId, status, url: accountMessengerHref(orderCode), tag: `ff-${orderCode}` }
           })
         : Promise.resolve(),
       insertNotificationWithPush(db, {

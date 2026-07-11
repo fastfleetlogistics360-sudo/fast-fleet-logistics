@@ -12,7 +12,7 @@ import {
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { accountTrackingHref } from "@/lib/tracking-links";
+import { accountMessengerHref } from "@/lib/tracking-links";
 
 export const runtime = "nodejs";
 
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
             title: "Confirm your package",
             body: `${delivery.delivery_code || "Your delivery"} has a package photo waiting for your confirmation.`,
             type: "package_confirmation",
-            metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code || "", status: "pending", url: accountTrackingHref(delivery.delivery_code || delivery.id), tag: `ff-${delivery.delivery_code || delivery.id}` }
+            metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code || "", status: "pending", url: accountMessengerHref(delivery.delivery_code || delivery.id), tag: `ff-${delivery.delivery_code || delivery.id}` }
           })
         : Promise.resolve()
     ]);
