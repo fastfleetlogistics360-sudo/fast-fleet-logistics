@@ -794,7 +794,7 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
 }
 
 function trackHref(order: OrderRow) {
-  return accountTrackingHref(order.delivery_code || order.delivery_id || order.id);
+  return accountTrackingHref(order.delivery_code || order.id);
 }
 
 function detailsHref(order: OrderRow) {

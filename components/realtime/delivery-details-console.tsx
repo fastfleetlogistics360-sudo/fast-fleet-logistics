@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Bike, Clock3, MapPinned, PackageCheck, ShieldCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
+import { accountTrackingHref } from "@/lib/tracking-links";
 import { LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -85,7 +86,7 @@ export function DeliveryDetailsConsole() {
               <InfoRow icon={ShieldCheck} label="Created" value={delivery.created_at ? formatDateTime(delivery.created_at) : "Recently"} />
               <InfoRow icon={ShieldCheck} label="Fee" value={formatMoney(delivery.price_ngn || 0)} />
             </div>
-            <LinkButton href={`/track?code=${encodeURIComponent(delivery.delivery_code)}`} className="mt-5 w-full bg-fleet-navy hover:bg-fleet-night">
+            <LinkButton href={accountTrackingHref(delivery.delivery_code)} className="mt-5 w-full bg-fleet-navy hover:bg-fleet-night">
               Live track
             </LinkButton>
           </Card>

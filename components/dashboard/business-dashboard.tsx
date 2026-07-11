@@ -23,6 +23,7 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { accountTrackingHref } from "@/lib/tracking-links";
 
 type BusinessTab = "overview" | "dispatch" | "history" | "analytics" | "account";
 type BusinessKycStatus = "submitted" | "active" | "paused" | "rejected";
@@ -1047,7 +1048,7 @@ function ProfileImage({ src, name, className }: { src?: string | null; name: str
 }
 
 function OrderCard({ order, detail }: { order: DeliveryRow; detail?: boolean }) {
-  return <article className="rounded-fleet border border-fleet-line bg-white p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-slate-500">{formatDateTime(order.created_at)}</p><h3 className="mt-1 text-sm font-black text-fleet-night">{order.delivery_code}</h3><p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p></div><StatusBadge tone={order.status === "delivered" ? "green" : "amber"}>{order.status.replaceAll("_", " ")}</StatusBadge></div><div className="mt-3 flex items-center justify-between"><strong className="text-sm font-black text-fleet-night">{formatMoney(order.price_ngn)}</strong><LinkButton href={`/track?code=${order.delivery_code}`} size="sm" variant="secondary">{detail ? "View details" : "Track"}</LinkButton></div>{detail ? <div className="mt-3 rounded-fleet bg-fleet-paper p-3 text-xs font-bold text-slate-500">Timeline: Booked to Rider assigned to Picked up to Delivered. Proof of delivery appears here when uploaded.</div> : null}</article>;
+  return <article className="rounded-fleet border border-fleet-line bg-white p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-slate-500">{formatDateTime(order.created_at)}</p><h3 className="mt-1 text-sm font-black text-fleet-night">{order.delivery_code}</h3><p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p></div><StatusBadge tone={order.status === "delivered" ? "green" : "amber"}>{order.status.replaceAll("_", " ")}</StatusBadge></div><div className="mt-3 flex items-center justify-between"><strong className="text-sm font-black text-fleet-night">{formatMoney(order.price_ngn)}</strong><LinkButton href={accountTrackingHref(order.delivery_code)} size="sm" variant="secondary">{detail ? "View details" : "Track"}</LinkButton></div>{detail ? <div className="mt-3 rounded-fleet bg-fleet-paper p-3 text-xs font-bold text-slate-500">Timeline: Booked to Rider assigned to Picked up to Delivered. Proof of delivery appears here when uploaded.</div> : null}</article>;
 }
 
 function businessOrderLabel(status: string) {

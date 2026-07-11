@@ -161,9 +161,9 @@ export async function POST(request: Request) {
 
     const { data: current, error: currentError } = await db
       .from("deliveries")
-      .select("id, status, rider_id, metadata")
+      .select("id, customer_id, delivery_code, status, rider_id, metadata")
       .eq("id", id)
-      .single<{ id: string; status: string; rider_id?: string | null; metadata?: Record<string, unknown> | null }>();
+      .single<{ id: string; customer_id?: string | null; delivery_code?: string | null; status: string; rider_id?: string | null; metadata?: Record<string, unknown> | null }>();
     if (currentError) throw currentError;
 
     if (current.rider_id !== rider.id) {
@@ -212,7 +212,20 @@ export async function POST(request: Request) {
     });
     await db.from("delivery_locations").update({ status: nextStatus, updated_at: timestamp }).eq("order_id", id);
     if (nextStatus === "delivered" || nextStatus === "cancelled") await releaseBicycleAssetForDelivery(db, id);
-    await syncLinkedBusinessOrder(db, id, mapDeliveryStatusToBusinessOrder(nextStatus));
+    const currentMetadata = metadataRecord(current.metadata);
+    const linkedBusinessOrder = typeof currentMetadata.business_order_id === "string" && currentMetadata.business_order_id.trim();
+    await Promise.allSettled([
+      !linkedBusinessOrder && current.customer_id
+        ? insertNotificationWithPush(db, {
+            user_id: current.customer_id,
+            title: nextStatus === "delivered" ? "Delivery completed" : "Delivery updated",
+            body: `${current.delivery_code || "Your delivery"} is now ${nextStatus.replaceAll("_", " ")}.`,
+            type: nextStatus === "delivered" ? "delivery_completed" : "delivery_update",
+            metadata: { delivery_id: id, delivery_code: current.delivery_code || id, status: nextStatus, url: accountTrackingHref(current.delivery_code || id), tag: `ff-${current.delivery_code || id}` }
+          })
+        : Promise.resolve(),
+      syncLinkedBusinessOrder(db, id, mapDeliveryStatusToBusinessOrder(nextStatus))
+    ]);
 
     return updateResponse(db, id);
 	  } catch (error) {
