@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { RiderAccountType } from "@/lib/rider-account-type";
+import { publicTrackingHref } from "@/lib/tracking-links";
 import { LiveOrderTracking, type DeliveryLocation, type TrackingOrder } from "@/components/tracking/live-order-tracking";
 
 export const metadata: Metadata = {
@@ -12,8 +13,11 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-const deliverySelect =
+const deliverySelectWithRiderTag =
   "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, dropoff_latitude, dropoff_longitude, status, price_ngn, distance_km, eta_minutes, created_at, updated_at, metadata, rider_id, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))";
+
+const deliverySelectWithoutRiderTag =
+  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, dropoff_latitude, dropoff_longitude, status, price_ngn, distance_km, eta_minutes, created_at, updated_at, metadata, rider_id, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))";
 
 const marketplaceOrderSelect =
   "id, order_code, customer_id, delivery_id, marketplace_kind, items, pickup_address, dropoff_address, status, amount, distance_km, eta_minutes, created_at, updated_at";
@@ -80,21 +84,23 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
 
   if (!user) redirect(`/auth?returnTo=/account/orders/${encodeURIComponent(lookup)}/track`);
 
-  const directDelivery = await loadDirectDelivery(supabase, lookup, user.id);
+  const admin = createAdminClient();
+  const db = admin || supabase;
+
+  const directDelivery = await loadDirectDelivery(db, lookup, user.id);
   if (directDelivery) {
     const order = await toTrackingOrder(directDelivery);
-    const location = await loadLocation(supabase, directDelivery.id);
+    const location = await loadLocation(db, directDelivery.id);
     return <LiveOrderTracking initialOrder={order} initialLocation={location} />;
   }
 
-  const marketplaceOrder = await loadMarketplaceOrder(supabase, lookup, user.id);
-  if (!marketplaceOrder) notFound();
+  const marketplaceOrder = await loadMarketplaceOrder(db, lookup, user.id);
+  if (!marketplaceOrder) redirect(publicTrackingHref(lookup));
 
-  const admin = createAdminClient();
-  const linkedDelivery = marketplaceOrder.delivery_id ? await loadLinkedDelivery(admin || supabase, marketplaceOrder.delivery_id) : null;
+  const linkedDelivery = marketplaceOrder.delivery_id ? await loadLinkedDelivery(db, marketplaceOrder.delivery_id) : null;
   if (linkedDelivery) {
     const order = await toTrackingOrder(linkedDelivery, marketplaceOrder);
-    const location = await loadLocation(admin || supabase, linkedDelivery.id);
+    const location = await loadLocation(db, linkedDelivery.id);
     return <LiveOrderTracking initialOrder={order} initialLocation={location} />;
   }
 
@@ -102,7 +108,19 @@ export default async function TrackOrderPage({ params }: { params: Promise<{ ord
 }
 
 async function loadDirectDelivery(db: SupabaseClient, lookup: string, userId: string) {
-  const query = db.from("deliveries").select(deliverySelect).eq("customer_id", userId);
+  const query = db.from("deliveries").select(deliverySelectWithRiderTag).eq("customer_id", userId);
+  const result = isUuid(lookup)
+    ? await query.eq("id", lookup).maybeSingle<DeliveryRow>()
+    : await query.eq("delivery_code", lookup.toUpperCase()).maybeSingle<DeliveryRow>();
+  if (result.error && /rider_account_type/i.test(result.error.message)) {
+    return loadDirectDeliveryWithoutRiderTag(db, lookup, userId);
+  }
+  if (result.error) return null;
+  return result.data || null;
+}
+
+async function loadDirectDeliveryWithoutRiderTag(db: SupabaseClient, lookup: string, userId: string) {
+  const query = db.from("deliveries").select(deliverySelectWithoutRiderTag).eq("customer_id", userId);
   const result = isUuid(lookup)
     ? await query.eq("id", lookup).maybeSingle<DeliveryRow>()
     : await query.eq("delivery_code", lookup.toUpperCase()).maybeSingle<DeliveryRow>();
@@ -120,7 +138,14 @@ async function loadMarketplaceOrder(db: SupabaseClient, lookup: string, userId: 
 }
 
 async function loadLinkedDelivery(db: SupabaseClient, deliveryId: string) {
-  const { data, error } = await db.from("deliveries").select(deliverySelect).eq("id", deliveryId).maybeSingle<DeliveryRow>();
+  const { data, error } = await db.from("deliveries").select(deliverySelectWithRiderTag).eq("id", deliveryId).maybeSingle<DeliveryRow>();
+  if (error && /rider_account_type/i.test(error.message)) return loadLinkedDeliveryWithoutRiderTag(db, deliveryId);
+  if (error) return null;
+  return data || null;
+}
+
+async function loadLinkedDeliveryWithoutRiderTag(db: SupabaseClient, deliveryId: string) {
+  const { data, error } = await db.from("deliveries").select(deliverySelectWithoutRiderTag).eq("id", deliveryId).maybeSingle<DeliveryRow>();
   if (error) return null;
   return data || null;
 }

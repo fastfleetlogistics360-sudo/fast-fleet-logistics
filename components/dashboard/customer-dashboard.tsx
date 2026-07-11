@@ -26,7 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DEFAULT_LIVE_STATES, NIGERIAN_STATES, launchStatusLabel, normalizeLaunchStatus, normalizeState, rolloutWaveForState } from "@/lib/launch-states";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
-import { accountTrackingHref } from "@/lib/tracking-links";
+import { accountTrackingHref, publicTrackingHref } from "@/lib/tracking-links";
 import type { LaunchStateStatus } from "@/lib/launch-states";
 import { type PickupProof, metadataRecord } from "@/lib/pickup-proof";
 
@@ -794,7 +794,12 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
 }
 
 function trackHref(order: OrderRow) {
+  if (isLocalOrder(order)) return publicTrackingHref(order.delivery_code || order.id);
   return accountTrackingHref(order.delivery_code || order.id);
+}
+
+function isLocalOrder(order: OrderRow) {
+  return String(order.id || "").startsWith("local-");
 }
 
 function detailsHref(order: OrderRow) {
