@@ -16,6 +16,7 @@ type NotificationRow = {
   title: string;
   body: string;
   type: NotificationType;
+  metadata?: Record<string, unknown> | null;
   read?: boolean | null;
   read_at?: string | null;
   created_at: string;
@@ -59,7 +60,7 @@ export function NotificationBell() {
 
         const { data } = await supabase
           .from("notifications")
-          .select("id, user_id, title, body, type, read, read_at, created_at")
+          .select("id, user_id, title, body, type, metadata, read, read_at, created_at")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(30);
@@ -106,6 +107,12 @@ export function NotificationBell() {
 
   async function handleNotificationClick(notification: NotificationRow) {
     await markRead(notification.id);
+    const url = typeof notification.metadata?.url === "string" && notification.metadata.url.startsWith("/") && !notification.metadata.url.startsWith("//") ? notification.metadata.url : "";
+    if (url) {
+      setOpen(false);
+      window.location.assign(url);
+      return;
+    }
     if (notification.type !== "business_order_received") return;
     setOpen(false);
     window.requestAnimationFrame(() => {

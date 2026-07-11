@@ -9,6 +9,7 @@ import { repairMarketplaceDeliveriesForBusiness } from "@/lib/marketplace-order-
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { accountTrackingHref } from "@/lib/tracking-links";
 
 const businessProgress = new Set(["received", "preparing", "packing", "ready_for_pickup"]);
 
@@ -192,6 +193,7 @@ export async function PATCH(request: Request) {
     if (updateError) throw updateError;
 
     const customerId = typeof order.customer_id === "string" ? order.customer_id : "";
+    const orderCode = String(order.order_code || id);
     await Promise.allSettled([
       customerId
         ? insertNotificationWithPush(db, {
@@ -199,7 +201,7 @@ export async function PATCH(request: Request) {
             title: "Order status updated",
             body: `${String(order.order_code || "Your order")} is ${status.replaceAll("_", " ")}.`,
             type: "order_update",
-            metadata: { order_id: id, delivery_id: deliveryId, status }
+            metadata: { order_id: id, order_code: orderCode, delivery_id: deliveryId, status, url: accountTrackingHref(orderCode), tag: `ff-${orderCode}` }
           })
         : Promise.resolve(),
       insertNotificationWithPush(db, {
@@ -207,7 +209,7 @@ export async function PATCH(request: Request) {
         title: status === "ready_for_pickup" ? "Dispatch request sent" : "Business order updated",
         body: `${String(order.order_code || "Order")} is ${status.replaceAll("_", " ")}.`,
         type: "business_order_update",
-        metadata: { order_id: id, delivery_id: deliveryId, status }
+        metadata: { order_id: id, order_code: orderCode, delivery_id: deliveryId, status, url: "/business/dashboard#marketplace-orders", tag: `ff-business-${orderCode}` }
       })
     ]);
 
@@ -266,7 +268,7 @@ async function notifyApprovedRiders(db: SupabaseClient, deliveryId: string, deli
       title: "New dispatch request",
       body: `${deliveryCode} is ready for pickup.`,
       type: "dispatch_request",
-      metadata: { delivery_id: deliveryId, delivery_code: deliveryCode }
+      metadata: { delivery_id: deliveryId, delivery_code: deliveryCode, url: "/rider/dashboard", tag: `ff-dispatch-${deliveryCode}` }
     }));
   if (rows.length) await Promise.allSettled(rows.map((row) => insertNotificationWithPush(db, row)));
 }

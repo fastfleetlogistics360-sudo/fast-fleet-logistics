@@ -151,11 +151,24 @@ self.addEventListener("push", (event) => {
   }
 
   const title = payload.title || "Fast Fleets 360";
+  const data = payload.data || payload.metadata || { url: "/hub" };
+  const tag = payload.tag || data.tag || data.delivery_code || data.order_code || data.delivery_id || data.order_id || "fastfleet-update";
   const options = {
     body: payload.body || "You have a new Fast Fleets 360 update.",
     icon: payload.icon || "/icons/icon-192.png?v=20260629",
     badge: payload.badge || "/icons/icon-180.png?v=20260629",
-    data: payload.data || payload.metadata || { url: "/hub" }
+    tag: String(tag).slice(0, 64),
+    renotify: payload.renotify !== false,
+    timestamp: Date.now(),
+    data,
+    actions: data.url
+      ? [
+          {
+            action: "open",
+            title: "Open tracking"
+          }
+        ]
+      : []
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -164,15 +177,16 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl = event.notification.data && typeof event.notification.data.url === "string" ? event.notification.data.url : "/hub";
+  const absoluteUrl = new URL(targetUrl, self.location.origin).href;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
         if ("focus" in client) {
-          client.navigate(targetUrl);
+          client.navigate(absoluteUrl);
           return client.focus();
         }
       }
-      return self.clients.openWindow(targetUrl);
+      return self.clients.openWindow(absoluteUrl);
     })
   );
 });

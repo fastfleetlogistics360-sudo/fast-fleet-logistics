@@ -7,6 +7,7 @@ import { isPendingSquadStatus, isSuccessfulSquadStatus, verifySquadTransaction, 
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { accountTrackingHref } from "@/lib/tracking-links";
 import { creditBusinessOrderWallet, recordCustomerMarketplacePayment } from "@/lib/wallet-ledger";
 
 export async function GET(request: NextRequest) {
@@ -101,14 +102,14 @@ async function verifyBusinessOrderPayment(db: SupabaseClient, userId: string, re
       title: "New paid marketplace order",
       body: `${order.order_code || reference} is paid and waiting for your team to prepare.`,
       type: "business_order_received",
-      metadata: { order_id: order.id, order_code: order.order_code || reference, business_profile_id: order.business_profile_id }
+      metadata: { order_id: order.id, order_code: order.order_code || reference, business_profile_id: order.business_profile_id, url: "/business/dashboard#marketplace-orders", tag: `ff-business-${order.order_code || reference}` }
     }),
     insertNotificationWithPush(db, {
       user_id: userId,
       title: "Marketplace payment confirmed",
       body: `${order.order_code || reference} has been sent to the business.`,
       type: "order_update",
-      metadata: { order_id: order.id, order_code: order.order_code || reference, status: "received" }
+      metadata: { order_id: order.id, order_code: order.order_code || reference, status: "received", url: accountTrackingHref(order.order_code || reference), tag: `ff-${order.order_code || reference}` }
     })
   ]);
   return {

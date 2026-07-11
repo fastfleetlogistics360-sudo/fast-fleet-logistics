@@ -10,6 +10,7 @@ import {
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { accountTrackingHref } from "@/lib/tracking-links";
 
 type ReviewPayload = {
   deliveryId?: string;
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
                 : `${delivery.delivery_code || "Delivery"} package photo was rejected. Upload a new package photo.`
               : `${delivery.delivery_code || "Delivery"} package photo was confirmed. You can start the trip.`,
             type: "package_confirmation",
-            metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code || "", status: nextProof.status || "" }
+            metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code || "", status: nextProof.status || "", url: "/rider/dashboard", customer_url: accountTrackingHref(delivery.delivery_code || delivery.id), tag: `ff-rider-${delivery.delivery_code || delivery.id}` }
           })
         : Promise.resolve()
     ]);

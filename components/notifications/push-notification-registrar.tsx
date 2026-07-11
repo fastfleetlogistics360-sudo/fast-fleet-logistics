@@ -7,10 +7,19 @@ type NativePushToken = {
   value?: string;
 };
 
+type NativePushAction = {
+  notification?: {
+    data?: Record<string, unknown>;
+  };
+};
+
 type NativePushPlugin = {
   requestPermissions?: () => Promise<{ receive?: string }>;
   register?: () => Promise<void>;
-  addListener?: (event: "registration", callback: (token: NativePushToken) => void) => Promise<{ remove: () => Promise<void> }> | { remove: () => Promise<void> };
+  addListener?: (
+    event: "registration" | "registrationError" | "pushNotificationReceived" | "pushNotificationActionPerformed",
+    callback: (payload: NativePushToken & NativePushAction & Record<string, unknown>) => void
+  ) => Promise<{ remove: () => Promise<void> }> | { remove: () => Promise<void> };
 };
 
 declare global {
@@ -43,10 +52,13 @@ async function saveSubscription(payload: Record<string, unknown>) {
 
 async function showForegroundNotification(title: string, body: string, data?: Record<string, unknown>) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const tag = typeof data?.tag === "string" ? data.tag : typeof data?.delivery_code === "string" ? `ff-${data.delivery_code}` : undefined;
   const options = {
     body,
     icon: "/icons/icon-192.png?v=20260629",
     badge: "/icons/icon-180.png?v=20260629",
+    tag,
+    renotify: Boolean(tag),
     data
   };
   try {
@@ -66,6 +78,13 @@ export function PushNotificationRegistrar() {
     let cancelled = false;
     let removeRealtimeChannel: (() => void) | undefined;
     let removeNativeRegistrationListener: (() => void) | undefined;
+    let removeNativeActionListener: (() => void) | undefined;
+
+    function openNotificationTarget(data?: Record<string, unknown>) {
+      const url = typeof data?.url === "string" && data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "";
+      if (!url) return;
+      window.location.assign(url);
+    }
 
     async function registerNativePush() {
       const plugin = window.Capacitor?.Plugins?.PushNotifications;
@@ -84,6 +103,12 @@ export function PushNotificationRegistrar() {
       });
       removeNativeRegistrationListener = () => {
         void Promise.resolve(listener?.remove?.()).catch(() => null);
+      };
+      const actionListener = await plugin.addListener?.("pushNotificationActionPerformed", (payload) => {
+        openNotificationTarget(payload.notification?.data);
+      });
+      removeNativeActionListener = () => {
+        void Promise.resolve(actionListener?.remove?.()).catch(() => null);
       };
       await plugin.register().catch(() => null);
     }
@@ -143,6 +168,7 @@ export function PushNotificationRegistrar() {
       cancelled = true;
       removeRealtimeChannel?.();
       removeNativeRegistrationListener?.();
+      removeNativeActionListener?.();
     };
   }, []);
 

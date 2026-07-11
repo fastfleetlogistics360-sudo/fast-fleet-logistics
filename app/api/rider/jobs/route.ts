@@ -7,6 +7,7 @@ import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/st
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { isCustomerPickupProofRequired, metadataRecord, pickupProofFromMetadata, pickupProofReviewExpired } from "@/lib/pickup-proof";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+import { accountTrackingHref } from "@/lib/tracking-links";
 import type { DeliveryStatus } from "@/types/domain";
 
 const statusFlow: Record<string, DeliveryStatus> = {
@@ -392,14 +393,28 @@ async function syncLinkedBusinessOrder(db: SupabaseClient, deliveryId: string, s
     business_id?: string | null;
   }>();
   const label = status === "rider_assigned" ? "Rider Assigned" : status === "picked_up" ? "Order Picked by Dispatch" : status === "in_transit" ? "On the Way" : status === "delivered" ? "Delivered" : status.replaceAll("_", " ");
-  const notifications = [order?.customer_id, order?.business_id]
-    .filter((userId): userId is string => Boolean(userId))
-    .map((userId) => ({
-      user_id: userId,
-      title: "Order status updated",
-      body: `${order?.order_code || "Order"} is ${label}.`,
-      type: "order_update",
-      metadata: { order_id: order?.id, delivery_id: deliveryId, status }
-    }));
-  if (notifications.length) await Promise.allSettled(notifications.map((notification) => insertNotificationWithPush(db, notification)));
+  type PushNotificationInput = Parameters<typeof insertNotificationWithPush>[1];
+  const orderCode = String(order?.order_code || order?.id || deliveryId);
+  const notifications: Array<PushNotificationInput | null> = [
+    order?.customer_id
+      ? {
+          user_id: order.customer_id,
+          title: "Order status updated",
+          body: `${order?.order_code || "Order"} is ${label}.`,
+          type: "order_update",
+          metadata: { order_id: order?.id, order_code: orderCode, delivery_id: deliveryId, status, url: accountTrackingHref(orderCode), tag: `ff-${orderCode}` }
+        }
+      : null,
+    order?.business_id
+      ? {
+          user_id: order.business_id,
+          title: "Order status updated",
+          body: `${order?.order_code || "Order"} is ${label}.`,
+          type: "business_order_update",
+          metadata: { order_id: order?.id, order_code: orderCode, delivery_id: deliveryId, status, url: "/business/dashboard#marketplace-orders", tag: `ff-business-${orderCode}` }
+        }
+      : null
+  ];
+  const notificationRows = notifications.filter((notification): notification is PushNotificationInput => Boolean(notification));
+  if (notificationRows.length) await Promise.allSettled(notificationRows.map((notification) => insertNotificationWithPush(db, notification)));
 }

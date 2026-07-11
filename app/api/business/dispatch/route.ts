@@ -148,7 +148,7 @@ export async function POST(request: Request) {
         title: "Dispatch created",
         body: `${delivery.delivery_code} is ${delivery.status.replaceAll("_", " ")}.`,
         type: "dispatch_created",
-        metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code }
+        metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code, url: "/business/dashboard", tag: `ff-business-${delivery.delivery_code}` }
       })
     ]);
     await recordDeliveryIncome({

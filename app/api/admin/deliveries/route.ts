@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import { releaseBicycleAssetForDelivery } from "@/lib/fleet-assets";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
+import { accountTrackingHref } from "@/lib/tracking-links";
 import { creditRiderDeliveryWallet } from "@/lib/wallet-ledger";
 import type { DeliveryStatus } from "@/types/domain";
 
@@ -101,15 +102,15 @@ export async function PATCH(request: Request) {
       title: status === "delivered" ? "Delivery completed" : "Delivery updated",
       body: `${data.delivery_code} is now ${status.replaceAll("_", " ")}.`,
       type: status === "delivered" ? "delivery_completed" : "delivery_update",
-      metadata: { delivery_id: data.id, delivery_code: data.delivery_code, status }
+      metadata: { delivery_id: data.id, delivery_code: data.delivery_code, status, url: accountTrackingHref(data.delivery_code), tag: `ff-${data.delivery_code}` }
     }),
     riderProfiles?.user_id
       ? insertNotificationWithPush(supabase, {
           user_id: riderProfiles.user_id,
           title: "Delivery timeline updated",
           body: `${data.delivery_code} is now ${status.replaceAll("_", " ")}.`,
-          type: "delivery_update",
-          metadata: { delivery_id: data.id, delivery_code: data.delivery_code, status }
+          type: "delivery_update_rider",
+          metadata: { delivery_id: data.id, delivery_code: data.delivery_code, status, url: "/rider/dashboard", tag: `ff-rider-${data.delivery_code}` }
         })
       : Promise.resolve()
   ]);
