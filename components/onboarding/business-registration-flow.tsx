@@ -41,6 +41,10 @@ const commissionByBusinessType: Record<BusinessType, number> = {
   Fashion: 10
 };
 
+function businessTypeLabel(type: BusinessType) {
+  return type === "Mall" ? "Shopping" : type;
+}
+
 export function BusinessRegistrationFlow() {
   const [authReady, setAuthReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
@@ -383,7 +387,7 @@ export function BusinessRegistrationFlow() {
             <span className="form-label">Select Business Type</span>
             <select className="form-input" value={form.businessType} onChange={(event) => updateBusinessType(event.target.value)}>
               {businessTypeOptions.map((item) => (
-                <option key={item}>{item}</option>
+                <option key={item} value={item}>{businessTypeLabel(item)}</option>
               ))}
             </select>
             {errors.businessType ? <span className="text-xs font-bold text-red-600">{errors.businessType}</span> : null}

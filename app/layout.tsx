@@ -27,7 +27,7 @@ const seoKeywords = [
   "same day delivery Lagos",
   "bike delivery Lagos",
   "restaurant delivery Lagos",
-  "mall delivery Lagos",
+  "shopping delivery Lagos",
   "business dispatch Nigeria",
   "verified riders Nigeria",
   "delivery wallet Nigeria",
@@ -42,7 +42,7 @@ const structuredData = {
   logo: "https://fastfleet.com.ng/brand/fastfleet-logo-2026.png?v=20260629",
   sameAs: ["https://www.instagram.com/fastfleets360", "https://x.com/fastfleets360", "https://www.tiktok.com/@fastfleets360"],
   areaServed: ["Lagos", "Ogun", "Nigeria"],
-  serviceType: ["Courier service", "Same-day delivery", "Restaurant delivery", "Mall delivery", "Business dispatch"]
+  serviceType: ["Courier service", "Same-day delivery", "Restaurant delivery", "Shopping delivery", "Business dispatch"]
 };
 
 export const metadata: Metadata = {

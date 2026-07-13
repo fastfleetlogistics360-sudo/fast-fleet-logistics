@@ -46,7 +46,7 @@ import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from 
 import { DEFAULT_FARE_CONFIG, fareSpeedTypes, fareVehicleTypes, normalizeFareConfig, speedLabel, vehicleLabel, type FareConfig } from "@/lib/fare";
 import { defaultLaunchStateRecords, launchStatusLabel, rememberLiveState } from "@/lib/launch-states";
 import type { LaunchStateRecord } from "@/lib/launch-states";
-import { marketplaceListingRetryDate, marketplaceListingStatusLabel } from "@/lib/marketplace-listing";
+import { marketplaceBusinessTypeLabel, marketplaceListingRetryDate, marketplaceListingStatusLabel } from "@/lib/marketplace-listing";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney } from "@/lib/format";
@@ -61,7 +61,10 @@ import {
   type RestaurantMenuItem
 } from "@/lib/restaurant-menu";
 import {
+  buildShoppingCategoryGroups,
   defaultShoppingMalls,
+  getShoppingStoreImage,
+  mallCategories,
   mallMenuStorageKey,
   normalizeShoppingMalls,
   type MallProduct,
@@ -179,7 +182,7 @@ const adminNavGroups: Array<{
       { id: "main-hero", label: "Main hero", icon: FilePenLine, count: (stats) => String(stats.heroSlides) },
       { id: "hub-promotions", label: "Hub promotions", icon: FilePenLine, count: (stats) => String(stats.hubPromotions) },
       { id: "restaurant-menus", label: "Kitchens", icon: Utensils },
-      { id: "mall-menus", label: "Mall stores", icon: StoreIcon }
+      { id: "mall-menus", label: "Shopping", icon: StoreIcon }
     ]
   },
   {
@@ -1091,7 +1094,7 @@ export function AdminPanel() {
         setMallMenus(mallsResult.demo && savedMalls.length > 0 ? savedMalls : normalizeShoppingMalls(mallsResult.malls));
       }
       if (statesResult.demo || ridersResult.demo || fleetAssetsResult.demo || businessesResult.demo || marketplaceListingsResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || promoReportResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || reviewsResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
-        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, bicycle fleet assets, business KYC, marketplace listings, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, reviews, risk signals, company logs, restaurant menus, and mall menus write to Supabase.");
+        setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, bicycle fleet assets, business KYC, marketplace listings, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, reviews, risk signals, company logs, restaurant menus, and shopping menus write to Supabase.");
       } else if (failedSections.length > 0) {
         setAdminMessage(`Some admin sections did not load: ${failedSections.join("; ")}`);
       }
@@ -1834,20 +1837,20 @@ export function AdminPanel() {
         body: JSON.stringify({ malls })
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "Could not save shopping mall menus.");
+      if (!response.ok) throw new Error(result.error || "Could not save shopping menus.");
       const saved = normalizeShoppingMalls(result.malls);
       setMallMenus(saved);
       writeDemoMallMenus(saved);
-      setAdminMessage("Shopping mall vendor products saved. The mall page will load the updated stores and prices.");
+      setAdminMessage("Shopping vendor products saved. The Shopping page will load the updated categories, stores, and prices.");
     } catch (error) {
       const canUseLocalFallback = error instanceof TypeError || (error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY"));
       if (!canUseLocalFallback) {
-        setAdminMessage(error instanceof Error ? error.message : "Could not save shopping mall menus.");
+        setAdminMessage(error instanceof Error ? error.message : "Could not save shopping menus.");
         return;
       }
       setMallMenus(malls);
       writeDemoMallMenus(malls);
-      setAdminMessage("Saved mall menus in this browser using operational fallback storage. Add SUPABASE_SERVICE_ROLE_KEY in Vercel for live site-wide mall updates.");
+      setAdminMessage("Saved shopping menus in this browser using operational fallback storage. Add SUPABASE_SERVICE_ROLE_KEY in Vercel for live site-wide shopping updates.");
     } finally {
       setBusyAction(null);
     }
@@ -1983,7 +1986,7 @@ export function AdminPanel() {
         <ActionCard
           icon={StoreIcon}
           title="Marketplace listings"
-          body="Approve or reject approved businesses applying to list mall or marketplace items."
+          body="Approve or reject approved businesses applying to list shopping or marketplace items."
           count={`${pendingMarketplaceListingCount} pending`}
           onClick={() => openAdminSection("marketplace-listings")}
         />
@@ -2038,8 +2041,8 @@ export function AdminPanel() {
         />
         <ActionCard
           icon={StoreIcon}
-          title="Mall vendor menus"
-          body="Edit malls, vendor stores, product prices, availability, and Ask Price items."
+          title="Shopping menus"
+          body="Edit standalone shopping categories, vendor stores, product prices, availability, and Ask Price items."
           count={`${mallMenus.reduce((count, mall) => count + mall.stores.reduce((sum, store) => sum + store.products.length, 0), 0)} products`}
           onClick={() => openAdminSection("mall-menus")}
         />
@@ -2612,7 +2615,7 @@ function BusinessWithdrawalSection({
                     {withdrawal.bank_name} · {withdrawal.account_number} · {withdrawal.account_name || "No account name"}
                   </span>
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
-                    KYC: {business?.registration_status || "active"} · Type: {business?.business_type || "business"} · {user?.email || "No email"}
+                    KYC: {business?.registration_status || "active"} · Type: {marketplaceBusinessTypeLabel(business?.business_type) || "business"} · {user?.email || "No email"}
                   </span>
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
                     Payout window: within 10 business hours after approval
@@ -3434,6 +3437,7 @@ function MallMenuSection({
   onSave: () => void;
 }) {
   const saving = busyAction === "malls:save";
+  const categoryGroups = buildShoppingCategoryGroups(malls);
 
   return (
     <Card id="mall-menus" className="mt-6 scroll-mt-24 overflow-hidden">
@@ -3443,71 +3447,92 @@ function MallMenuSection({
             <StoreIcon className="h-5 w-5" />
           </span>
           <div>
-            <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Mall authority</span>
-            <h2 className="mt-1 text-2xl font-black text-fleet-night">Shopping malls, vendors, and products</h2>
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Shopping authority</span>
+            <h2 className="mt-1 text-2xl font-black text-fleet-night">Shopping categories, vendors, and products</h2>
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
-              Update each mall container, store category, product price, availability, and Ask Price status. Prices stay vendor-specific.
+              Update each standalone category, vendor account, store photo, product price, availability, and Ask Price status. Prices stay vendor-specific.
             </p>
           </div>
         </div>
         <Button type="button" onClick={onSave} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Save mall menus
+          Save shopping menus
         </Button>
       </div>
 
       <div className="grid gap-5 p-4">
-        {malls.map((mall) => (
-          <article key={mall.id} className="rounded-fleet border border-fleet-line bg-white p-4">
-            <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
-              <img src={mall.image} alt={mall.name} className="h-44 w-full rounded-fleet object-cover lg:h-full" />
-              <div className="grid gap-3">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <label className="form-field">
-                    <span className="form-label">Mall name</span>
-                    <input className="form-input" value={mall.name} onChange={(event) => onMallChange(mall.id, { name: event.target.value })} />
-                  </label>
-                  <label className="form-field">
-                    <span className="form-label">Location</span>
-                    <input className="form-input" value={mall.location} onChange={(event) => onMallChange(mall.id, { location: event.target.value })} />
-                  </label>
-                </div>
-                <label className="form-field">
-                  <span className="form-label">Mall photo URL</span>
-                  <input className="form-input" value={mall.image} onChange={(event) => onMallChange(mall.id, { image: event.target.value })} />
-                </label>
+        {categoryGroups.length === 0 ? (
+          <div className="rounded-fleet border border-fleet-line bg-fleet-paper p-4 text-sm font-bold text-slate-500">No shopping categories found.</div>
+        ) : null}
+
+        {categoryGroups.map((group) => (
+          <section key={group.category} className="overflow-hidden rounded-fleet border border-fleet-line bg-white">
+            <div className="flex flex-col gap-3 border-b border-fleet-line bg-fleet-paper/75 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Shopping category</span>
+                <h3 className="mt-1 text-2xl font-black text-fleet-night">{group.category}</h3>
+                <p className="mt-1 text-sm font-bold text-slate-500">{group.vendors.length} vendors · {group.productCount} products</p>
               </div>
+              <StatusBadge tone="green">{group.category}</StatusBadge>
             </div>
 
-            <div className="mt-5 grid gap-4">
-              {mall.stores.map((store) => (
-                <div key={store.id} className="rounded-fleet border border-fleet-line bg-fleet-paper p-3">
-                  <div className="grid gap-3 md:grid-cols-[1fr_180px]">
-                    <label className="form-field">
-                      <span className="form-label">Vendor / store</span>
-                      <input className="form-input bg-white" value={store.name} onChange={(event) => onStoreChange(mall.id, store.id, { name: event.target.value })} />
-                    </label>
-                    <label className="form-field">
-                      <span className="form-label">Category</span>
-                      <select className="form-input bg-white" value={store.category} onChange={(event) => onStoreChange(mall.id, store.id, { category: event.target.value as MallStore["category"] })}>
-                        <option value="Grocery">Grocery</option>
-                        <option value="Pharmacy">Pharmacy</option>
-                        <option value="Fashion">Fashion</option>
-                      </select>
-                    </label>
-                    <label className="form-field md:col-span-2">
-                      <span className="form-label">Linked business</span>
-                      <select className="form-input bg-white" value={store.businessId || ""} onChange={(event) => onStoreChange(mall.id, store.id, { businessId: event.target.value || undefined })}>
-                        <option value="">Unlinked</option>
-                        {businesses.map((business) => (
-                          <option key={business.id} value={business.id}>{business.business_name}</option>
-                        ))}
-                      </select>
-                    </label>
+            <div className="grid gap-4 p-4">
+              {group.vendors.map(({ mall, store }) => (
+                <article key={`${mall.id}:${store.id}`} className="rounded-fleet border border-fleet-line bg-fleet-paper p-3">
+                  <div className="grid gap-4 lg:grid-cols-[140px_1fr]">
+                    <img src={getShoppingStoreImage(store, mall)} alt={store.name} className="h-36 w-full rounded-fleet object-cover lg:h-full" />
+                    <div className="grid gap-3">
+                      <div className="grid gap-3 md:grid-cols-[1fr_180px]">
+                        <label className="form-field">
+                          <span className="form-label">Vendor / store</span>
+                          <input className="form-input bg-white" value={store.name} onChange={(event) => onStoreChange(mall.id, store.id, { name: event.target.value })} />
+                        </label>
+                        <label className="form-field">
+                          <span className="form-label">Category</span>
+                          <select className="form-input bg-white" value={store.category} onChange={(event) => onStoreChange(mall.id, store.id, { category: event.target.value as MallStore["category"] })}>
+                            {mallCategories.map((category) => (
+                              <option key={category} value={category}>{category}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="form-field">
+                          <span className="form-label">Linked business account</span>
+                          <select className="form-input bg-white" value={store.businessId || ""} onChange={(event) => onStoreChange(mall.id, store.id, { businessId: event.target.value || undefined })}>
+                            <option value="">Unlinked</option>
+                            {businesses.map((business) => (
+                              <option key={business.id} value={business.id}>{business.business_name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="form-field">
+                          <span className="form-label">Store photo URL</span>
+                          <input className="form-input bg-white" value={store.image || ""} onChange={(event) => onStoreChange(mall.id, store.id, { image: event.target.value || undefined })} placeholder="Uses product or pickup photo if empty" />
+                        </label>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <label className="form-field">
+                          <span className="form-label">Pickup group</span>
+                          <input className="form-input bg-white" value={mall.name} onChange={(event) => onMallChange(mall.id, { name: event.target.value })} />
+                        </label>
+                        <label className="form-field">
+                          <span className="form-label">Pickup address</span>
+                          <input className="form-input bg-white" value={mall.location} onChange={(event) => onMallChange(mall.id, { location: event.target.value })} />
+                        </label>
+                        <label className="form-field">
+                          <span className="form-label">Fallback cover photo URL</span>
+                          <input className="form-input bg-white" value={mall.image} onChange={(event) => onMallChange(mall.id, { image: event.target.value })} />
+                        </label>
+                      </div>
+                    </div>
                   </div>
+
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h3 className="text-lg font-black text-fleet-night">{store.name} products</h3>
+                      <h4 className="text-lg font-black text-fleet-night">{store.name} products</h4>
                       <span className="text-sm font-bold text-slate-500">{store.products.length} products available for this vendor.</span>
                     </div>
                     <Button type="button" size="sm" variant="secondary" onClick={() => onAddProduct(mall.id, store.id)}>
@@ -3515,6 +3540,7 @@ function MallMenuSection({
                       Add new product
                     </Button>
                   </div>
+
                   <div className="mt-3 grid gap-3">
                     {store.products.map((product) => (
                       <div key={product.id} className="grid gap-3 rounded-fleet border border-fleet-line bg-white p-3 xl:grid-cols-[64px_1fr_120px_1.1fr_1fr_120px] xl:items-end">
@@ -3553,10 +3579,10 @@ function MallMenuSection({
                       </div>
                     ))}
                   </div>
-                </div>
+                </article>
               ))}
             </div>
-          </article>
+          </section>
         ))}
       </div>
     </Card>
@@ -3806,7 +3832,7 @@ function BusinessKycSection({
                 <div>
                   <strong className="block text-lg font-black text-fleet-night">{business.business_name}</strong>
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
-                    {business.business_type || business.industry || "Type pending"} · {business.dispatch_volume || "Volume pending"} · Commission {Number(business.commission_rate || 0).toFixed(0)}%
+                    {marketplaceBusinessTypeLabel(business.business_type || business.industry) || "Type pending"} · {business.dispatch_volume || "Volume pending"} · Commission {Number(business.commission_rate || 0).toFixed(0)}%
                   </span>
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
                     {business.contact_name || business.users?.full_name || "No contact"} · {business.email || business.users?.email || "No email"} · {business.phone || business.users?.phone || "No phone"}

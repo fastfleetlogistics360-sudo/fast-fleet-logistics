@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
+import { marketplaceBusinessTypeLabel } from "@/lib/marketplace-listing";
 import { uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
@@ -628,7 +629,7 @@ function BusinessMobileTabs({ activeTab, onChange, disabled = false }: { activeT
       {tabs.slice(0, 2).map(renderTab)}
       <Link href="/marketplace/listing" className="grid min-h-14 place-items-center rounded-[18px] px-1 py-2 text-[0.62rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper">
         <Store className="mb-1 h-4 w-4" />
-        <span className="max-w-full truncate">Mall Listing</span>
+        <span className="max-w-full truncate">Shopping Listing</span>
       </Link>
       {tabs.slice(2).map(renderTab)}
     </nav>
@@ -945,7 +946,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
           pickup_address: profile.pickup_address,
           state: profile.operating_state || profile.default_zone,
           cac_number: profile.cac_number,
-          business_type: profile.business_type || profile.industry,
+          business_type: profile.business_type === "Shopping" ? "Mall" : profile.business_type || profile.industry,
           contact_name: profile.contact_name,
           phone: profile.phone,
           email: profile.email
@@ -979,7 +980,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
           <div>
             <h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2>
             <p className="text-sm font-semibold text-slate-500">
-              {profile.business_type || profile.industry || "Business type not set"} · Commission {Number(profile.commission_rate || 0).toFixed(0)}%
+              {marketplaceBusinessTypeLabel(profile.business_type || profile.industry) || "Business type not set"} · Commission {Number(profile.commission_rate || 0).toFixed(0)}%
             </p>
             <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">
               {photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}
@@ -1001,7 +1002,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
           </label>
           <Field label="Address" value={profile.pickup_address || ""} onChange={(value) => onProfile({ ...profile, pickup_address: value })} />
           <Field label="CAC number" value={profile.cac_number || ""} onChange={(value) => onProfile({ ...profile, cac_number: value })} />
-          <Field label="Business type" value={profile.business_type || profile.industry || ""} onChange={(value) => onProfile({ ...profile, business_type: value, industry: value })} />
+          <Field label="Business type" value={marketplaceBusinessTypeLabel(profile.business_type || profile.industry)} onChange={(value) => onProfile({ ...profile, business_type: value === "Shopping" ? "Mall" : value, industry: value === "Shopping" ? "Mall" : value })} />
           <Field label="Contact person" value={profile.contact_name || ""} onChange={(value) => onProfile({ ...profile, contact_name: value })} />
           <Field label="Contact phone" value={profile.phone || ""} onChange={(value) => onProfile({ ...profile, phone: value })} />
           <Field label="Contact email" value={profile.email || ""} onChange={(value) => onProfile({ ...profile, email: value })} />

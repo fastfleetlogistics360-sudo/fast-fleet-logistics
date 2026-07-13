@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 const services = [
-  { title: "Marketplace", body: "Discover food, groceries, and everyday essentials from onboarding marketplace partners.", href: "/shopping-mall", icon: ShoppingBag, label: "Explore marketplace" },
+  { title: "Marketplace", body: "Discover food, groceries, and everyday essentials from onboarding marketplace partners.", href: "/shopping", icon: ShoppingBag, label: "Explore marketplace" },
   { title: "Delivery Services", body: "Book a dependable parcel or business dispatch with clear status updates from pickup to handoff.", href: "/book", icon: Truck, label: "Book a delivery" },
   { title: "Business Solutions", body: "Give your business a dispatch workspace for repeat jobs, teams, billing, and delivery operations.", href: "/business/register", icon: BriefcaseBusiness, label: "Register a business" },
   { title: "Rider Opportunities", body: "Join the delivery network, complete onboarding, and manage your rider application securely.", href: "/rider/onboarding", icon: Bike, label: "Become a rider" },

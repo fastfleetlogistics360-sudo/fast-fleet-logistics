@@ -1,4 +1,6 @@
-export type MallCategory = "Grocery" | "Pharmacy" | "Fashion";
+export const mallCategories = ["Grocery", "Pharmacy", "Fashion"] as const;
+
+export type MallCategory = (typeof mallCategories)[number];
 export type MallProductPrice = number | null | "ASK_PRICE";
 
 export type MallProduct = {
@@ -14,6 +16,7 @@ export type MallStore = {
   id: string;
   businessId?: string;
   name: string;
+  image?: string;
   category: MallCategory;
   products: MallProduct[];
 };
@@ -26,13 +29,26 @@ export type ShoppingMall = {
   stores: MallStore[];
 };
 
+export type ShoppingCategoryVendor = {
+  mall: ShoppingMall;
+  store: MallStore;
+};
+
+export type ShoppingCategoryGroup = {
+  category: MallCategory;
+  vendors: ShoppingCategoryVendor[];
+  productCount: number;
+  image: string;
+  locations: string[];
+};
+
 export const mallMenuSettingsKey = "shopping_malls";
 export const mallMenuStorageKey = "fastfleet_shopping_malls";
 
 export const defaultShoppingMalls: ShoppingMall[] = [
   {
     id: "ikeja-city-mall",
-    name: "Ikeja City Mall",
+    name: "Ikeja Shopping Hub",
     location: "Ikeja, Lagos",
     image: "https://images.unsplash.com/photo-1519567241046-7f570eee3ce6?auto=format&fit=crop&w=1200&q=70",
     stores: [
@@ -67,7 +83,7 @@ export const defaultShoppingMalls: ShoppingMall[] = [
   },
   {
     id: "palms-shopping-mall",
-    name: "The Palms Shopping Mall",
+    name: "Lekki Shopping Hub",
     location: "Lekki, Lagos",
     image: "https://images.unsplash.com/photo-1567958451986-2de427a4a0be?auto=format&fit=crop&w=1200&q=70",
     stores: [
@@ -102,7 +118,7 @@ export const defaultShoppingMalls: ShoppingMall[] = [
   },
   {
     id: "circle-mall",
-    name: "Circle Mall",
+    name: "Jakande Shopping Hub",
     location: "Jakande, Lagos",
     image: "https://images.unsplash.com/photo-1481437156560-3205f6a55735?auto=format&fit=crop&w=1200&q=70",
     stores: [
@@ -160,6 +176,38 @@ export function normalizeShoppingMalls(value: unknown): ShoppingMall[] {
   return malls.length ? malls : defaultShoppingMalls;
 }
 
+export function buildShoppingCategoryGroups(malls: ShoppingMall[]): ShoppingCategoryGroup[] {
+  const sourceMalls = malls.length ? malls : defaultShoppingMalls;
+
+  return mallCategories
+    .map((category) => {
+      const vendors = sourceMalls.flatMap((mall) =>
+        mall.stores
+          .filter((store) => store.category === category)
+          .map((store) => ({ mall, store }))
+      );
+      const productCount = vendors.reduce((count, vendor) => count + vendor.store.products.length, 0);
+      const firstVendor = vendors[0];
+      const locations = Array.from(new Set(vendors.map(({ mall }) => mall.location).filter(Boolean)));
+
+      return {
+        category,
+        vendors,
+        productCount,
+        image: firstVendor ? getShoppingStoreImage(firstVendor.store, firstVendor.mall) : defaultShoppingMalls[0].image,
+        locations
+      };
+    })
+    .filter((group) => group.vendors.length);
+}
+
+export function getShoppingStoreImage(store: MallStore, mall: ShoppingMall) {
+  return text(store.image)
+    || text(store.products.find((product) => text(product.image))?.image)
+    || text(mall.image)
+    || defaultShoppingMalls[0].image;
+}
+
 function normalizeMallStore(value: unknown): MallStore | null {
   const store = value as Partial<MallStore>;
   const name = text(store.name);
@@ -170,6 +218,7 @@ function normalizeMallStore(value: unknown): MallStore | null {
     id: text(store.id) || slug(name),
     businessId: text(store.businessId) || undefined,
     name,
+    image: text(store.image) || undefined,
     category,
     products: products.length ? (products as MallProduct[]) : []
   };
@@ -190,7 +239,7 @@ function normalizeMallProduct(value: unknown): MallProduct | null {
 }
 
 function normalizeCategory(value: unknown): MallCategory {
-  return value === "Pharmacy" || value === "Fashion" ? value : "Grocery";
+  return mallCategories.includes(value as MallCategory) ? (value as MallCategory) : "Grocery";
 }
 
 function normalizePrice(value: unknown): MallProductPrice {

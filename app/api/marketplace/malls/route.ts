@@ -7,7 +7,7 @@ export async function GET() {
   const supabase = createAdminClient();
   if (!supabase) {
     if (canUseDemoFallback()) return NextResponse.json({ malls: defaultShoppingMalls, demo: true });
-    return NextResponse.json(missingServiceResponse("shopping mall marketplace"), { status: 503 });
+    return NextResponse.json(missingServiceResponse("shopping marketplace"), { status: 503 });
   }
 
   const { data, error } = await supabase.from("platform_settings").select("value").eq("key", mallMenuSettingsKey).maybeSingle();

@@ -12,8 +12,14 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { formatMoney } from "@/lib/format";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { cn } from "@/lib/cn";
-import { defaultShoppingMalls, mallMenuStorageKey, normalizeShoppingMalls } from "@/lib/mall-menu";
-import type { MallCategory, MallProduct, MallStore, ShoppingMall } from "@/lib/mall-menu";
+import {
+  buildShoppingCategoryGroups,
+  defaultShoppingMalls,
+  getShoppingStoreImage,
+  mallMenuStorageKey,
+  normalizeShoppingMalls
+} from "@/lib/mall-menu";
+import type { MallCategory, MallProduct, MallStore, ShoppingCategoryGroup, ShoppingMall } from "@/lib/mall-menu";
 import { useMarketplaceEstimate } from "@/components/marketplace/use-marketplace-estimate";
 
 type CartItem = {
@@ -39,17 +45,18 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
   const [address, setAddress] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [activeMall, setActiveMall] = useState(0);
-  const mallRefs = useRef<Array<HTMLElement | null>>([]);
+  const [activeCategory, setActiveCategory] = useState(0);
+  const categoryRefs = useRef<Array<HTMLElement | null>>([]);
   const reduceMotion = useReducedMotion();
 
+  const categoryGroups = useMemo(() => buildShoppingCategoryGroups(malls), [malls]);
   const cartItems = useMemo(() => Object.values(cart), [cart]);
   const checkoutItems = useMemo(
     () =>
       cartItems.map((item) => ({
         ...item,
         name: item.productName,
-        store: `${item.mallName} · ${item.vendorName}`,
+        store: `${item.category} · ${item.vendorName}`,
         mallLocation: item.pickupAddress
       })),
     [cartItems]
@@ -112,22 +119,22 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
     });
   }
 
-  function handleMallScroll(event: UIEvent<HTMLDivElement>) {
-    const firstCard = mallRefs.current[0];
+  function handleCategoryScroll(event: UIEvent<HTMLDivElement>) {
+    const firstCard = categoryRefs.current[0];
     if (!firstCard) return;
     const gap = 12;
     const nextIndex = Math.round(event.currentTarget.scrollLeft / (firstCard.offsetWidth + gap));
-    setActiveMall(Math.max(0, Math.min(malls.length - 1, nextIndex)));
+    setActiveCategory(Math.max(0, Math.min(categoryGroups.length - 1, nextIndex)));
   }
 
-  function goToMall(index: number) {
-    mallRefs.current[index]?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", inline: "start", block: "nearest" });
-    setActiveMall(index);
+  function goToCategory(index: number) {
+    categoryRefs.current[index]?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", inline: "start", block: "nearest" });
+    setActiveCategory(index);
   }
 
   function askPrice(product: MallProduct, vendor: MallStore, mall: ShoppingMall) {
     const text = encodeURIComponent(
-      `Hello Fast Fleets 360, I want to ask the price of this item.\n\nProduct: ${product.name}\nMall: ${mall.name}\nVendor/store: ${vendor.name}`
+      `Hello Fast Fleets 360, I want to ask the price of this shopping item.\n\nProduct: ${product.name}\nCategory: ${vendor.category}\nVendor/store: ${vendor.name}\nPickup area: ${mall.location || mall.name}`
     );
     window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   }
@@ -135,7 +142,7 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
   async function checkout() {
     setMessage(null);
     if (!cartItems.length) {
-      setMessage("Add at least one priced mall product before checkout.");
+      setMessage("Add at least one priced shopping product before checkout.");
       return;
     }
     if (!email.trim()) {
@@ -179,7 +186,7 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
         JSON.stringify([
           {
             delivery_code: deliveryCode,
-            pickup_address: cartItems.map((item) => `${item.mallName} · ${item.vendorName}`).join(", "),
+            pickup_address: cartItems.map((item) => `${item.vendorName} · ${item.pickupAddress}`).join(", "),
             dropoff_address: address,
             status: payload.status || (businessOrder ? "received" : "searching"),
             vehicle_type: "bike",
@@ -197,7 +204,7 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
       );
       window.location.assign(payload.authorizationUrl);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Mall checkout failed.");
+      setMessage(error instanceof Error ? error.message : "Shopping checkout failed.");
     } finally {
       setLoading(false);
     }
@@ -207,17 +214,17 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
     <>
     <BackButton className="section-wrap pb-4 pt-4" />
     <CinematicPageHero
-      eyebrow="Fast Fleets 360 Mall"
-      title="Mall orders, delivered cleanly."
-      body="Choose a mall, add items, and checkout with Squad."
+      eyebrow="Fast Fleets 360 Shopping"
+      title="Shopping delivered cleanly."
+      body="Choose a category, pick a vendor, add items, and checkout with Squad."
       image="https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=2200&q=84"
     />
     <section className="section-wrap -mt-8 pb-28 sm:-mt-10 sm:pb-12">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
         <div className="min-w-0">
           <div className="rounded-fleet border border-white/70 bg-white/80 p-4 shadow-lift backdrop-blur-xl sm:p-5">
-            <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Mall checkout</span>
-            <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Choose. Add. Pay.</h2>
+            <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Shopping checkout</span>
+            <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Choose a category. Add. Pay.</h2>
             <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
               Fast Fleets 360 estimates delivery after your address and adds a {formatMoney(platformFee)} platform fee.
             </p>
@@ -225,32 +232,32 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
 
           <div
             className="mt-8 flex w-full snap-x gap-3 overflow-x-auto pb-5 pr-4 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:gap-4 lg:overflow-visible lg:pr-0 xl:grid-cols-3 [&::-webkit-scrollbar]:hidden"
-            onScroll={handleMallScroll}
+            onScroll={handleCategoryScroll}
           >
-            {malls.map((mall, index) => (
-              <MallStoreCard
-                key={mall.id}
-                mall={mall}
+            {categoryGroups.map((group, index) => (
+              <ShoppingCategoryCard
+                key={group.category}
+                group={group}
                 index={index}
                 cart={cart}
                 reduceMotion={Boolean(reduceMotion)}
                 onQuantity={changeQuantity}
                 onAskPrice={askPrice}
                 refCallback={(node) => {
-                  mallRefs.current[index] = node;
+                  categoryRefs.current[index] = node;
                 }}
               />
             ))}
           </div>
-          {malls.length > 1 ? (
-            <div className="mt-1 flex justify-center gap-2 lg:hidden" aria-label="Mall pages">
-              {malls.map((mall, index) => (
+          {categoryGroups.length > 1 ? (
+            <div className="mt-1 flex justify-center gap-2 lg:hidden" aria-label="Shopping category pages">
+              {categoryGroups.map((group, index) => (
                 <button
-                  key={mall.id}
+                  key={group.category}
                   type="button"
-                  aria-label={`Show ${mall.name}`}
-                  onClick={() => goToMall(index)}
-                  className={cn("h-2 rounded-full transition-all", activeMall === index ? "w-6 bg-fleet-ember" : "w-2 bg-slate-300")}
+                  aria-label={`Show ${group.category}`}
+                  onClick={() => goToCategory(index)}
+                  className={cn("h-2 rounded-full transition-all", activeCategory === index ? "w-6 bg-fleet-ember" : "w-2 bg-slate-300")}
                 />
               ))}
             </div>
@@ -260,14 +267,14 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
         <Card className="sticky top-24 p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Mall checkout</span>
+              <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Shopping checkout</span>
               <strong className="mt-1 block text-3xl font-black text-fleet-night">{formatMoney(finalTotal)}</strong>
             </div>
             <StatusBadge tone="green">{cartItems.length} items</StatusBadge>
           </div>
 
           <div className="mt-5 grid gap-3">
-            {cartItems.length === 0 ? <div className="rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-500">No priced mall products selected yet.</div> : null}
+            {cartItems.length === 0 ? <div className="rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-500">No priced shopping products selected yet.</div> : null}
             {cartItems.map((item) => (
               <div key={cartKey(item.mallId, item.vendorId, item.productId)} className="rounded-fleet bg-fleet-paper p-3">
                 <div className="flex items-start justify-between gap-3">
@@ -295,7 +302,7 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
             <AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} placeholder="Enter recipient street address" />
             <Button type="button" onClick={checkout} disabled={loading || estimateLoading || cartItems.length === 0}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
-              Checkout Mall Order
+              Checkout Shopping Order
             </Button>
           </div>
           {message || estimateError ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{message || estimateError}</div> : null}
@@ -306,8 +313,8 @@ export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initi
   );
 }
 
-function MallStoreCard({
-  mall,
+function ShoppingCategoryCard({
+  group,
   index,
   cart,
   reduceMotion,
@@ -315,7 +322,7 @@ function MallStoreCard({
   onAskPrice,
   refCallback
 }: {
-  mall: ShoppingMall;
+  group: ShoppingCategoryGroup;
   index: number;
   cart: Record<string, CartItem>;
   reduceMotion: boolean;
@@ -336,36 +343,39 @@ function MallStoreCard({
     >
       <summary className="block cursor-pointer list-none marker:hidden [&::-webkit-details-marker]:hidden">
         <div className="relative aspect-[4/3] overflow-hidden bg-fleet-paper">
-          <img src={mall.image} alt={mall.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <img src={group.image} alt={group.category} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
           <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-fleet-ember shadow-[0_10px_24px_rgba(8,17,31,0.12)]">
-            {mall.stores.length} stores
+            {group.vendors.length} vendors
           </span>
         </div>
         <div className="p-3 sm:p-4">
           <div className="flex items-start justify-between gap-3">
             <span className="min-w-0">
-              <strong className="line-clamp-1 block text-base font-black leading-tight text-fleet-night">{mall.name}</strong>
-              <span className="mt-1 line-clamp-1 block text-xs font-bold leading-5 text-slate-500">Vendor stores with dispatch-ready items.</span>
+              <strong className="line-clamp-1 block text-base font-black leading-tight text-fleet-night">{group.category}</strong>
+              <span className="mt-1 line-clamp-1 block text-xs font-bold leading-5 text-slate-500">{group.productCount} products from shopping vendors.</span>
             </span>
             <ChevronDown className="mt-0.5 h-5 w-5 shrink-0 text-fleet-ember transition group-open:rotate-180" />
           </div>
           <span className="mt-3 flex items-start gap-1.5 text-xs font-bold leading-5 text-slate-500">
             <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
-            <span className="line-clamp-2">{mall.location}</span>
+            <span className="line-clamp-2">{group.locations.join(", ") || "Shopping pickup"}</span>
           </span>
           <span className="mt-4 inline-flex min-h-9 w-full items-center justify-center rounded-fleet bg-fleet-night px-3 text-xs font-black text-white transition group-hover:bg-fleet-ember">
-            View stores
+            View vendors
           </span>
         </div>
       </summary>
       <div className="grid max-h-[520px] gap-3 overflow-y-auto border-t border-fleet-line bg-fleet-paper/55 p-3">
-        {mall.stores.map((vendor) => (
-          <details key={vendor.id} className="group/vendor overflow-hidden rounded-fleet border border-fleet-line bg-white">
+        {group.vendors.map(({ mall, store: vendor }) => (
+          <details key={`${mall.id}:${vendor.id}`} className="group/vendor overflow-hidden rounded-fleet border border-fleet-line bg-white">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 marker:hidden [&::-webkit-details-marker]:hidden">
-              <span className="min-w-0">
-                <strong className="block truncate text-sm font-black text-fleet-night">{vendor.name}</strong>
-                <span className="mt-1 block text-[0.68rem] font-bold uppercase tracking-[0.1em] text-slate-500">{vendor.category} · {vendor.products.length} products</span>
-              </span>
+              <div className="grid min-w-0 grid-cols-[44px_1fr] items-center gap-3">
+                <img src={getShoppingStoreImage(vendor, mall)} alt={vendor.name} loading="lazy" className="h-11 w-11 rounded-fleet object-cover" />
+                <span className="min-w-0">
+                  <strong className="block truncate text-sm font-black text-fleet-night">{vendor.name}</strong>
+                  <span className="mt-1 block text-[0.68rem] font-bold uppercase tracking-[0.1em] text-slate-500">{vendor.products.length} products · {mall.location || mall.name}</span>
+                </span>
+              </div>
               <ChevronDown className="h-4 w-4 shrink-0 text-fleet-ember transition group-open/vendor:rotate-180" />
             </summary>
             <div className="grid gap-2 border-t border-fleet-line bg-fleet-paper/70 p-2.5">

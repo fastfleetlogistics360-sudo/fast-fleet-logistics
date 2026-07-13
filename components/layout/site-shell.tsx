@@ -36,7 +36,7 @@ const navItems = [
   { href: "/book", label: "Book" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/restaurants", label: "Food" },
-  { href: "/shopping-mall", label: "Mall" },
+  { href: "/shopping", label: "Shopping" },
   { href: "/track", label: "Track" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/rider/onboarding", label: "Riders" },

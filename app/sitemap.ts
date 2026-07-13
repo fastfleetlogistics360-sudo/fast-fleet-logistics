@@ -13,7 +13,7 @@ const publicRoutes: SitemapEntry[] = [
   { path: "/book", changeFrequency: "daily", priority: 0.95 },
   { path: "/track", changeFrequency: "daily", priority: 0.9 },
   { path: "/restaurants", changeFrequency: "daily", priority: 0.9 },
-  { path: "/shopping-mall", changeFrequency: "daily", priority: 0.9 },
+  { path: "/shopping", changeFrequency: "daily", priority: 0.9 },
   { path: "/services", changeFrequency: "weekly", priority: 0.85 },
   { path: "/how-it-works", changeFrequency: "weekly", priority: 0.85 },
   { path: "/rider/onboarding", changeFrequency: "weekly", priority: 0.82 },

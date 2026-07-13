@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 
 export const metadata: Metadata = {
   title: "How Fast Fleets 360 Works",
-  description: "How customers, riders, restaurants, mall vendors, and businesses use Fast Fleets 360 Logistics for city delivery."
+  description: "How customers, riders, restaurants, shopping vendors, and businesses use Fast Fleets 360 Logistics for city delivery."
 };
 
 const steps: Array<{ title: string; body: string; icon: LucideIcon }> = [
@@ -18,7 +18,7 @@ const steps: Array<{ title: string; body: string; icon: LucideIcon }> = [
   },
   {
     title: "Choose What You Want to Do",
-    body: "Fast Fleets 360 is built for different delivery needs. You can book a same-day dispatch, order food from restaurant partners, shop from mall vendors, track a package, register as a rider, or create a business dispatch account.",
+    body: "Fast Fleets 360 is built for different delivery needs. You can book a same-day dispatch, order food from restaurant partners, shop from category vendors, track a package, register as a rider, or create a business dispatch account.",
     icon: ShoppingBag
   },
   {
@@ -33,7 +33,7 @@ const steps: Array<{ title: string; body: string; icon: LucideIcon }> = [
   },
   {
     title: "Place Your Order or Delivery Request",
-    body: "Customers can book riders for food, documents, parcels, shopping items, business dispatch, and urgent errands. Restaurant customers can select meals, add items to cart, confirm delivery details, and checkout through Squad. Mall customers can choose a mall, select a vendor, add vendor-specific products, and checkout.",
+    body: "Customers can book riders for food, documents, parcels, shopping items, business dispatch, and urgent errands. Restaurant customers can select meals, add items to cart, confirm delivery details, and checkout through Squad. Shopping customers can choose a category, select a vendor, add vendor-specific products, and checkout.",
     icon: PackageCheck
   },
   {
@@ -53,7 +53,7 @@ const steps: Array<{ title: string; body: string; icon: LucideIcon }> = [
   },
   {
     title: "Businesses Can Manage Orders Better",
-    body: "Restaurants, mall vendors, offices, and stores can register as business partners to receive orders, support repeat dispatch, and give their customers a more reliable delivery experience.",
+    body: "Restaurants, shopping vendors, offices, and stores can register as business partners to receive orders, support repeat dispatch, and give their customers a more reliable delivery experience.",
     icon: Building2
   },
   {
@@ -82,7 +82,7 @@ export default function HowItWorksPage() {
             City delivery made simple, fast, and reliable.
           </h1>
           <p className="mt-6 max-w-3xl text-base font-semibold leading-8 text-white/[0.82] sm:text-xl">
-            Fast Fleets 360 Logistics makes city delivery simple, fast, and reliable for customers, riders, restaurants, mall vendors, and businesses across Lagos and Ogun.
+            Fast Fleets 360 Logistics makes city delivery simple, fast, and reliable for customers, riders, restaurants, shopping vendors, and businesses across Lagos and Ogun.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <LinkButton href="/book">Book delivery</LinkButton>
@@ -115,7 +115,7 @@ export default function HowItWorksPage() {
         <div className="mt-6 rounded-fleet bg-fleet-night p-6 text-white sm:p-8">
           <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-gold">In Simple Terms</span>
           <p className="mt-3 max-w-4xl text-2xl font-black leading-tight sm:text-4xl">
-            Fast Fleets 360 helps people send packages, order food, shop from malls, track riders live, and connect businesses with verified delivery riders all from one logistics platform.
+            Fast Fleets 360 helps people send packages, order food, shop from category vendors, track riders live, and connect businesses with verified delivery riders all from one logistics platform.
           </p>
         </div>
       </section>

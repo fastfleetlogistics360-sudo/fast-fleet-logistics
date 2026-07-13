@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Same-Day Dispatch in Lagos and Ogun",
-  description: "Fast Fleets 360 Logistics provides same-day dispatch for customers, riders, restaurants, mall vendors, and businesses across Lagos and Ogun.",
+  description: "Fast Fleets 360 Logistics provides same-day dispatch for customers, riders, restaurants, shopping vendors, and businesses across Lagos and Ogun.",
   keywords: [
     "Fast Fleets 360",
     "FastFleets360",

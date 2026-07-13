@@ -47,7 +47,8 @@ function parsePayload(value: unknown): BusinessRegistrationPayload | null {
   if (!isRecord(value) || !isRecord(value.form) || !Array.isArray(value.documents)) return null;
   const form = value.form;
   const rawBusinessType = readString(form, "businessType", 40);
-  const businessType = (businessTypes.includes(rawBusinessType as BusinessType) ? rawBusinessType : "Restaurant") as BusinessType;
+  const normalizedBusinessType = rawBusinessType === "Shopping" ? "Mall" : rawBusinessType;
+  const businessType = (businessTypes.includes(normalizedBusinessType as BusinessType) ? normalizedBusinessType : "Restaurant") as BusinessType;
   const documents: BusinessRegistrationPayload["documents"] = [];
   for (const item of value.documents) {
     if (!isRecord(item)) continue;

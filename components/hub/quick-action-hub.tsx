@@ -76,7 +76,7 @@ export function QuickActionHub({
     : [];
   const actions: HubAction[] = [
     { title: "Dashboard", href: roleHome[role], icon: LayoutDashboard, tone: "navy" },
-    { title: "Mall", href: "/shopping-mall", icon: ShoppingBag, tone: "green" },
+    { title: "Shopping", href: "/shopping", icon: ShoppingBag, tone: "green" },
     ...marketplaceActions,
     { title: "Restaurants", href: "/restaurants", icon: Utensils, tone: "orange" },
     { title: "Book a Delivery", href: "/book", icon: Truck, tone: "orange" },

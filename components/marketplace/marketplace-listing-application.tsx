@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { CheckCircle2, Clock3, Loader2, Store, XCircle } from "lucide-react";
 import type { UserRole } from "@/types/domain";
 import { roleHome } from "@/lib/auth/roles";
-import { canRetryMarketplaceListing, marketplaceListingRetryDate, type MarketplaceListingApplication } from "@/lib/marketplace-listing";
+import { canRetryMarketplaceListing, marketplaceBusinessTypeLabel, marketplaceListingRetryDate, type MarketplaceListingApplication } from "@/lib/marketplace-listing";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -37,7 +37,7 @@ export function MarketplaceListingApplication({
   const latestApplication = submittedApplication || application;
   const [form, setForm] = useState({
     storeName: business?.business_name || "",
-    storeCategory: business?.business_type || business?.industry || "",
+    storeCategory: marketplaceBusinessTypeLabel(business?.business_type || business?.industry),
     itemCount: "5",
     expectedAverageOrders: business?.dispatch_volume || "",
     contactEmail: business?.email || accountEmail || "",
@@ -151,7 +151,7 @@ export function MarketplaceListingApplication({
         <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Marketplace Listing</span>
         <h1 className="mt-2 text-3xl font-black leading-tight text-fleet-night sm:text-5xl">Apply to list your store.</h1>
         <p className="mt-3 text-sm font-semibold leading-7 text-slate-600">
-          Submit your mall or marketplace listing request. Fast Fleets 360 reviews approved business accounts before adding live products.
+          Submit your shopping or marketplace listing request. Fast Fleets 360 reviews approved business accounts before adding live products.
         </p>
         <div className="mt-5 grid gap-3">
           <MiniFact label="Business KYC" value="Approved" />

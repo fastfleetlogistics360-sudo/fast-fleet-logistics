@@ -13,7 +13,7 @@ export async function GET() {
   const supabase = createAdminClient();
   if (!supabase) {
     if (canUseDemoFallback()) return NextResponse.json({ malls: defaultShoppingMalls, demo: true });
-    return NextResponse.json(missingServiceResponse("shopping mall menus"), { status: 503 });
+    return NextResponse.json(missingServiceResponse("shopping menus"), { status: 503 });
   }
 
   const { data, error } = await supabase.from("platform_settings").select("value").eq("key", mallMenuSettingsKey).maybeSingle();
@@ -32,7 +32,7 @@ export async function PUT(request: Request) {
 
   const supabase = createAdminClient();
   if (!supabase) {
-    return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to save shopping mall menus." }, { status: 503 });
+    return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to save shopping menus." }, { status: 503 });
   }
 
   const { data, error } = await supabase

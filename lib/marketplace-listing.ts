@@ -26,6 +26,11 @@ export function marketplaceListingStatusLabel(status: string | null | undefined)
   return "Submitted";
 }
 
+export function marketplaceBusinessTypeLabel(value: string | null | undefined) {
+  if (value === "Mall") return "Shopping";
+  return value || "";
+}
+
 export function addBusinessDays(start: Date, days: number) {
   const next = new Date(start);
   let added = 0;
