@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { geolocationErrorMessage, getLocationPermissionState, requestCurrentPosition } from "@/lib/location/geolocation";
+import { bicycleCrossStateRouteMaxKm, coordinatePoint, crossStatePickupRadiusKm, isFreshLocation } from "@/lib/location/proximity";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import { isCustomerPickupProofRequired, pickupProofFromMetadata, pickupProofNeedsUpload, pickupProofReviewExpired, pickupProofReviewSecondsRemaining, pickupProofStatusMessage } from "@/lib/pickup-proof";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
@@ -172,7 +173,7 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
   if (!riderId) return [] as JobRow[];
   const riderState = extractNigerianState(riderZone);
   const canLoadAvailable = includeAvailable && vehicleType && riderState;
-  const [assignedResult, availableByAddressResult, availableByMetadataResult] = await Promise.all([
+  const [assignedResult, availableByAddressResult, availableByMetadataResult, availableNearbyResult, riderLocationResult] = await Promise.all([
     supabase.from("deliveries").select(jobFields).eq("rider_id", riderId).order("created_at", { ascending: false }).limit(40),
     canLoadAvailable
       ? supabase
@@ -195,13 +196,32 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
           .contains("metadata", { pickup_state: riderState })
           .order("created_at", { ascending: true })
           .limit(20)
-      : Promise.resolve({ data: [] })
+      : Promise.resolve({ data: [] }),
+    canLoadAvailable
+      ? supabase
+          .from("deliveries")
+          .select(jobFields)
+          .eq("status", "searching")
+          .is("rider_id", null)
+          .eq("vehicle_type", vehicleType)
+          .order("created_at", { ascending: true })
+          .limit(80)
+      : Promise.resolve({ data: [] }),
+    canLoadAvailable
+      ? supabase
+          .from("rider_locations")
+          .select("latitude, longitude, updated_at")
+          .eq("rider_profile_id", riderId)
+          .maybeSingle<{ latitude?: number | string | null; longitude?: number | string | null; updated_at?: string | null }>()
+      : Promise.resolve({ data: null })
   ]);
   const assigned = ((assignedResult.data || []) as JobRow[]).filter(Boolean);
+  const riderLocation = (riderLocationResult.data || null) as { latitude?: number | string | null; longitude?: number | string | null; updated_at?: string | null } | null;
   const available = [
     ...((availableByAddressResult.data || []) as JobRow[]),
-    ...((availableByMetadataResult.data || []) as JobRow[])
-  ].filter((job) => !isRejectedByRider(job, riderId) && pickupMatchesRiderState(job.pickup_address, riderZone, job.metadata));
+    ...((availableByMetadataResult.data || []) as JobRow[]),
+    ...((availableNearbyResult.data || []) as JobRow[])
+  ].filter((job) => !isRejectedByRider(job, riderId) && (pickupMatchesRiderState(job.pickup_address, riderZone, job.metadata) || jobMatchesCrossStateFallback(job, riderLocation)));
   return mergeJobs([...available, ...assigned]);
 }
 
@@ -315,6 +335,27 @@ function pickupEtaLabel(minutes: number | null, loading: boolean, liveLocation: 
   if (loading) return "ETA to pickup: calculating...";
   if (!liveLocation) return "ETA to pickup: waiting for driver location";
   return "ETA to pickup: unavailable";
+}
+
+function jobMatchesCrossStateFallback(
+  job: JobRow,
+  riderLocation: { latitude?: number | string | null; longitude?: number | string | null; updated_at?: string | null } | null
+) {
+  if (!isFreshLocation(riderLocation?.updated_at)) return false;
+  const riderPoint = coordinatePoint(riderLocation?.latitude, riderLocation?.longitude);
+  const pickupPoint = coordinatePoint(job.pickup_latitude, job.pickup_longitude)
+    || coordinatePoint(job.metadata?.pickup_latitude, job.metadata?.pickup_longitude)
+    || coordinatePoint(job.metadata?.pickupLatitude, job.metadata?.pickupLongitude);
+  if (!riderPoint || !pickupPoint) return false;
+  if (haversineKm(riderPoint, pickupPoint) > crossStatePickupRadiusKm) return false;
+  if (!isBicycleJob(job.metadata)) return true;
+  const routeKm = Number(job.distance_km || job.metadata?.delivery_distance_km || job.metadata?.distance_km || 0);
+  return Number.isFinite(routeKm) && routeKm > 0 && routeKm <= bicycleCrossStateRouteMaxKm;
+}
+
+function isBicycleJob(metadata: Record<string, unknown> | null | undefined) {
+  const subtype = String(metadata?.vehicle_subtype || metadata?.vehicleSubtype || "").toLowerCase();
+  return subtype === "bicycle";
 }
 
 function parseDurationMinutes(value: string | null | undefined) {

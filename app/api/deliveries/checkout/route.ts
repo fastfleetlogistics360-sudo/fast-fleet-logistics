@@ -53,6 +53,10 @@ export async function POST(request: Request) {
     const parcel = String(payload.parcel || "").trim();
     const pickupState = extractNigerianState(pickup) || extractNigerianState(payload.pickupState);
     const dropoffState = extractNigerianState(dropoff) || extractNigerianState(payload.dropoffState);
+    const pickupLatitude = coordinateValue(payload.pickupLatitude, 90);
+    const pickupLongitude = coordinateValue(payload.pickupLongitude, 180);
+    const dropoffLatitude = coordinateValue(payload.dropoffLatitude, 90);
+    const dropoffLongitude = coordinateValue(payload.dropoffLongitude, 180);
 
     if (!pickup || !dropoff) {
       return NextResponse.json({ error: "Add both pickup and drop-off addresses." }, { status: 400 });
@@ -124,6 +128,10 @@ export async function POST(request: Request) {
       source: "booking_checkout",
       pickup_state: pickupState || null,
       dropoff_state: dropoffState || null,
+      pickup_latitude: pickupLatitude,
+      pickup_longitude: pickupLongitude,
+      dropoff_latitude: dropoffLatitude,
+      dropoff_longitude: dropoffLongitude,
       route_source: quote.routeSource,
       route_type: quote.routeType,
       route_duration_seconds: quote.durationSeconds,
@@ -147,7 +155,11 @@ export async function POST(request: Request) {
         delivery_code: code,
         customer_id: user.id,
         pickup_address: pickup,
+        pickup_latitude: pickupLatitude,
+        pickup_longitude: pickupLongitude,
         dropoff_address: dropoff,
+        dropoff_latitude: dropoffLatitude,
+        dropoff_longitude: dropoffLongitude,
         pickup_contact: String(payload.pickupContact || "").trim(),
         dropoff_contact: String(payload.dropoffContact || "").trim(),
         parcel_type: parcel,
@@ -245,8 +257,12 @@ export async function POST(request: Request) {
           payment_method: paymentMethod,
           pickup_address: pickup,
           pickup_state: pickupState || null,
+          pickup_latitude: pickupLatitude,
+          pickup_longitude: pickupLongitude,
           dropoff_address: dropoff,
           dropoff_state: dropoffState || null,
+          dropoff_latitude: dropoffLatitude,
+          dropoff_longitude: dropoffLongitude,
           route_source: quote.routeSource,
           route_type: quote.routeType,
           route_duration_seconds: quote.durationSeconds,
@@ -279,4 +295,9 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not create delivery checkout." }, { status: 500 });
   }
+}
+
+function coordinateValue(value: unknown, maxAbs: number) {
+  const number = Number(value);
+  return Number.isFinite(number) && Math.abs(number) <= maxAbs ? number : null;
 }

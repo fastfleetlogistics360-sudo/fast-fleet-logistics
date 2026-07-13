@@ -23,6 +23,8 @@ const criticalTables = [
   "deliveries",
   "delivery_events",
   "delivery_locations",
+  "rider_locations",
+  "user_locations",
   "rider_profiles",
   "rider_applications",
   "notifications",

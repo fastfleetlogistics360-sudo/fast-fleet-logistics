@@ -6,12 +6,22 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-const businessTypes = ["Restaurant", "Mall", "Grocery", "Pharmacy", "Fashion"] as const;
+const businessTypes = ["Restaurant", "Mall", "Grocery", "Pharmacy", "Fashion", "Electronics", "Gadgets"] as const;
 const businessDocumentKeys = ["storefront_photo", "cac_certificate", "director_government_id", "address_proof"] as const;
 const requiredBusinessDocumentKeys = ["storefront_photo", "cac_certificate", "address_proof"] as const;
 
 type BusinessType = (typeof businessTypes)[number];
 type BusinessDocumentKey = (typeof businessDocumentKeys)[number];
+
+const commissionByBusinessType: Record<BusinessType, number> = {
+  Restaurant: 12,
+  Mall: 10,
+  Grocery: 10,
+  Pharmacy: 5,
+  Fashion: 10,
+  Electronics: 10,
+  Gadgets: 10
+};
 
 type BusinessRegistrationPayload = {
   form: {
@@ -66,7 +76,7 @@ function parsePayload(value: unknown): BusinessRegistrationPayload | null {
       phone: readString(form, "phone", 40),
       email: readString(form, "email", 180),
       businessType,
-      commissionRate: Number(form.commissionRate || 0),
+      commissionRate: commissionByBusinessType[businessType],
       industry: readString(form, "industry", 120) || businessType,
       dispatchVolume: readString(form, "dispatchVolume", 120),
       state: normalizeState(readString(form, "state", 80)),

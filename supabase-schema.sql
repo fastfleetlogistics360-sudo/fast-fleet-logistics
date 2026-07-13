@@ -842,6 +842,31 @@ create table if not exists public.rider_locations (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.user_locations (
+  user_id uuid primary key references public.users(id) on delete cascade,
+  address text,
+  latitude numeric not null,
+  longitude numeric not null,
+  accuracy numeric,
+  source text not null default 'foreground',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table if exists public.user_locations
+  add column if not exists address text,
+  add column if not exists latitude numeric,
+  add column if not exists longitude numeric,
+  add column if not exists accuracy numeric,
+  add column if not exists source text not null default 'foreground',
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+drop trigger if exists user_locations_set_updated_at on public.user_locations;
+create trigger user_locations_set_updated_at
+before update on public.user_locations
+for each row execute function public.set_updated_at();
+
 create table if not exists public.delivery_locations (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.deliveries(id) on delete cascade,
@@ -2223,6 +2248,7 @@ create index if not exists withdrawal_requests_status_idx on public.withdrawal_r
 create index if not exists support_tickets_status_idx on public.support_tickets(status, priority);
 create index if not exists support_messages_ticket_idx on public.support_messages(ticket_id, created_at);
 create index if not exists rider_locations_zone_idx on public.rider_locations(zone, updated_at desc);
+create index if not exists user_locations_updated_idx on public.user_locations(updated_at desc);
 create unique index if not exists delivery_locations_order_unique on public.delivery_locations(order_id);
 create index if not exists delivery_locations_order_idx on public.delivery_locations(order_id, updated_at desc);
 create index if not exists delivery_locations_rider_idx on public.delivery_locations(rider_id, updated_at desc);
@@ -2244,6 +2270,7 @@ alter table public.deliveries enable row level security;
 alter table public.fleet_assets enable row level security;
 alter table public.delivery_events enable row level security;
 alter table public.rider_locations enable row level security;
+alter table public.user_locations enable row level security;
 alter table public.delivery_locations enable row level security;
 alter table public.wallets enable row level security;
 alter table public.transactions enable row level security;
@@ -2675,6 +2702,19 @@ create policy "Customers read assigned rider location"
         and d.customer_id = auth.uid()
         and d.status not in ('draft', 'quoted', 'delivered', 'cancelled')
     )
+  );
+
+drop policy if exists "Users manage own latest location and admins manage all" on public.user_locations;
+
+create policy "Users manage own latest location and admins manage all"
+  on public.user_locations for all
+  using (
+    public.current_user_role() = 'admin'
+    or user_id = auth.uid()
+  )
+  with check (
+    public.current_user_role() = 'admin'
+    or user_id = auth.uid()
   );
 
 drop policy if exists "Customers read own delivery live location" on public.delivery_locations;

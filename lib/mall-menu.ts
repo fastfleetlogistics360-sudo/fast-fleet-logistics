@@ -1,4 +1,4 @@
-export const mallCategories = ["Grocery", "Pharmacy", "Fashion"] as const;
+export const mallCategories = ["Grocery", "Pharmacy", "Fashion", "Electronics", "Gadgets"] as const;
 
 export type MallCategory = (typeof mallCategories)[number];
 export type MallProductPrice = number | null | "ASK_PRICE";
@@ -78,6 +78,22 @@ export const shoppingCategoryMeta: Record<MallCategory, ShoppingCategoryMeta> = 
     eyebrow: "Clothing and style vendors",
     body: "Find outfits, shoes, bags, accessories, and style items from fashion vendors.",
     image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=78"
+  },
+  Electronics: {
+    category: "Electronics",
+    slug: "electronics",
+    label: "Electronics",
+    eyebrow: "Home electronics and devices",
+    body: "Shop TVs, audio gear, small appliances, cables, and electronics from verified vendors.",
+    image: "https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&w=1200&q=78"
+  },
+  Gadgets: {
+    category: "Gadgets",
+    slug: "gadgets",
+    label: "Gadgets",
+    eyebrow: "Phones, accessories, and smart tech",
+    body: "Find phones, power banks, smart accessories, wearables, and everyday tech gadgets.",
+    image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=78"
   }
 };
 
@@ -114,6 +130,15 @@ export const defaultShoppingMalls: ShoppingMall[] = [
           { id: "mens-shirt-fashion-store", name: "Men's Shirt", price: 12000, image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=600&q=70", available: true },
           { id: "mens-shirt-premium-fashion-store", name: "Men's Shirt", price: 18000, image: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?auto=format&fit=crop&w=600&q=70", available: true }
         ]
+      },
+      {
+        id: "techhub-ikeja",
+        name: "TechHub Electronics",
+        category: "Electronics",
+        products: [
+          { id: "smart-tv-techhub-ikeja", name: "Smart TV 43 inch", price: 285000, image: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=600&q=70", available: true },
+          { id: "bluetooth-speaker-techhub-ikeja", name: "Bluetooth Speaker", price: 38500, image: "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=600&q=70", available: true }
+        ]
       }
     ]
   },
@@ -148,6 +173,15 @@ export const defaultShoppingMalls: ShoppingMall[] = [
         products: [
           { id: "ankara-dress-style-rack-palms", name: "Ankara Dress", price: 32000, image: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=600&q=70", available: true },
           { id: "handbag-style-rack-palms", name: "Handbag", price: 24500, image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=600&q=70", available: true }
+        ]
+      },
+      {
+        id: "gadget-yard-palms",
+        name: "Gadget Yard",
+        category: "Gadgets",
+        products: [
+          { id: "power-bank-gadget-yard-palms", name: "20000mAh Power Bank", price: 24500, image: "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?auto=format&fit=crop&w=600&q=70", available: true },
+          { id: "smart-watch-gadget-yard-palms", name: "Smart Watch", price: 56500, image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=70", available: true }
         ]
       }
     ]

@@ -70,7 +70,7 @@ function isLightOrder(input: DeliveryRuleInput) {
 
   const parcel = String(input.parcelType || "").toLowerCase();
   if (!parcel) return false;
-  if (/(document|food|meal|grocery|retail|small|light|pharmacy|medicine|fashion|clothes|clothing|envelope)/i.test(parcel)) {
+  if (/(document|food|meal|grocery|retail|small|light|pharmacy|medicine|fashion|clothes|clothing|envelope|electronics|gadget|gadgets|phone|accessory|accessories)/i.test(parcel)) {
     return !bulkyItemPattern.test(parcel);
   }
   return false;

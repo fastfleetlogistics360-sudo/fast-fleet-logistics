@@ -69,8 +69,11 @@ import {
   mallCategories,
   mallMenuStorageKey,
   normalizeShoppingMalls,
+  shoppingCategoryMeta,
+  shoppingCategorySlug,
   shoppingVendorAdvertPath,
   shoppingVendorCategoryPath,
+  type MallCategory,
   type MallProduct,
   type MallStore,
   type ShoppingMall
@@ -1783,6 +1786,35 @@ export function AdminPanel() {
     );
   }
 
+  function addMallStore(category: MallCategory) {
+    setMallMenus((malls) => {
+      const baseMall = malls[0] || {
+        ...defaultShoppingMalls[0],
+        id: "shopping-vendor-pickups",
+        name: "Shopping vendor pickups",
+        stores: []
+      };
+      const targetMallId = malls.find((mall) => mall.stores.some((store) => store.category === category))?.id || baseMall.id;
+      const nextStore: MallStore = {
+        id: `new-${shoppingCategorySlug(category)}-${Date.now().toString(36)}`,
+        name: `New ${category} vendor`,
+        category,
+        image: shoppingCategoryMeta[category].image,
+        products: [
+          {
+            id: `new-${shoppingCategorySlug(category)}-product-${Date.now().toString(36)}`,
+            name: "New product",
+            price: "ASK_PRICE",
+            image: shoppingCategoryMeta[category].image,
+            available: true
+          }
+        ]
+      };
+      const sourceMalls = malls.length ? malls : [baseMall];
+      return sourceMalls.map((mall) => (mall.id === targetMallId ? { ...mall, stores: [...mall.stores, nextStore] } : mall));
+    });
+  }
+
   function updateMallProduct(mallId: string, storeId: string, productId: string, patch: Partial<MallProduct>) {
     setMallMenus((malls) =>
       malls.map((mall) =>
@@ -2132,6 +2164,7 @@ export function AdminPanel() {
         onMallChange={updateMall}
         onStoreChange={updateMallStore}
         onProductChange={updateMallProduct}
+        onAddStore={addMallStore}
         onAddProduct={addMallProduct}
         onSave={saveMallMenus}
       />
@@ -3431,6 +3464,7 @@ function MallMenuSection({
   onMallChange,
   onStoreChange,
   onProductChange,
+  onAddStore,
   onAddProduct,
   onSave
 }: {
@@ -3440,11 +3474,21 @@ function MallMenuSection({
   onMallChange: (mallId: string, patch: Partial<ShoppingMall>) => void;
   onStoreChange: (mallId: string, storeId: string, patch: Partial<MallStore>) => void;
   onProductChange: (mallId: string, storeId: string, productId: string, patch: Partial<MallProduct>) => void;
+  onAddStore: (category: MallCategory) => void;
   onAddProduct: (mallId: string, storeId: string) => void;
   onSave: () => void;
 }) {
   const saving = busyAction === "malls:save";
   const categoryGroups = buildShoppingCategoryGroups(malls);
+  const displayGroups = mallCategories.map((category) =>
+    categoryGroups.find((group) => group.category === category) || {
+      category,
+      vendors: [],
+      productCount: 0,
+      image: shoppingCategoryMeta[category].image,
+      locations: []
+    }
+  );
 
   return (
     <Card id="mall-menus" className="mt-6 scroll-mt-24 overflow-hidden">
@@ -3468,11 +3512,11 @@ function MallMenuSection({
       </div>
 
       <div className="grid gap-5 p-4">
-        {categoryGroups.length === 0 ? (
+        {displayGroups.length === 0 ? (
           <div className="rounded-fleet border border-fleet-line bg-fleet-paper p-4 text-sm font-bold text-slate-500">No shopping categories found.</div>
         ) : null}
 
-        {categoryGroups.map((group) => (
+        {displayGroups.map((group) => (
           <section key={group.category} className="overflow-hidden rounded-fleet border border-fleet-line bg-white">
             <div className="flex flex-col gap-3 border-b border-fleet-line bg-fleet-paper/75 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -3480,10 +3524,21 @@ function MallMenuSection({
                 <h3 className="mt-1 text-2xl font-black text-fleet-night">{group.category}</h3>
                 <p className="mt-1 text-sm font-bold text-slate-500">{group.vendors.length} vendors · {group.productCount} products</p>
               </div>
-              <StatusBadge tone="green">{group.category}</StatusBadge>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <StatusBadge tone={group.vendors.length ? "green" : "amber"}>{group.vendors.length ? group.category : "No vendors yet"}</StatusBadge>
+                <Button type="button" size="sm" variant="secondary" onClick={() => onAddStore(group.category)}>
+                  <Plus className="h-4 w-4" />
+                  Add vendor
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-4 p-4">
+              {group.vendors.length === 0 ? (
+                <div className="rounded-fleet border border-dashed border-fleet-line bg-fleet-paper p-4 text-sm font-bold text-slate-500">
+                  Add the first {group.category} vendor, link its business account, upload its photo, and set products.
+                </div>
+              ) : null}
               {group.vendors.map(({ mall, store }) => (
                 <article key={`${mall.id}:${store.id}`} className="rounded-fleet border border-fleet-line bg-fleet-paper p-3">
                   <div className="grid gap-4 lg:grid-cols-[140px_1fr]">

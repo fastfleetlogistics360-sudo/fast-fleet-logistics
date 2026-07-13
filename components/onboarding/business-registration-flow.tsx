@@ -30,7 +30,7 @@ const businessDocumentRequirements: Array<{ key: BusinessDocumentKey; label: str
   { key: "address_proof", label: "Proof of business address", accept: "image/*,application/pdf" }
 ];
 
-const businessTypeOptions = ["Restaurant", "Mall", "Grocery", "Pharmacy", "Fashion"] as const;
+const businessTypeOptions = ["Restaurant", "Mall", "Grocery", "Pharmacy", "Fashion", "Electronics", "Gadgets"] as const;
 type BusinessType = (typeof businessTypeOptions)[number];
 
 const commissionByBusinessType: Record<BusinessType, number> = {
@@ -38,7 +38,9 @@ const commissionByBusinessType: Record<BusinessType, number> = {
   Mall: 10,
   Grocery: 10,
   Pharmacy: 5,
-  Fashion: 10
+  Fashion: 10,
+  Electronics: 10,
+  Gadgets: 10
 };
 
 function businessTypeLabel(type: BusinessType) {

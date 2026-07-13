@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isBicycleDelivery, loadAssignedBicycleAsset, markBicycleAssetBusy, releaseBicycleAssetForDelivery } from "@/lib/fleet-assets";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
+import { bicycleCrossStateRouteMaxKm, coordinatePoint, crossStatePickupRadiusKm, haversineKm, isFreshLocation } from "@/lib/location/proximity";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { isCustomerPickupProofRequired, metadataRecord, pickupProofFromMetadata, pickupProofReviewExpired } from "@/lib/pickup-proof";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
@@ -23,7 +24,16 @@ const jobSelect =
 type JobRow = {
   id: string;
   pickup_address?: string | null;
+  pickup_latitude?: number | string | null;
+  pickup_longitude?: number | string | null;
+  distance_km?: number | string | null;
   metadata?: Record<string, unknown> | null;
+};
+
+type RiderLocationRow = {
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  updated_at?: string | null;
 };
 
 type RiderFleetAsset = Awaited<ReturnType<typeof loadAssignedBicycleAsset>>;
@@ -62,6 +72,13 @@ export async function GET(request: Request) {
     const riderState = extractNigerianState(rider.operating_zone || rider.address);
     const canLoadAvailable = includeAvailable && rider.online && rider.application_status === "approved" && riderState;
     const bicycleAsset = canLoadAvailable ? await loadAssignedBicycleAsset(db, rider.id) : null;
+    const riderLocationQuery = canLoadAvailable
+      ? db
+          .from("rider_locations")
+          .select("latitude, longitude, updated_at")
+          .eq("rider_profile_id", rider.id)
+          .maybeSingle<RiderLocationRow>()
+      : Promise.resolve({ data: null });
     const availableByAddressQuery = canLoadAvailable
       ? db
           .from("deliveries")
@@ -84,26 +101,41 @@ export async function GET(request: Request) {
           .order("created_at", { ascending: true })
           .limit(20)
       : Promise.resolve({ data: [] });
+    const availableNearbyQuery = canLoadAvailable
+      ? db
+          .from("deliveries")
+          .select(jobSelect)
+          .eq("status", "searching")
+          .is("rider_id", null)
+          .eq("vehicle_type", dispatchVehicle)
+          .order("created_at", { ascending: true })
+          .limit(80)
+      : Promise.resolve({ data: [] });
 
-    const [assignedResult, availableByAddressResult, availableByMetadataResult] = await Promise.all([
+    const [assignedResult, availableByAddressResult, availableByMetadataResult, availableNearbyResult, riderLocationResult] = await Promise.all([
       db.from("deliveries").select(jobSelect).eq("rider_id", rider.id).order("created_at", { ascending: false }).limit(40),
       availableByAddressQuery,
-      availableByMetadataQuery
+      availableByMetadataQuery,
+      availableNearbyQuery,
+      riderLocationQuery
     ]);
 
     if (assignedResult.error) throw assignedResult.error;
     if ("error" in availableByAddressResult && availableByAddressResult.error) throw availableByAddressResult.error;
     if ("error" in availableByMetadataResult && availableByMetadataResult.error) throw availableByMetadataResult.error;
+    if ("error" in availableNearbyResult && availableNearbyResult.error) throw availableNearbyResult.error;
+    if ("error" in riderLocationResult && riderLocationResult.error) throw riderLocationResult.error;
 
     const assigned = ((assignedResult.data || []) as JobRow[]).filter(Boolean);
+    const riderLocation = ((riderLocationResult as { data?: RiderLocationRow | null }).data || null) as RiderLocationRow | null;
     const available = [
       ...(((availableByAddressResult as { data?: JobRow[] }).data || []) as JobRow[]),
-      ...(((availableByMetadataResult as { data?: JobRow[] }).data || []) as JobRow[])
+      ...(((availableByMetadataResult as { data?: JobRow[] }).data || []) as JobRow[]),
+      ...(((availableNearbyResult as { data?: JobRow[] }).data || []) as JobRow[])
     ].filter(
       (job) =>
         !isRejectedByRider(job, rider.id) &&
-        pickupMatchesRiderState(job.pickup_address, rider.operating_zone || rider.address, job.metadata) &&
-        jobMatchesRiderFleet(job, bicycleAsset)
+        jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, riderLocation)
     );
     return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]) });
   } catch (error) {
@@ -311,17 +343,28 @@ async function canRiderAcceptPickupState(
       .maybeSingle<{ id: string; operating_zone?: string | null; address?: string | null }>(),
     db
       .from("deliveries")
-      .select("pickup_address, metadata")
+      .select("id, pickup_address, pickup_latitude, pickup_longitude, distance_km, metadata")
       .eq("id", deliveryId)
-      .maybeSingle<{ pickup_address?: string | null; metadata?: Record<string, unknown> | null }>()
+      .maybeSingle<JobRow>()
   ]);
 
   if (riderError) throw riderError;
   if (deliveryError) throw deliveryError;
   const riderZone = rider?.operating_zone || rider?.address || "";
   if (!extractNigerianState(riderZone)) return { ok: false, error: "Your rider operating state is missing. Update your rider profile before accepting jobs." };
-  if (!pickupMatchesRiderState(delivery?.pickup_address, riderZone, delivery?.metadata)) {
-    return { ok: false, error: "This pickup is outside your registered rider state." };
+  const sameStatePickup = pickupMatchesRiderState(delivery?.pickup_address, riderZone, delivery?.metadata);
+  let riderLocation: RiderLocationRow | null = null;
+  if (!sameStatePickup && rider?.id) {
+    const { data, error } = await db
+      .from("rider_locations")
+      .select("latitude, longitude, updated_at")
+      .eq("rider_profile_id", rider.id)
+      .maybeSingle<RiderLocationRow>();
+    if (error) throw error;
+    riderLocation = data || null;
+  }
+  if (!sameStatePickup && !jobMatchesCrossStateProximity(delivery || null, riderLocation)) {
+    return { ok: false, error: `This pickup is outside your registered rider state and not within ${crossStatePickupRadiusKm}km of your latest live location.` };
   }
   const bicycle = isBicycleDelivery(delivery?.metadata);
   if (bicycle) {
@@ -337,6 +380,30 @@ function jobMatchesRiderFleet(job: JobRow, bicycleAsset: RiderFleetAsset) {
   const bicycleJob = isBicycleDelivery(job.metadata);
   if (bicycleJob) return Boolean(bicycleAsset?.id && bicycleAsset.status === "available");
   return !bicycleAsset?.id;
+}
+
+function jobMatchesRiderDispatch(job: JobRow, riderZone: string | null | undefined, bicycleAsset: RiderFleetAsset, riderLocation: RiderLocationRow | null) {
+  if (!jobMatchesRiderFleet(job, bicycleAsset)) return false;
+  if (pickupMatchesRiderState(job.pickup_address, riderZone, job.metadata)) return true;
+  return jobMatchesCrossStateProximity(job, riderLocation);
+}
+
+function jobMatchesCrossStateProximity(job: JobRow | null, riderLocation: RiderLocationRow | null) {
+  if (!job || !isFreshLocation(riderLocation?.updated_at)) return false;
+  const riderPoint = coordinatePoint(riderLocation?.latitude, riderLocation?.longitude);
+  const pickupPoint = deliveryPickupPoint(job);
+  if (!riderPoint || !pickupPoint) return false;
+  if (haversineKm(riderPoint, pickupPoint) > crossStatePickupRadiusKm) return false;
+  if (!isBicycleDelivery(job.metadata)) return true;
+  const routeKm = Number(job.distance_km || job.metadata?.delivery_distance_km || job.metadata?.distance_km || 0);
+  return Number.isFinite(routeKm) && routeKm > 0 && routeKm <= bicycleCrossStateRouteMaxKm;
+}
+
+function deliveryPickupPoint(job: JobRow) {
+  const metadata = job.metadata || {};
+  return coordinatePoint(job.pickup_latitude, job.pickup_longitude)
+    || coordinatePoint(metadata.pickup_latitude, metadata.pickup_longitude)
+    || coordinatePoint(metadata.pickupLatitude, metadata.pickupLongitude);
 }
 
 async function attachFleetAssetToDelivery(db: SupabaseClient, deliveryId: string, assetId: string, assetCode: string | null) {

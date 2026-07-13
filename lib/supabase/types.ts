@@ -552,6 +552,24 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["rider_locations"]["Row"]>;
       };
+      user_locations: {
+        Row: {
+          user_id: string;
+          address: string | null;
+          latitude: number;
+          longitude: number;
+          accuracy: number | null;
+          source: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["user_locations"]["Row"]> & {
+          user_id: string;
+          latitude: number;
+          longitude: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["user_locations"]["Row"]>;
+      };
       delivery_locations: {
         Row: {
           id: string;

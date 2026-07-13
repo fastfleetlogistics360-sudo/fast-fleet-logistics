@@ -5,6 +5,7 @@ import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
 import { isBicycleDelivery, loadAssignedBicycleAsset } from "@/lib/fleet-assets";
 import { normalizeState } from "@/lib/launch-states";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
+import { bicycleCrossStateRouteMaxKm, coordinatePoint, crossStatePickupRadiusKm, haversineKm, isFreshLocation } from "@/lib/location/proximity";
 import { repairMarketplaceDeliveriesForBusiness } from "@/lib/marketplace-order-repair";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -252,7 +253,7 @@ async function notifyApprovedRiders(db: SupabaseClient, deliveryId: string, deli
   const bicycle = isBicycleDelivery(metadata);
   const eligibleRiders = [];
   for (const rider of riders || []) {
-    if (!pickupMatchesRiderState(pickupAddress, rider.operating_zone || rider.address)) continue;
+    if (!(await riderMatchesPickupForNotification(db, rider, pickupAddress, metadata))) continue;
     if (bicycle) {
       const asset = await loadAssignedBicycleAsset(db, rider.id);
       if (!asset?.id || asset.status !== "available") continue;
@@ -271,4 +272,28 @@ async function notifyApprovedRiders(db: SupabaseClient, deliveryId: string, deli
       metadata: { delivery_id: deliveryId, delivery_code: deliveryCode, url: "/rider/dashboard", tag: `ff-dispatch-${deliveryCode}` }
     }));
   if (rows.length) await Promise.allSettled(rows.map((row) => insertNotificationWithPush(db, row)));
+}
+
+async function riderMatchesPickupForNotification(
+  db: SupabaseClient,
+  rider: { id?: string | null; operating_zone?: string | null; address?: string | null },
+  pickupAddress: string,
+  metadata: Record<string, unknown>
+) {
+  if (pickupMatchesRiderState(pickupAddress, rider.operating_zone || rider.address)) return true;
+  const pickupPoint = coordinatePoint(metadata.pickup_latitude, metadata.pickup_longitude)
+    || coordinatePoint(metadata.pickupLatitude, metadata.pickupLongitude);
+  if (!pickupPoint || !rider.id) return false;
+  if (isBicycleDelivery(metadata)) {
+    const routeKm = Number(metadata.delivery_distance_km || metadata.distance_km || 0);
+    if (!Number.isFinite(routeKm) || routeKm <= 0 || routeKm > bicycleCrossStateRouteMaxKm) return false;
+  }
+  const { data } = await db
+    .from("rider_locations")
+    .select("latitude, longitude, updated_at")
+    .eq("rider_profile_id", rider.id)
+    .maybeSingle<{ latitude?: number | string | null; longitude?: number | string | null; updated_at?: string | null }>();
+  if (!isFreshLocation(data?.updated_at)) return false;
+  const riderPoint = coordinatePoint(data?.latitude, data?.longitude);
+  return Boolean(riderPoint && haversineKm(riderPoint, pickupPoint) <= crossStatePickupRadiusKm);
 }

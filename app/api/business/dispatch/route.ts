@@ -13,9 +13,13 @@ type DispatchPayload = {
   senderName?: string;
   senderPhone?: string;
   pickupAddress?: string;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
   recipientName?: string;
   recipientPhone?: string;
   dropoffAddress?: string;
+  dropoffLatitude?: number;
+  dropoffLongitude?: number;
   packageType?: string;
   instructions?: string;
   vehicleType?: string;
@@ -38,6 +42,10 @@ export async function POST(request: Request) {
 
     const pickupAddress = clean(payload.pickupAddress);
     const dropoffAddress = clean(payload.dropoffAddress);
+    const pickupLatitude = coordinateValue(payload.pickupLatitude, 90);
+    const pickupLongitude = coordinateValue(payload.pickupLongitude, 180);
+    const dropoffLatitude = coordinateValue(payload.dropoffLatitude, 90);
+    const dropoffLongitude = coordinateValue(payload.dropoffLongitude, 180);
     const senderName = clean(payload.senderName);
     const senderPhone = clean(payload.senderPhone);
     const recipientName = clean(payload.recipientName);
@@ -53,8 +61,8 @@ export async function POST(request: Request) {
     const paymentMethod = "wallet";
     const fareConfig = await loadFareConfig();
     const quote = await createDeliveryQuote({
-      pickup: { address: pickupAddress },
-      dropoff: { address: dropoffAddress },
+      pickup: { address: pickupAddress, latitude: pickupLatitude, longitude: pickupLongitude },
+      dropoff: { address: dropoffAddress, latitude: dropoffLatitude, longitude: dropoffLongitude },
       pickupState: extractNigerianState(pickupAddress),
       dropoffState: extractNigerianState(dropoffAddress),
       vehicle: vehicleType,
@@ -81,8 +89,12 @@ export async function POST(request: Request) {
         customer_id: user.id,
         delivery_code: deliveryCode,
         pickup_address: pickupAddress,
+        pickup_latitude: pickupLatitude,
+        pickup_longitude: pickupLongitude,
         pickup_contact: `${senderName} ${senderPhone}`,
         dropoff_address: dropoffAddress,
+        dropoff_latitude: dropoffLatitude,
+        dropoff_longitude: dropoffLongitude,
         dropoff_contact: `${recipientName} ${recipientPhone}`,
         parcel_type: clean(payload.packageType) || "Parcel",
         vehicle_type: vehicleType,
@@ -105,6 +117,10 @@ export async function POST(request: Request) {
           business_name: businessProfile?.business_name ?? null,
           pickup_state: quote.pickupState || null,
           dropoff_state: quote.dropoffState || null,
+          pickup_latitude: pickupLatitude,
+          pickup_longitude: pickupLongitude,
+          dropoff_latitude: dropoffLatitude,
+          dropoff_longitude: dropoffLongitude,
           route_source: quote.routeSource,
           route_type: quote.routeType,
           route_duration_seconds: quote.durationSeconds,
@@ -168,4 +184,9 @@ export async function POST(request: Request) {
 
 function clean(value: unknown) {
   return String(value || "").trim();
+}
+
+function coordinateValue(value: unknown, maxAbs: number) {
+  const number = Number(value);
+  return Number.isFinite(number) && Math.abs(number) <= maxAbs ? number : null;
 }

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { AlertTriangle, Loader2, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { geolocationErrorMessage, getLocationPermissionState, isGeolocationPermissionDenied, requestCurrentPosition } from "@/lib/location/geolocation";
-import { readStoredCurrentLocation, writeStoredCurrentLocation } from "@/lib/location/current-location";
+import { readStoredCurrentLocation, writeStoredCurrentLocation, type StoredCurrentLocation } from "@/lib/location/current-location";
 
 type GateState = "idle" | "requesting" | "blocked" | "error" | "ready";
 
@@ -14,8 +14,8 @@ export function LocationPermissionGate() {
   const [state, setState] = useState<GateState>("idle");
   const [message, setMessage] = useState("Fast Fleets 360 needs your location to improve delivery pricing, address suggestions, and live tracking.");
   const requestedRef = useRef(false);
-  const locationRequiredPrefixes = ["/account/orders", "/book", "/business/dashboard", "/customer/dashboard", "/dashboard", "/delivery", "/rider/dashboard", "/track"];
-  const skip = pathname.startsWith("/admin") || !locationRequiredPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  const locationSkippedPrefixes = ["/admin", "/auth", "/cookies", "/ndpr", "/offline", "/privacy", "/terms", "/waitlist"];
+  const skip = locationSkippedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
   useEffect(() => {
     if (skip || requestedRef.current) return;
@@ -40,13 +40,15 @@ export function LocationPermissionGate() {
       setState(permission === "granted" ? "idle" : "requesting");
       const position = await requestCurrentPosition();
       const address = await reverseGeocode(position);
-      writeStoredCurrentLocation({
+      const currentLocation = {
         address,
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         accuracy: position.coords.accuracy,
         updatedAt: new Date().toISOString()
-      });
+      };
+      writeStoredCurrentLocation(currentLocation);
+      void saveCurrentLocation(currentLocation);
       setState("ready");
     } catch (error) {
       const nextMessage = geolocationErrorMessage(error);
@@ -93,4 +95,19 @@ async function reverseGeocode(position: GeolocationPosition) {
   const response = await fetch(`/api/maps/reverse-geocode?${params.toString()}`, { cache: "no-store" });
   const data = (await response.json().catch(() => ({}))) as { address?: string };
   return response.ok && data.address ? data.address : "Current detected address";
+}
+
+async function saveCurrentLocation(location: StoredCurrentLocation) {
+  await fetch("/api/location/current", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      address: location.address,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      accuracy: location.accuracy ?? null,
+      source: "foreground_gate"
+    }),
+    keepalive: true
+  }).catch(() => undefined);
 }
