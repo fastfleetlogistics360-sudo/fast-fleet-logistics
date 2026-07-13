@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
+import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import { normalizeRiderAccountType } from "@/lib/rider-account-type";
@@ -171,13 +172,12 @@ export async function PATCH(request: Request) {
         .from("profiles")
         .update({ kyc_status: status === "approved" ? "approved" : status === "rejected" ? "rejected" : "pending_review", updated_at: new Date().toISOString() })
         .eq("user_id", application.user_id),
-      supabase.from("notifications").insert({
+      insertNotificationWithPush(supabase, {
         user_id: application.user_id,
         title: status === "approved" ? "Rider KYC approved" : status === "rejected" ? "Rider KYC rejected" : "Rider KYC updated",
         body: status === "approved" ? "Your rider account is approved. You can now go online." : reason || "Your rider application status changed.",
         type: "rider_application",
-        channel: "in_app",
-        metadata: { rider_application_id: application.id, status }
+        metadata: { rider_application_id: application.id, status, url: "/rider/dashboard", tag: `ff-rider-kyc-${application.id}` }
       })
     ]);
 
@@ -193,13 +193,12 @@ export async function PATCH(request: Request) {
       .from("rider_applications")
       .update({ status, rejection_reason: status === "rejected" || status === "more_info_required" ? reason : null, reviewed_at: new Date().toISOString() })
       .eq("user_id", data.user_id),
-    supabase.from("notifications").insert({
+    insertNotificationWithPush(supabase, {
       user_id: data.user_id,
       title: status === "approved" ? "Rider KYC approved" : status === "rejected" ? "Rider KYC rejected" : "Rider KYC updated",
       body: status === "approved" ? "Your rider account is approved. You can now go online." : reason || "Your rider application status changed.",
       type: "rider_application",
-      channel: "in_app",
-      metadata: { rider_profile_id: data.id, status }
+      metadata: { rider_profile_id: data.id, status, url: "/rider/dashboard", tag: `ff-rider-kyc-${data.id}` }
     })
   ]);
 

@@ -1692,22 +1692,28 @@ export function AdminPanel() {
     }
   }
 
-  async function saveHubPromotionSlides() {
+  async function saveHubPromotionSlides(options: { notifyUsers?: boolean } = {}) {
     const slides = normalizeHubPromotionSlides(hubPromotionSlides);
-    setBusyAction("hub-promotions:save");
+    setBusyAction(options.notifyUsers ? "hub-promotions:notify" : "hub-promotions:save");
     setAdminMessage(null);
     try {
       const response = await fetch("/api/admin/hub-promotion-slides", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slides })
+        body: JSON.stringify({ slides, notifyUsers: Boolean(options.notifyUsers) })
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Could not save Hub promotions.");
       const saved = normalizeHubPromotionSlides(result.slides);
       setHubPromotionSlides(saved);
       writeDemoHubPromotionSlides(saved);
-      setAdminMessage("Hub promotions saved. The /hub carousel will load the updated active slides.");
+      if (options.notifyUsers) {
+        const count = Number(result.notification?.notificationCount || 0);
+        const suffix = result.notification?.skippedReason ? ` ${result.notification.skippedReason}` : "";
+        setAdminMessage(`Hub promotions saved. Promotion push sent to ${count.toLocaleString("en-NG")} subscribed user${count === 1 ? "" : "s"}.${suffix}`);
+      } else {
+        setAdminMessage("Hub promotions saved. The /hub carousel will load the updated active slides.");
+      }
     } catch (error) {
       const canUseLocalFallback = error instanceof TypeError || (error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY"));
       if (!canUseLocalFallback) {
@@ -1716,7 +1722,7 @@ export function AdminPanel() {
       }
       setHubPromotionSlides(slides);
       writeDemoHubPromotionSlides(slides);
-      setAdminMessage("Saved Hub promotions in this browser using operational fallback storage. Add SUPABASE_SERVICE_ROLE_KEY in Vercel for live site-wide Hub promotions.");
+      setAdminMessage(options.notifyUsers ? "Saved Hub promotions locally, but push notifications need SUPABASE_SERVICE_ROLE_KEY in Vercel." : "Saved Hub promotions in this browser using operational fallback storage. Add SUPABASE_SERVICE_ROLE_KEY in Vercel for live site-wide Hub promotions.");
     } finally {
       setBusyAction(null);
     }

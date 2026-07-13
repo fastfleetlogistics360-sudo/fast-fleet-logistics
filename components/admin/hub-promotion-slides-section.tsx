@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChangeEvent } from "react";
-import { ArrowDown, ArrowUp, FilePenLine, ImagePlus, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, BellRing, FilePenLine, ImagePlus, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { defaultHubPromotionSlides, type HubPromotionSlide } from "@/lib/hub-promotion-slides";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,7 +16,7 @@ type HubPromotionSlidesSectionProps = {
   onAddSlide: () => void;
   onRemoveSlide: (id: string) => void;
   onMoveSlide: (id: string, direction: -1 | 1) => void;
-  onSave: () => void;
+  onSave: (options?: { notifyUsers?: boolean }) => void;
 };
 
 export function HubPromotionSlidesSection({
@@ -31,6 +31,8 @@ export function HubPromotionSlidesSection({
   onSave
 }: HubPromotionSlidesSectionProps) {
   const saving = busyAction === "hub-promotions:save";
+  const notifying = busyAction === "hub-promotions:notify";
+  const busy = saving || notifying;
   const editableSlides = slides.length ? slides : defaultHubPromotionSlides;
 
   function handleImageUpload(slideId: string, event: ChangeEvent<HTMLInputElement>) {
@@ -52,7 +54,8 @@ export function HubPromotionSlidesSection({
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={onAddSlide}><Plus className="h-4 w-4" />Add promotion</Button>
-          <Button type="button" onClick={onSave} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Save Hub promotions</Button>
+          <Button type="button" variant="secondary" onClick={() => onSave()} disabled={busy}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Save only</Button>
+          <Button type="button" onClick={() => onSave({ notifyUsers: true })} disabled={busy}>{notifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}Save & notify users</Button>
         </div>
       </div>
 

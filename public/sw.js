@@ -1,14 +1,14 @@
-const CACHE_NAME = "fastfleet-shell-v12";
-const PAGES_CACHE = "fastfleet-pages-v12";
+const CACHE_NAME = "fastfleet-shell-v13";
+const PAGES_CACHE = "fastfleet-pages-v13";
 const OFFLINE_QUEUE = "fastfleet-offline-bookings-v1";
 const APP_SHELL = [
   "/",
   "/offline",
-  "/manifest.webmanifest?v=20260629",
-  "/brand/fastfleet-logo-2026.png?v=20260629",
-  "/icons/icon-180.png?v=20260629",
-  "/icons/icon-192.png?v=20260629",
-  "/icons/icon-512.png?v=20260629"
+  "/manifest.webmanifest?v=20260713",
+  "/brand/fastfleet-logo-2026.png?v=20260713",
+  "/icons/icon-180.png?v=20260713",
+  "/icons/icon-192.png?v=20260713",
+  "/icons/icon-512.png?v=20260713"
 ];
 
 self.addEventListener("install", (event) => {
@@ -155,8 +155,8 @@ self.addEventListener("push", (event) => {
   const tag = payload.tag || data.tag || data.delivery_code || data.order_code || data.delivery_id || data.order_id || "fastfleet-update";
   const options = {
     body: payload.body || "You have a new Fast Fleets 360 update.",
-    icon: payload.icon || "/icons/icon-192.png?v=20260629",
-    badge: payload.badge || "/icons/icon-180.png?v=20260629",
+    icon: payload.icon || "/icons/icon-192.png?v=20260713",
+    badge: payload.badge || "/icons/icon-180.png?v=20260713",
     tag: String(tag).slice(0, 64),
     renotify: payload.renotify !== false,
     timestamp: Date.now(),

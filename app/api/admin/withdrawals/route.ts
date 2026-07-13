@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
+import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import {
@@ -84,7 +85,7 @@ export async function PATCH(request: Request) {
 
   const userId = existingRequest.rider_profiles?.user_id;
   if (userId) {
-    await supabase.from("notifications").insert({
+    await insertNotificationWithPush(supabase, {
       user_id: userId,
       title: status === "approved" ? "Withdrawal approved" : status === "paid" ? "Withdrawal paid" : "Withdrawal rejected",
       body:
@@ -94,8 +95,7 @@ export async function PATCH(request: Request) {
             ? `Your NGN ${Number(existingRequest.amount_ngn || 0).toLocaleString("en-NG")} rider withdrawal has been marked as paid.`
             : `Your rider withdrawal was rejected: ${reason.trim()}`,
       type: status === "approved" || status === "paid" ? "withdrawal_approved" : "withdrawal_rejected",
-      channel: "in_app",
-      metadata: { withdrawal_request_id: id, amount_ngn: Number(existingRequest.amount_ngn || 0), status }
+      metadata: { withdrawal_request_id: id, amount_ngn: Number(existingRequest.amount_ngn || 0), status, url: "/rider/dashboard", tag: `ff-withdrawal-${id}` }
     });
   }
 
@@ -212,6 +212,8 @@ async function reviewWalletWithdrawal(
   if (walletError) return NextResponse.json({ error: walletError.message }, { status: 400 });
 
   const amount = Math.abs(Number(transaction.amount_ngn || 0));
+  const withdrawalInfo = withdrawalMetadata(transaction.metadata);
+  const notificationUrl = withdrawalInfo.withdrawal_account_kind === "business" ? "/business/dashboard" : "/rider/dashboard";
   const metadata = {
     ...((transaction.metadata || {}) as Record<string, unknown>),
     withdrawal_status: status,
@@ -245,7 +247,7 @@ async function reviewWalletWithdrawal(
     ]);
   }
 
-  await supabase.from("notifications").insert({
+  await insertNotificationWithPush(supabase, {
     user_id: wallet.user_id,
     title: status === "approved" ? "Withdrawal approved" : status === "paid" ? "Withdrawal paid" : "Withdrawal rejected",
     body:
@@ -255,8 +257,7 @@ async function reviewWalletWithdrawal(
           ? `Your NGN ${amount.toLocaleString("en-NG")} withdrawal has been marked as paid.`
           : `Your withdrawal was rejected: ${reason}`,
     type: status === "approved" || status === "paid" ? "withdrawal_approved" : "withdrawal_rejected",
-    channel: "in_app",
-    metadata: { withdrawal_request_id: id, transaction_id: transaction.id, amount_ngn: amount, status }
+    metadata: { withdrawal_request_id: id, transaction_id: transaction.id, amount_ngn: amount, status, url: notificationUrl, tag: `ff-withdrawal-${transaction.id}` }
   });
 
   return NextResponse.json({ ok: true, id: transaction.id });

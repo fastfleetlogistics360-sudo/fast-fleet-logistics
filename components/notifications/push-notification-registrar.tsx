@@ -64,8 +64,8 @@ async function showForegroundNotification(title: string, body: string, data?: Re
   const tag = typeof data?.tag === "string" ? data.tag : typeof data?.delivery_code === "string" ? `ff-${data.delivery_code}` : undefined;
   const options = {
     body,
-    icon: "/icons/icon-192.png?v=20260629",
-    badge: "/icons/icon-180.png?v=20260629",
+    icon: "/icons/icon-192.png?v=20260713",
+    badge: "/icons/icon-180.png?v=20260713",
     tag,
     renotify: Boolean(tag),
     data

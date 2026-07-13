@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { addBusinessDays } from "@/lib/marketplace-listing";
+import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 
@@ -100,7 +101,7 @@ export async function PATCH(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   if (!data) return NextResponse.json({ error: "Marketplace listing application was not found." }, { status: 404 });
 
-  await supabase.from("notifications").insert({
+  await insertNotificationWithPush(supabase, {
     user_id: data.user_id,
     title: status === "accepted" ? "Marketplace application accepted" : "Marketplace application rejected",
     body:
@@ -108,8 +109,7 @@ export async function PATCH(request: Request) {
         ? "HORRAY! Your marketplace application was accepted. Your business goes live on or before 7 business days."
         : `${reason} You can try again after 60 business days.`,
     type: "marketplace_listing_application",
-    channel: "in_app",
-    metadata: { application_id: data.id, status, retry_after: retryAfter }
+    metadata: { application_id: data.id, status, retry_after: retryAfter, url: "/business/dashboard", tag: `ff-marketplace-listing-${data.id}` }
   });
 
   return NextResponse.json({ application: data });

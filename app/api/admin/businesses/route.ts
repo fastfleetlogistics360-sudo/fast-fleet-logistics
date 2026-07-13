@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
+import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 
@@ -117,13 +118,12 @@ export async function PATCH(request: Request) {
       .from("profiles")
       .update({ kyc_status: status === "active" ? "approved" : status === "rejected" ? "rejected" : "pending_review", updated_at: new Date().toISOString() })
       .eq("user_id", data.user_id),
-    supabase.from("notifications").insert({
+    insertNotificationWithPush(supabase, {
       user_id: data.user_id,
       title: status === "active" ? "Business KYC approved" : status === "rejected" ? "Business KYC rejected" : "Business KYC updated",
       body: status === "active" ? "Your business account is approved. Dispatch tools are now available." : reason || "Your business KYC status changed.",
       type: "business_kyc",
-      channel: "in_app",
-      metadata: { business_profile_id: data.id, status }
+      metadata: { business_profile_id: data.id, status, url: "/business/dashboard", tag: `ff-business-kyc-${data.id}` }
     })
   ]);
 

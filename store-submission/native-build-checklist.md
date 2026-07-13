@@ -51,10 +51,17 @@ Until `android/key.properties` exists, Gradle can create an unsigned proof bundl
 
 - Add Android upload signing key and confirm Play App Signing.
 - Add `android/app/google-services.json` from Firebase before testing native Android push notifications.
+- After Play Console creates the app signing certificate, set `ANDROID_APP_LINKS_SHA256_CERT_FINGERPRINTS` in production to the Play signing SHA-256 fingerprint so `https://fastfleet.com.ng/.well-known/assetlinks.json` can verify Android App Links.
 - Set bundle identifiers and signing teams in Xcode/Android Studio.
 - Add production privacy strings for location, notifications, camera/photo uploads, and document uploads.
 - Confirm Squad wording is declared as payment for real-world logistics services, not digital goods.
 - Test account deletion inside customer, rider, and business account settings before review submission.
+
+## Android App Links
+
+The Android manifest is prepared for verified links on `fastfleet.com.ng` and `www.fastfleet.com.ng`. Native open-app behavior will only verify after the production site serves a non-empty Digital Asset Links response with the real Play signing SHA-256 fingerprint.
+
+Before the Play Store app is live, the site can safely return an empty `assetlinks.json` response. That keeps the PWA install flow active now and lets native link opening be enabled later without changing the package ID.
 
 ## Live Location Permissions
 

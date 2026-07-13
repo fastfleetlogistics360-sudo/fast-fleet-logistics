@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { LocationPermissionGate } from "@/components/location/location-permission-gate";
+import { AppInstallPrompt } from "@/components/layout/app-install-prompt";
 import { SiteShell } from "@/components/layout/site-shell";
 import { PwaRegister } from "@/components/layout/pwa-register";
 import { PushNotificationRegistrar } from "@/components/notifications/push-notification-registrar";
@@ -119,6 +120,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <PwaRegister />
         <PushNotificationRegistrar />
+        <AppInstallPrompt />
         <LocationPermissionGate />
         <SiteShell>
           {children}

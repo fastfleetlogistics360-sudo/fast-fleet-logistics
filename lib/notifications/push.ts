@@ -141,8 +141,8 @@ function webPushPayload(notification: NotificationPayload, metadata: Record<stri
   return {
     title: notification.title,
     body: notification.body,
-    icon: "/icons/icon-192.png?v=20260629",
-    badge: "/icons/icon-180.png?v=20260629",
+    icon: "/icons/icon-192.png?v=20260713",
+    badge: "/icons/icon-180.png?v=20260713",
     tag: notificationTag(notification, metadata),
     renotify: true,
     data: {
