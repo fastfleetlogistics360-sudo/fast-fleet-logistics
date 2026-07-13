@@ -46,7 +46,7 @@ export default async function UpdatesPage() {
                 </div>
                 {promotion.image ? (
                   <div className="grid h-24 w-full shrink-0 place-items-center overflow-hidden rounded-[16px] border border-fleet-line bg-fleet-paper p-2 sm:w-32">
-                    <img src={promotion.image} alt="" className="h-full w-full object-contain" />
+                    <img src={promotion.image} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain" />
                   </div>
                 ) : null}
               </div>

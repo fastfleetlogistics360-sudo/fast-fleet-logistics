@@ -71,6 +71,7 @@ export function ShoppingCategorySelection({ initialMalls = defaultShoppingMalls 
               src="https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=900&q=72"
               alt="Shopping delivery"
               loading="eager"
+              decoding="async"
               className="hidden h-full min-h-[190px] w-full object-cover lg:block"
             />
           </div>
@@ -83,7 +84,7 @@ export function ShoppingCategorySelection({ initialMalls = defaultShoppingMalls 
               <Link key={group.category} href={shoppingCategoryPath(group.category)} className="group block focus:outline-none focus:ring-2 focus:ring-fleet-ember">
                 <article className="overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_10px_24px_rgba(8,17,31,0.08)] transition hover:-translate-y-1 hover:border-fleet-ember">
                   <div className="relative h-24 overflow-hidden bg-fleet-paper sm:h-28">
-                    <img src={meta.image || group.image} alt={meta.label} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                    <img src={meta.image || group.image} alt={meta.label} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                     <span className="absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.1em] text-fleet-ember">
                       <ShoppingBag className="h-3.5 w-3.5" />
                       {group.vendors.length}
@@ -310,7 +311,7 @@ function ShoppingStorefront({
                 <StatusBadge tone="neutral">{cartItems.length} selected</StatusBadge>
               </div>
             </div>
-            <img src={heroImage} alt={pageTitle} loading="eager" className="hidden h-full min-h-[180px] w-full object-cover md:block" />
+            <img src={heroImage} alt={pageTitle} loading="eager" decoding="async" className="hidden h-full min-h-[180px] w-full object-cover md:block" />
           </div>
         </div>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
@@ -441,7 +442,7 @@ function ShoppingVendorCard({
     >
       <summary className="block cursor-pointer list-none marker:hidden [&::-webkit-details-marker]:hidden">
         <div className="relative aspect-[16/10] overflow-hidden bg-fleet-paper">
-          <img src={vendorImage} alt={store.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <img src={vendorImage} alt={store.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
           <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-fleet-ember shadow-[0_10px_24px_rgba(8,17,31,0.12)]">
             {categoryLabel}
           </span>
@@ -484,7 +485,7 @@ function ShoppingVendorCard({
           return (
             <article key={key} className="rounded-fleet border border-fleet-line bg-white p-2.5">
               <div className="grid grid-cols-[56px_1fr] items-start gap-2">
-                <img src={product.image} alt={product.name} loading="lazy" className="h-14 w-14 rounded-fleet object-cover" />
+                <img src={product.image} alt={product.name} loading="lazy" decoding="async" className="h-14 w-14 rounded-fleet object-cover" />
                 <span className="min-w-0">
                   <strong className="line-clamp-1 block text-xs font-black text-fleet-night">{product.name}</strong>
                   <span className="mt-0.5 block text-[0.68rem] font-bold text-slate-500">{store.name} · {price !== null ? formatMoney(price) : "Ask price"}</span>

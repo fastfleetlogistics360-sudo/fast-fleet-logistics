@@ -1778,6 +1778,15 @@ export function AdminPanel() {
     );
   }
 
+  function removeKitchen(kitchenId: string) {
+    if (restaurantMenus.length <= 1) {
+      setAdminMessage("Keep at least one restaurant in the menu. Add another restaurant before removing this one.");
+      return;
+    }
+    setRestaurantMenus((menus) => menus.filter((kitchen) => kitchen.id !== kitchenId));
+    setAdminMessage("Restaurant removed from the editor. Save restaurant menus to publish this change.");
+  }
+
   function updateMall(mallId: string, patch: Partial<ShoppingMall>) {
     setMallMenus((malls) => malls.map((mall) => (mall.id === mallId ? { ...mall, ...patch } : mall)));
   }
@@ -1819,6 +1828,20 @@ export function AdminPanel() {
       const sourceMalls = malls.length ? malls : [baseMall];
       return sourceMalls.map((mall) => (mall.id === targetMallId ? { ...mall, stores: [...mall.stores, nextStore] } : mall));
     });
+  }
+
+  function removeMallStore(mallId: string, storeId: string) {
+    const totalStores = mallMenus.reduce((count, mall) => count + mall.stores.length, 0);
+    if (totalStores <= 1) {
+      setAdminMessage("Keep at least one shopping vendor. Add another vendor before removing this one.");
+      return;
+    }
+    setMallMenus((malls) =>
+      malls
+        .map((mall) => (mall.id === mallId ? { ...mall, stores: mall.stores.filter((store) => store.id !== storeId) } : mall))
+        .filter((mall) => mall.stores.length > 0)
+    );
+    setAdminMessage("Shopping vendor removed from the editor. Save shopping menus to publish this change.");
   }
 
   function updateMallProduct(mallId: string, storeId: string, productId: string, patch: Partial<MallProduct>) {
@@ -2160,6 +2183,7 @@ export function AdminPanel() {
         onItemChange={updateKitchenItem}
         onAddItem={addKitchenItem}
         onRemoveItem={removeKitchenItem}
+        onRemoveKitchen={removeKitchen}
         onSave={saveRestaurantMenus}
       />
 
@@ -2172,6 +2196,7 @@ export function AdminPanel() {
         onProductChange={updateMallProduct}
         onAddStore={addMallStore}
         onAddProduct={addMallProduct}
+        onRemoveStore={removeMallStore}
         onSave={saveMallMenus}
       />
 
@@ -3130,6 +3155,7 @@ function RestaurantMenuSection({
   onItemChange,
   onAddItem,
   onRemoveItem,
+  onRemoveKitchen,
   onSave
 }: {
   restaurants: RestaurantKitchen[];
@@ -3139,6 +3165,7 @@ function RestaurantMenuSection({
   onItemChange: (kitchenId: string, itemId: string, patch: Partial<RestaurantMenuItem>) => void;
   onAddItem: (kitchenId: string) => void;
   onRemoveItem: (kitchenId: string, itemId: string) => void;
+  onRemoveKitchen: (kitchenId: string) => void;
   onSave: () => void;
 }) {
   const saving = busyAction === "restaurants:save";
@@ -3166,9 +3193,27 @@ function RestaurantMenuSection({
 
       <div className="grid gap-5 p-4">
         {restaurants.map((kitchen) => (
-          <article key={kitchen.id} className="rounded-fleet border border-fleet-line bg-white p-4">
+          <article key={kitchen.id} className="rounded-fleet border border-fleet-line bg-white p-4 [contain-intrinsic-size:620px] [content-visibility:auto]">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">Restaurant vendor</span>
+                <strong className="block truncate text-lg font-black text-fleet-night">{kitchen.name}</strong>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                onClick={() => {
+                  if (window.confirm(`Remove ${kitchen.name} and all its menu items?`)) onRemoveKitchen(kitchen.id);
+                }}
+                disabled={restaurants.length <= 1}
+              >
+                <Trash2 className="h-4 w-4" />
+                Remove restaurant
+              </Button>
+            </div>
             <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
-              <img src={kitchen.imageUrl} alt={kitchen.name} className="h-44 w-full rounded-fleet object-cover lg:h-full" />
+              <img src={kitchen.imageUrl} alt={kitchen.name} loading="lazy" decoding="async" className="h-44 w-full rounded-fleet object-cover lg:h-full" />
               <div className="grid gap-3">
                 <div className="grid gap-3 md:grid-cols-2">
                   <label className="form-field">
@@ -3235,7 +3280,7 @@ function RestaurantMenuSection({
             <div className="mt-4 grid gap-3">
               {kitchen.items.map((item) => (
                 <div key={item.id} className="grid gap-3 rounded-fleet border border-fleet-line bg-fleet-paper p-3 xl:grid-cols-[64px_1.2fr_0.8fr_120px_0.8fr_1fr_auto] xl:items-end">
-                  <img src={item.imageUrl} alt={item.name} className="h-16 w-16 rounded-fleet object-cover" />
+                  <img src={item.imageUrl} alt={item.name} loading="lazy" decoding="async" className="h-16 w-16 rounded-fleet object-cover" />
                   <label className="form-field">
                     <span className="form-label">Food item</span>
                     <input className="form-input bg-white" value={item.name} onChange={(event) => onItemChange(kitchen.id, item.id, { name: event.target.value })} />
@@ -3343,7 +3388,7 @@ function MainHeroSlidesSection({
             <article key={slide.id} className="rounded-fleet border border-fleet-line bg-white p-4">
               <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
                 <div className="overflow-hidden rounded-fleet border border-fleet-line bg-fleet-paper">
-                  <img src={slide.image || defaultMainHeroSlides[0].image} alt="" className="h-44 w-full object-cover" />
+                  <img src={slide.image || defaultMainHeroSlides[0].image} alt="" loading="lazy" decoding="async" className="h-44 w-full object-cover" />
                   <div className="grid gap-3 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <StatusBadge tone={slide.enabled ? "green" : "neutral"}>{slide.enabled ? "Live" : "Disabled"}</StatusBadge>
@@ -3472,6 +3517,7 @@ function MallMenuSection({
   onProductChange,
   onAddStore,
   onAddProduct,
+  onRemoveStore,
   onSave
 }: {
   malls: ShoppingMall[];
@@ -3482,10 +3528,12 @@ function MallMenuSection({
   onProductChange: (mallId: string, storeId: string, productId: string, patch: Partial<MallProduct>) => void;
   onAddStore: (category: MallCategory) => void;
   onAddProduct: (mallId: string, storeId: string) => void;
+  onRemoveStore: (mallId: string, storeId: string) => void;
   onSave: () => void;
 }) {
   const saving = busyAction === "malls:save";
   const categoryGroups = buildShoppingCategoryGroups(malls);
+  const totalStores = malls.reduce((count, mall) => count + mall.stores.length, 0);
   const displayGroups = mallCategories.map((category) =>
     categoryGroups.find((group) => group.category === category) || {
       category,
@@ -3546,9 +3594,27 @@ function MallMenuSection({
                 </div>
               ) : null}
               {group.vendors.map(({ mall, store }) => (
-                <article key={`${mall.id}:${store.id}`} className="rounded-fleet border border-fleet-line bg-fleet-paper p-3">
+                <article key={`${mall.id}:${store.id}`} className="rounded-fleet border border-fleet-line bg-fleet-paper p-3 [contain-intrinsic-size:720px] [content-visibility:auto]">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">{store.category} vendor</span>
+                      <strong className="block truncate text-lg font-black text-fleet-night">{store.name}</strong>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        if (window.confirm(`Remove ${store.name} and all its products?`)) onRemoveStore(mall.id, store.id);
+                      }}
+                      disabled={totalStores <= 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Remove vendor
+                    </Button>
+                  </div>
                   <div className="grid gap-4 lg:grid-cols-[140px_1fr]">
-                    <img src={getShoppingStoreImage(store, mall)} alt={store.name} className="h-36 w-full rounded-fleet object-cover lg:h-full" />
+                    <img src={getShoppingStoreImage(store, mall)} alt={store.name} loading="lazy" decoding="async" className="h-36 w-full rounded-fleet object-cover lg:h-full" />
                     <div className="grid gap-3">
                       <div className="grid gap-3 md:grid-cols-[1fr_180px]">
                         <label className="form-field">
@@ -3617,7 +3683,7 @@ function MallMenuSection({
                   <div className="mt-3 grid gap-3">
                     {store.products.map((product) => (
                       <div key={product.id} className="grid gap-3 rounded-fleet border border-fleet-line bg-white p-3 xl:grid-cols-[64px_1fr_120px_1.1fr_1fr_120px] xl:items-end">
-                        <img src={product.image} alt={product.name} className="h-16 w-16 rounded-fleet object-cover" />
+                        <img src={product.image} alt={product.name} loading="lazy" decoding="async" className="h-16 w-16 rounded-fleet object-cover" />
                         <label className="form-field">
                           <span className="form-label">Product</span>
                           <input className="form-input" value={product.name} onChange={(event) => onProductChange(mall.id, store.id, product.id, { name: event.target.value })} />
@@ -4293,7 +4359,7 @@ function SiteControlsSection({
               <article key={partner.id} className="grid gap-3 rounded-fleet border border-fleet-line bg-fleet-paper p-3">
                 <div className="flex items-center gap-3">
                   <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-fleet bg-white">
-                    {partner.image ? <img src={partner.image} alt="" className="h-full w-full object-cover" /> : null}
+                    {partner.image ? <img src={partner.image} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /> : null}
                   </div>
                   <label className="flex min-w-0 flex-1 items-center gap-2 text-xs font-black text-slate-500">
                     <input

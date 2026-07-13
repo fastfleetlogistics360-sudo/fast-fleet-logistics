@@ -66,6 +66,7 @@ export function RestaurantVendorSelection({ stores }: { stores: Store[] }) {
               src="https://images.unsplash.com/photo-1555396273-367ea4eb4db9?auto=format&fit=crop&w=900&q=72"
               alt="Restaurant delivery"
               loading="eager"
+              decoding="async"
               className="hidden h-full min-h-[190px] w-full object-cover lg:block"
             />
           </div>
@@ -280,6 +281,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             src={liveStores[0]?.imageUrl || "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=900&q=72"}
             alt={title}
             loading="eager"
+            decoding="async"
             className="hidden h-full min-h-[180px] w-full object-cover md:block"
           />
         </div>
