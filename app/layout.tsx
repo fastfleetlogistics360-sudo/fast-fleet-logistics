@@ -8,7 +8,7 @@ import { PushNotificationRegistrar } from "@/components/notifications/push-notif
 
 export const runtime = "nodejs";
 
-const assetVersion = "20260629";
+const assetVersion = "20260713";
 const brandLogo = `/brand/fastfleet-logo-2026.png?v=${assetVersion}`;
 const brandIcon = `/icons/icon-192.png?v=${assetVersion}`;
 const seoKeywords = [
@@ -39,7 +39,7 @@ const structuredData = {
   name: "Fast Fleets 360 Logistics",
   alternateName: ["FastFleets360", "FASTFLEETS360", "FAST FLEETS360", "FASTFLEETS 360", "Fast Fleets 360"],
   url: "https://fastfleet.com.ng",
-  logo: "https://fastfleet.com.ng/brand/fastfleet-logo-2026.png?v=20260629",
+  logo: "https://fastfleet.com.ng/brand/fastfleet-logo-2026.png?v=20260713",
   sameAs: ["https://www.instagram.com/fastfleets360", "https://x.com/fastfleets360", "https://www.tiktok.com/@fastfleets360"],
   areaServed: ["Lagos", "Ogun", "Nigeria"],
   serviceType: ["Courier service", "Same-day delivery", "Restaurant delivery", "Shopping delivery", "Business dispatch"]

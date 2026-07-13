@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, ChevronDown, ExternalLink, Loader2, MapPin, MessageCircle, Minus, Plus, ShoppingBag, ShoppingCart, Store } from "lucide-react";
+import { ArrowRight, ChevronDown, ExternalLink, Loader2, MapPin, MessageCircle, Minus, Plus, ShoppingBag, ShoppingCart } from "lucide-react";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
-import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -46,7 +44,6 @@ type CartItem = {
 
 export function ShoppingCategorySelection({ initialMalls = defaultShoppingMalls }: { initialMalls?: ShoppingMall[] } = {}) {
   const malls = useLiveShoppingMalls(initialMalls);
-  const reduceMotion = useReducedMotion();
   const categoryGroups = useMemo(() => buildShoppingCategoryGroups(malls), [malls]);
   const vendorCount = categoryGroups.reduce((count, group) => count + group.vendors.length, 0);
   const productCount = categoryGroups.reduce((count, group) => count + group.productCount, 0);
@@ -54,59 +51,58 @@ export function ShoppingCategorySelection({ initialMalls = defaultShoppingMalls 
   return (
     <>
       <BackButton className="section-wrap pb-4 pt-4" />
-      <CinematicPageHero
-        eyebrow="Fast Fleets 360 Shopping"
-        title="Pick what you want to shop."
-        body="Choose Grocery, Med, Fashion, or another shopping category, then open the vendors in that section."
-        image="https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=2200&q=84"
-      />
-      <section className="section-wrap -mt-8 pb-28 sm:-mt-10 sm:pb-14">
-        <div className="rounded-fleet border border-white/70 bg-white/90 p-4 shadow-lift backdrop-blur-xl sm:p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Shopping categories</span>
-              <h2 className="mt-2 text-3xl font-black leading-tight text-fleet-night sm:text-5xl">Start with a category.</h2>
-              <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
-                {vendorCount} vendors and {productCount} products are organized by category so customers land in the right storefront faster.
-              </p>
+      <section className="section-wrap pb-28 pt-2 sm:pb-14">
+        <div className="overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-lift">
+          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="p-4 sm:p-5 lg:p-6">
+              <div>
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Shopping categories</span>
+                <h1 className="mt-2 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Choose a shopping category.</h1>
+                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+                  {vendorCount} vendors and {productCount} products are grouped so customers reach the right storefront faster.
+                </p>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <StatusBadge tone="green">{categoryGroups.length} categories</StatusBadge>
+                <StatusBadge tone="neutral">{vendorCount} vendors</StatusBadge>
+              </div>
             </div>
-            <StatusBadge tone="green">{categoryGroups.length} categories</StatusBadge>
+            <img
+              src="https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=900&q=72"
+              alt="Shopping delivery"
+              loading="eager"
+              className="hidden h-full min-h-[190px] w-full object-cover lg:block"
+            />
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          {categoryGroups.map((group, index) => {
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {categoryGroups.map((group) => {
             const meta = shoppingCategoryMeta[group.category];
             return (
               <Link key={group.category} href={shoppingCategoryPath(group.category)} className="group block focus:outline-none focus:ring-2 focus:ring-fleet-ember">
-                <motion.article
-                  className="relative min-h-[320px] overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_16px_38px_rgba(8,17,31,0.12)]"
-                  initial={reduceMotion ? false : { opacity: 0, y: 32, scale: 0.96 }}
-                  animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
-                  whileHover={reduceMotion ? undefined : { y: -7, scale: 1.015 }}
-                  transition={{ duration: 0.55, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <img src={meta.image || group.image} alt={meta.label} className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-fleet-night via-fleet-night/45 to-transparent" />
-                  <div className="relative flex min-h-[320px] flex-col justify-between p-5 text-white">
-                    <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/95 px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-fleet-ember">
+                <article className="overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_10px_24px_rgba(8,17,31,0.08)] transition hover:-translate-y-1 hover:border-fleet-ember">
+                  <div className="relative h-24 overflow-hidden bg-fleet-paper sm:h-28">
+                    <img src={meta.image || group.image} alt={meta.label} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                    <span className="absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-[0.58rem] font-black uppercase tracking-[0.1em] text-fleet-ember">
                       <ShoppingBag className="h-3.5 w-3.5" />
-                      {meta.eyebrow}
+                      {group.vendors.length}
                     </span>
-                    <div>
-                      <h3 className="text-4xl font-black leading-none">{meta.label}</h3>
-                      <p className="mt-3 text-sm font-semibold leading-6 text-white/82">{meta.body}</p>
-                      <div className="mt-5 flex flex-wrap gap-2 text-xs font-black">
-                        <span className="rounded-full bg-white/15 px-3 py-1">{group.vendors.length} vendors</span>
-                        <span className="rounded-full bg-white/15 px-3 py-1">{group.productCount} products</span>
-                      </div>
-                      <span className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-fleet bg-white px-4 text-sm font-black text-fleet-night transition group-hover:bg-fleet-ember group-hover:text-white">
-                        Open {meta.label}
-                        <ArrowRight className="h-4 w-4" />
+                  </div>
+                  <div className="p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="min-w-0">
+                        <strong className="block text-base font-black leading-tight text-fleet-night">{meta.label}</strong>
+                        <span className="mt-1 line-clamp-2 block text-xs font-bold leading-5 text-slate-500">{meta.eyebrow}</span>
                       </span>
+                      <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-fleet-ember transition group-hover:translate-x-0.5" />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5 text-[0.65rem] font-black text-slate-500">
+                      <span className="rounded-full bg-fleet-paper px-2 py-1">{group.vendors.length} vendors</span>
+                      <span className="rounded-full bg-fleet-paper px-2 py-1">{group.productCount} products</span>
                     </div>
                   </div>
-                </motion.article>
+                </article>
               </Link>
             );
           })}
@@ -146,7 +142,6 @@ function ShoppingStorefront({
   vendorId?: string;
 }) {
   const malls = useLiveShoppingMalls(initialMalls);
-  const reduceMotion = useReducedMotion();
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -276,10 +271,12 @@ function ShoppingStorefront({
             dropoff_address: address,
             status: payload.status || (businessOrder ? "received" : "searching"),
             vehicle_type: "bike",
+            vehicle_subtype: payload.vehicleSubtype || null,
             delivery_speed: "same_day",
             price_ngn: estimate.total,
             distance_km: estimate.distanceKm,
             eta_minutes: estimate.etaMinutes,
+            metadata: { vehicle_subtype: payload.vehicleSubtype || null },
             source: businessOrder ? "business_marketplace_order" : "shopping_mall_checkout",
             marketplace_kind: "shopping",
             items: cartItems.map(({ productName, quantity, vendorName }) => ({ name: productName, quantity, store: vendorName })),
@@ -299,25 +296,35 @@ function ShoppingStorefront({
   return (
     <>
       <BackButton className="section-wrap pb-4 pt-4" />
-      <CinematicPageHero
-        eyebrow={selectedVendor ? `${meta.label} vendor` : "Fast Fleets 360 Shopping"}
-        title={pageTitle}
-        body={pageBody}
-        image={heroImage}
-      />
-      <section className="section-wrap -mt-8 pb-28 sm:-mt-10 sm:pb-12">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+      <section className="section-wrap pb-28 pt-2 sm:pb-12">
+        <div className="mb-5 overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-lift">
+          <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_240px]">
+            <div className="p-4 sm:p-5">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">
+                {selectedVendor ? `${meta.label} vendor` : "Fast Fleets 360 Shopping"}
+              </span>
+              <h1 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">{pageTitle}</h1>
+              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">{pageBody}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <StatusBadge tone="green">{vendors.length} vendors</StatusBadge>
+                <StatusBadge tone="neutral">{cartItems.length} selected</StatusBadge>
+              </div>
+            </div>
+            <img src={heroImage} alt={pageTitle} loading="eager" className="hidden h-full min-h-[180px] w-full object-cover md:block" />
+          </div>
+        </div>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
-            <div className="rounded-fleet border border-white/70 bg-white/90 p-4 shadow-lift backdrop-blur-xl sm:p-5">
+            <div className="rounded-fleet border border-fleet-line bg-white p-4 shadow-[0_10px_24px_rgba(8,17,31,0.06)] sm:p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">
                     {selectedVendor ? "Direct vendor marketplace" : `${meta.label} category`}
                   </span>
-                  <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">
+                  <h2 className="mt-2 break-words text-xl font-black leading-tight text-fleet-night sm:text-2xl">
                     {selectedVendor ? "Add items from this vendor." : "Choose a vendor."}
                   </h2>
-                  <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
+                  <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
                     Fast Fleets 360 estimates delivery after your address and adds a {formatMoney(platformFee)} platform fee.
                   </p>
                 </div>
@@ -335,15 +342,13 @@ function ShoppingStorefront({
                 </Link>
               </Card>
             ) : (
-              <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {visibleGroups.flatMap((group) =>
-                  group.vendors.map((vendor, index) => (
+                  group.vendors.map((vendor) => (
                     <ShoppingVendorCard
                       key={`${vendor.mall.id}:${vendor.store.id}`}
                       vendor={vendor}
-                      index={index}
                       cart={cart}
-                      reduceMotion={Boolean(reduceMotion)}
                       defaultOpen={Boolean(selectedVendor)}
                       showVendorLink={!selectedVendor}
                       onQuantity={changeQuantity}
@@ -355,7 +360,7 @@ function ShoppingStorefront({
             )}
           </div>
 
-          <Card className="sticky top-24 p-5">
+          <Card className="p-4 sm:p-5 lg:sticky lg:top-24">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Shopping checkout</span>
@@ -406,18 +411,14 @@ function ShoppingStorefront({
 
 function ShoppingVendorCard({
   vendor,
-  index,
   cart,
-  reduceMotion,
   defaultOpen,
   showVendorLink,
   onQuantity,
   onAskPrice
 }: {
   vendor: ShoppingCategoryVendor;
-  index: number;
   cart: Record<string, CartItem>;
-  reduceMotion: boolean;
   defaultOpen: boolean;
   showVendorLink: boolean;
   onQuantity: (mall: ShoppingMall, vendor: MallStore, product: MallProduct, delta: number) => void;
@@ -426,20 +427,20 @@ function ShoppingVendorCard({
   const { mall, store } = vendor;
   const vendorImage = getShoppingStoreImage(store, mall);
   const categoryLabel = shoppingCategoryLabel(store.category);
+  const [expanded, setExpanded] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (defaultOpen) setExpanded(true);
+  }, [defaultOpen]);
 
   return (
-    <motion.details
-      open={defaultOpen || undefined}
-      className="group overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_12px_26px_rgba(8,17,31,0.08)] transition duration-300"
-      initial={reduceMotion ? false : { opacity: 0, y: 26 }}
-      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-      whileHover={reduceMotion ? undefined : { y: -5, scale: 1.01 }}
-      whileTap={reduceMotion ? undefined : { scale: 0.99 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.5, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
+    <details
+      open={expanded}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+      className="group overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.06)] transition duration-200 hover:border-fleet-ember"
     >
       <summary className="block cursor-pointer list-none marker:hidden [&::-webkit-details-marker]:hidden">
-        <div className="relative aspect-[4/3] overflow-hidden bg-fleet-paper">
+        <div className="relative aspect-[16/10] overflow-hidden bg-fleet-paper">
           <img src={vendorImage} alt={store.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
           <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-fleet-ember shadow-[0_10px_24px_rgba(8,17,31,0.12)]">
             {categoryLabel}
@@ -474,7 +475,7 @@ function ShoppingVendorCard({
           </div>
         </div>
       </summary>
-      <div className="grid max-h-[520px] gap-3 overflow-y-auto border-t border-fleet-line bg-fleet-paper/55 p-3">
+      {expanded ? <div className="grid max-h-[420px] gap-2 overflow-y-auto border-t border-fleet-line bg-fleet-paper/55 p-3">
         {store.products.map((product) => {
           const key = cartKey(mall.id, store.id, product.id);
           const quantity = cart[key]?.quantity || 0;
@@ -514,8 +515,8 @@ function ShoppingVendorCard({
             </article>
           );
         })}
-      </div>
-    </motion.details>
+      </div> : null}
+    </details>
   );
 }
 

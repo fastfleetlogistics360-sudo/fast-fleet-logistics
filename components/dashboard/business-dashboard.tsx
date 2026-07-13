@@ -69,6 +69,7 @@ type BusinessOrderRow = {
   dropoff_address: string;
   package_type: string;
   vehicle_type: string;
+  vehicle_subtype?: string | null;
   status: string;
   amount: number;
   payment_status?: string | null;
@@ -136,7 +137,7 @@ const defaultDispatch = {
 type DispatchForm = typeof defaultDispatch;
 
 const businessOrderSelect =
-  "id, order_code, delivery_id, marketplace_kind, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, status, amount, payment_status, created_at, updated_at";
+  "id, order_code, delivery_id, marketplace_kind, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, vehicle_subtype, status, amount, payment_status, created_at, updated_at";
 
 async function loadBusinessOrdersForProfile(supabase: ReturnType<typeof createClient>, businessProfileId?: string | null, userId?: string | null) {
   let apiOrders: BusinessOrderRow[] = [];
@@ -756,7 +757,9 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
                     {businessOrderItemsLabel(order)} · {order.dropoff_address}
                   </span>
-                  <span className="mt-1 block text-xs font-bold text-slate-500">{formatMoney(Number(order.amount || 0))}</span>
+                  <span className="mt-1 block text-xs font-bold text-slate-500">
+                    {formatMoney(Number(order.amount || 0))} · {businessOrderVehicleLabel(order)}
+                  </span>
                 </div>
                 <StatusBadge tone={businessOrderTone(order.status)}>{businessOrderLabel(order.status)}</StatusBadge>
               </div>
@@ -1080,6 +1083,14 @@ function businessOrderItemsLabel(order: BusinessOrderRow) {
     .slice(0, 2)
     .map((item) => `${Number(item.quantity || 1)}x ${item.name || item.productName || "Item"}`)
     .join(", ");
+}
+
+function businessOrderVehicleLabel(order: BusinessOrderRow) {
+  const vehicle = String(order.vehicle_type || "").toLowerCase();
+  if (vehicle === "bike") return String(order.vehicle_subtype || "").toLowerCase() === "bicycle" ? "Bicycle" : "Motorcycle";
+  if (vehicle === "car") return "Car";
+  if (vehicle === "van") return "Van";
+  return order.vehicle_type || "Vehicle pending";
 }
 
 function AddressField({ label, value, addresses, onChange }: { label: string; value: string; addresses: SavedAddress[]; onChange: (value: string) => void }) {

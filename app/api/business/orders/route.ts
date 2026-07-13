@@ -15,7 +15,7 @@ import { accountMessengerHref } from "@/lib/tracking-links";
 const businessProgress = new Set(["received", "preparing", "packing", "ready_for_pickup"]);
 
 const orderSelect =
-  "id, order_code, customer_id, business_id, business_profile_id, delivery_id, marketplace_kind, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, status, amount, payment_status, created_at, updated_at, delivered_at";
+  "id, order_code, customer_id, business_id, business_profile_id, delivery_id, marketplace_kind, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, vehicle_subtype, status, amount, payment_status, created_at, updated_at, delivered_at";
 
 export async function GET() {
   try {

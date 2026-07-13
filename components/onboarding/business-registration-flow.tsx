@@ -30,22 +30,18 @@ const businessDocumentRequirements: Array<{ key: BusinessDocumentKey; label: str
   { key: "address_proof", label: "Proof of business address", accept: "image/*,application/pdf" }
 ];
 
-const businessTypeOptions = ["Restaurant", "Mall", "Grocery", "Pharmacy", "Fashion", "Electronics", "Gadgets"] as const;
+const businessTypeOptions = ["Restaurant", "Grocery", "Pharmacy", "Fashion", "Electronics", "Gadgets"] as const;
 type BusinessType = (typeof businessTypeOptions)[number];
+type StoredBusinessType = BusinessType | "Mall";
 
 const commissionByBusinessType: Record<BusinessType, number> = {
   Restaurant: 12,
-  Mall: 10,
   Grocery: 10,
   Pharmacy: 5,
   Fashion: 10,
   Electronics: 10,
   Gadgets: 10
 };
-
-function businessTypeLabel(type: BusinessType) {
-  return type === "Mall" ? "Shopping" : type;
-}
 
 export function BusinessRegistrationFlow() {
   const [authReady, setAuthReady] = useState(false);
@@ -100,7 +96,7 @@ export function BusinessRegistrationFlow() {
               phone?: string | null;
               email?: string | null;
               industry?: string | null;
-              business_type?: BusinessType | null;
+              business_type?: StoredBusinessType | null;
               commission_rate?: number | null;
               operating_state?: string | null;
               dispatch_volume?: string | null;
@@ -136,15 +132,16 @@ export function BusinessRegistrationFlow() {
                 business = fallback.data ? { ...fallback.data, rejection_reason: null } : null;
               }
               if (!business) return;
+              const storedBusinessType = normalizeSelectableBusinessType(business.business_type);
               setForm((current) => ({
                 ...current,
                 businessName: business.business_name || current.businessName,
                 contactName: business.contact_name || current.contactName,
                 phone: business.phone || current.phone,
                 email: business.email || data.user.email || current.email,
-                businessType: business.business_type || current.businessType,
-                commissionRate: Number(business.commission_rate ?? commissionByBusinessType[business.business_type || current.businessType]),
-                industry: business.industry || business.business_type || current.industry,
+                businessType: storedBusinessType || current.businessType,
+                commissionRate: Number(business.commission_rate ?? commissionByBusinessType[storedBusinessType || current.businessType]),
+                industry: business.industry && business.industry !== "Mall" && business.industry !== "Shopping" ? business.industry : storedBusinessType || current.industry,
                 dispatchVolume: business.dispatch_volume || current.dispatchVolume,
                 state: normalizeState(business.operating_state || appUserResult.data?.default_zone) || current.state,
                 pickupAddress: business.pickup_address || current.pickupAddress,
@@ -387,11 +384,11 @@ export function BusinessRegistrationFlow() {
           </label>
           <label className="form-field">
             <span className="form-label">Select Business Type</span>
-            <select className="form-input" value={form.businessType} onChange={(event) => updateBusinessType(event.target.value)}>
-              {businessTypeOptions.map((item) => (
-                <option key={item} value={item}>{businessTypeLabel(item)}</option>
-              ))}
-            </select>
+              <select className="form-input" value={form.businessType} onChange={(event) => updateBusinessType(event.target.value)}>
+                {businessTypeOptions.map((item) => (
+                <option key={item} value={item}>{item === "Pharmacy" ? "Med / Pharmacy" : item}</option>
+                ))}
+              </select>
             {errors.businessType ? <span className="text-xs font-bold text-red-600">{errors.businessType}</span> : null}
           </label>
           <Field label="Commission rate" value={`${form.commissionRate}%`} onChange={() => undefined} placeholder="Auto-filled" readOnly />
@@ -435,6 +432,10 @@ export function BusinessRegistrationFlow() {
       </Card>
     </div>
   );
+}
+
+function normalizeSelectableBusinessType(value: StoredBusinessType | string | null | undefined): BusinessType | null {
+  return businessTypeOptions.includes(value as BusinessType) ? (value as BusinessType) : null;
 }
 
 function Field({

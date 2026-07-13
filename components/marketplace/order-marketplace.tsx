@@ -1,9 +1,10 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, Loader2, MapPin, Minus, Plus, ShoppingCart, Utensils } from "lucide-react";
+import { ArrowRight, ChevronDown, Loader2, MapPin, Minus, Plus, ShoppingCart, Utensils } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { cn } from "@/lib/cn";
@@ -11,7 +12,6 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
 import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
-import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useMarketplaceEstimate } from "@/components/marketplace/use-marketplace-estimate";
 
@@ -35,6 +35,81 @@ export type Store = {
   imageUrl?: string;
   items: StoreItem[];
 };
+
+export function RestaurantVendorSelection({ stores }: { stores: Store[] }) {
+  const [liveStores, setLiveStores] = useState<Store[]>(stores);
+  const vendorCount = liveStores.length;
+  const itemCount = liveStores.reduce((count, store) => count + store.items.length, 0);
+
+  useEffect(() => {
+    setLiveStores(stores);
+  }, [stores]);
+
+  return (
+    <>
+      <BackButton className="section-wrap pb-4 pt-4" />
+      <section className="section-wrap pb-28 pt-2 sm:pb-14">
+        <div className="overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-lift">
+          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="p-4 sm:p-5 lg:p-6">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Restaurants</span>
+              <h1 className="mt-2 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Choose a restaurant.</h1>
+              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+                Open a kitchen page, pick menu items, add your delivery address, and checkout with Squad.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <StatusBadge tone="green">{vendorCount} restaurants</StatusBadge>
+                <StatusBadge tone="neutral">{itemCount} menu items</StatusBadge>
+              </div>
+            </div>
+            <img
+              src="https://images.unsplash.com/photo-1555396273-367ea4eb4db9?auto=format&fit=crop&w=900&q=72"
+              alt="Restaurant delivery"
+              loading="eager"
+              className="hidden h-full min-h-[190px] w-full object-cover lg:block"
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {liveStores.map((store) => (
+            <Link key={store.id || store.name} href={`/restaurants/${store.id || itemKey(store.name, "kitchen")}`} className="group block focus:outline-none focus:ring-2 focus:ring-fleet-ember">
+              <article className="overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.06)] transition hover:-translate-y-1 hover:border-fleet-ember">
+                <div className="relative h-28 overflow-hidden bg-fleet-paper">
+                  {store.imageUrl ? (
+                    <Image src={store.imageUrl} alt={store.name} fill sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw" quality={62} loading="lazy" className="object-cover transition duration-500 group-hover:scale-105" />
+                  ) : (
+                    <div className="grid h-full w-full place-items-center text-fleet-ember">
+                      <Utensils className="h-8 w-8" />
+                    </div>
+                  )}
+                  <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-[0.1em] text-fleet-ember">
+                    {store.area}
+                  </span>
+                </div>
+                <div className="p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <strong className="line-clamp-1 block text-base font-black leading-tight text-fleet-night">{store.name}</strong>
+                      <span className="mt-1 line-clamp-2 block text-xs font-bold leading-5 text-slate-500">{store.description}</span>
+                    </span>
+                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-fleet-ember transition group-hover:translate-x-0.5" />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5 text-[0.65rem] font-black text-slate-500">
+                    <span className="rounded-full bg-fleet-paper px-2 py-1">{store.items.length} items</span>
+                    {store.mealTypes?.slice(0, 2).map((mealType) => (
+                      <span key={mealType} className="rounded-full bg-fleet-paper px-2 py-1">{mealType}</span>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            </Link>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
 
 export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: string; eyebrow: string; stores: Store[]; kind: "restaurant" | "shopping" }) {
   const [liveStores, setLiveStores] = useState<Store[]>(stores);
@@ -164,10 +239,12 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             dropoff_address: address,
             status: payload.status || (businessOrder ? "received" : "searching"),
             vehicle_type: "bike",
+            vehicle_subtype: payload.vehicleSubtype || null,
             delivery_speed: "same_day",
             price_ngn: estimate.total,
             distance_km: estimate.distanceKm,
             eta_minutes: estimate.etaMinutes,
+            metadata: { vehicle_subtype: payload.vehicleSubtype || null },
             source: businessOrder ? "business_marketplace_order" : `${kind}_checkout`,
             marketplace_kind: kind,
             items: selectedItems.map(({ name, store, quantity }) => ({ name, store, quantity })),
@@ -187,25 +264,38 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   return (
     <>
     <BackButton className="section-wrap pb-4 pt-4" />
-    <CinematicPageHero
-      eyebrow={eyebrow}
-      title={title}
-      body="Choose items, add your address, and pay with Squad."
-      image={kind === "restaurant" ? "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=2200&q=84" : "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=2200&q=84"}
-    />
-    <section className="section-wrap -mt-8 pb-28 sm:-mt-10 sm:pb-12">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+    <section className="section-wrap pb-28 pt-2 sm:pb-12">
+      <div className="mb-5 overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-lift">
+        <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_240px]">
+          <div className="p-4 sm:p-5">
+            <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">{eyebrow}</span>
+            <h1 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">{title}</h1>
+            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">Choose items, add your address, and pay with Squad.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <StatusBadge tone="green">{liveStores.length} restaurant{liveStores.length === 1 ? "" : "s"}</StatusBadge>
+              <StatusBadge tone="neutral">{selectedItems.length} selected</StatusBadge>
+            </div>
+          </div>
+          <img
+            src={liveStores[0]?.imageUrl || "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=900&q=72"}
+            alt={title}
+            loading="eager"
+            className="hidden h-full min-h-[180px] w-full object-cover md:block"
+          />
+        </div>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
         <div className="min-w-0">
-          <div className="rounded-fleet border border-white/70 bg-white/80 p-4 shadow-lift backdrop-blur-xl sm:p-5">
+          <div className="rounded-fleet border border-fleet-line bg-white p-4 shadow-[0_10px_24px_rgba(8,17,31,0.06)] sm:p-5">
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Checkout</span>
-          <h2 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Choose. Add. Pay.</h2>
-          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">
+          <h2 className="mt-2 break-words text-xl font-black leading-tight text-fleet-night sm:text-2xl">Choose. Add. Pay.</h2>
+          <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
             Fast Fleets 360 estimates delivery after your address and adds a {formatMoney(platformFee)} platform fee.
           </p>
           </div>
 
           <div
-            className="mt-8 flex w-full snap-x gap-3 overflow-x-auto pb-5 pr-4 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:gap-4 lg:overflow-visible lg:pr-0 xl:grid-cols-3 [&::-webkit-scrollbar]:hidden"
+            className="mt-5 flex w-full snap-x gap-3 overflow-x-auto pb-5 pr-4 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:gap-3 lg:overflow-visible lg:pr-0 xl:grid-cols-3 [&::-webkit-scrollbar]:hidden"
             onScroll={handleStoreScroll}
           >
             {liveStores.map((store, index) => (
@@ -238,7 +328,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           ) : null}
         </div>
 
-        <Card className="sticky top-24 p-5">
+        <Card className="p-4 sm:p-5 lg:sticky lg:top-24">
           <div className="flex items-center justify-between gap-4">
             <div>
               <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Checkout</span>

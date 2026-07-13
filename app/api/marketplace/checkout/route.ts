@@ -205,6 +205,7 @@ export async function POST(request: Request) {
       authorizationUrl: squadCheckout.authorizationUrl,
       accessCode: squadCheckout.accessCode,
       userId: user.id,
+      vehicleSubtype: estimate.vehicleSubtype,
       businessOrder: Boolean(business),
       status: business ? "pending" : "pending_payment"
     });
