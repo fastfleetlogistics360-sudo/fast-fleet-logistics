@@ -11,7 +11,9 @@ import {
   CalendarDays,
   CircleDollarSign,
   ClipboardCheck,
+  Copy,
   Download,
+  ExternalLink,
   FilePenLine,
   Globe2,
   ImagePlus,
@@ -67,6 +69,8 @@ import {
   mallCategories,
   mallMenuStorageKey,
   normalizeShoppingMalls,
+  shoppingVendorAdvertPath,
+  shoppingVendorCategoryPath,
   type MallProduct,
   type MallStore,
   type ShoppingMall
@@ -3172,6 +3176,9 @@ function RestaurantMenuSection({
                     ))}
                   </select>
                 </label>
+                <div className="rounded-fleet border border-fleet-line bg-fleet-paper p-3">
+                  <VendorLinkField label="Restaurant advert QR link" path={`/restaurants/${kitchen.id}`} />
+                </div>
               </div>
             </div>
 
@@ -3513,6 +3520,11 @@ function MallMenuSection({
                         </label>
                       </div>
 
+                      <div className="grid gap-3 rounded-fleet border border-fleet-line bg-white p-3 lg:grid-cols-2">
+                        <VendorLinkField label="Advert QR link" path={shoppingVendorAdvertPath(store)} />
+                        <VendorLinkField label="Category vendor link" path={shoppingVendorCategoryPath(store)} />
+                      </div>
+
                       <div className="grid gap-3 md:grid-cols-3">
                         <label className="form-field">
                           <span className="form-label">Pickup group</span>
@@ -3587,6 +3599,41 @@ function MallMenuSection({
       </div>
     </Card>
   );
+}
+
+function VendorLinkField({ label, path }: { label: string; path: string }) {
+  const url = adminAbsoluteUrl(path);
+
+  function copyLink() {
+    navigator.clipboard?.writeText(url).catch(() => null);
+  }
+
+  return (
+    <div className="grid gap-2">
+      <span className="form-label">{label}</span>
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+        <input className="form-input min-w-0 bg-fleet-paper text-xs" value={url} readOnly />
+        <Button type="button" size="sm" variant="secondary" onClick={copyLink}>
+          <Copy className="h-4 w-4" />
+          Copy
+        </Button>
+        <a
+          href={path}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-fleet border border-fleet-line bg-white px-3 text-xs font-black text-fleet-night transition hover:border-fleet-ember"
+        >
+          <ExternalLink className="h-4 w-4" />
+          Open
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function adminAbsoluteUrl(path: string) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://fastfleet.com.ng";
+  return `${origin}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 function FinanceStat({ label, value, tone }: { label: string; value: string; tone: string }) {

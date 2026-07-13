@@ -213,6 +213,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
                 index={index}
                 quantities={quantities}
                 reduceMotion={Boolean(reduceMotion)}
+                defaultOpen={liveStores.length === 1}
                 onQuantity={changeQuantity}
                 refCallback={(node) => {
                   storeRefs.current[index] = node;
@@ -286,6 +287,7 @@ function RestaurantStoreCard({
   index,
   quantities,
   reduceMotion,
+  defaultOpen,
   onQuantity,
   refCallback
 }: {
@@ -293,12 +295,14 @@ function RestaurantStoreCard({
   index: number;
   quantities: Record<string, number>;
   reduceMotion: boolean;
+  defaultOpen: boolean;
   onQuantity: (key: string, delta: number) => void;
   refCallback: (node: HTMLElement | null) => void;
 }) {
   return (
     <motion.details
       ref={refCallback}
+      open={defaultOpen || undefined}
       className="group w-[260px] max-w-[72vw] shrink-0 snap-start overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_12px_26px_rgba(8,17,31,0.08)] transition duration-300 lg:w-auto lg:max-w-none"
       initial={reduceMotion ? false : { opacity: 0, y: 26 }}
       whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}

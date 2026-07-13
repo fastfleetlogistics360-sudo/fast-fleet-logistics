@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { buildShoppingCategoryGroups, defaultShoppingMalls, shoppingCategoryPath, shoppingVendorAdvertPath, shoppingVendorCategoryPath } from "@/lib/mall-menu";
 import { defaultRestaurantKitchens } from "@/lib/restaurant-menu";
 
 type SitemapEntry = {
@@ -36,8 +37,28 @@ export default function sitemap(): MetadataRoute.Sitemap {
     changeFrequency: "weekly",
     priority: 0.72
   }));
+  const shoppingGroups = buildShoppingCategoryGroups(defaultShoppingMalls);
+  const shoppingCategoryRoutes: SitemapEntry[] = shoppingGroups.map((group) => ({
+    path: shoppingCategoryPath(group.category),
+    changeFrequency: "daily",
+    priority: 0.82
+  }));
+  const shoppingVendorRoutes: SitemapEntry[] = shoppingGroups.flatMap((group) =>
+    group.vendors.flatMap(({ store }) => [
+      {
+        path: shoppingVendorCategoryPath(store),
+        changeFrequency: "daily" as const,
+        priority: 0.74
+      },
+      {
+        path: shoppingVendorAdvertPath(store),
+        changeFrequency: "daily" as const,
+        priority: 0.74
+      }
+    ])
+  );
 
-  return [...publicRoutes, ...kitchenRoutes].map((route) => ({
+  return [...publicRoutes, ...shoppingCategoryRoutes, ...shoppingVendorRoutes, ...kitchenRoutes].map((route) => ({
     url: `${baseUrl}${route.path}`,
     lastModified: now,
     changeFrequency: route.changeFrequency,

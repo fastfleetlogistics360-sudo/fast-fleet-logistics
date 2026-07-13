@@ -42,8 +42,44 @@ export type ShoppingCategoryGroup = {
   locations: string[];
 };
 
+export type ShoppingCategoryMeta = {
+  category: MallCategory;
+  slug: string;
+  label: string;
+  eyebrow: string;
+  body: string;
+  image: string;
+};
+
 export const mallMenuSettingsKey = "shopping_malls";
 export const mallMenuStorageKey = "fastfleet_shopping_malls";
+
+export const shoppingCategoryMeta: Record<MallCategory, ShoppingCategoryMeta> = {
+  Grocery: {
+    category: "Grocery",
+    slug: "grocery",
+    label: "Grocery",
+    eyebrow: "Foodstuff and home essentials",
+    body: "Shop daily foodstuff, home packs, drinks, and essentials from grocery vendors.",
+    image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=78"
+  },
+  Pharmacy: {
+    category: "Pharmacy",
+    slug: "med",
+    label: "Med",
+    eyebrow: "Pharmacy and care items",
+    body: "Browse care items, wellness packs, pharmacy products, and ask-price medical essentials.",
+    image: "https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=1200&q=78"
+  },
+  Fashion: {
+    category: "Fashion",
+    slug: "fashion",
+    label: "Fashion",
+    eyebrow: "Clothing and style vendors",
+    body: "Find outfits, shoes, bags, accessories, and style items from fashion vendors.",
+    image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=78"
+  }
+};
 
 export const defaultShoppingMalls: ShoppingMall[] = [
   {
@@ -199,6 +235,53 @@ export function buildShoppingCategoryGroups(malls: ShoppingMall[]): ShoppingCate
       };
     })
     .filter((group) => group.vendors.length);
+}
+
+export function shoppingCategorySlug(category: MallCategory) {
+  return shoppingCategoryMeta[category].slug;
+}
+
+export function shoppingCategoryLabel(category: MallCategory) {
+  return shoppingCategoryMeta[category].label;
+}
+
+export function shoppingCategoryPath(category: MallCategory) {
+  return `/shopping/${shoppingCategorySlug(category)}`;
+}
+
+export function shoppingVendorCategoryPath(store: Pick<MallStore, "id" | "category">) {
+  return `${shoppingCategoryPath(store.category)}/${store.id}`;
+}
+
+export function shoppingVendorAdvertPath(store: Pick<MallStore, "id">) {
+  return `/shopping/store/${store.id}`;
+}
+
+export function categoryFromShoppingSlug(value: string | null | undefined): MallCategory | null {
+  const slugValue = text(value).toLowerCase();
+  if (!slugValue) return null;
+
+  if (slugValue === "med" || slugValue === "medicine" || slugValue === "pharmacy") return "Pharmacy";
+  const match = mallCategories.find((category) => shoppingCategoryMeta[category].slug === slugValue || category.toLowerCase() === slugValue);
+  return match || null;
+}
+
+export function findShoppingCategoryGroup(malls: ShoppingMall[], category: MallCategory) {
+  return buildShoppingCategoryGroups(malls).find((group) => group.category === category) || null;
+}
+
+export function findShoppingVendor(malls: ShoppingMall[], vendorId: string, category?: MallCategory | null): ShoppingCategoryVendor | null {
+  const needle = text(vendorId).toLowerCase();
+  if (!needle) return null;
+
+  const groups = buildShoppingCategoryGroups(malls);
+  for (const group of groups) {
+    if (category && group.category !== category) continue;
+    const vendor = group.vendors.find(({ store }) => store.id.toLowerCase() === needle || slug(store.name) === needle);
+    if (vendor) return vendor;
+  }
+
+  return null;
 }
 
 export function getShoppingStoreImage(store: MallStore, mall: ShoppingMall) {

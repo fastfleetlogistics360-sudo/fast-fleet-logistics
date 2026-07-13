@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MallMarketplace } from "@/components/marketplace/mall-marketplace";
+import { ShoppingCategorySelection } from "@/components/marketplace/shopping-marketplace";
 import { loadPublicShoppingMalls } from "@/lib/public-content";
 
 export const dynamic = "force-dynamic";
@@ -31,5 +31,5 @@ export const metadata: Metadata = {
 export default async function ShoppingPage() {
   const malls = await loadPublicShoppingMalls();
 
-  return <MallMarketplace initialMalls={malls} />;
+  return <ShoppingCategorySelection initialMalls={malls} />;
 }

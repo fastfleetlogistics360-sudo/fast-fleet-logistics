@@ -1,16 +1,25 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { OrderMarketplace } from "@/components/marketplace/order-marketplace";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { defaultRestaurantKitchens, normalizeRestaurantKitchens, restaurantMenuSettingsKey } from "@/lib/restaurant-menu";
+import { loadPublicRestaurantKitchens } from "@/lib/public-content";
 
 type KitchenPageProps = {
   params: Promise<{ kitchenId: string }>;
 };
 
-export const metadata: Metadata = {
-  title: "Restaurant Kitchen"
-};
+export async function generateMetadata({ params }: KitchenPageProps): Promise<Metadata> {
+  const { kitchenId } = await params;
+  const kitchens = await loadPublicRestaurantKitchens();
+  const kitchen = kitchens.find((item) => item.id === kitchenId);
+
+  return {
+    title: `${kitchen?.name || "Restaurant"} | Fast Fleets 360`,
+    description: kitchen?.description || "Order directly from a Fast Fleets 360 restaurant vendor.",
+    alternates: {
+      canonical: `/restaurants/${kitchenId}`
+    }
+  };
+}
 
 export default async function RestaurantKitchenPage({ params }: KitchenPageProps) {
   const { kitchenId } = await params;
@@ -29,8 +38,5 @@ export default async function RestaurantKitchenPage({ params }: KitchenPageProps
 }
 
 async function loadRestaurantKitchens() {
-  const supabase = createAdminClient();
-  if (!supabase) return defaultRestaurantKitchens;
-  const { data } = await supabase.from("platform_settings").select("value").eq("key", restaurantMenuSettingsKey).maybeSingle();
-  return normalizeRestaurantKitchens(data?.value || defaultRestaurantKitchens);
+  return loadPublicRestaurantKitchens();
 }
