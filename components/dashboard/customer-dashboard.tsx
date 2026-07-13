@@ -94,6 +94,8 @@ type OrderRow = {
 };
 
 type LocalDelivery = Partial<OrderRow> & {
+  user_id?: string | null;
+  customer_id?: string | null;
   pickup?: string;
   dropoff?: string;
   vehicle?: string;
@@ -121,6 +123,7 @@ type SavedAddress = {
 
 type CustomerDashboardPayload = {
   user?: {
+    id?: string | null;
     email?: string | null;
     phone?: string | null;
     metadata?: Record<string, unknown>;
@@ -316,7 +319,7 @@ export function CustomerDashboard() {
         const supabase = createClient();
         const { data: launchRow } = await supabase.from("platform_launch_states").select("status").eq("state", selectedState).maybeSingle<{ status?: string | null }>();
         setLaunchStatus(normalizeLaunchStatus(launchRow?.status || (DEFAULT_LIVE_STATES.includes(selectedState as (typeof DEFAULT_LIVE_STATES)[number]) ? "active" : "waitlist")));
-        const mergedOrders = mergeLocalDeliveries(payload.orders || []);
+        const mergedOrders = mergeLocalDeliveries(payload.orders || [], payload.user?.id || null);
         const hydratedOrders = await enrichOrdersWithRiderDetails(mergedOrders);
         if (!mounted) return;
         setOrders(hydratedOrders);
@@ -1122,9 +1125,9 @@ function DeliveryRouteMap({
   );
 }
 
-function mergeLocalDeliveries(serverOrders: OrderRow[]) {
+function mergeLocalDeliveries(serverOrders: OrderRow[], currentUserId: string | null) {
   if (typeof window === "undefined") return serverOrders;
-  const localOrders = readLocalDeliveries();
+  const localOrders = readLocalDeliveries(currentUserId);
   if (!localOrders.length) return serverOrders;
   const seen = new Set(serverOrders.map((order) => order.delivery_code?.toUpperCase()));
   return [
@@ -1133,10 +1136,16 @@ function mergeLocalDeliveries(serverOrders: OrderRow[]) {
   ].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 }
 
-function readLocalDeliveries(): OrderRow[] {
+function readLocalDeliveries(currentUserId: string | null): OrderRow[] {
+  if (!currentUserId) return [];
   try {
     const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]") as LocalDelivery[];
-    return stored
+    const ownedEntries = stored.filter((item) => localDeliveryOwnerId(item));
+    if (ownedEntries.length !== stored.length) {
+      localStorage.setItem("fastfleet.next.deliveries", JSON.stringify(ownedEntries));
+    }
+    return ownedEntries
+      .filter((item) => localDeliveryOwnerId(item) === currentUserId)
       .filter((item) => item.delivery_code)
       .map((item, index) => ({
         id: item.id || `local-${item.delivery_code || index}`,
@@ -1158,6 +1167,14 @@ function readLocalDeliveries(): OrderRow[] {
   } catch {
     return [];
   }
+}
+
+function localDeliveryOwnerId(item: LocalDelivery) {
+  return typeof item.user_id === "string" && item.user_id.trim()
+    ? item.user_id.trim()
+    : typeof item.customer_id === "string" && item.customer_id.trim()
+      ? item.customer_id.trim()
+      : "";
 }
 
 function orderRouteLabel(order: Pick<OrderRow, "pickup_address" | "dropoff_address">) {

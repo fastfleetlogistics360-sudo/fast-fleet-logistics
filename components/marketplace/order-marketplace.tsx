@@ -157,6 +157,8 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
         "fastfleet.next.deliveries",
         JSON.stringify([
           {
+            user_id: payload.userId || null,
+            customer_id: payload.userId || null,
             delivery_code: deliveryCode,
             pickup_address: selectedItems.map((item) => item.store).filter(Boolean).join(", ") || (kind === "restaurant" ? "Restaurant pickup" : "Shopping pickup"),
             dropoff_address: address,

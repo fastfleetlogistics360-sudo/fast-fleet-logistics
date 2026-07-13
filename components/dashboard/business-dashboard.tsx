@@ -76,13 +76,6 @@ type BusinessOrderRow = {
   updated_at?: string | null;
 };
 
-type LocalDelivery = Partial<DeliveryRow> & {
-  pickup?: string;
-  dropoff?: string;
-  estimate?: { total?: number };
-  source?: string;
-};
-
 type SavedAddress = {
   id: string;
   label: string;
@@ -291,7 +284,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         if (!silent && nextKycStatus === "active" && !nextState) setActiveTab("account");
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
         setWithdrawals(Array.isArray(withdrawalsResult.withdrawals) ? withdrawalsResult.withdrawals : []);
-        setOrders(ordersResult.error ? mergeLocalDeliveries([]) : mergeLocalDeliveries((ordersResult.data || []) as DeliveryRow[]));
+        setOrders(ordersResult.error ? [] : ((ordersResult.data || []) as DeliveryRow[]));
         const businessOrdersResult = await loadBusinessOrdersForProfile(supabase, nextProfile.id, user.id);
         if (!mounted) return;
         setBusinessOrders(businessOrdersResult.orders);
@@ -1107,35 +1100,4 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function DashboardSkeleton() {
   return <div className="grid gap-4"><Skeleton className="h-36" /><div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Skeleton className="h-24" /><Skeleton className="h-24" /><Skeleton className="h-24" /><Skeleton className="h-24" /></div><Skeleton className="h-64" /></div>;
-}
-
-function mergeLocalDeliveries(serverOrders: DeliveryRow[]) {
-  if (typeof window === "undefined") return serverOrders;
-  const localOrders = readLocalDeliveries();
-  if (!localOrders.length) return serverOrders;
-  const seen = new Set(serverOrders.map((order) => order.delivery_code?.toUpperCase()));
-  return [
-    ...serverOrders,
-    ...localOrders.filter((order) => !seen.has(order.delivery_code.toUpperCase()))
-  ].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-}
-
-function readLocalDeliveries(): DeliveryRow[] {
-  try {
-    const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]") as LocalDelivery[];
-    return stored
-      .filter((item) => item.delivery_code)
-      .map((item, index) => ({
-        id: item.id || `local-${item.delivery_code || index}`,
-        delivery_code: String(item.delivery_code).toUpperCase(),
-        pickup_address: item.pickup_address || item.pickup || (item.source?.includes("restaurant") ? "Restaurant pickup" : "Marketplace pickup"),
-        dropoff_address: item.dropoff_address || item.dropoff || "Customer delivery address",
-        status: item.status || "searching",
-        price_ngn: Number(item.price_ngn || item.estimate?.total || 0),
-        created_at: item.created_at || new Date().toISOString(),
-        proof_url: item.proof_url || null
-      }));
-  } catch {
-    return [];
-  }
 }

@@ -204,6 +204,7 @@ export async function POST(request: Request) {
       reference: squadCheckout.reference,
       authorizationUrl: squadCheckout.authorizationUrl,
       accessCode: squadCheckout.accessCode,
+      userId: user.id,
       businessOrder: Boolean(business),
       status: business ? "pending" : "pending_payment"
     });

@@ -40,6 +40,7 @@ export async function GET() {
 
     return NextResponse.json({
       user: {
+        id: user.id,
         email: user.email || null,
         phone: user.phone || null,
         metadata: user.user_metadata || {}

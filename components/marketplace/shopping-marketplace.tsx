@@ -269,6 +269,8 @@ function ShoppingStorefront({
         "fastfleet.next.deliveries",
         JSON.stringify([
           {
+            user_id: payload.userId || null,
+            customer_id: payload.userId || null,
             delivery_code: deliveryCode,
             pickup_address: cartItems.map((item) => `${item.vendorName} · ${item.pickupAddress}`).join(", "),
             dropoff_address: address,
