@@ -6,13 +6,13 @@ import { Bike, Building2, Loader2, MapPinned, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import type { SelfServiceRole } from "@/lib/auth/roles";
 import { cn } from "@/lib/cn";
-import type { UserRole } from "@/types/domain";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
 
-const options: Array<{ role: Exclude<UserRole, "admin">; title: string; icon: LucideIcon }> = [
+const options: Array<{ role: SelfServiceRole; title: string; icon: LucideIcon }> = [
   {
     role: "customer",
     title: "Customer",
@@ -34,7 +34,7 @@ export function ChooseAccountTypeForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const returnTo = searchParams.get("returnTo");
-  const [selected, setSelected] = useState<Exclude<UserRole, "admin">>("customer");
+  const [selected, setSelected] = useState<SelfServiceRole>("customer");
   const [customerState, setCustomerState] = useState("Lagos");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);

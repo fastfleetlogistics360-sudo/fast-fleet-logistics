@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { QuickActionHub } from "@/components/hub/quick-action-hub";
 import { enabledHubPromotionSlides, hubPromotionSlidesSettingsKey, type HubPromotionSlide } from "@/lib/hub-promotion-slides";
-import { parseUserRole, roleHome } from "@/lib/auth/roles";
+import { parseSelfServiceRole, parseUserRole, roleHome } from "@/lib/auth/roles";
 import { getLaunchPromoAnnouncement } from "@/lib/promos/launch-first-150";
 import type { UserRole } from "@/types/domain";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -25,7 +25,7 @@ export default async function HubPage() {
     supabase.from("users").select("full_name, email, avatar_url").eq("id", user.id).maybeSingle<{ full_name?: string | null; email?: string | null; avatar_url?: string | null }>()
   ]);
 
-  const role = parseUserRole(profile?.account_type || user.user_metadata?.account_type || user.user_metadata?.role);
+  const role = parseUserRole(profile?.account_type) || parseSelfServiceRole(user.user_metadata?.account_type || user.user_metadata?.role);
   if (!role) redirect("/choose-account-type?returnTo=/hub");
   const admin = createAdminClient();
   const [promotionSlides, glance, launchPromo] = await Promise.all([

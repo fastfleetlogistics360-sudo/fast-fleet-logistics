@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Loader2, MapPin, Minus, Plus, ShoppingCart, Utensils } from "lucide-react";
+import { ArrowRight, Loader2, Minus, Plus, ShoppingCart, Utensils } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { cn } from "@/lib/cn";
@@ -321,13 +321,13 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3">
+          <div className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-4">
             {menuItems.length ? (
               menuItems.map(({ store, item, key, quantity }) => (
                 <RestaurantMenuItemCard key={key} store={store} item={item} itemKeyValue={key} quantity={quantity} showStoreName={liveStores.length > 1} onQuantity={changeQuantity} />
               ))
             ) : (
-              <Card className="p-5 text-center">
+              <Card className="col-span-full p-5 text-center">
                 <h3 className="text-xl font-black text-fleet-night">No items here yet</h3>
                 <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Try another menu category.</p>
               </Card>
@@ -400,42 +400,36 @@ function RestaurantMenuItemCard({
   onQuantity: (key: string, delta: number) => void;
 }) {
   return (
-    <article className="grid gap-3 rounded-[20px] border border-fleet-line bg-white p-3 shadow-[0_12px_28px_rgba(8,17,31,0.07)] transition hover:border-fleet-ember sm:grid-cols-[112px_1fr_auto] sm:items-center">
-      <div className="relative h-28 overflow-hidden rounded-[16px] bg-fleet-paper sm:h-28 sm:w-28">
+    <article className="flex min-h-full flex-col overflow-hidden rounded-[16px] border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.06)] transition hover:border-fleet-ember">
+      <div className="relative h-24 overflow-hidden bg-fleet-paper sm:h-28">
         {item.imageUrl ? (
-          <Image src={item.imageUrl} alt={item.name} fill sizes="112px" quality={64} loading="lazy" className="object-cover" />
+          <Image src={item.imageUrl} alt={item.name} fill sizes="(min-width: 1280px) 18vw, (min-width: 768px) 30vw, 50vw" quality={62} loading="lazy" className="object-cover" />
         ) : (
           <div className="grid h-full w-full place-items-center text-fleet-ember">
             <Utensils className="h-7 w-7" />
           </div>
         )}
       </div>
-      <div className="min-w-0">
+      <div className="flex flex-1 flex-col p-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-fleet-paper px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-fleet-ember">{item.type}</span>
-          {showStoreName ? <span className="rounded-full bg-fleet-paper px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-slate-500">{store.name}</span> : null}
+          <span className="rounded-full bg-fleet-paper px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-[0.1em] text-fleet-ember">{item.type}</span>
+          {showStoreName ? <span className="rounded-full bg-fleet-paper px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-[0.1em] text-slate-500">{store.name}</span> : null}
         </div>
-        <h3 className="mt-2 break-words text-lg font-black leading-tight text-fleet-night">{item.name}</h3>
-        <p className="mt-1 text-sm font-bold leading-6 text-slate-500">{item.portion || "1 portion"}</p>
-        {store.address ? (
-          <span className="mt-2 flex items-start gap-1.5 text-xs font-bold leading-5 text-slate-500">
-            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
-            <span className="line-clamp-2">{store.address}</span>
-          </span>
-        ) : null}
-        <strong className="mt-3 block text-xl font-black text-fleet-ember">{formatMoney(item.price)}</strong>
-      </div>
-      <div className="flex items-center justify-between gap-3 sm:min-w-[170px] sm:flex-col sm:items-end">
-        <div className="inline-flex h-12 items-center rounded-[16px] bg-fleet-paper p-1">
-          <button type="button" onClick={() => onQuantity(itemKeyValue, -1)} className="grid h-10 w-10 place-items-center rounded-[14px] text-fleet-night" aria-label={`Remove ${item.name}`}>
-            <Minus className="h-4 w-4" />
-          </button>
-          <span className="min-w-10 text-center text-sm font-black text-fleet-night">{quantity}</span>
-          <button type="button" onClick={() => onQuantity(itemKeyValue, 1)} className="grid h-10 w-10 place-items-center rounded-[14px] bg-fleet-night text-white shadow-[0_10px_22px_rgba(8,17,31,0.18)]" aria-label={`Add ${item.name}`}>
-            <Plus className="h-4 w-4" />
-          </button>
+        <h3 className="mt-1.5 line-clamp-2 min-h-[2.25rem] break-words text-sm font-black leading-tight text-fleet-night">{item.name}</h3>
+        <p className="mt-1 line-clamp-1 text-[0.7rem] font-bold leading-4 text-slate-500">{item.portion || "1 portion"}</p>
+        <strong className="mt-2 block text-base font-black text-fleet-ember">{formatMoney(item.price)}</strong>
+        <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+          <div className="inline-flex h-9 items-center rounded-[12px] bg-fleet-paper p-0.5">
+            <button type="button" onClick={() => onQuantity(itemKeyValue, -1)} className="grid h-8 w-8 place-items-center rounded-[10px] text-fleet-night" aria-label={`Remove ${item.name}`}>
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <span className="min-w-7 text-center text-xs font-black text-fleet-night">{quantity}</span>
+            <button type="button" onClick={() => onQuantity(itemKeyValue, 1)} className="grid h-8 w-8 place-items-center rounded-[10px] bg-fleet-night text-white shadow-[0_8px_18px_rgba(8,17,31,0.16)]" aria-label={`Add ${item.name}`}>
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <strong className="text-xs font-black text-fleet-night">{formatMoney(quantity * item.price)}</strong>
         </div>
-        <strong className="text-sm font-black text-fleet-night">{formatMoney(quantity * item.price)}</strong>
       </div>
     </article>
   );

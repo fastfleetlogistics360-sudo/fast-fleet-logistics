@@ -114,7 +114,7 @@ export function ShoppingCategorySelection({ initialMalls = defaultShoppingMalls 
 }
 
 export function ShoppingCategoryMarketplace({ initialMalls = defaultShoppingMalls, category }: { initialMalls?: ShoppingMall[]; category: MallCategory }) {
-  return <ShoppingStorefront initialMalls={initialMalls} category={category} />;
+  return <ShoppingCategoryVendorSelection initialMalls={initialMalls} category={category} />;
 }
 
 export function ShoppingVendorMarketplace({
@@ -131,6 +131,91 @@ export function ShoppingVendorMarketplace({
 
 export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initialMalls?: ShoppingMall[] } = {}) {
   return <ShoppingCategorySelection initialMalls={initialMalls} />;
+}
+
+function ShoppingCategoryVendorSelection({ initialMalls, category }: { initialMalls: ShoppingMall[]; category: MallCategory }) {
+  const malls = useLiveShoppingMalls(initialMalls);
+  const categoryGroup = useMemo(() => findShoppingCategoryGroup(malls, category), [category, malls]);
+  const vendors = categoryGroup?.vendors || [];
+  const meta = shoppingCategoryMeta[category];
+  const heroImage = categoryGroup?.image || meta.image;
+  const productCount = categoryGroup?.productCount || 0;
+
+  return (
+    <>
+      <BackButton className="section-wrap pb-4 pt-4" />
+      <section className="section-wrap pb-28 pt-2 sm:pb-14">
+        <div className="overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-lift">
+          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="p-4 sm:p-5 lg:p-6">
+              <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Shopping vendors</span>
+              <h1 className="mt-2 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">{meta.label} vendors.</h1>
+              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">{meta.body}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <StatusBadge tone="green">{vendors.length} vendors</StatusBadge>
+                <StatusBadge tone="neutral">{productCount} products</StatusBadge>
+              </div>
+            </div>
+            <img src={heroImage} alt={`${meta.label} vendors`} loading="eager" decoding="async" className="hidden h-full min-h-[190px] w-full object-cover lg:block" />
+          </div>
+        </div>
+
+        {vendors.length ? (
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {vendors.map((vendor) => (
+              <ShoppingCategoryVendorCard key={`${vendor.mall.id}:${vendor.store.id}`} vendor={vendor} />
+            ))}
+          </div>
+        ) : (
+          <Card className="mt-5 p-5">
+            <h2 className="text-xl font-black text-fleet-night">No vendors yet</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">This shopping category has no active vendors yet.</p>
+            <Link href="/shopping" className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-fleet bg-fleet-night px-4 text-sm font-black text-white">
+              Back to Shopping
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Card>
+        )}
+      </section>
+    </>
+  );
+}
+
+function ShoppingCategoryVendorCard({ vendor }: { vendor: ShoppingCategoryVendor }) {
+  const { mall, store } = vendor;
+  const vendorImage = getShoppingStoreImage(store, mall);
+  const productCount = store.products.length;
+
+  return (
+    <Link href={shoppingVendorCategoryPath(store)} className="group block focus:outline-none focus:ring-2 focus:ring-fleet-ember">
+      <article className="overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.06)] transition hover:-translate-y-1 hover:border-fleet-ember">
+        <div className="relative h-28 overflow-hidden bg-fleet-paper">
+          <img src={vendorImage} alt={store.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-[0.1em] text-fleet-ember">
+            {shoppingCategoryLabel(store.category)}
+          </span>
+        </div>
+        <div className="p-3">
+          <div className="flex items-start justify-between gap-3">
+            <span className="min-w-0">
+              <strong className="line-clamp-1 block text-base font-black leading-tight text-fleet-night">{store.name}</strong>
+              <span className="mt-1 flex items-start gap-1.5 text-xs font-bold leading-5 text-slate-500">
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
+                <span className="line-clamp-2">{mall.location || mall.name}</span>
+              </span>
+            </span>
+            <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-fleet-ember transition group-hover:translate-x-0.5" />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5 text-[0.65rem] font-black text-slate-500">
+            <span className="rounded-full bg-fleet-paper px-2 py-1">
+              {productCount} product{productCount === 1 ? "" : "s"}
+            </span>
+            <span className="rounded-full bg-fleet-paper px-2 py-1">Open menu</span>
+          </div>
+        </div>
+      </article>
+    </Link>
+  );
 }
 
 function ShoppingStorefront({
@@ -153,12 +238,14 @@ function ShoppingStorefront({
   const checkoutRef = useRef<HTMLDivElement | null>(null);
 
   const selectedVendor = useMemo(() => (vendorId ? findShoppingVendor(malls, vendorId, category) : null), [category, malls, vendorId]);
+  const missingVendor = Boolean(vendorId && !selectedVendor);
   const categoryGroup = useMemo(() => (category ? findShoppingCategoryGroup(malls, category) : null), [category, malls]);
   const visibleGroups = useMemo(() => {
     if (selectedVendor) return [groupForVendor(selectedVendor)];
+    if (missingVendor) return [];
     if (categoryGroup) return [categoryGroup];
     return buildShoppingCategoryGroups(malls);
-  }, [categoryGroup, malls, selectedVendor]);
+  }, [categoryGroup, malls, missingVendor, selectedVendor]);
   const vendors = useMemo(() => visibleGroups.flatMap((group) => group.vendors), [visibleGroups]);
   const vendorFilters = useMemo(
     () => [
@@ -192,9 +279,11 @@ function ShoppingStorefront({
   const activeCategory = selectedVendor?.store.category || category || visibleGroups[0]?.category || "Grocery";
   const meta = shoppingCategoryMeta[activeCategory];
   const heroImage = selectedVendor ? getShoppingStoreImage(selectedVendor.store, selectedVendor.mall) : categoryGroup?.image || meta.image;
-  const pageTitle = selectedVendor ? `${selectedVendor.store.name} storefront` : `${meta.label} vendors`;
+  const pageTitle = missingVendor ? "Vendor not found" : selectedVendor ? `${selectedVendor.store.name} storefront` : `${meta.label} vendors`;
   const pageBody = selectedVendor
     ? `Order directly from ${selectedVendor.store.name}. This advert link opens the vendor storefront without changing the existing checkout flow.`
+    : missingVendor
+      ? "This shopping vendor link is no longer active."
     : `Choose a ${meta.label.toLowerCase()} vendor, open their products, add items, and checkout with Squad.`;
 
   useEffect(() => {
@@ -494,40 +583,40 @@ function ShoppingVendorMenuSection({
           </span>
         </div>
       </div>
-      <div className="grid gap-3 border-t border-fleet-line bg-fleet-paper/55 p-3 sm:p-4">
+      <div className="grid grid-cols-2 gap-2.5 border-t border-fleet-line bg-fleet-paper/55 p-2.5 sm:gap-3 sm:p-3 md:grid-cols-3 xl:grid-cols-4">
         {store.products.map((product) => {
           const key = cartKey(mall.id, store.id, product.id);
           const quantity = cart[key]?.quantity || 0;
           const price = typeof product.price === "number" ? product.price : null;
           const canBuy = product.available && price !== null;
           return (
-            <article key={key} className="grid gap-3 rounded-[18px] border border-fleet-line bg-white p-3 shadow-[0_8px_18px_rgba(8,17,31,0.05)] sm:grid-cols-[92px_1fr_auto] sm:items-center">
-              <img src={product.image || vendorImage} alt={product.name} loading="lazy" decoding="async" className="h-24 w-full rounded-[16px] object-cover sm:h-24 sm:w-24" />
-              <div className="min-w-0">
-                <span className="rounded-full bg-fleet-paper px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-fleet-ember">{categoryLabel}</span>
-                <h4 className="mt-2 break-words text-base font-black leading-tight text-fleet-night sm:text-lg">{product.name}</h4>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">{store.name}</p>
-                <strong className="mt-2 block text-xl font-black text-fleet-ember">{price !== null ? formatMoney(price) : "Ask price"}</strong>
-              </div>
+            <article key={key} className="flex min-h-full flex-col overflow-hidden rounded-[16px] border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.05)] transition hover:border-fleet-ember">
+              <img src={product.image || vendorImage} alt={product.name} loading="lazy" decoding="async" className="h-24 w-full object-cover sm:h-28" />
+              <div className="flex flex-1 flex-col p-2.5">
+                <span className="w-fit rounded-full bg-fleet-paper px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-[0.1em] text-fleet-ember">{categoryLabel}</span>
+                <h4 className="mt-1.5 line-clamp-2 min-h-[2.25rem] break-words text-sm font-black leading-tight text-fleet-night">{product.name}</h4>
+                <p className="mt-1 line-clamp-1 text-[0.7rem] font-bold leading-4 text-slate-500">{store.name}</p>
+                <strong className="mt-2 block text-base font-black text-fleet-ember">{price !== null ? formatMoney(price) : "Ask price"}</strong>
               {canBuy ? (
-                <div className="flex items-center justify-between gap-3 sm:min-w-[170px] sm:flex-col sm:items-end">
-                  <div className="inline-flex h-12 items-center rounded-[16px] bg-fleet-paper p-1">
-                    <button type="button" onClick={() => onQuantity(mall, store, product, -1)} className="grid h-10 w-10 place-items-center rounded-[14px] text-fleet-night" aria-label={`Remove ${product.name}`}>
-                      <Minus className="h-4 w-4" />
+                <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+                  <div className="inline-flex h-9 items-center rounded-[12px] bg-fleet-paper p-0.5">
+                    <button type="button" onClick={() => onQuantity(mall, store, product, -1)} className="grid h-8 w-8 place-items-center rounded-[10px] text-fleet-night" aria-label={`Remove ${product.name}`}>
+                      <Minus className="h-3.5 w-3.5" />
                     </button>
-                    <span className="min-w-10 text-center text-sm font-black text-fleet-night">{quantity}</span>
-                    <button type="button" onClick={() => onQuantity(mall, store, product, 1)} className="grid h-10 w-10 place-items-center rounded-[14px] bg-fleet-night text-white shadow-[0_10px_22px_rgba(8,17,31,0.18)]" aria-label={`Add ${product.name}`}>
-                      <Plus className="h-4 w-4" />
+                    <span className="min-w-7 text-center text-xs font-black text-fleet-night">{quantity}</span>
+                    <button type="button" onClick={() => onQuantity(mall, store, product, 1)} className="grid h-8 w-8 place-items-center rounded-[10px] bg-fleet-night text-white shadow-[0_8px_18px_rgba(8,17,31,0.16)]" aria-label={`Add ${product.name}`}>
+                      <Plus className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <span className="text-sm font-black text-fleet-night">{formatMoney(quantity * Number(price || 0))}</span>
+                  <span className="text-xs font-black text-fleet-night">{formatMoney(quantity * Number(price || 0))}</span>
                 </div>
               ) : (
-                <Button type="button" size="sm" variant="dark" onClick={() => onAskPrice(product, store, mall)} className="w-full sm:w-auto">
+                <Button type="button" size="sm" variant="dark" onClick={() => onAskPrice(product, store, mall)} className="mt-auto w-full justify-center">
                   <MessageCircle className="h-4 w-4" />
                   Ask Price
                 </Button>
               )}
+              </div>
             </article>
           );
         })}

@@ -1,5 +1,7 @@
 import type { UserRole } from "@/types/domain";
 
+export type SelfServiceRole = Exclude<UserRole, "admin">;
+
 export const roleHome: Record<UserRole, string> = {
   customer: "/customer/dashboard",
   rider: "/rider/dashboard",
@@ -30,6 +32,16 @@ export function parseUserRole(value: unknown): UserRole | null {
   if (value === "customer" || value === "rider" || value === "business" || value === "admin") return value;
   if (value === "driver") return "rider";
   return null;
+}
+
+export function parseSelfServiceRole(value: unknown): SelfServiceRole | null {
+  if (value === "customer" || value === "rider" || value === "business") return value;
+  if (value === "driver") return "rider";
+  return null;
+}
+
+export function normalizeSelfServiceRole(value: unknown, fallback: SelfServiceRole = "customer"): SelfServiceRole {
+  return parseSelfServiceRole(value) || fallback;
 }
 
 export function safeDashboardRedirectForRole(value: string | null | undefined, role: UserRole) {
