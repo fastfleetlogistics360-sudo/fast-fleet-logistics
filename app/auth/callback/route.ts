@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
-import { parseUserRole, safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import { parseSelfServiceRole, parseUserRole, safeDashboardRedirectForRole } from "@/lib/auth/roles";
 import { upsertRoleProfile } from "@/lib/auth/profile-completion";
 
 type CookieToSet = {
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const requestedReturnTo = requestUrl.searchParams.get("returnTo");
-  const requestedRole = parseUserRole(requestUrl.searchParams.get("role"));
+  const requestedRole = parseSelfServiceRole(requestUrl.searchParams.get("role"));
   const providerError = requestUrl.searchParams.get("error_description") || requestUrl.searchParams.get("error");
 
   if (providerError) {
@@ -56,11 +56,11 @@ export async function GET(request: NextRequest) {
     supabase.from("users").select("role").eq("id", user.id).maybeSingle<{ role?: string | null }>()
   ]);
 
-  const metadataRole = parseUserRole(user.user_metadata?.account_type || user.user_metadata?.role);
+  const metadataRole = parseSelfServiceRole(user.user_metadata?.account_type || user.user_metadata?.role);
   const savedRole = parseUserRole(existingProfile?.account_type || existingUser?.role);
   const authCreatedAt = user.created_at ? new Date(user.created_at).getTime() : Date.now();
   const looksLikeBrandNewOAuthUser = Date.now() - authCreatedAt < 2 * 60 * 1000 && !metadataRole && !requestedRole;
-  const accountRole = metadataRole || requestedRole || (looksLikeBrandNewOAuthUser ? null : savedRole);
+  const accountRole = savedRole === "admin" ? savedRole : metadataRole || requestedRole || (looksLikeBrandNewOAuthUser ? null : savedRole);
 
   if (!accountRole) {
     const chooseUrl = new URL("/choose-account-type", request.url);
@@ -68,7 +68,9 @@ export async function GET(request: NextRequest) {
     return redirectWithCookies(chooseUrl, cookiesToSet);
   }
 
-  await upsertRoleProfile(supabase, user, accountRole);
+  if (accountRole !== "admin") {
+    await upsertRoleProfile(supabase, user, accountRole);
+  }
   return redirectWithCookies(new URL(safeDashboardRedirectForRole(requestedReturnTo || "/hub", accountRole), request.url), cookiesToSet);
 }
 

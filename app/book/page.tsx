@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_LIVE_STATES, launchStatusLabel, normalizeLaunchStatus, normalizeState, rolloutWaveForState } from "@/lib/launch-states";
-import { parseUserRole } from "@/lib/auth/roles";
+import { parseSelfServiceRole, parseUserRole } from "@/lib/auth/roles";
 
 export const metadata: Metadata = {
   title: "Book Delivery"
@@ -57,7 +57,7 @@ async function getCustomerBookingAccess() {
       supabase.from("profiles").select("account_type,lga").eq("user_id", user.id).maybeSingle<{ account_type?: string | null; lga?: string | null }>(),
       supabase.from("users").select("default_zone").eq("id", user.id).maybeSingle<{ default_zone?: string | null }>()
     ]);
-    const role = parseUserRole(profile?.account_type || user.user_metadata?.account_type || user.user_metadata?.role);
+    const role = parseUserRole(profile?.account_type) || parseSelfServiceRole(user.user_metadata?.account_type || user.user_metadata?.role);
     if (role && role !== "customer") return { restricted: false, state: "Lagos", status: "active" };
 
     const state = normalizeState(profile?.lga || appUser?.default_zone || user.user_metadata?.state || user.user_metadata?.default_zone) || "Lagos";

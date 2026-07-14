@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { MarketplaceListingApplication } from "@/components/marketplace/marketplace-listing-application";
 import { BackButton } from "@/components/ui/back-button";
-import { parseUserRole } from "@/lib/auth/roles";
+import { parseSelfServiceRole, parseUserRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/types/domain";
@@ -26,7 +26,7 @@ export default async function MarketplaceListingPage() {
     supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>(),
     supabase.from("users").select("email").eq("id", user.id).maybeSingle<{ email?: string | null }>()
   ]);
-  const role = parseUserRole(profile?.account_type || user.user_metadata?.account_type || user.user_metadata?.role);
+  const role = parseUserRole(profile?.account_type) || parseSelfServiceRole(user.user_metadata?.account_type || user.user_metadata?.role);
   if (!role) redirect("/choose-account-type?returnTo=/marketplace/listing");
 
   let business = null;

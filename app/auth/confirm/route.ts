@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
-import { parseUserRole, safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import { parseSelfServiceRole, parseUserRole, safeDashboardRedirectForRole } from "@/lib/auth/roles";
 import { upsertRoleProfile } from "@/lib/auth/profile-completion";
 
 type CookieToSet = {
@@ -49,15 +49,25 @@ export async function GET(request: NextRequest) {
     return redirectToAuth(request, redirectHints.returnTo, "Email verified, but no session was returned. Please sign in.");
   }
 
-  const metadataRole = parseUserRole(user.user_metadata?.account_type || user.user_metadata?.role);
-  const accountRole = metadataRole || redirectHints.role;
+  const [{ data: existingProfile }, { data: existingUser }] = await Promise.all([
+    supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>(),
+    supabase.from("users").select("role").eq("id", user.id).maybeSingle<{ role?: string | null }>()
+  ]);
+
+  const metadataRole = parseSelfServiceRole(user.user_metadata?.account_type || user.user_metadata?.role);
+  const savedRole = parseUserRole(existingProfile?.account_type || existingUser?.role);
+  const authCreatedAt = user.created_at ? new Date(user.created_at).getTime() : Date.now();
+  const looksLikeBrandNewEmailUser = Date.now() - authCreatedAt < 2 * 60 * 1000 && !metadataRole && !redirectHints.role;
+  const accountRole = savedRole === "admin" ? savedRole : metadataRole || redirectHints.role || (looksLikeBrandNewEmailUser ? null : savedRole);
   if (!accountRole) {
     const chooseUrl = new URL("/choose-account-type", request.url);
     if (redirectHints.returnTo) chooseUrl.searchParams.set("returnTo", redirectHints.returnTo);
     return redirectWithCookies(chooseUrl, cookiesToSet);
   }
 
-  await upsertRoleProfile(supabase, user, accountRole);
+  if (accountRole !== "admin") {
+    await upsertRoleProfile(supabase, user, accountRole);
+  }
   return redirectWithCookies(new URL(safeDashboardRedirectForRole(redirectHints.returnTo || "/hub", accountRole), request.url), cookiesToSet);
 }
 
@@ -65,14 +75,14 @@ function parseRedirectHints(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const rawRedirectTo = requestUrl.searchParams.get("redirect_to") || requestUrl.searchParams.get("next");
   let returnTo = requestUrl.searchParams.get("returnTo");
-  let role = parseUserRole(requestUrl.searchParams.get("role") || requestUrl.searchParams.get("account"));
+  let role = parseSelfServiceRole(requestUrl.searchParams.get("role") || requestUrl.searchParams.get("account"));
 
   if (rawRedirectTo) {
     try {
       const redirectUrl = new URL(rawRedirectTo, request.url);
       if (redirectUrl.origin === requestUrl.origin) {
         returnTo ||= redirectUrl.searchParams.get("returnTo") || (redirectUrl.pathname === "/auth/callback" ? null : `${redirectUrl.pathname}${redirectUrl.search}`);
-        role ||= parseUserRole(redirectUrl.searchParams.get("role") || redirectUrl.searchParams.get("account"));
+        role ||= parseSelfServiceRole(redirectUrl.searchParams.get("role") || redirectUrl.searchParams.get("account"));
       }
     } catch {
       // Ignore malformed redirect hints and fall back to the explicit params.

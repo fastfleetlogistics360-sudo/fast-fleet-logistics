@@ -6,7 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { Bike, Building2, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, MapPinned, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { normalizeRole, parseUserRole, roleHome, safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import { normalizeRole, normalizeSelfServiceRole, parseSelfServiceRole, safeDashboardRedirectForRole } from "@/lib/auth/roles";
+import type { SelfServiceRole } from "@/lib/auth/roles";
 import { readReturningProfile, saveReturningProfile, type ReturningProfile } from "@/lib/auth/returning-profile";
 import type { UserRole } from "@/types/domain";
 import { cn } from "@/lib/cn";
@@ -19,7 +20,7 @@ import { GoogleIcon } from "@/components/icons/social-icons";
 import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
 
 const roleOptions: Array<{
-  role: Exclude<UserRole, "admin">;
+  role: SelfServiceRole;
   label: string;
   icon: LucideIcon;
 }> = [
@@ -47,8 +48,8 @@ type PhoneAuthFormProps = {
   description?: string;
   surface?: "card" | "plain";
   className?: string;
-  defaultRole?: UserRole;
-  lockedRole?: UserRole;
+  defaultRole?: SelfServiceRole;
+  lockedRole?: SelfServiceRole;
   returnToOverride?: string;
   intent?: AuthMode;
 };
@@ -58,8 +59,8 @@ type ProfileRecord = {
   account_type?: UserRole | null;
 };
 
-function roleFromRequest(value: string | null): UserRole | undefined {
-  return parseUserRole(value) || undefined;
+function roleFromRequest(value: string | null): SelfServiceRole | undefined {
+  return parseSelfServiceRole(value) || undefined;
 }
 
 function isValidEmail(value: string) {
@@ -83,7 +84,7 @@ export function PhoneAuthForm({
   const requestedMode = searchParams.get("mode");
   const initialMode = intent || (requestedMode === "signup" ? "signup" : requestedMode === "login" ? "login" : effectiveLockedRole ? "signup" : "login");
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  const [role, setRole] = useState<UserRole>(effectiveLockedRole || defaultRole);
+  const [role, setRole] = useState<SelfServiceRole>(effectiveLockedRole || defaultRole);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -97,7 +98,6 @@ export function PhoneAuthForm({
   const [returningProfile, setReturningProfile] = useState<ReturningProfile | null>(null);
   const [switchAccount, setSwitchAccount] = useState(false);
 
-  const targetRoleHome = roleHome[role];
   const destination = returnToOverride || returnTo || "/hub";
   const safeDestination = destination.startsWith("/") && !destination.startsWith("//") ? destination : "/hub";
   const signupNeedsProfilePhoto = mode === "signup" && role !== "rider";
@@ -138,7 +138,7 @@ export function PhoneAuthForm({
 
   async function saveProfiles(
     userId: string,
-    userRole: UserRole,
+    userRole: SelfServiceRole,
     fallbackEmail?: string | null,
     fallbackPhone?: string | null,
     avatarUrl?: string | null,
@@ -177,7 +177,7 @@ export function PhoneAuthForm({
     await fetch("/api/promos/launch-first-150/enroll", { method: "POST" }).catch(() => null);
   }
 
-  async function getSavedRole(userId: string, fallback: UserRole) {
+  async function getSavedRole(userId: string, fallback: SelfServiceRole): Promise<UserRole> {
     const supabase = createClient();
     const { data: profile } = await supabase.from("profiles").select("account_type").eq("user_id", userId).maybeSingle<ProfileRecord>();
     if (profile?.account_type) return normalizeRole(profile.account_type);
@@ -244,15 +244,18 @@ export function PhoneAuthForm({
       });
       if (result.error) throw result.error;
       if (!result.data.user) throw new Error("Login succeeded but no session was returned.");
-      const userRole = await getSavedRole(result.data.user.id, normalizeRole(result.data.user.user_metadata?.account_type || result.data.user.user_metadata?.role || role));
-      await saveProfiles(
-        result.data.user.id,
-        userRole,
-        result.data.user.email,
-        result.data.user.phone,
-        null,
-        result.data.user.user_metadata?.full_name || result.data.user.user_metadata?.name || null
-      );
+      const fallbackRole = normalizeSelfServiceRole(result.data.user.user_metadata?.account_type || result.data.user.user_metadata?.role || role, role);
+      const userRole = await getSavedRole(result.data.user.id, fallbackRole);
+      if (userRole !== "admin") {
+        await saveProfiles(
+          result.data.user.id,
+          userRole,
+          result.data.user.email,
+          result.data.user.phone,
+          null,
+          result.data.user.user_metadata?.full_name || result.data.user.user_metadata?.name || null
+        );
+      }
       redirectForRole(userRole);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login failed. Check your email and password.");

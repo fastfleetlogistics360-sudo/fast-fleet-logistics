@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { canRetryMarketplaceListing } from "@/lib/marketplace-listing";
 import { sendMarketplaceListingRequestEmail } from "@/lib/marketplace-listing-email";
-import { parseUserRole } from "@/lib/auth/roles";
+import { parseSelfServiceRole, parseUserRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -35,7 +35,7 @@ export async function GET() {
       .select("account_type")
       .eq("user_id", user.id)
       .maybeSingle<{ account_type?: string | null }>();
-    const role = parseUserRole(profile?.account_type || user.user_metadata?.account_type || user.user_metadata?.role);
+    const role = parseUserRole(profile?.account_type) || parseSelfServiceRole(user.user_metadata?.account_type || user.user_metadata?.role);
     if (role !== "business") return NextResponse.json({ role, business: null, application: null });
 
     const db = createAdminClient() || supabase;
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
       .select("account_type")
       .eq("user_id", user.id)
       .maybeSingle<{ account_type?: string | null }>();
-    const role = parseUserRole(accountProfile?.account_type || user.user_metadata?.account_type || user.user_metadata?.role);
+    const role = parseUserRole(accountProfile?.account_type) || parseSelfServiceRole(user.user_metadata?.account_type || user.user_metadata?.role);
     if (role !== "business") {
       return NextResponse.json({ error: "Ineligible to non-business account users." }, { status: 403 });
     }
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
 }
 
 async function loadBusinessProfile(db: SupabaseClient, userId: string) {
-  let { data, error } = await db
+  const { data, error } = await db
     .from("business_profiles")
     .select("id, user_id, business_name, contact_name, phone, email, industry, business_type, commission_rate, registration_status")
     .eq("user_id", userId)
