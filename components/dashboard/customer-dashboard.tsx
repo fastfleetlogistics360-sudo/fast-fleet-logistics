@@ -11,6 +11,7 @@ import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
 import { uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
+import { ActiveOrderMessengerSheet } from "@/components/dashboard/active-order-messenger-sheet";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { RoutePreview } from "@/components/maps/route-preview";
@@ -496,6 +497,7 @@ export function CustomerDashboard() {
         </main>
       </div>
       <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
+      <ActiveOrderMessengerSheet orders={orders} hrefForOrder={(order) => messengerHref(order as OrderRow)} />
       <ReviewPrompt subject={reviewSubject} />
     </section>
   );

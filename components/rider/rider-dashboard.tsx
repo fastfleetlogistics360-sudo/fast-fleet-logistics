@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Banknote, Bike, Clock, Home, LayoutDashboard, Loader2, MessageCircle, Navigation2, PackageCheck, Phone, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards } from "lucide-react";
+import { Banknote, Bike, Clock, Home, LayoutDashboard, Loader2, MessageCircle, Navigation2, PackageCheck, Phone, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -405,6 +405,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
   const [offerNotice, setOfferNotice] = useState<string | null>(null);
   const [pickupEtaMinutes, setPickupEtaMinutes] = useState<number | null>(null);
   const [pickupEtaLoading, setPickupEtaLoading] = useState(false);
+  const [activeJobSheetOpen, setActiveJobSheetOpen] = useState(false);
   const desiredOnlineRef = useRef<boolean | null>(null);
   const onlineMutationRef = useRef(false);
 
@@ -430,6 +431,14 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       }
     };
   }, [latestCompletedTrip]);
+
+  useEffect(() => {
+    if (activeJob) {
+      setActiveJobSheetOpen(true);
+    } else {
+      setActiveJobSheetOpen(false);
+    }
+  }, [activeJob?.id, activeJob?.status]);
 
   useEffect(() => {
     if (!onlineSince) return;
@@ -932,17 +941,13 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
               pickupEtaLoading={pickupEtaLoading}
               activeJob={activeJob}
               recentTrips={recentTrips}
-              proofFile={proofFile}
               liveLocation={liveLocation}
               trackingActive={trackingActive}
               trackingMessage={trackingMessage}
               offerNotice={offerNotice}
               onOpenWithdrawal={() => setWithdrawalOpen(true)}
-              onStartTracking={startDeliveryTracking}
-              onStopTracking={stopDeliveryTracking}
-              onProofFile={setProofFile}
+              onOpenActiveJob={() => setActiveJobSheetOpen(true)}
               onRespond={respondToJob}
-              onAdvance={advanceJob}
             />
           ) : null}
           {activeTab === "jobs" ? <JobsTab loading={loading} jobs={jobs} online={online} onToggleOnline={toggleOnline} /> : null}
@@ -951,6 +956,20 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
         </main>
       </div>
 	      <MobileTabs activeTab={activeTab} onChange={setActiveTab} />
+	      {activeJob && activeJobSheetOpen ? (
+	        <ActiveJobBottomSheet
+	          job={activeJob}
+	          proofFile={proofFile}
+	          liveLocation={liveLocation}
+	          trackingActive={trackingActive}
+	          trackingMessage={trackingMessage}
+	          onStartTracking={startDeliveryTracking}
+	          onStopTracking={stopDeliveryTracking}
+	          onProofFile={setProofFile}
+	          onAdvance={advanceJob}
+	          onClose={() => setActiveJobSheetOpen(false)}
+	        />
+	      ) : null}
 	      {online && incomingJob ? <IncomingJobModal job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={respondToJob} /> : null}
 	      {withdrawalOpen ? <WithdrawalModal amount={withdrawalAmount} onAmount={setWithdrawalAmount} profile={profile} loading={withdrawalLoading} message={withdrawalMessage} onClose={() => setWithdrawalOpen(false)} onSubmit={requestWithdrawal} /> : null}
         <ReviewPrompt subject={reviewSubject} />
@@ -990,7 +1009,7 @@ function MobileTabs({ activeTab, onChange }: { activeTab: RiderTab; onChange: (t
   );
 }
 
-function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, recentTrips, proofFile, liveLocation, trackingActive, trackingMessage, offerNotice, onOpenWithdrawal, onStartTracking, onStopTracking, onProofFile, onRespond, onAdvance }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; walletBalance: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; recentTrips: JobRow[]; proofFile: File | null; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onOpenWithdrawal: () => void; onStartTracking: () => void; onStopTracking: () => void; onProofFile: (file: File | null) => void; onRespond: (job: JobRow, accepted: boolean) => void; onAdvance: (job: JobRow) => void }) {
+function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, recentTrips, liveLocation, trackingActive, trackingMessage, offerNotice, onOpenWithdrawal, onOpenActiveJob, onRespond }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; walletBalance: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; recentTrips: JobRow[]; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onOpenWithdrawal: () => void; onOpenActiveJob: () => void; onRespond: (job: JobRow, accepted: boolean) => void }) {
   if (loading) return <DashboardSkeleton />;
   return (
     <div className="grid gap-5">
@@ -1018,7 +1037,7 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, prof
       </div>
       {offerNotice ? <div className="rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-800">{offerNotice}</div> : null}
       {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
-      {activeJob ? <ActiveJob job={activeJob} proofFile={proofFile} liveLocation={liveLocation} trackingActive={trackingActive} trackingMessage={trackingMessage} onStartTracking={onStartTracking} onStopTracking={onStopTracking} onProofFile={onProofFile} onAdvance={onAdvance} /> : null}
+      {activeJob ? <ActiveJobLauncher job={activeJob} trackingActive={trackingActive} trackingMessage={trackingMessage} onOpen={onOpenActiveJob} /> : null}
       {!activeJob ? <Card className="overflow-hidden p-0">
         <RoutePreview
           compact
@@ -1046,6 +1065,31 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, prof
         </div>
       </section>
     </div>
+  );
+}
+
+function ActiveJobLauncher({ job, trackingActive, trackingMessage, onOpen }: { job: JobRow; trackingActive: boolean; trackingMessage: string | null; onOpen: () => void }) {
+  return (
+    <Card className="border-fleet-ember/30 p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[18px] bg-fleet-night text-white shadow-[0_14px_30px_rgba(8,17,31,0.18)]">
+          <MessageCircle className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge tone="blue">Active delivery</StatusBadge>
+            {trackingActive ? <StatusBadge tone="green">Tracking on</StatusBadge> : null}
+          </div>
+          <h2 className="mt-2 break-words text-xl font-black leading-tight text-fleet-night">{job.delivery_code}</h2>
+          <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-slate-600">{job.pickup_address} to {job.dropoff_address}</p>
+          {trackingMessage ? <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{trackingMessage}</p> : null}
+        </div>
+      </div>
+      <Button type="button" className="mt-4 w-full bg-fleet-navy hover:bg-fleet-night" onClick={onOpen}>
+        <MessageCircle className="h-4 w-4" />
+        Open active job messenger
+      </Button>
+    </Card>
   );
 }
 
@@ -1092,6 +1136,62 @@ function IncomingJobModal({ job, expires, pickupEtaMinutes, pickupEtaLoading, li
     <div className="fixed inset-0 z-[110] grid place-items-end bg-fleet-night/35 p-3 sm:place-items-center">
       <div className="w-full max-w-lg">
         <IncomingJob job={job} expires={expires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={onRespond} />
+      </div>
+    </div>
+  );
+}
+
+function ActiveJobBottomSheet({
+  job,
+  proofFile,
+  liveLocation,
+  trackingActive,
+  trackingMessage,
+  onStartTracking,
+  onStopTracking,
+  onProofFile,
+  onAdvance,
+  onClose
+}: {
+  job: JobRow;
+  proofFile: File | null;
+  liveLocation: LiveRiderLocation | null;
+  trackingActive: boolean;
+  trackingMessage: string | null;
+  onStartTracking: () => void;
+  onStopTracking: () => void;
+  onProofFile: (file: File | null) => void;
+  onAdvance: (job: JobRow) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[105] flex items-end bg-fleet-night/35 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
+      <div className="mx-auto max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-t-[28px] bg-fleet-paper shadow-[0_26px_80px_rgba(8,17,31,0.28)] sm:rounded-[28px]">
+        <div className="sticky top-0 z-10 border-b border-fleet-line bg-fleet-paper/95 px-4 pb-3 pt-3 backdrop-blur-xl">
+          <button type="button" onClick={onClose} className="mx-auto mb-3 block h-1.5 w-14 rounded-full bg-slate-300" aria-label="Close active job messenger" />
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[0.65rem] font-black uppercase tracking-[0.12em] text-fleet-ember">Ongoing job messenger</span>
+              <h2 className="mt-1 text-lg font-black leading-tight text-fleet-night">{job.delivery_code}</h2>
+            </div>
+            <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-slate-500 shadow-[0_10px_24px_rgba(8,17,31,0.08)]" aria-label="Close active job messenger">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="p-3 sm:p-4">
+          <ActiveJob
+            job={job}
+            proofFile={proofFile}
+            liveLocation={liveLocation}
+            trackingActive={trackingActive}
+            trackingMessage={trackingMessage}
+            onStartTracking={onStartTracking}
+            onStopTracking={onStopTracking}
+            onProofFile={onProofFile}
+            onAdvance={onAdvance}
+          />
+        </div>
       </div>
     </div>
   );

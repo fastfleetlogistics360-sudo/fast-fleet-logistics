@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, ChevronDown, ExternalLink, Loader2, MapPin, MessageCircle, Minus, Plus, ShoppingBag, ShoppingCart } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Loader2, MapPin, MessageCircle, Minus, Plus, ShoppingBag, ShoppingCart } from "lucide-react";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
@@ -149,6 +149,8 @@ function ShoppingStorefront({
   const [address, setAddress] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activeVendorFilter, setActiveVendorFilter] = useState("all");
+  const checkoutRef = useRef<HTMLDivElement | null>(null);
 
   const selectedVendor = useMemo(() => (vendorId ? findShoppingVendor(malls, vendorId, category) : null), [category, malls, vendorId]);
   const categoryGroup = useMemo(() => (category ? findShoppingCategoryGroup(malls, category) : null), [category, malls]);
@@ -157,7 +159,19 @@ function ShoppingStorefront({
     if (categoryGroup) return [categoryGroup];
     return buildShoppingCategoryGroups(malls);
   }, [categoryGroup, malls, selectedVendor]);
-  const vendors = visibleGroups.flatMap((group) => group.vendors);
+  const vendors = useMemo(() => visibleGroups.flatMap((group) => group.vendors), [visibleGroups]);
+  const vendorFilters = useMemo(
+    () => [
+      { id: "all", label: "All Items" },
+      ...vendors.map((vendor) => ({ id: vendorKey(vendor), label: vendor.store.name }))
+    ],
+    [vendors]
+  );
+  const displayedVendors = useMemo(
+    () => (activeVendorFilter === "all" || selectedVendor ? vendors : vendors.filter((vendor) => vendorKey(vendor) === activeVendorFilter)),
+    [activeVendorFilter, selectedVendor, vendors]
+  );
+  const displayedProductCount = displayedVendors.reduce((count, vendor) => count + vendor.store.products.length, 0);
 
   const cartItems = useMemo(() => Object.values(cart), [cart]);
   const checkoutItems = useMemo(
@@ -182,6 +196,14 @@ function ShoppingStorefront({
   const pageBody = selectedVendor
     ? `Order directly from ${selectedVendor.store.name}. This advert link opens the vendor storefront without changing the existing checkout flow.`
     : `Choose a ${meta.label.toLowerCase()} vendor, open their products, add items, and checkout with Squad.`;
+
+  useEffect(() => {
+    if (selectedVendor) {
+      setActiveVendorFilter("all");
+      return;
+    }
+    if (activeVendorFilter !== "all" && !vendorFilters.some((filter) => filter.id === activeVendorFilter)) setActiveVendorFilter("all");
+  }, [activeVendorFilter, selectedVendor, vendorFilters]);
 
   function changeQuantity(mall: ShoppingMall, vendor: MallStore, product: MallProduct, delta: number) {
     if (typeof product.price !== "number") return;
@@ -329,8 +351,25 @@ function ShoppingStorefront({
                     Fast Fleets 360 estimates delivery after your address and adds a {formatMoney(platformFee)} platform fee.
                   </p>
                 </div>
-                <StatusBadge tone="green">{vendors.length} vendors</StatusBadge>
+                <StatusBadge tone="green">{displayedProductCount} products</StatusBadge>
               </div>
+              {!selectedVendor && vendorFilters.length > 2 ? (
+                <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto pb-1">
+                  {vendorFilters.map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => setActiveVendorFilter(filter.id)}
+                      className={cn(
+                        "inline-flex min-h-10 shrink-0 items-center rounded-full px-4 text-sm font-black transition",
+                        activeVendorFilter === filter.id ? "bg-fleet-ember text-white shadow-[0_12px_26px_rgba(244,126,24,0.20)]" : "bg-fleet-paper text-fleet-night hover:bg-white hover:shadow-[0_10px_24px_rgba(8,17,31,0.08)]"
+                      )}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             {vendors.length === 0 ? (
@@ -343,24 +382,22 @@ function ShoppingStorefront({
                 </Link>
               </Card>
             ) : (
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {visibleGroups.flatMap((group) =>
-                  group.vendors.map((vendor) => (
-                    <ShoppingVendorCard
-                      key={`${vendor.mall.id}:${vendor.store.id}`}
-                      vendor={vendor}
-                      cart={cart}
-                      defaultOpen={Boolean(selectedVendor)}
-                      showVendorLink={!selectedVendor}
-                      onQuantity={changeQuantity}
-                      onAskPrice={askPrice}
-                    />
-                  ))
-                )}
+              <div className="mt-5 grid gap-4">
+                {displayedVendors.map((vendor) => (
+                  <ShoppingVendorMenuSection
+                    key={`${vendor.mall.id}:${vendor.store.id}`}
+                    vendor={vendor}
+                    cart={cart}
+                    showVendorLink={!selectedVendor}
+                    onQuantity={changeQuantity}
+                    onAskPrice={askPrice}
+                  />
+                ))}
               </div>
             )}
           </div>
 
+          <div ref={checkoutRef}>
           <Card className="p-4 sm:p-5 lg:sticky lg:top-24">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -404,23 +441,23 @@ function ShoppingStorefront({
             </div>
             {message || estimateError ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{message || estimateError}</div> : null}
           </Card>
+          </div>
         </div>
+        <MobileCartBar count={cartItems.length} total={finalTotal} label="Your Order" onOpen={() => checkoutRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} />
       </section>
     </>
   );
 }
 
-function ShoppingVendorCard({
+function ShoppingVendorMenuSection({
   vendor,
   cart,
-  defaultOpen,
   showVendorLink,
   onQuantity,
   onAskPrice
 }: {
   vendor: ShoppingCategoryVendor;
   cart: Record<string, CartItem>;
-  defaultOpen: boolean;
   showVendorLink: boolean;
   onQuantity: (mall: ShoppingMall, vendor: MallStore, product: MallProduct, delta: number) => void;
   onAskPrice: (product: MallProduct, vendor: MallStore, mall: ShoppingMall) => void;
@@ -428,87 +465,65 @@ function ShoppingVendorCard({
   const { mall, store } = vendor;
   const vendorImage = getShoppingStoreImage(store, mall);
   const categoryLabel = shoppingCategoryLabel(store.category);
-  const [expanded, setExpanded] = useState(defaultOpen);
-
-  useEffect(() => {
-    if (defaultOpen) setExpanded(true);
-  }, [defaultOpen]);
 
   return (
-    <details
-      open={expanded}
-      onToggle={(event) => setExpanded(event.currentTarget.open)}
-      className="group overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.06)] transition duration-200 hover:border-fleet-ember"
-    >
-      <summary className="block cursor-pointer list-none marker:hidden [&::-webkit-details-marker]:hidden">
-        <div className="relative aspect-[16/10] overflow-hidden bg-fleet-paper">
-          <img src={vendorImage} alt={store.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+    <section className="overflow-hidden rounded-[20px] border border-fleet-line bg-white shadow-[0_12px_28px_rgba(8,17,31,0.07)]">
+      <div className="grid gap-0 md:grid-cols-[190px_1fr]">
+        <div className="relative h-36 overflow-hidden bg-fleet-paper md:h-full">
+          <img src={vendorImage} alt={store.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
           <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-fleet-ember shadow-[0_10px_24px_rgba(8,17,31,0.12)]">
             {categoryLabel}
           </span>
         </div>
-        <div className="p-3 sm:p-4">
-          <div className="flex items-start justify-between gap-3">
-            <span className="min-w-0">
-              <strong className="line-clamp-1 block text-base font-black leading-tight text-fleet-night">{store.name}</strong>
-              <span className="mt-1 line-clamp-1 block text-xs font-bold leading-5 text-slate-500">{store.products.length} products available</span>
-            </span>
-            <ChevronDown className="mt-0.5 h-5 w-5 shrink-0 text-fleet-ember transition group-open:rotate-180" />
+        <div className="p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h3 className="break-words text-xl font-black leading-tight text-fleet-night">{store.name}</h3>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">{store.products.length} products available</p>
+            </div>
+            {showVendorLink ? (
+              <Link href={shoppingVendorCategoryPath(store)} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-fleet border border-fleet-line bg-white px-3 text-xs font-black text-fleet-night transition hover:border-fleet-ember">
+                Open vendor page
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            ) : null}
           </div>
           <span className="mt-3 flex items-start gap-1.5 text-xs font-bold leading-5 text-slate-500">
             <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
             <span className="line-clamp-2">{mall.location || mall.name}</span>
           </span>
-          <div className="mt-4 grid gap-2">
-            <span className="inline-flex min-h-9 w-full items-center justify-center rounded-fleet bg-fleet-night px-3 text-xs font-black text-white transition group-hover:bg-fleet-ember">
-              View products
-            </span>
-            {showVendorLink ? (
-              <Link
-                href={shoppingVendorCategoryPath(store)}
-                onClick={(event) => event.stopPropagation()}
-                className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-fleet border border-fleet-line bg-white px-3 text-xs font-black text-fleet-night transition hover:border-fleet-ember"
-              >
-                Open vendor page
-                <ExternalLink className="h-3.5 w-3.5" />
-              </Link>
-            ) : null}
-          </div>
         </div>
-      </summary>
-      {expanded ? <div className="grid max-h-[420px] gap-2 overflow-y-auto border-t border-fleet-line bg-fleet-paper/55 p-3">
+      </div>
+      <div className="grid gap-3 border-t border-fleet-line bg-fleet-paper/55 p-3 sm:p-4">
         {store.products.map((product) => {
           const key = cartKey(mall.id, store.id, product.id);
           const quantity = cart[key]?.quantity || 0;
           const price = typeof product.price === "number" ? product.price : null;
           const canBuy = product.available && price !== null;
           return (
-            <article key={key} className="rounded-fleet border border-fleet-line bg-white p-2.5">
-              <div className="grid grid-cols-[56px_1fr] items-start gap-2">
-                <img src={product.image} alt={product.name} loading="lazy" decoding="async" className="h-14 w-14 rounded-fleet object-cover" />
-                <span className="min-w-0">
-                  <strong className="line-clamp-1 block text-xs font-black text-fleet-night">{product.name}</strong>
-                  <span className="mt-0.5 block text-[0.68rem] font-bold text-slate-500">{store.name} · {price !== null ? formatMoney(price) : "Ask price"}</span>
-                </span>
+            <article key={key} className="grid gap-3 rounded-[18px] border border-fleet-line bg-white p-3 shadow-[0_8px_18px_rgba(8,17,31,0.05)] sm:grid-cols-[92px_1fr_auto] sm:items-center">
+              <img src={product.image || vendorImage} alt={product.name} loading="lazy" decoding="async" className="h-24 w-full rounded-[16px] object-cover sm:h-24 sm:w-24" />
+              <div className="min-w-0">
+                <span className="rounded-full bg-fleet-paper px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-fleet-ember">{categoryLabel}</span>
+                <h4 className="mt-2 break-words text-base font-black leading-tight text-fleet-night sm:text-lg">{product.name}</h4>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">{store.name}</p>
+                <strong className="mt-2 block text-xl font-black text-fleet-ember">{price !== null ? formatMoney(price) : "Ask price"}</strong>
               </div>
               {canBuy ? (
-                <div className="mt-3 flex items-center justify-between gap-2">
-                  <div className="inline-flex items-center gap-1 rounded-fleet bg-fleet-paper p-1">
-                    <button type="button" onClick={() => onQuantity(mall, store, product, -1)} className="grid h-8 w-8 place-items-center rounded-fleet text-fleet-night" aria-label={`Remove ${product.name}`}>
-                      <Minus className="h-3.5 w-3.5" />
+                <div className="flex items-center justify-between gap-3 sm:min-w-[170px] sm:flex-col sm:items-end">
+                  <div className="inline-flex h-12 items-center rounded-[16px] bg-fleet-paper p-1">
+                    <button type="button" onClick={() => onQuantity(mall, store, product, -1)} className="grid h-10 w-10 place-items-center rounded-[14px] text-fleet-night" aria-label={`Remove ${product.name}`}>
+                      <Minus className="h-4 w-4" />
                     </button>
-                    <span className="min-w-7 text-center text-xs font-black text-fleet-night">{quantity}</span>
-                    <button type="button" onClick={() => onQuantity(mall, store, product, 1)} className="grid h-8 w-8 place-items-center rounded-fleet bg-fleet-night text-white" aria-label={`Add ${product.name}`}>
-                      <Plus className="h-3.5 w-3.5" />
+                    <span className="min-w-10 text-center text-sm font-black text-fleet-night">{quantity}</span>
+                    <button type="button" onClick={() => onQuantity(mall, store, product, 1)} className="grid h-10 w-10 place-items-center rounded-[14px] bg-fleet-night text-white shadow-[0_10px_22px_rgba(8,17,31,0.18)]" aria-label={`Add ${product.name}`}>
+                      <Plus className="h-4 w-4" />
                     </button>
                   </div>
-                  <Button type="button" size="sm" onClick={() => onQuantity(mall, store, product, 1)}>
-                    <ShoppingCart className="h-4 w-4" />
-                    Add
-                  </Button>
+                  <span className="text-sm font-black text-fleet-night">{formatMoney(quantity * Number(price || 0))}</span>
                 </div>
               ) : (
-                <Button type="button" size="sm" variant="dark" onClick={() => onAskPrice(product, store, mall)} className="mt-3 w-full">
+                <Button type="button" size="sm" variant="dark" onClick={() => onAskPrice(product, store, mall)} className="w-full sm:w-auto">
                   <MessageCircle className="h-4 w-4" />
                   Ask Price
                 </Button>
@@ -516,8 +531,25 @@ function ShoppingVendorCard({
             </article>
           );
         })}
-      </div> : null}
-    </details>
+      </div>
+    </section>
+  );
+}
+
+function MobileCartBar({ count, total, label, onOpen }: { count: number; total: number; label: string; onOpen: () => void }) {
+  if (!count) return null;
+  return (
+    <div className="fixed inset-x-3 bottom-24 z-40 mx-auto flex max-w-xl items-center gap-3 rounded-[20px] border border-fleet-ember/20 bg-white/95 p-3 shadow-[0_18px_48px_rgba(8,17,31,0.18)] backdrop-blur-2xl lg:hidden">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[16px] bg-orange-50 text-fleet-ember">
+        <ShoppingCart className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <strong className="block text-sm font-black text-fleet-night">{label}</strong>
+        <span className="text-xs font-bold text-slate-500">{count} item{count === 1 ? "" : "s"}</span>
+      </span>
+      <strong className="text-sm font-black text-fleet-night">{formatMoney(total)}</strong>
+      <Button type="button" size="sm" onClick={onOpen}>View Cart</Button>
+    </div>
   );
 }
 
@@ -571,4 +603,8 @@ function Summary({ label, value, strong = false }: { label: string; value: strin
 
 function cartKey(mallId: string, vendorId: string, productId: string) {
   return `${mallId}:${vendorId}:${productId}`;
+}
+
+function vendorKey(vendor: ShoppingCategoryVendor) {
+  return `${vendor.mall.id}:${vendor.store.id}`;
 }

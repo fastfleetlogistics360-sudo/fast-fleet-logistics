@@ -2,13 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type UIEvent } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, ChevronDown, Loader2, MapPin, Minus, Plus, ShoppingCart, Utensils } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Loader2, MapPin, Minus, Plus, ShoppingCart, Utensils } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { cn } from "@/lib/cn";
-import { Button, LinkButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
 import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
@@ -120,9 +119,8 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const [address, setAddress] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [activeStore, setActiveStore] = useState(0);
-  const storeRefs = useRef<Array<HTMLElement | null>>([]);
-  const reduceMotion = useReducedMotion();
+  const [activeMenuType, setActiveMenuType] = useState("All Items");
+  const checkoutRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setLiveStores(stores);
@@ -169,22 +167,29 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const platformFee = estimate?.platformFee ?? PLATFORM_CHECKOUT_FEE_NGN;
   const deliveryFee = estimate?.deliveryFee ?? 0;
   const total = estimate?.total ?? itemsTotal + platformFee;
+  const menuTypes = useMemo(() => {
+    const types = liveStores.flatMap((store) => store.items.map((item) => item.type).filter(Boolean));
+    return ["All Items", ...Array.from(new Set(types))];
+  }, [liveStores]);
+  const menuItems = useMemo(
+    () =>
+      liveStores
+        .flatMap((store) =>
+          store.items.map((item) => {
+            const key = itemKey(store.name, item.name);
+            return { store, item, key, quantity: quantities[key] || 0 };
+          })
+        )
+        .filter(({ item }) => activeMenuType === "All Items" || item.type === activeMenuType),
+    [activeMenuType, liveStores, quantities]
+  );
+
+  useEffect(() => {
+    if (!menuTypes.includes(activeMenuType)) setActiveMenuType("All Items");
+  }, [activeMenuType, menuTypes]);
 
   function changeQuantity(key: string, delta: number) {
     setQuantities((current) => ({ ...current, [key]: Math.max(0, (current[key] || 0) + delta) }));
-  }
-
-  function handleStoreScroll(event: UIEvent<HTMLDivElement>) {
-    const firstCard = storeRefs.current[0];
-    if (!firstCard) return;
-    const gap = 12;
-    const nextIndex = Math.round(event.currentTarget.scrollLeft / (firstCard.offsetWidth + gap));
-    setActiveStore(Math.max(0, Math.min(liveStores.length - 1, nextIndex)));
-  }
-
-  function goToStore(index: number) {
-    storeRefs.current[index]?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", inline: "start", block: "nearest" });
-    setActiveStore(index);
   }
 
   async function checkout() {
@@ -289,47 +294,48 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
         <div className="min-w-0">
           <div className="rounded-fleet border border-fleet-line bg-white p-4 shadow-[0_10px_24px_rgba(8,17,31,0.06)] sm:p-5">
-          <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Checkout</span>
-          <h2 className="mt-2 break-words text-xl font-black leading-tight text-fleet-night sm:text-2xl">Choose. Add. Pay.</h2>
-          <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
-            Fast Fleets 360 estimates delivery after your address and adds a {formatMoney(platformFee)} platform fee.
-          </p>
-          </div>
-
-          <div
-            className="mt-5 flex w-full snap-x gap-3 overflow-x-auto pb-5 pr-4 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:gap-3 lg:overflow-visible lg:pr-0 xl:grid-cols-3 [&::-webkit-scrollbar]:hidden"
-            onScroll={handleStoreScroll}
-          >
-            {liveStores.map((store, index) => (
-              <RestaurantStoreCard
-                key={store.id || store.name}
-                store={store}
-                index={index}
-                quantities={quantities}
-                reduceMotion={Boolean(reduceMotion)}
-                defaultOpen={liveStores.length === 1}
-                onQuantity={changeQuantity}
-                refCallback={(node) => {
-                  storeRefs.current[index] = node;
-                }}
-              />
-            ))}
-          </div>
-          {liveStores.length > 1 ? (
-            <div className="mt-1 flex justify-center gap-2 lg:hidden" aria-label={`${kind} pages`}>
-              {liveStores.map((store, index) => (
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Menu</span>
+                <h2 className="mt-2 break-words text-xl font-black leading-tight text-fleet-night sm:text-2xl">Pick from the open menu.</h2>
+                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+                  Fast Fleets 360 estimates delivery after your address and adds a {formatMoney(platformFee)} platform fee.
+                </p>
+              </div>
+              <StatusBadge tone="green">{menuItems.length} items</StatusBadge>
+            </div>
+            <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto pb-1">
+              {menuTypes.map((type) => (
                 <button
-                  key={store.id || store.name}
+                  key={type}
                   type="button"
-                  aria-label={`Show ${store.name}`}
-                  onClick={() => goToStore(index)}
-                  className={cn("h-2 rounded-full transition-all", activeStore === index ? "w-6 bg-fleet-ember" : "w-2 bg-slate-300")}
-                />
+                  onClick={() => setActiveMenuType(type)}
+                  className={cn(
+                    "inline-flex min-h-10 shrink-0 items-center rounded-full px-4 text-sm font-black transition",
+                    activeMenuType === type ? "bg-fleet-ember text-white shadow-[0_12px_26px_rgba(244,126,24,0.20)]" : "bg-fleet-paper text-fleet-night hover:bg-white hover:shadow-[0_10px_24px_rgba(8,17,31,0.08)]"
+                  )}
+                >
+                  {type}
+                </button>
               ))}
             </div>
-          ) : null}
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            {menuItems.length ? (
+              menuItems.map(({ store, item, key, quantity }) => (
+                <RestaurantMenuItemCard key={key} store={store} item={item} itemKeyValue={key} quantity={quantity} showStoreName={liveStores.length > 1} onQuantity={changeQuantity} />
+              ))
+            ) : (
+              <Card className="p-5 text-center">
+                <h3 className="text-xl font-black text-fleet-night">No items here yet</h3>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Try another menu category.</p>
+              </Card>
+            )}
+          </div>
         </div>
 
+        <div ref={checkoutRef}>
         <Card className="p-4 sm:p-5 lg:sticky lg:top-24">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -370,120 +376,85 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           </div>
           {message || estimateError ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{message || estimateError}</div> : null}
         </Card>
+        </div>
       </div>
+      <MobileCartBar count={selectedItems.length} total={total} label="Your Order" onOpen={() => checkoutRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} />
     </section>
     </>
   );
 }
 
-function RestaurantStoreCard({
+function RestaurantMenuItemCard({
   store,
-  index,
-  quantities,
-  reduceMotion,
-  defaultOpen,
+  item,
+  itemKeyValue,
+  quantity,
+  showStoreName,
   onQuantity,
-  refCallback
 }: {
   store: Store;
-  index: number;
-  quantities: Record<string, number>;
-  reduceMotion: boolean;
-  defaultOpen: boolean;
+  item: StoreItem;
+  itemKeyValue: string;
+  quantity: number;
+  showStoreName: boolean;
   onQuantity: (key: string, delta: number) => void;
-  refCallback: (node: HTMLElement | null) => void;
 }) {
   return (
-    <motion.details
-      ref={refCallback}
-      open={defaultOpen || undefined}
-      className="group w-[260px] max-w-[72vw] shrink-0 snap-start overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_12px_26px_rgba(8,17,31,0.08)] transition duration-300 lg:w-auto lg:max-w-none"
-      initial={reduceMotion ? false : { opacity: 0, y: 26 }}
-      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-      whileHover={reduceMotion ? undefined : { y: -5, scale: 1.01 }}
-      whileTap={reduceMotion ? undefined : { scale: 0.99 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.5, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
-    >
-      <summary className="block cursor-pointer list-none marker:hidden [&::-webkit-details-marker]:hidden">
-        <div className="relative aspect-[4/3] overflow-hidden bg-fleet-paper">
-          {store.imageUrl ? (
-            <Image src={store.imageUrl} alt={store.name} fill sizes="(min-width: 1024px) 33vw, 82vw" quality={64} loading="lazy" className="object-cover transition duration-500 group-hover:scale-105" />
-          ) : (
-            <div className="grid h-full w-full place-items-center bg-fleet-paper text-fleet-ember">
-              <Utensils className="h-8 w-8" />
-            </div>
-          )}
-          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-fleet-ember shadow-[0_10px_24px_rgba(8,17,31,0.12)]">
-            {store.area}
-          </span>
-        </div>
-        <div className="p-3 sm:p-4">
-          <div className="flex items-start justify-between gap-3">
-            <span className="min-w-0">
-              <strong className="line-clamp-1 block text-base font-black leading-tight text-fleet-night">{store.name}</strong>
-              <span className="mt-1 line-clamp-1 block text-xs font-bold leading-5 text-slate-500">{store.area}</span>
-            </span>
-            <ChevronDown className="mt-0.5 h-5 w-5 shrink-0 text-fleet-ember transition group-open:rotate-180" />
+    <article className="grid gap-3 rounded-[20px] border border-fleet-line bg-white p-3 shadow-[0_12px_28px_rgba(8,17,31,0.07)] transition hover:border-fleet-ember sm:grid-cols-[112px_1fr_auto] sm:items-center">
+      <div className="relative h-28 overflow-hidden rounded-[16px] bg-fleet-paper sm:h-28 sm:w-28">
+        {item.imageUrl ? (
+          <Image src={item.imageUrl} alt={item.name} fill sizes="112px" quality={64} loading="lazy" className="object-cover" />
+        ) : (
+          <div className="grid h-full w-full place-items-center text-fleet-ember">
+            <Utensils className="h-7 w-7" />
           </div>
-          {store.address ? (
-            <span className="mt-3 flex items-start gap-1.5 text-xs font-bold leading-5 text-slate-500">
-              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
-              <span className="line-clamp-2">{store.address}</span>
-            </span>
-          ) : null}
-          {store.mealTypes?.length ? (
-            <span className="mt-3 flex flex-wrap gap-1.5">
-              {store.mealTypes.slice(0, 3).map((mealType) => (
-                <span key={mealType} className="rounded-full bg-fleet-paper px-2 py-1 text-[0.6rem] font-black uppercase tracking-[0.08em] text-slate-500">
-                  {mealType}
-                </span>
-              ))}
-            </span>
-          ) : null}
-          <span className="mt-4 inline-flex min-h-9 w-full items-center justify-center rounded-fleet bg-fleet-night px-3 text-xs font-black text-white transition group-hover:bg-fleet-ember">
-            View menu
-          </span>
-          <LinkButton href={`/restaurants/${store.id || itemKey(store.name, "kitchen")}`} size="sm" variant="secondary" className="mt-2 w-full" onClick={(event) => event.stopPropagation()}>
-            Open kitchen page
-          </LinkButton>
-        </div>
-      </summary>
-      <div className="grid max-h-[360px] gap-2 overflow-y-auto border-t border-fleet-line bg-fleet-paper/55 p-3">
-        {store.items.map((item) => {
-          const key = itemKey(store.name, item.name);
-          const quantity = quantities[key] || 0;
-          return (
-            <article key={key} className="rounded-fleet border border-fleet-line bg-white p-2.5">
-              <div className="grid grid-cols-[48px_1fr] items-start gap-2">
-                {item.imageUrl ? (
-                  <Image src={item.imageUrl} alt={item.name} width={48} height={48} sizes="48px" quality={60} loading="lazy" className="h-12 w-12 rounded-fleet object-cover" />
-                ) : (
-                  <span className="h-12 w-12 rounded-fleet bg-fleet-paper" />
-                )}
-                <span className="min-w-0">
-                  <strong className="line-clamp-1 block text-xs font-black text-fleet-night">{item.name}</strong>
-                  <span className="mt-0.5 block text-[0.68rem] font-bold text-slate-500">{item.type} · {item.portion || "1 portion"}</span>
-                  <strong className="mt-1 block text-xs font-black text-fleet-ember">{formatMoney(item.price)}</strong>
-                </span>
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <div className="inline-flex items-center gap-1 rounded-fleet bg-fleet-paper p-1">
-                  <button type="button" onClick={() => onQuantity(key, -1)} className="grid h-8 w-8 place-items-center rounded-fleet text-fleet-night" aria-label={`Remove ${item.name}`}>
-                    <Minus className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="min-w-7 text-center text-xs font-black text-fleet-night">{quantity}</span>
-                  <button type="button" onClick={() => onQuantity(key, 1)} className="grid h-8 w-8 place-items-center rounded-fleet bg-fleet-night text-white" aria-label={`Add ${item.name}`}>
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <span className="text-xs font-black text-fleet-night">{formatMoney(quantity * item.price)}</span>
-              </div>
-            </article>
-          );
-        })}
+        )}
       </div>
-    </motion.details>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-fleet-paper px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-fleet-ember">{item.type}</span>
+          {showStoreName ? <span className="rounded-full bg-fleet-paper px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-slate-500">{store.name}</span> : null}
+        </div>
+        <h3 className="mt-2 break-words text-lg font-black leading-tight text-fleet-night">{item.name}</h3>
+        <p className="mt-1 text-sm font-bold leading-6 text-slate-500">{item.portion || "1 portion"}</p>
+        {store.address ? (
+          <span className="mt-2 flex items-start gap-1.5 text-xs font-bold leading-5 text-slate-500">
+            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
+            <span className="line-clamp-2">{store.address}</span>
+          </span>
+        ) : null}
+        <strong className="mt-3 block text-xl font-black text-fleet-ember">{formatMoney(item.price)}</strong>
+      </div>
+      <div className="flex items-center justify-between gap-3 sm:min-w-[170px] sm:flex-col sm:items-end">
+        <div className="inline-flex h-12 items-center rounded-[16px] bg-fleet-paper p-1">
+          <button type="button" onClick={() => onQuantity(itemKeyValue, -1)} className="grid h-10 w-10 place-items-center rounded-[14px] text-fleet-night" aria-label={`Remove ${item.name}`}>
+            <Minus className="h-4 w-4" />
+          </button>
+          <span className="min-w-10 text-center text-sm font-black text-fleet-night">{quantity}</span>
+          <button type="button" onClick={() => onQuantity(itemKeyValue, 1)} className="grid h-10 w-10 place-items-center rounded-[14px] bg-fleet-night text-white shadow-[0_10px_22px_rgba(8,17,31,0.18)]" aria-label={`Add ${item.name}`}>
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+        <strong className="text-sm font-black text-fleet-night">{formatMoney(quantity * item.price)}</strong>
+      </div>
+    </article>
+  );
+}
+
+function MobileCartBar({ count, total, label, onOpen }: { count: number; total: number; label: string; onOpen: () => void }) {
+  if (!count) return null;
+  return (
+    <div className="fixed inset-x-3 bottom-24 z-40 mx-auto flex max-w-xl items-center gap-3 rounded-[20px] border border-fleet-ember/20 bg-white/95 p-3 shadow-[0_18px_48px_rgba(8,17,31,0.18)] backdrop-blur-2xl lg:hidden">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[16px] bg-orange-50 text-fleet-ember">
+        <ShoppingCart className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <strong className="block text-sm font-black text-fleet-night">{label}</strong>
+        <span className="text-xs font-bold text-slate-500">{count} item{count === 1 ? "" : "s"}</span>
+      </span>
+      <strong className="text-sm font-black text-fleet-night">{formatMoney(total)}</strong>
+      <Button type="button" size="sm" onClick={onOpen}>View Cart</Button>
+    </div>
   );
 }
 
