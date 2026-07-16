@@ -54,9 +54,10 @@ For the Next app, set these in your host environment:
 NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-FASTFLEET_ADMIN_USERNAME=FastFleetAdmin
-FASTFLEET_ADMIN_PASSWORD=change-this-before-launch
-FASTFLEET_ADMIN_SECRET=long-random-secret
+FASTFLEET_ADMIN_USERNAME=
+FASTFLEET_ADMIN_PASSWORD=
+FASTFLEET_ADMIN_SECRET=
+FASTFLEET_ADMIN_USER_ID=
 SQUAD_SECRET_KEY=your-live-or-test-squad-secret
 SQUAD_BASE_URL=https://sandbox-api-d.squadco.com
 SQUAD_CALLBACK_ORIGIN=https://your-domain.com

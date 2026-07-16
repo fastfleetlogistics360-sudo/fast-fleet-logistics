@@ -204,9 +204,10 @@ Minimum local values:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-FASTFLEET_ADMIN_USERNAME=FastFleetAdmin
-FASTFLEET_ADMIN_PASSWORD="change-this"
-FASTFLEET_ADMIN_SECRET=change-this-long-random-secret
+FASTFLEET_ADMIN_USERNAME=
+FASTFLEET_ADMIN_PASSWORD=
+FASTFLEET_ADMIN_SECRET=
+FASTFLEET_ADMIN_USER_ID=
 SQUAD_SECRET_KEY=sandbox_or_live_squad_secret_key
 SQUAD_BASE_URL=https://sandbox-api-d.squadco.com
 SQUAD_CALLBACK_ORIGIN=http://localhost:3000
@@ -270,9 +271,9 @@ Environment variables control backend behavior. Anything with `NEXT_PUBLIC_` is 
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Yes | Supabase public anon key used by browser/server auth client. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes for admin/server writes | No | Powerful Supabase key that bypasses RLS. Never expose it to browser code. |
 | `FASTFLEET_ADMIN_USERNAME` | Yes | No | Admin login username for `/admin`. |
-| `FASTFLEET_ADMIN_PASSWORD` | Yes | No | Admin login password for `/admin`. Change before production. |
-| `FASTFLEET_ADMIN_SECRET` | Yes | No | Secret used to sign admin session cookie. |
-| `FASTFLEET_ADMIN_REQUIRE_SUPABASE_PROFILE` | Optional | No | If `true`, admin cookie must also match a Supabase profile with `is_admin=true`. |
+| `FASTFLEET_ADMIN_PASSWORD` | Yes | No | Admin login password for `/admin`. |
+| `FASTFLEET_ADMIN_SECRET` | Yes | No | Secret of at least 32 characters used to sign admin session cookies. |
+| `FASTFLEET_ADMIN_USER_ID` | Yes | No | Stable Supabase Auth user UUID linked to the dedicated admin credentials. |
 | `SQUAD_SECRET_KEY` | Yes for payments | No | Squad secret key for initialization and verification. |
 | `SQUAD_BASE_URL` | Optional | No | Overrides the Squad API origin. Use sandbox or live base URL to match the key. |
 | `SQUAD_CALLBACK_ORIGIN` | Optional | No | Overrides callback origin for Squad redirects. |
@@ -420,15 +421,15 @@ How admin session works:
 
 1. Admin submits username/password to `/api/admin/login`.
 2. The route verifies credentials from env vars.
-3. It sets an HTTP-only cookie named `fastfleet_admin_session`.
-4. Admin API routes call `requireAdminSession()`.
-5. If `FASTFLEET_ADMIN_REQUIRE_SUPABASE_PROFILE=true`, the admin must also be signed into Supabase and have `profiles.is_admin=true`.
+3. The linked Supabase Auth user must still exist, be enabled, and have a non-deleted profile with `is_admin=true`.
+4. It sets a signed, expiring HTTP-only cookie named `fastfleet_admin_session`.
+5. Admin pages and API routes call `requireAdminSession()`, which repeats the Supabase authorization check on every request.
 
 Production recommendation:
 
-- Change the default admin username/password.
+- Set unique admin credentials; there are no defaults.
 - Set a strong `FASTFLEET_ADMIN_SECRET`.
-- Consider enabling `FASTFLEET_ADMIN_REQUIRE_SUPABASE_PROFILE=true`.
+- Link the credentials to the intended administrator with `FASTFLEET_ADMIN_USER_ID`.
 
 ## 8. Frontend Route Map
 
@@ -1368,8 +1369,8 @@ Rules:
 
 - Every `/api/admin/*` route should call `requireAdminSession()`.
 - Keep admin cookie HTTP-only.
-- For stronger production security, set `FASTFLEET_ADMIN_REQUIRE_SUPABASE_PROFILE=true`.
-- If using Supabase admin profiles, set `profiles.is_admin=true` for trusted admin users.
+- Require the configured `FASTFLEET_ADMIN_USER_ID` to have `profiles.is_admin=true`.
+- Pass mutating requests into `requireAdminSession(request)` so same-origin enforcement runs.
 - Do not expose admin-only data through public routes.
 
 ### 12.13 How to change file upload behavior
@@ -1626,7 +1627,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-production-service-role-key
 FASTFLEET_ADMIN_USERNAME=your-admin-username
 FASTFLEET_ADMIN_PASSWORD=your-strong-admin-password
-FASTFLEET_ADMIN_SECRET=long-random-secret
+FASTFLEET_ADMIN_SECRET=your-random-secret-of-at-least-32-characters
+FASTFLEET_ADMIN_USER_ID=your-supabase-admin-user-uuid
 SQUAD_SECRET_KEY=your-live-squad-secret
 SQUAD_BASE_URL=https://api-d.squadco.com
 SQUAD_CALLBACK_ORIGIN=https://your-domain.com
@@ -1639,7 +1641,6 @@ NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false
 Recommended:
 
 ```bash
-FASTFLEET_ADMIN_REQUIRE_SUPABASE_PROFILE=true
 CRON_SECRET=long-random-secret
 ```
 
@@ -1834,7 +1835,7 @@ Check:
 - `SUPABASE_SERVICE_ROLE_KEY` is set.
 - API route calls `requireAdminSession()`.
 - Supabase schema has required columns.
-- If `FASTFLEET_ADMIN_REQUIRE_SUPABASE_PROFILE=true`, current Supabase user has `profiles.is_admin=true`.
+- `FASTFLEET_ADMIN_USER_ID` identifies an enabled Supabase Auth user whose non-deleted profile has `is_admin=true`.
 
 ### File upload fails
 

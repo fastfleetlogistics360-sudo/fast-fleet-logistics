@@ -28,9 +28,10 @@ Create `.env.local` from `.env.example`:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-FASTFLEET_ADMIN_USERNAME=FastFleetAdmin
-FASTFLEET_ADMIN_PASSWORD="Fastfleet360@#"
-FASTFLEET_ADMIN_SECRET=change-this-long-random-secret
+FASTFLEET_ADMIN_USERNAME=
+FASTFLEET_ADMIN_PASSWORD=
+FASTFLEET_ADMIN_SECRET=
+FASTFLEET_ADMIN_USER_ID=
 SQUAD_SECRET_KEY=sandbox_or_live_squad_secret_key
 SQUAD_BASE_URL=https://sandbox-api-d.squadco.com
 SQUAD_CALLBACK_ORIGIN=http://localhost:3000
@@ -61,10 +62,8 @@ Set `SQUAD_SECRET_KEY`, `SQUAD_BASE_URL`, and `SQUAD_CALLBACK_ORIGIN` in `.env.l
 
 - Login URL: `/admin`
 - Admin URL: `/admin`
-- Username: `FastFleetAdmin`
-- Password: `Fastfleet360@#`
 
-The admin login is separate from customer and driver registration. Real admin actions such as state launch updates and withdrawal approvals require `SUPABASE_SERVICE_ROLE_KEY` in your server environment.
+The admin login uses server-only credentials configured in the deployment environment and is linked to the Supabase Auth user identified by `FASTFLEET_ADMIN_USER_ID`. That user must have a current, non-deleted `profiles.is_admin=true` record. Real admin actions such as state launch updates and withdrawal approvals require `SUPABASE_SERVICE_ROLE_KEY` in your server environment.
 
 ## Key Routes
 

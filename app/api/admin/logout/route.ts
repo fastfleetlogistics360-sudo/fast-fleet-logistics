@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
-import { ADMIN_SESSION_COOKIE } from "@/lib/admin-auth";
+import { ADMIN_SESSION_COOKIE, isSameOriginAdminMutation } from "@/lib/admin-auth";
 
-export async function POST() {
+export async function POST(request: Request) {
+  if (!isSameOriginAdminMutation(request)) {
+    return NextResponse.json({ error: "Request rejected." }, { status: 403 });
+  }
+
   const response = NextResponse.json({ ok: true });
   response.cookies.set({
     name: ADMIN_SESSION_COOKIE,

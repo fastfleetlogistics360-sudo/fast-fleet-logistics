@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const target = uploadTargets[kind];
   let userId = "";
   if (target.adminOnly) {
-    if (!(await requireAdminSession())) {
+    if (!(await requireAdminSession(request))) {
       return NextResponse.json({ error: "Admin session required." }, { status: 401 });
     }
   } else {

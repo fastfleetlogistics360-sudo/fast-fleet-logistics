@@ -52,7 +52,7 @@ export async function PATCH(request: Request) {
 }
 
 async function upsertFleetAsset(request: Request, editing: boolean) {
-  if (!(await requireAdminSession())) {
+  if (!(await requireAdminSession(request))) {
     return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   }
 
