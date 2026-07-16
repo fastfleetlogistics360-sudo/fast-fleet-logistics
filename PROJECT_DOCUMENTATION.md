@@ -284,7 +284,7 @@ Environment variables control backend behavior. Anything with `NEXT_PUBLIC_` is 
 | `RESEND_API_KEY` | Optional | No | Not used directly for Supabase Auth confirmation. Configure Resend SMTP in Supabase dashboard. |
 | `NEXT_PUBLIC_ALLOW_DEMO_DATA` | Local/staging only | Yes | Enables demo fallbacks when true. Keep false in production. |
 | `NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK` | Local/staging only | Yes | Allows fallback Supabase config. Keep false in production. |
-| `CRON_SECRET` | Optional | No | Protects `/api/wallet/daily-commission`. |
+| `CRON_SECRET` | Yes | No | Secret of at least 32 characters used to protect `/api/wallet/daily-commission`. |
 
 ### Key safety notes
 
@@ -554,7 +554,7 @@ Admin routes should always call `requireAdminSession()`.
 | `GET /api/wallet/withdrawals` | `app/api/wallet/withdrawals/route.ts` | List user withdrawal requests. | `wallets`, `transactions` |
 | `POST /api/wallet/withdrawals` | `app/api/wallet/withdrawals/route.ts` | Request rider/business withdrawal. | `wallets`, `transactions`, `notifications` |
 | `POST /api/wallet/settle-delivery` | `app/api/wallet/settle-delivery/route.ts` | Credit rider earning after delivered job. | `creditRiderDeliveryWallet` |
-| `GET/POST /api/wallet/daily-commission` | `app/api/wallet/daily-commission/route.ts` | Deduct daily rider/business commissions. | `wallets`, `transactions`, `notifications`, `CRON_SECRET` |
+| `GET /api/wallet/daily-commission` | `app/api/wallet/daily-commission/route.ts` | Deduct daily rider/business commissions through Vercel Cron. | `wallets`, `transactions`, `notifications`, `CRON_SECRET` |
 
 ### Maps routes
 
@@ -1533,7 +1533,8 @@ Commission basis:
 
 Authorization:
 
-- If `CRON_SECRET` is set, requests must include:
+- `CRON_SECRET` is required and must be a strong random value of at least 32 characters.
+- Vercel Cron sends it automatically, and every request must include:
 
 ```text
 Authorization: Bearer your-cron-secret
@@ -1638,10 +1639,10 @@ NEXT_PUBLIC_ALLOW_DEMO_DATA=false
 NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false
 ```
 
-Recommended:
+Required:
 
 ```bash
-CRON_SECRET=long-random-secret
+CRON_SECRET=replace-with-a-random-secret-at-least-32-characters
 ```
 
 ### Production go-live checks

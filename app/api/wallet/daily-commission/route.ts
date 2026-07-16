@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   ensureWallet,
@@ -19,38 +21,86 @@ export async function GET(request: Request) {
   return runDailyCommission(request);
 }
 
-export async function POST(request: Request) {
-  return runDailyCommission(request);
-}
-
 async function runDailyCommission(request: Request) {
-  try {
-    if (!authorized(request)) return NextResponse.json({ error: "Commission job authorization required." }, { status: 401 });
+  const startedAt = Date.now();
+  const timestamp = new Date(startedAt).toISOString();
+  const runId = randomUUID();
+  const authorization = authorizeCronRequest(request);
+  if (!authorization.authorized) {
+    const misconfigured = authorization.reason === "misconfigured";
+    return NextResponse.json(
+      { error: misconfigured ? "Commission job is not securely configured." : "Commission job authorization required." },
+      { status: misconfigured ? 503 : 401 }
+    );
+  }
 
+  console.info("daily_commission_run", {
+    event: "authorized_execution",
+    runId,
+    timestamp,
+    authorized: true
+  });
+
+  try {
     const db = createAdminClient();
-    if (!db) return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to run commission deductions." }, { status: 503 });
+    if (!db) {
+      console.error("daily_commission_run", {
+        event: "completed",
+        runId,
+        timestamp,
+        authorized: true,
+        riderAccountsProcessed: 0,
+        businessAccountsProcessed: 0,
+        successCount: 0,
+        skippedCount: 0,
+        failureCount: 1,
+        durationMs: Date.now() - startedAt
+      });
+      return NextResponse.json({ error: "Commission job is unavailable." }, { status: 503 });
+    }
 
     const runDate = lagosBusinessDate();
     const [businessResults, riderResults] = await Promise.all([
       deductBusinessCommissions(db, runDate),
       deductRiderCommissions(db, runDate)
     ]);
+    const results = [...businessResults, ...riderResults];
+    const successCount = results.filter((result) => result.status === "deducted").length;
+    const skippedCount = results.filter((result) => result.status === "skipped").length;
+
+    console.info("daily_commission_run", {
+      event: "completed",
+      runId,
+      timestamp,
+      authorized: true,
+      riderAccountsProcessed: riderResults.length,
+      businessAccountsProcessed: businessResults.length,
+      successCount,
+      skippedCount,
+      failureCount: 0,
+      durationMs: Date.now() - startedAt
+    });
 
     return NextResponse.json({
       runDate,
       commissionBasis: "new_earnings",
-      results: [...businessResults, ...riderResults]
+      results
     });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not run daily commission deductions." }, { status: 500 });
+  } catch {
+    console.error("daily_commission_run", {
+      event: "completed",
+      runId,
+      timestamp,
+      authorized: true,
+      riderAccountsProcessed: 0,
+      businessAccountsProcessed: 0,
+      successCount: 0,
+      skippedCount: 0,
+      failureCount: 1,
+      durationMs: Date.now() - startedAt
+    });
+    return NextResponse.json({ error: "Could not run daily commission deductions." }, { status: 500 });
   }
-}
-
-function authorized(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
-  const header = request.headers.get("authorization") || "";
-  return header === `Bearer ${secret}`;
 }
 
 function lagosBusinessDate() {
