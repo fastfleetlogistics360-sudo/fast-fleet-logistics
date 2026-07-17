@@ -27,6 +27,7 @@ import { LinkButton } from "@/components/ui/button";
 import { InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
 import { createClient } from "@/lib/supabase/client";
+import { clearServiceWorkerSession } from "@/lib/service-worker-session";
 
 const SupportWidget = dynamic(() => import("@/components/support/support-widget").then((mod) => mod.SupportWidget), { ssr: false });
 const CookieConsent = dynamic(() => import("@/components/layout/cookie-consent").then((mod) => mod.CookieConsent), { ssr: false });
@@ -157,6 +158,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
     } catch {
       // Preview mode may not have live Supabase auth available.
     }
+    await clearServiceWorkerSession().catch(() => undefined);
     setAccountName(null);
     window.location.assign("/");
   }

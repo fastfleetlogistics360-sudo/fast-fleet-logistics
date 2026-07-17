@@ -95,6 +95,7 @@ import {
   type HubPromotionSlide
 } from "@/lib/hub-promotion-slides";
 import { IMAGE_UPLOAD_ACCEPT, uploadHeroImage } from "@/lib/storage";
+import { clearServiceWorkerSession } from "@/lib/service-worker-session";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -1976,6 +1977,7 @@ export function AdminPanel() {
 
   async function logout() {
     await fetch("/api/admin/logout", { method: "POST" });
+    await clearServiceWorkerSession().catch(() => undefined);
     window.location.reload();
   }
 

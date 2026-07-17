@@ -69,13 +69,13 @@ test("F-005 replacement failures remove only the new proof and preserve the prio
 });
 
 test("F-005 does not cache secure proof access, signed proof images, or private proof pages", () => {
-  assert.match(serviceWorker, /const PAGES_CACHE = "fastfleet-pages-v15"/);
-  assert.match(serviceWorker, /isPrivateProofRequest\(url\.pathname\)/);
+  assert.match(serviceWorker, /const CACHE_NAME = "fastfleet-public-shell-v15"/);
+  assert.match(serviceWorker, /isPrivateRequest\(url\.pathname\)/);
   assert.match(serviceWorker, /fetch\(request, \{ cache: "no-store" \}\)/);
-  for (const path of ["/api/uploads/access", "/account/orders/", "/customer/", "/rider/"]) {
+  for (const path of ["/api/", "/account", "/customer/", "/rider/"]) {
     assert.match(serviceWorker, new RegExp(`pathname\\.startsWith\\("${escapeRegExp(path)}"\\)`));
   }
-  assert.match(serviceWorker, /pathname === "\/dashboard"/);
+  assert.match(serviceWorker, /pathname\.startsWith\("\/dashboard"\)/);
 });
 
 test("F-005 storage policy matches the server-owned proof workflow", () => {

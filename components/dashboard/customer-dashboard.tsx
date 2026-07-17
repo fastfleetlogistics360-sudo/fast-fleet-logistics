@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Bell, Clock3, Home, LayoutDashboard, LockKeyhole, MapPin, MessageCircle, PackageCheck, Radar, Search, ShieldCheck, Sparkles, UserRound, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { clearServiceWorkerSession } from "@/lib/service-worker-session";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
@@ -419,6 +420,7 @@ export function CustomerDashboard() {
       const supabase = createClient();
       await supabase.auth.signOut();
     } finally {
+      await clearServiceWorkerSession().catch(() => undefined);
       window.location.assign("/auth");
     }
   }

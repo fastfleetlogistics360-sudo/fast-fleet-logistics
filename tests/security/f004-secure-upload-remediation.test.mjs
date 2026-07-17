@@ -215,7 +215,8 @@ test("F-004 routes enforce auth, ownership, rate limits, private serving, and cl
   assert.match(businessRegistration, /verifyBusinessKycUploads/);
   assert.match(businessRegistration, /cleanupUnreferencedBusinessUploads/);
   assert.doesNotMatch(trackingRoute, /metadata: data\.metadata/);
-  assert.match(serviceWorker, /pathname\.startsWith\("\/api\/uploads\/access"\)/);
+  assert.match(serviceWorker, /isPrivateRequest\(url\.pathname\)/);
+  assert.match(serviceWorker, /pathname\.startsWith\("\/api\/"\)/);
 });
 
 test("F-004 migration makes sensitive buckets private and removes direct browser writes", () => {

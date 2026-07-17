@@ -7,6 +7,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { BarChart3, Clock, Download, Home, LayoutDashboard, Loader2, MessageCircle, Plus, ShieldCheck, Store, Upload, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { clearServiceWorkerSession } from "@/lib/service-worker-session";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
@@ -1060,6 +1061,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
           onClick={async () => {
             const supabase = createClient();
             await supabase.auth.signOut();
+            await clearServiceWorkerSession().catch(() => undefined);
             window.location.assign("/auth");
           }}
         >

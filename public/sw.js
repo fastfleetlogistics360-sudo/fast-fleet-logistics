@@ -1,6 +1,7 @@
-const CACHE_NAME = "fastfleet-shell-v14";
-const PAGES_CACHE = "fastfleet-pages-v15";
-const OFFLINE_QUEUE = "fastfleet-offline-bookings-v1";
+const CACHE_NAME = "fastfleet-public-shell-v15";
+const LEGACY_CHECKOUT_QUEUE_DATABASE = "fastfleet-offline-bookings-v1";
+const SESSION_CLEARED = "SESSION_CLEARED";
+const PRIVATE_CACHE_PREFIXES = ["fastfleet-pages-", "fastfleet-private-", "fastfleet-auth-"];
 const APP_SHELL = [
   "/",
   "/offline",
@@ -10,150 +11,52 @@ const APP_SHELL = [
   "/icons/icon-192.png?v=20260713",
   "/icons/icon-512.png?v=20260713"
 ];
+const SAFE_PUBLIC_PAGE_PATHS = new Set(["/", "/about", "/cookies", "/how-it-works", "/main", "/ndpr", "/offline", "/privacy", "/services", "/terms", "/updates"]);
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+  event.waitUntil(precachePublicShell());
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((key) => ![CACHE_NAME, PAGES_CACHE].includes(key)).map((key) => caches.delete(key))))
+    Promise.all([deleteObsoleteCaches(), deleteLegacyCheckoutQueue()]).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
-
-async function trimPagesCache() {
-  const cache = await caches.open(PAGES_CACHE);
-  const keys = await cache.keys();
-  await Promise.all(keys.slice(0, Math.max(0, keys.length - 10)).map((request) => cache.delete(request)));
-}
-
-async function queueOfflineBooking(request) {
-  const body = await request.clone().text();
-  const db = await openQueueDb();
-  await dbPut(db, { url: request.url, body, headers: Array.from(request.headers.entries()), createdAt: Date.now() });
-  if ("registration" in self && "sync" in self.registration) {
-    await self.registration.sync.register("fastfleet-offline-bookings");
-  }
-}
-
-async function replayOfflineBookings() {
-  const db = await openQueueDb();
-  const queue = await dbAll(db);
-  for (const item of queue) {
-    try {
-      await fetch(item.url, { method: "POST", headers: item.headers, body: item.body });
-      await dbDelete(db, item.id);
-    } catch {
-      // Keep failed items queued for the next sync.
-    }
-  }
-}
-
-function openQueueDb() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(OFFLINE_QUEUE, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore("bookings", { keyPath: "id", autoIncrement: true });
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-function dbPut(db, item) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("bookings", "readwrite");
-    tx.objectStore("bookings").add(item);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-function dbAll(db) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("bookings", "readonly");
-    const request = tx.objectStore("bookings").getAll();
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-function dbDelete(db, id) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("bookings", "readwrite");
-    tx.objectStore("bookings").delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
 
-  if (request.method === "POST" && url.pathname.includes("/api/marketplace/checkout")) {
-    event.respondWith(
-      fetch(request.clone()).catch(async () => {
-        await queueOfflineBooking(request);
-        return new Response(JSON.stringify({ queued: true }), { headers: { "Content-Type": "application/json" } });
-      })
-    );
+  if (request.method !== "GET") {
+    event.respondWith(fetch(request).catch(() => offlineMutationResponse(url)));
     return;
   }
 
-  if (request.method !== "GET") return;
-  if (isPrivateProofRequest(url.pathname)) {
+  if (isPrivateRequest(url.pathname)) {
     event.respondWith(fetch(request, { cache: "no-store" }));
-    return;
-  }
-  if (url.pathname.startsWith("/admin") || url.pathname.startsWith("/api/admin")) {
-    event.respondWith(fetch(request));
-    return;
-  }
-
-  if (url.pathname.startsWith("/_next/") || ["script", "style", "font", "image"].includes(request.destination)) {
-    event.respondWith(
-      caches.match(request).then((cached) =>
-        cached || fetch(request).then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          return response;
-        })
-      )
-    );
     return;
   }
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then(async (response) => {
-          const cache = await caches.open(PAGES_CACHE);
-          await cache.put(request, response.clone());
-          await trimPagesCache();
-          return response;
-        })
-        .catch(async () => (await caches.match(request)) || (await caches.match("/offline")) || Response.error())
+      fetch(request, { cache: "no-store" }).catch(async () => {
+        if (!SAFE_PUBLIC_PAGE_PATHS.has(url.pathname)) return Response.error();
+        return (await caches.match("/offline")) || Response.error();
+      })
     );
+    return;
+  }
+
+  if (isSafePublicAsset(url, request)) {
+    event.respondWith(cachePublicAsset(request));
   }
 });
 
-function isPrivateProofRequest(pathname) {
-  return (
-    pathname.startsWith("/api/uploads/access") ||
-    pathname.startsWith("/account/orders/") ||
-    pathname.startsWith("/customer/") ||
-    pathname.startsWith("/rider/") ||
-    pathname === "/dashboard"
-  );
-}
-
-self.addEventListener("sync", (event) => {
-  if (event.tag === "fastfleet-offline-bookings") {
-    event.waitUntil(replayOfflineBookings());
-  }
+self.addEventListener("message", (event) => {
+  if (!isSessionClearedMessage(event.data)) return;
+  event.waitUntil(clearSessionState());
 });
 
 self.addEventListener("push", (event) => {
@@ -190,8 +93,8 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data && typeof event.notification.data.url === "string" ? event.notification.data.url : "/hub";
-  const absoluteUrl = new URL(targetUrl, self.location.origin).href;
+  const targetPath = safeNotificationPath(event.notification.data?.url);
+  const absoluteUrl = new URL(targetPath, self.location.origin).href;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
@@ -204,3 +107,122 @@ self.addEventListener("notificationclick", (event) => {
     })
   );
 });
+
+async function cachePublicAsset(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (isCacheablePublicResponse(response)) {
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
+function isSafePublicAsset(url, request) {
+  if (url.pathname.startsWith("/_next/static/")) return true;
+  if (url.pathname === "/manifest.webmanifest") return true;
+  if (url.pathname.startsWith("/icons/") || url.pathname.startsWith("/brand/")) return true;
+  return ["script", "style", "font"].includes(request.destination) && url.pathname.startsWith("/_next/");
+}
+
+function isCacheablePublicResponse(response) {
+  if (!response || !response.ok || response.type === "opaque") return false;
+  const cacheControl = String(response.headers.get("Cache-Control") || "").toLowerCase();
+  const vary = String(response.headers.get("Vary") || "").toLowerCase();
+  return !cacheControl.includes("no-store")
+    && !cacheControl.includes("private")
+    && !vary.includes("cookie")
+    && !vary.includes("authorization")
+    && !response.headers.has("Set-Cookie");
+}
+
+function isPrivateRequest(pathname) {
+  return pathname.startsWith("/api/")
+    || pathname.startsWith("/account")
+    || pathname.startsWith("/admin")
+    || pathname.startsWith("/business/")
+    || pathname.startsWith("/customer/")
+    || pathname.startsWith("/dashboard")
+    || pathname.startsWith("/delivery/")
+    || pathname === "/hub"
+    || pathname === "/choose-account-type"
+    || pathname.startsWith("/rider/")
+    || pathname.startsWith("/wallet")
+    || pathname.startsWith("/book")
+    || pathname.startsWith("/marketplace/")
+    || pathname.startsWith("/auth");
+}
+
+function offlineMutationResponse(url) {
+  const isCheckout = url.pathname.includes("/checkout") || url.pathname.includes("/payments/") || url.pathname.includes("/wallet/");
+  const error = isCheckout ? "You're offline. Reconnect and confirm your checkout again." : "You're offline. Reconnect and try again.";
+  return new Response(JSON.stringify({ error }), {
+    status: 503,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
+  });
+}
+
+async function precachePublicShell() {
+  const cache = await caches.open(CACHE_NAME);
+  await Promise.all(
+    APP_SHELL.map(async (path) => {
+      try {
+        const response = await fetch(path, { cache: "no-store" });
+        if (isCacheablePublicResponse(response)) await cache.put(path, response);
+      } catch {
+        // Installation remains available if one public asset is temporarily unavailable.
+      }
+    })
+  );
+}
+
+async function deleteObsoleteCaches() {
+  const keys = await caches.keys();
+  await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
+}
+
+async function clearSessionState() {
+  await Promise.all([clearPrivateCaches(), deleteLegacyCheckoutQueue()]);
+}
+
+async function clearPrivateCaches() {
+  const keys = await caches.keys();
+  await Promise.all(
+    keys
+      .filter((key) => PRIVATE_CACHE_PREFIXES.some((prefix) => key.startsWith(prefix)))
+      .map((key) => caches.delete(key))
+  );
+}
+
+function deleteLegacyCheckoutQueue() {
+  return new Promise((resolve) => {
+    if (!("indexedDB" in self)) {
+      resolve();
+      return;
+    }
+    const request = indexedDB.deleteDatabase(LEGACY_CHECKOUT_QUEUE_DATABASE);
+    request.onsuccess = request.onerror = request.onblocked = () => resolve();
+  });
+}
+
+function isSessionClearedMessage(data) {
+  return Boolean(
+    data
+      && typeof data === "object"
+      && !Array.isArray(data)
+      && data.type === SESSION_CLEARED
+      && Object.keys(data).length === 1
+  );
+}
+
+function safeNotificationPath(value) {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/hub";
+  try {
+    const destination = new URL(value, self.location.origin);
+    if (destination.origin !== self.location.origin) return "/hub";
+    return `${destination.pathname}${destination.search}${destination.hash}`;
+  } catch {
+    return "/hub";
+  }
+}

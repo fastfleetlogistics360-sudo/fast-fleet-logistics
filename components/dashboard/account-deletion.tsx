@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Loader2, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { clearServiceWorkerSession } from "@/lib/service-worker-session";
 import { Button } from "@/components/ui/button";
 
 export function AccountDeletionButton({ className }: { className?: string }) {
@@ -22,6 +23,7 @@ export function AccountDeletionButton({ className }: { className?: string }) {
       if (!response.ok) throw new Error(payload?.error || "Could not delete your account right now.");
       const supabase = createClient();
       await supabase.auth.signOut();
+      await clearServiceWorkerSession().catch(() => undefined);
       window.location.assign("/auth");
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not delete your account right now.");

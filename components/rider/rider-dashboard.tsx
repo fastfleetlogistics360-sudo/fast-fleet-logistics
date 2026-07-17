@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Banknote, Bike, Home, LayoutDashboard, Loader2, MessageCircle, Navigation2, PackageCheck, Phone, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { clearServiceWorkerSession } from "@/lib/service-worker-session";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { geolocationErrorMessage, getLocationPermissionState, requestCurrentPosition } from "@/lib/location/geolocation";
@@ -1575,7 +1576,7 @@ function AccountTab({ profile, onProfile, kycStatus, prefs, onPrefs }: { profile
       <Card className="p-5"><div className="flex items-center justify-between gap-3"><h2 className="text-xl font-black text-fleet-night">KYC document status</h2><StatusBadge tone={kycTone}>{kycStatus.replaceAll("_", " ")}</StatusBadge></div><div className="mt-4 grid gap-2">{["Government ID", "Driver's Licence", "Vehicle registration", "Vehicle picture"].map((item) => <div key={item} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black text-fleet-night"><span>{item}</span><StatusBadge tone={kycTone}>{approved ? "Approved" : "Review"}</StatusBadge></div>)}</div><LinkButton href="/rider/onboarding" variant="secondary" className="mt-4 w-full">Update KYC</LinkButton></Card>
       <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Rating breakdown</h2><p className="mt-3 text-3xl font-black text-fleet-night">{(profile.rating || 4.9).toFixed(1)} <Star className="inline h-6 w-6 fill-fleet-gold text-fleet-gold" /></p><p className="mt-1 text-sm font-semibold text-slate-600">{profile.completed_deliveries || 0} total trips</p></Card>
       <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Notifications</h2><div className="mt-4 grid gap-3">{(["jobs", "payouts", "sms"] as const).map((key) => <label key={key} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black capitalize text-fleet-night">{key}<input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={prefs[key]} onChange={(event) => onPrefs({ ...prefs, [key]: event.target.checked })} /></label>)}</div></Card>
-      <Card className="p-5"><AccountDeletionButton /><Button type="button" variant="secondary" className="mt-3 w-full" onClick={async () => { const supabase = createClient(); await supabase.auth.signOut(); window.location.assign("/auth"); }}>Sign out</Button></Card>
+      <Card className="p-5"><AccountDeletionButton /><Button type="button" variant="secondary" className="mt-3 w-full" onClick={async () => { const supabase = createClient(); await supabase.auth.signOut(); await clearServiceWorkerSession().catch(() => undefined); window.location.assign("/auth"); }}>Sign out</Button></Card>
     </div>
   );
 }
