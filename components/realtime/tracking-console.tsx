@@ -10,7 +10,6 @@ import { initials } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RoutePreview } from "@/components/maps/route-preview";
-import { PackagePickupProof } from "@/components/tracking/package-pickup-proof";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 const statusFlow = [
@@ -33,7 +32,6 @@ type TrackedDelivery = {
   delivery_speed: string;
   price_ngn: number;
   eta_minutes: number;
-  metadata?: Record<string, unknown> | null;
   rider?: {
     full_name?: string | null;
     phone?: string | null;
@@ -162,8 +160,6 @@ export function TrackingConsole() {
             <strong className="text-2xl font-black text-fleet-night">{formatMoney(delivery.price_ngn || 0)}</strong>
           </div>
         </Card> : null}
-
-        {delivery ? <PackagePickupProof deliveryId={delivery.id} metadata={delivery.metadata} status={delivery.status} readonly /> : null}
 
         {delivery ? <Card className="p-5">
           <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Timeline</span>

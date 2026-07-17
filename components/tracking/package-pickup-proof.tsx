@@ -32,6 +32,7 @@ export function PackagePickupProof({ deliveryId, metadata, status, className, re
   const shouldShow = proofRequired && (Boolean(proof?.url) || ["picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered"].includes(activeStatus));
   const secondsRemaining = pickupProofReviewSecondsRemaining(proof);
   const canReview = Boolean(!readonly && deliveryId && proof?.url && proof.status === "pending" && !pickupProofReviewExpired(proof));
+  const secureProofUrl = deliveryId && proof?.url ? `/api/uploads/access?scope=delivery-proof&id=${encodeURIComponent(deliveryId)}` : null;
 
   useEffect(() => {
     setProof(pickupProofFromMetadata(metadata));
@@ -80,8 +81,8 @@ export function PackagePickupProof({ deliveryId, metadata, status, className, re
         <StatusBadge tone={statusTone}>{proof?.status ? proof.status.replaceAll("_", " ") : "Waiting"}</StatusBadge>
       </div>
 
-      {proof?.url ? (
-        <Image src={proof.url} alt="Package pickup proof" width={720} height={420} unoptimized className="mt-4 max-h-72 w-full rounded-fleet object-cover" />
+      {secureProofUrl ? (
+        <Image src={secureProofUrl} alt="Package pickup proof" width={720} height={420} unoptimized className="mt-4 max-h-72 w-full rounded-fleet object-cover" />
       ) : (
         <div className="mt-4 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">The rider has not uploaded the package photo yet.</div>
       )}

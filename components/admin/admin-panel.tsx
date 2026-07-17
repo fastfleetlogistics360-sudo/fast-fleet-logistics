@@ -94,7 +94,7 @@ import {
   normalizeHubPromotionSlides,
   type HubPromotionSlide
 } from "@/lib/hub-promotion-slides";
-import { uploadHeroImage } from "@/lib/storage";
+import { IMAGE_UPLOAD_ACCEPT, uploadHeroImage } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -3404,7 +3404,7 @@ function MainHeroSlidesSection({
                       {uploading ? `Uploading ${progress}%` : "Upload image"}
                       <input
                         type="file"
-                        accept="image/*"
+                        accept={IMAGE_UPLOAD_ACCEPT}
                         className="sr-only"
                         disabled={uploading}
                         onChange={(event) => handleImageUpload(slide.id, event)}
@@ -3941,9 +3941,9 @@ function RiderApprovalSection({
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {(rider.rider_documents || []).map((doc) => (
-                  <span key={doc.id} className="rounded-full bg-fleet-paper px-3 py-1 text-xs font-black capitalize text-slate-600">
+                  <a key={doc.id} href={`/api/uploads/access?scope=rider-document&id=${encodeURIComponent(doc.id)}`} target="_blank" rel="noreferrer" className="rounded-full bg-fleet-paper px-3 py-1 text-xs font-black capitalize text-slate-600 transition hover:bg-fleet-navy hover:text-white">
                     {riderDocumentLabel(doc.document_type)}: {doc.status.replaceAll("_", " ")}
-                  </span>
+                  </a>
                 ))}
               </div>
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -4027,7 +4027,7 @@ function BusinessKycSection({
                 {(business.business_documents || []).map((doc) => (
                   <a
                     key={doc.id}
-                    href={doc.file_url || "#"}
+                    href={`/api/uploads/access?scope=business-document&id=${encodeURIComponent(doc.id)}`}
                     target="_blank"
                     rel="noreferrer"
                     className="rounded-full bg-fleet-paper px-3 py-1 text-xs font-black capitalize text-slate-600 transition hover:bg-fleet-navy hover:text-white"

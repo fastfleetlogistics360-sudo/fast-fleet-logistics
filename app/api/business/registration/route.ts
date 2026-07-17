@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
+import { verifyBusinessKycUploads } from "@/lib/kyc-uploads";
 import { normalizeState } from "@/lib/launch-states";
 import { ensureLaunchPromoEnrollment } from "@/lib/promos/launch-first-150";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { businessCommissionRate } from "@/lib/business-commission";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+import { removeStoredObject } from "@/lib/secure-storage";
+import { uploadErrorResponse } from "@/lib/upload-security";
 
 export const runtime = "nodejs";
 
@@ -79,6 +83,9 @@ function parsePayload(value: unknown): BusinessRegistrationPayload | null {
 }
 
 export async function POST(request: Request) {
+  const limited = await enforceRateLimit(request, rateLimitPolicies.uploadKycSubmit);
+  if (limited) return limited;
+
   const payload = parsePayload(await request.json().catch(() => null));
   if (!payload) return NextResponse.json({ error: "Invalid business registration payload." }, { status: 400 });
 
@@ -101,6 +108,13 @@ export async function POST(request: Request) {
 
   const db = createAdminClient() || supabase;
   const now = new Date().toISOString();
+  let verifiedDocuments: Awaited<ReturnType<typeof verifyBusinessKycUploads>>;
+  try {
+    verifiedDocuments = await verifyBusinessKycUploads(db, { userId: user.id, documents });
+  } catch (error) {
+    const result = uploadErrorResponse(error);
+    return NextResponse.json(result.body, { status: result.status });
+  }
 
   await db.from("users").upsert({
     id: user.id,
@@ -138,17 +152,23 @@ export async function POST(request: Request) {
     profileResult = await db.from("business_profiles").upsert(fallbackPayload, { onConflict: "user_id" }).select("id").single<{ id: string }>();
   }
   if (profileResult.error) {
-    return NextResponse.json({ error: profileResult.error.message }, { status: 500 });
+    await cleanupUnreferencedBusinessUploads(db, verifiedDocuments);
+    return NextResponse.json({ error: "Could not prepare the business verification profile." }, { status: 500 });
   }
 
   const businessProfileId = profileResult.data.id;
+  const { data: currentDocuments } = await db
+    .from("business_documents")
+    .select("document_type, storage_path")
+    .eq("business_profile_id", businessProfileId);
+  const currentByType = new Map((currentDocuments || []).map((document) => [String(document.document_type), String(document.storage_path || "")]));
   const documentsResult = await db.from("business_documents").upsert(
-    documents.map((document) => ({
+    verifiedDocuments.map((document) => ({
       business_profile_id: businessProfileId,
       user_id: user.id,
       document_type: document.key,
-      file_url: document.url || null,
-      storage_path: document.path || null,
+      file_url: null,
+      storage_path: document.path,
       status: "submitted" as const,
       rejection_reason: null,
       updated_at: now
@@ -156,8 +176,36 @@ export async function POST(request: Request) {
     { onConflict: "business_profile_id,document_type" }
   );
   if (documentsResult.error) {
-    return NextResponse.json({ error: documentsResult.error.message }, { status: 500 });
+    await Promise.allSettled(
+      verifiedDocuments
+        .filter((document) => currentByType.get(document.key) !== document.path)
+        .map((document) => removeStoredObject(db, document.bucket, document.path))
+    );
+    return NextResponse.json({ error: "Could not securely attach the business documents." }, { status: 500 });
   }
 
+  await Promise.allSettled(
+    verifiedDocuments
+      .map((document) => ({ bucket: document.bucket, oldPath: currentByType.get(document.key), nextPath: document.path }))
+      .filter((document) => document.oldPath && document.oldPath !== document.nextPath)
+      .map((document) => removeStoredObject(db, document.bucket, document.oldPath))
+  );
+
   return NextResponse.json({ business_profile_id: businessProfileId, registration_status: "submitted" });
+}
+
+async function cleanupUnreferencedBusinessUploads(
+  db: NonNullable<ReturnType<typeof createAdminClient>> | Awaited<ReturnType<typeof createClient>>,
+  documents: Awaited<ReturnType<typeof verifyBusinessKycUploads>>
+) {
+  const paths = documents.map((document) => document.path);
+  if (!paths.length) return;
+  const { data, error } = await db.from("business_documents").select("storage_path").in("storage_path", paths);
+  if (error) return;
+  const referenced = new Set((data || []).map((row) => String(row.storage_path || "")));
+  await Promise.allSettled(
+    documents
+      .filter((document) => !referenced.has(document.path))
+      .map((document) => removeStoredObject(db, document.bucket, document.path))
+  );
 }

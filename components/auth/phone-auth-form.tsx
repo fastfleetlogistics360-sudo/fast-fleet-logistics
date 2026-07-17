@@ -12,7 +12,7 @@ import { readReturningProfile, saveReturningProfile, type ReturningProfile } fro
 import type { UserRole } from "@/types/domain";
 import { cn } from "@/lib/cn";
 import { initials } from "@/lib/format";
-import { uploadProfilePhoto } from "@/lib/storage";
+import { IMAGE_UPLOAD_ACCEPT, uploadProfilePhoto } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -212,7 +212,7 @@ export function PhoneAuthForm({
 
       if (result.error) throw result.error;
       if (result.data.session && result.data.user) {
-        const upload = profilePhotoFile ? await uploadProfilePhoto(result.data.user.id, profilePhotoFile) : null;
+        const upload = profilePhotoFile ? await uploadProfilePhoto(profilePhotoFile) : null;
         await saveProfiles(
           result.data.user.id,
           role,
@@ -488,9 +488,10 @@ export function PhoneAuthForm({
               <input
                 className="sr-only"
                 type="file"
-                accept="image/*"
+                accept={IMAGE_UPLOAD_ACCEPT}
                 onChange={(event) => {
                   setProfilePhotoFile(event.target.files?.[0] || null);
+                  event.currentTarget.value = "";
                   if (fieldErrors.profilePhoto) setError("profilePhoto", null);
                 }}
               />

@@ -104,6 +104,10 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.method !== "GET") return;
+  if (url.pathname.startsWith("/api/uploads/access")) {
+    event.respondWith(fetch(request, { cache: "no-store" }));
+    return;
+  }
   if (url.pathname.startsWith("/admin") || url.pathname.startsWith("/api/admin")) {
     event.respondWith(fetch(request));
     return;

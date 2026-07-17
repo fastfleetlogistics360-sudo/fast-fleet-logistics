@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
 import { marketplaceBusinessTypeLabel } from "@/lib/marketplace-listing";
-import { uploadProfilePhoto } from "@/lib/storage";
+import { BULK_CSV_UPLOAD_ACCEPT, IMAGE_UPLOAD_ACCEPT, uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -417,9 +417,15 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
   }
 
   function parseCsv(text: string) {
-    const [headerLine, ...lines] = text.trim().split(/\r?\n/);
+    const [headerLine = "", ...allLines] = text.trim().split(/\r?\n/);
+    const lines = allLines.slice(0, 100);
     const headers = headerLine.split(",").map((item) => item.trim());
     const required = ["sender_name", "sender_phone", "pickup_address", "recipient_name", "recipient_phone", "dropoff_address", "package_type"];
+    if (!required.every((header) => headers.includes(header))) {
+      setBulkRows([]);
+      setDispatchMessage("CSV headings do not match the Fast Fleets 360 template.");
+      return;
+    }
     const rows = lines.map((line) => {
       const values = line.split(",").map((item) => item.trim());
       const record = Object.fromEntries(headers.map((header, index) => [header, values[index] || ""]));
@@ -436,6 +442,28 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
       };
     });
     setBulkRows(rows);
+    setDispatchMessage(allLines.length > 100 ? "Only the first 100 dispatch rows were loaded." : `${rows.length} dispatch rows loaded.`);
+  }
+
+  async function handleBulkCsv(file: File) {
+    setBulkRows([]);
+    setDispatchMessage(null);
+    const extension = file.name.toLowerCase().split(".").at(-1);
+    const allowedMimes = new Set(["", "text/csv", "text/plain", "application/csv", "application/vnd.ms-excel", "application/octet-stream"]);
+    if (extension !== "csv" || !allowedMimes.has(file.type.toLowerCase())) {
+      setDispatchMessage("Choose the CSV template file. Other file formats are not accepted.");
+      return;
+    }
+    if (!file.size || file.size > 1024 * 1024) {
+      setDispatchMessage("CSV file is empty or too large. Use a file under 1 MB with at most 100 rows.");
+      return;
+    }
+    const text = await file.text();
+    if (text.includes("\u0000")) {
+      setDispatchMessage("CSV file contains unsupported data.");
+      return;
+    }
+    parseCsv(text);
   }
 
   function downloadTemplate() {
@@ -590,7 +618,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
           ) : (
             <>
               {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} withdrawals={withdrawals} stats={stats} orders={orders} businessOrders={businessOrders} businessOrderError={businessOrderError} businessOrderLoading={businessOrderLoading} onOpenWithdrawal={() => setWithdrawalOpen(true)} onBusinessOrderStatus={updateBusinessOrder} /> : null}
-              {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsv={parseCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={deleteAddress} /> : null}
+              {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsvFile={handleBulkCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={deleteAddress} /> : null}
               {activeTab === "history" ? <HistoryTab orders={filteredOrders} status={historyStatus} onStatus={setHistoryStatus} onExport={exportHistory} /> : null}
               {activeTab === "analytics" ? <AnalyticsTab orders={orders} addresses={addresses} team={team} /> : null}
               {activeTab === "account" ? <AccountTab profile={profile} onProfile={setProfile} prefs={prefs} onPrefs={setPrefs} /> : null}
@@ -823,11 +851,11 @@ function isBusinessDispatchActive(status: string) {
   return ["rider_assigned", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(status);
 }
 
-function DispatchTab({ dispatch, onDispatch, estimate, loading, message, onSubmit, addresses, bulkRows, onCsv, onDownloadTemplate, onDispatchBulk, addressDraft, onAddressDraft, onAddAddress, onDeleteAddress }: { dispatch: DispatchForm; onDispatch: (form: DispatchForm) => void; estimate: number; loading: boolean; message: string | null; onSubmit: () => void; addresses: SavedAddress[]; bulkRows: BulkRow[]; onCsv: (text: string) => void; onDownloadTemplate: () => void; onDispatchBulk: () => void; addressDraft: { label: string; address: string }; onAddressDraft: (draft: { label: string; address: string }) => void; onAddAddress: () => void; onDeleteAddress: (id: string) => void }) {
+function DispatchTab({ dispatch, onDispatch, estimate, loading, message, onSubmit, addresses, bulkRows, onCsvFile, onDownloadTemplate, onDispatchBulk, addressDraft, onAddressDraft, onAddAddress, onDeleteAddress }: { dispatch: DispatchForm; onDispatch: (form: DispatchForm) => void; estimate: number; loading: boolean; message: string | null; onSubmit: () => void; addresses: SavedAddress[]; bulkRows: BulkRow[]; onCsvFile: (file: File) => void | Promise<void>; onDownloadTemplate: () => void; onDispatchBulk: () => void; addressDraft: { label: string; address: string }; onAddressDraft: (draft: { label: string; address: string }) => void; onAddAddress: () => void; onDeleteAddress: (id: string) => void }) {
   return (
     <div className="grid gap-5">
         <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Single dispatch</h2><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Sender name" value={dispatch.senderName} onChange={(value) => onDispatch({ ...dispatch, senderName: value })} /><Field label="Sender phone" value={dispatch.senderPhone} onChange={(value) => onDispatch({ ...dispatch, senderPhone: value })} /><AddressField label="Pickup address" value={dispatch.pickupAddress} addresses={addresses} onChange={(value) => onDispatch({ ...dispatch, pickupAddress: value })} /><Field label="Recipient name" value={dispatch.recipientName} onChange={(value) => onDispatch({ ...dispatch, recipientName: value })} /><Field label="Recipient phone" value={dispatch.recipientPhone} onChange={(value) => onDispatch({ ...dispatch, recipientPhone: value })} /><AddressField label="Drop-off address" value={dispatch.dropoffAddress} addresses={addresses} onChange={(value) => onDispatch({ ...dispatch, dropoffAddress: value })} /><Select label="Package type" value={dispatch.packageType} values={["Parcel", "Documents", "Food", "Electronics", "Gadgets"]} onChange={(value) => onDispatch({ ...dispatch, packageType: value })} /><Select label="Vehicle" value={dispatch.vehicleType} values={["Any", "Bike", "Car", "Van"]} onChange={(value) => onDispatch({ ...dispatch, vehicleType: value })} /><Select label="Scheduling" value={dispatch.scheduleMode} values={["Now", "Schedule for later"]} onChange={(value) => onDispatch({ ...dispatch, scheduleMode: value })} />{dispatch.scheduleMode === "Schedule for later" ? <Field label="Date and time" value={dispatch.scheduledAt} onChange={(value) => onDispatch({ ...dispatch, scheduledAt: value })} /> : null}<Select label="Payment" value={dispatch.payment} values={["wallet"]} onChange={(value) => onDispatch({ ...dispatch, payment: value })} /><label className="form-field sm:col-span-2"><span className="form-label">Special instructions</span><textarea className="form-textarea" value={dispatch.instructions} onChange={(event) => onDispatch({ ...dispatch, instructions: event.target.value })} /></label></div><div className="mt-5 rounded-fleet bg-fleet-paper p-4 text-sm font-black text-fleet-night">Estimated price: {formatMoney(estimate)}</div>{message ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-sm font-bold text-amber-800">{message}</div> : null}<Button type="button" disabled={loading} className="mt-5 w-full bg-fleet-navy hover:bg-fleet-night" onClick={onSubmit}>{loading ? "Creating..." : "Confirm dispatch"}</Button></Card>
-      <Card className="p-5"><div className="flex items-center justify-between"><h2 className="text-xl font-black text-fleet-night">Bulk dispatch</h2><Button type="button" size="sm" variant="secondary" onClick={onDownloadTemplate}><Download className="h-4 w-4" />Template</Button></div><label className="mt-4 grid min-h-32 cursor-pointer place-items-center rounded-fleet border border-dashed border-fleet-line bg-fleet-paper p-5 text-center text-sm font-bold text-slate-600"><Upload className="mb-2 h-6 w-6 text-fleet-navy" />Upload CSV<input className="sr-only" type="file" accept=".csv,text/csv" onChange={async (event) => { const file = event.target.files?.[0]; if (file) onCsv(await file.text()); }} /></label>{bulkRows.length ? <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><tbody>{bulkRows.map((row, index) => <tr key={`${row.sender_name}-${index}`} className={row.error ? "bg-red-50" : "bg-white"}><td className="p-2 font-bold">{row.sender_name}</td><td className="p-2">{row.pickup_address}</td><td className="p-2">{row.dropoff_address}</td><td className="p-2 text-red-600">{row.error}</td></tr>)}</tbody></table><Button type="button" disabled={bulkRows.some((row) => row.error)} className="mt-4 w-full" onClick={onDispatchBulk}>Dispatch all</Button></div> : null}</Card>
+      <Card className="p-5"><div className="flex items-center justify-between"><h2 className="text-xl font-black text-fleet-night">Bulk dispatch</h2><Button type="button" size="sm" variant="secondary" onClick={onDownloadTemplate}><Download className="h-4 w-4" />Template</Button></div><label className="mt-4 grid min-h-32 cursor-pointer place-items-center rounded-fleet border border-dashed border-fleet-line bg-fleet-paper p-5 text-center text-sm font-bold text-slate-600"><Upload className="mb-2 h-6 w-6 text-fleet-navy" />Upload CSV<input className="sr-only" type="file" accept={BULK_CSV_UPLOAD_ACCEPT} onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ""; if (file) void onCsvFile(file); }} /></label>{message ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-sm font-bold text-amber-800">{message}</div> : null}{bulkRows.length ? <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><tbody>{bulkRows.map((row, index) => <tr key={`${row.sender_name}-${index}`} className={row.error ? "bg-red-50" : "bg-white"}><td className="p-2 font-bold">{row.sender_name}</td><td className="p-2">{row.pickup_address}</td><td className="p-2">{row.dropoff_address}</td><td className="p-2 text-red-600">{row.error}</td></tr>)}</tbody></table><Button type="button" disabled={bulkRows.some((row) => row.error)} className="mt-4 w-full" onClick={onDispatchBulk}>Dispatch all</Button></div> : null}</Card>
       <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Saved addresses</h2><div className="mt-4 grid gap-3 sm:grid-cols-[0.7fr_1fr_auto]"><input className="form-input" value={addressDraft.label} onChange={(event) => onAddressDraft({ ...addressDraft, label: event.target.value })} placeholder="Warehouse" /><input className="form-input" value={addressDraft.address} onChange={(event) => onAddressDraft({ ...addressDraft, address: event.target.value })} placeholder="14 Acme Street, Ikeja" /><Button type="button" onClick={onAddAddress} disabled={!addressDraft.label || !addressDraft.address}>Add</Button></div><div className="mt-4 grid gap-2">{addresses.length ? addresses.map((address) => <div key={address.id} className="flex justify-between gap-3 rounded-fleet bg-fleet-paper p-3"><span><strong className="block text-sm font-black text-fleet-night">{address.label}</strong><span className="text-xs font-semibold text-slate-500">{address.address}</span></span><Button type="button" size="sm" variant="secondary" onClick={() => onDeleteAddress(address.id)}>Delete</Button></div>) : <DashboardEmptyState title="No saved addresses" body="Add warehouses, branches, and frequent pickup locations." ctaLabel="Add address" ctaHref="/business/dashboard" />}</div></Card>
     </div>
   );
@@ -923,11 +951,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
         data: { user }
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Sign in again to upload your profile picture.");
-      const upload = await uploadProfilePhoto(user.id, file);
-      await Promise.allSettled([
-        supabase.from("profiles").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("user_id", user.id),
-        supabase.from("users").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("id", user.id)
-      ]);
+      const upload = await uploadProfilePhoto(file);
       onProfile({ ...profile, avatar_url: upload.publicUrl });
       setPhotoMessage("Profile picture updated.");
     } catch (error) {
@@ -987,7 +1011,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
             </p>
             <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">
               {photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}
-              <input className="sr-only" type="file" accept="image/*" onChange={(event) => handleProfilePhoto(event.target.files?.[0] || null)} />
+              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => { void handleProfilePhoto(event.target.files?.[0] || null); event.currentTarget.value = ""; }} />
             </label>
           </div>
         </div>

@@ -5,7 +5,7 @@ import type { ChangeEvent, DragEvent, ReactNode } from "react";
 import { Banknote, Bike, Camera, CheckCircle2, FileText, FileUp, IdCard, Loader2, RefreshCcw, ShieldCheck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { uploadProfilePhoto, uploadRiderDocument } from "@/lib/storage";
+import { IMAGE_UPLOAD_ACCEPT, KYC_DOCUMENT_UPLOAD_ACCEPT, uploadProfilePhoto, uploadRiderDocument } from "@/lib/storage";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -124,13 +124,13 @@ export function RiderOnboardingFlow() {
 
   const documentRequirements = useMemo(() => {
     const requirements: Array<{ key: DocumentKey; label: string; accept: string; camera?: boolean }> = [
-      { key: "profile_photo", label: "Profile photo", accept: "image/*", camera: true },
-      { key: "government_id", label: `Government ID: ${governmentIds.find(([value]) => value === form.governmentIdType)?.[1] || "Selected ID"}`, accept: "image/*" },
-      { key: "vehicle_registration", label: "Vehicle registration document", accept: "image/*,application/pdf" },
-      { key: "vehicle_papers", label: "UPLOAD YOUR VEHICLE PICTURE", accept: "image/*", camera: true }
+      { key: "profile_photo", label: "Profile photo", accept: IMAGE_UPLOAD_ACCEPT, camera: true },
+      { key: "government_id", label: `Government ID: ${governmentIds.find(([value]) => value === form.governmentIdType)?.[1] || "Selected ID"}`, accept: IMAGE_UPLOAD_ACCEPT },
+      { key: "vehicle_registration", label: "Vehicle registration document", accept: KYC_DOCUMENT_UPLOAD_ACCEPT },
+      { key: "vehicle_papers", label: "UPLOAD YOUR VEHICLE PICTURE", accept: IMAGE_UPLOAD_ACCEPT, camera: true }
     ];
     if (form.governmentIdType !== "drivers_licence") {
-      requirements.splice(2, 0, { key: "drivers_licence", label: "Driver's Licence", accept: "image/*" });
+      requirements.splice(2, 0, { key: "drivers_licence", label: "Driver's Licence", accept: IMAGE_UPLOAD_ACCEPT });
     }
     return requirements;
   }, [form.governmentIdType]);
@@ -337,8 +337,8 @@ export function RiderOnboardingFlow() {
       };
       const upload =
         key === "profile_photo"
-          ? await uploadProfilePhoto(user.id, file, onProgress)
-          : await uploadRiderDocument(user.id, key, file, onProgress);
+          ? await uploadProfilePhoto(file, onProgress)
+          : await uploadRiderDocument(key, file, onProgress);
       setDocs((previous) => ({
         ...previous,
         [key]: { key, label, name: file.name, progress: 100, url: upload.publicUrl, path: upload.path, contentType: upload.type }
@@ -451,7 +451,7 @@ export function RiderOnboardingFlow() {
                 <DocumentDropzone
                   type="profile_photo"
                   label="Profile photo"
-                  accept="image/*"
+                  accept={IMAGE_UPLOAD_ACCEPT}
                   camera
                   doc={docs.profile_photo}
                   error={errors.profilePhoto}
@@ -703,6 +703,7 @@ function DocumentDropzone({
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     handleFiles(event.target.files);
+    event.currentTarget.value = "";
   }
 
   return (

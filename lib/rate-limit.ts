@@ -25,7 +25,15 @@ export const rateLimitPolicies = {
   maps: { name: "maps", limit: 50, windowSeconds: 60 },
   accountLookup: { name: "payments:account-lookup", limit: 20, windowSeconds: 10 * 60 },
   riderJobsRead: { name: "rider:jobs:read", limit: 120, windowSeconds: 60 },
-  riderJobsWrite: { name: "rider:jobs:write", limit: 25, windowSeconds: 60 }
+  riderJobsWrite: { name: "rider:jobs:write", limit: 25, windowSeconds: 60 },
+  uploadIngress: { name: "upload:ingress", limit: 40, windowSeconds: 10 * 60, message: "Too many upload attempts. Try again later." },
+  uploadAvatar: { name: "upload:avatar", limit: 10, windowSeconds: 10 * 60, message: "Too many profile photo uploads. Try again later." },
+  uploadKyc: { name: "upload:kyc", limit: 20, windowSeconds: 10 * 60, message: "Too many document uploads. Try again later." },
+  uploadKycSubmit: { name: "upload:kyc-submit", limit: 5, windowSeconds: 30 * 60, message: "Too many verification submissions. Try again later." },
+  uploadAdminMedia: { name: "upload:admin-media", limit: 20, windowSeconds: 10 * 60, message: "Too many media uploads. Try again later." },
+  uploadDeliveryProof: { name: "upload:delivery-proof", limit: 8, windowSeconds: 10 * 60, message: "Too many package photo uploads. Try again later." },
+  uploadAccess: { name: "upload:access", limit: 120, windowSeconds: 5 * 60, message: "Too many file requests. Try again later." },
+  businessBulkDispatch: { name: "business:bulk-dispatch", limit: 5, windowSeconds: 10 * 60, message: "Too many bulk dispatch attempts. Try again later." }
 } satisfies Record<string, RateLimitPolicy>;
 
 export async function enforceRateLimit(request: Request, policy: RateLimitPolicy) {

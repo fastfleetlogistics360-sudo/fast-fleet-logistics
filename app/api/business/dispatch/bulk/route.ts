@@ -4,6 +4,7 @@ import { createDeliveryQuote } from "@/lib/delivery-quotes";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { createClient } from "@/lib/supabase/server";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import type { VehicleType } from "@/types/domain";
 
 type BulkRow = {
@@ -18,15 +19,18 @@ type BulkRow = {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { rows?: BulkRow[] };
-    const rows = Array.isArray(body.rows) ? body.rows.slice(0, 100) : [];
-    if (!rows.length) return NextResponse.json({ error: "Upload at least one valid dispatch row." }, { status: 400 });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.businessBulkDispatch);
+    if (limited) return limited;
 
     const supabase = await createClient();
     const {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in before creating dispatches." }, { status: 401 });
+
+    const body = (await request.json()) as { rows?: BulkRow[] };
+    const rows = Array.isArray(body.rows) ? body.rows.slice(0, 100) : [];
+    if (!rows.length) return NextResponse.json({ error: "Upload at least one valid dispatch row." }, { status: 400 });
 
     const { data: businessProfile } = await supabase
       .from("business_profiles")
@@ -159,5 +163,5 @@ export async function POST(request: Request) {
 }
 
 function clean(value: unknown) {
-  return String(value || "").trim();
+  return String(value || "").trim().slice(0, 500);
 }

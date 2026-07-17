@@ -6,6 +6,7 @@ import { defaultHubPromotionSlides, type HubPromotionSlide } from "@/lib/hub-pro
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { IMAGE_UPLOAD_ACCEPT } from "@/lib/storage";
 
 type HubPromotionSlidesSectionProps = {
   slides: HubPromotionSlide[];
@@ -75,7 +76,7 @@ export function HubPromotionSlidesSection({
                     <label className={`inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-fleet px-4 py-2 text-sm font-black transition ${uploading ? "bg-slate-200 text-slate-500" : "bg-fleet-night text-white shadow-fleet hover:-translate-y-0.5"}`} aria-disabled={uploading}>
                       {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
                       {uploading ? `Uploading ${progress}%` : "Upload image"}
-                      <input type="file" accept="image/*" className="sr-only" disabled={uploading} onChange={(event) => handleImageUpload(slide.id, event)} />
+                      <input type="file" accept={IMAGE_UPLOAD_ACCEPT} className="sr-only" disabled={uploading} onChange={(event) => handleImageUpload(slide.id, event)} />
                     </label>
                   </div>
                 </div>

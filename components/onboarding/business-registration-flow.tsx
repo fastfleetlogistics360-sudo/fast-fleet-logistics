@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import { Building2, Camera, CheckCircle2, FileUp, Loader2, PackageCheck, Store, UsersRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { uploadBusinessDocument } from "@/lib/storage";
+import { IMAGE_UPLOAD_ACCEPT, KYC_DOCUMENT_UPLOAD_ACCEPT, uploadBusinessDocument } from "@/lib/storage";
 import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,9 +26,9 @@ type UploadedBusinessDoc = {
 };
 
 const businessDocumentRequirements: Array<{ key: BusinessDocumentKey; label: string; accept: string; camera?: boolean }> = [
-  { key: "storefront_photo", label: "Shop front / office photo", accept: "image/*", camera: true },
-  { key: "cac_certificate", label: "CAC certificate", accept: "image/*,application/pdf" },
-  { key: "address_proof", label: "Proof of business address", accept: "image/*,application/pdf" }
+  { key: "storefront_photo", label: "Shop front / office photo", accept: IMAGE_UPLOAD_ACCEPT, camera: true },
+  { key: "cac_certificate", label: "CAC certificate", accept: KYC_DOCUMENT_UPLOAD_ACCEPT },
+  { key: "address_proof", label: "Proof of business address", accept: KYC_DOCUMENT_UPLOAD_ACCEPT }
 ];
 
 const businessTypeOptions = ["Restaurant", "Grocery", "Pharmacy", "Fashion", "Electronics", "Gadgets"] as const;
@@ -218,7 +218,7 @@ export function BusinessRegistrationFlow() {
         data: { user }
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Sign in again to upload business documents.");
-      const upload = await uploadBusinessDocument(user.id, key, file, (progress) => {
+      const upload = await uploadBusinessDocument(key, file, (progress) => {
         setDocs((previous) => ({
           ...previous,
           [key]: { ...(previous[key] || { key, label, name: file.name }), progress }
@@ -485,6 +485,7 @@ function BusinessDocumentDropzone({
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     handleFiles(event.target.files);
+    event.currentTarget.value = "";
   }
 
   return (

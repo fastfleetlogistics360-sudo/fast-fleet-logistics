@@ -10,13 +10,21 @@ import {
   pickupProofRejectionCount
 } from "@/lib/pickup-proof";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+import { persistReplacement, removeStoredObject, uploadValidatedObject } from "@/lib/secure-storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountMessengerHref } from "@/lib/tracking-links";
+import {
+  buildStoragePath,
+  logUploadRejection,
+  multipartBodyTooLarge,
+  uploadErrorResponse,
+  validateUpload,
+  UploadSecurityError,
+  type UploadRejectionCode
+} from "@/lib/upload-security";
 
 export const runtime = "nodejs";
-
-const maxUploadSize = 7 * 1024 * 1024;
 
 const jobSelect =
   "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
@@ -36,24 +44,34 @@ type RiderProfile = {
 };
 
 export async function POST(request: Request) {
+  let userId: string | null = null;
+  let claimedMime: string | null = null;
+  let fileSize: number | null = null;
   try {
-    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.riderJobsWrite, name: "rider:pickup-proof" });
-    if (limited) return limited;
+    const limited = await enforceRateLimit(request, rateLimitPolicies.uploadDeliveryProof);
+    if (limited) {
+      logUploadRejection({ route: "/api/rider/pickup-proof", code: "UPLOAD_RATE_LIMITED" });
+      return limited;
+    }
+
+    const supabase = await createClient();
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) throw new UploadSecurityError("UPLOAD_UNAUTHORIZED", "Please sign in as a rider.", { status: 401 });
+    userId = user.id;
+    if (multipartBodyTooLarge(request)) {
+      throw new UploadSecurityError("UPLOAD_TOO_LARGE", "File is too large. Choose a file under 7 MB.");
+    }
 
     const formData = await request.formData().catch(() => null);
     const deliveryId = String(formData?.get("deliveryId") || "").trim();
     const file = formData?.get("file");
 
     if (!deliveryId) return NextResponse.json({ error: "Choose a delivery before uploading package proof." }, { status: 400 });
-    if (!(file instanceof File)) return NextResponse.json({ error: "Attach a package photo before uploading." }, { status: 400 });
-    if (!file.type.startsWith("image/")) return NextResponse.json({ error: "Package proof must be an image." }, { status: 400 });
-    if (file.size > maxUploadSize) return NextResponse.json({ error: "Image is too large. Upload a photo under 7 MB." }, { status: 400 });
-
-    const supabase = await createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Please sign in as a rider." }, { status: 401 });
+    if (!(file instanceof File)) throw new UploadSecurityError("UPLOAD_EMPTY", "Attach a package photo before uploading.");
+    claimedMime = file.type || null;
+    fileSize = file.size;
 
     const admin = createAdminClient();
     if (!admin) {
@@ -87,16 +105,14 @@ export async function POST(request: Request) {
     const timestamp = new Date();
     const uploadedAt = timestamp.toISOString();
     const expiresAt = new Date(timestamp.getTime() + PICKUP_PROOF_REVIEW_WINDOW_MS).toISOString();
-    const safeName = sanitizeFileName(file.name || "package-photo.jpg");
-    const path = `${rider.id}/pickup-${delivery.id}-${Date.now()}-${safeName}`;
     const bytes = Buffer.from(await file.arrayBuffer());
-
-    const upload = await uploadObject(admin, "delivery-proofs", path, bytes, file.type || "image/jpeg", true);
-    if (upload.error) return NextResponse.json({ error: friendlyUploadError(upload.error.message) }, { status: 500 });
-
-    const { data: publicUrl } = admin.storage.from("delivery-proofs").getPublicUrl(path);
+    const validated = await validateUpload({ bytes, originalName: file.name, declaredMime: file.type, profile: "delivery-proof" });
+    const path = buildStoragePath({ ownerId: user.id, profile: "delivery-proof", context: delivery.id, fileName: validated.fileName });
+    const accessUrl = `/api/uploads/access?scope=delivery-proof&id=${encodeURIComponent(delivery.id)}`;
+    const nextHistory = compactProofHistory(previousProof);
+    const staleHistoryPaths = droppedProofHistoryPaths(previousProof, nextHistory);
     const nextProof = {
-      url: publicUrl.publicUrl,
+      url: accessUrl,
       path,
       bucket: "delivery-proofs",
       status: "pending",
@@ -109,7 +125,7 @@ export async function POST(request: Request) {
       can_continue: false,
       attempt: Number(previousProof?.attempt || 0) + 1,
       note: rejectionCount >= PICKUP_PROOF_MAX_REJECTIONS ? "Customer rejection limit already reached. Support review remains attached." : null,
-      history: compactProofHistory(previousProof)
+      history: nextHistory
     };
 
     const nextMetadata = {
@@ -118,11 +134,18 @@ export async function POST(request: Request) {
       pickup_proof: nextProof
     };
 
-    const { error: updateError } = await admin
-      .from("deliveries")
-      .update({ metadata: nextMetadata, updated_at: uploadedAt })
-      .eq("id", delivery.id);
-    if (updateError) throw updateError;
+    await persistReplacement({
+      uploadNew: () => uploadValidatedObject(admin, { bucket: "delivery-proofs", path, upload: validated, publicBucket: false }),
+      persistNew: async () => {
+        const { error: updateError } = await admin
+          .from("deliveries")
+          .update({ metadata: nextMetadata, updated_at: uploadedAt })
+          .eq("id", delivery.id);
+        if (updateError) throw updateError;
+      },
+      removeNew: (stored) => removeStoredObject(admin, stored.bucket, stored.path)
+    });
+    await Promise.allSettled(staleHistoryPaths.map((stalePath) => removeStoredObject(admin, "delivery-proofs", stalePath)));
 
     await Promise.allSettled([
       admin.from("delivery_events").insert({
@@ -145,7 +168,17 @@ export async function POST(request: Request) {
 
     return updateResponse(admin, delivery.id);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not upload package proof." }, { status: 500 });
+    const result = uploadErrorResponse(error);
+    const code = result.body.code as UploadRejectionCode;
+    logUploadRejection({
+      route: "/api/rider/pickup-proof",
+      userId,
+      claimedMime,
+      detectedMime: error instanceof UploadSecurityError ? error.detectedMime : null,
+      fileSize,
+      code
+    });
+    return NextResponse.json(result.body, { status: result.status });
   }
 }
 
@@ -155,25 +188,6 @@ async function updateResponse(db: SupabaseClient, id: string) {
   return NextResponse.json({ job: data });
 }
 
-async function uploadObject(db: SupabaseClient, bucket: string, objectPath: string, body: Buffer, contentType: string, publicBucket: boolean) {
-  const attempt = await db.storage.from(bucket).upload(objectPath, body, {
-    cacheControl: "31536000",
-    contentType,
-    upsert: true
-  });
-
-  if (!isMissingBucketError(attempt.error?.message)) return attempt;
-
-  const create = await db.storage.createBucket(bucket, { public: publicBucket });
-  if (create.error && !/already exists/i.test(create.error.message)) return { data: null, error: create.error };
-
-  return db.storage.from(bucket).upload(objectPath, body, {
-    cacheControl: "31536000",
-    contentType,
-    upsert: true
-  });
-}
-
 function compactProofHistory(previousProof: ReturnType<typeof pickupProofFromMetadata>) {
   if (!previousProof?.url) return [];
   const previousHistory = Array.isArray(previousProof.history) ? previousProof.history : [];
@@ -181,6 +195,8 @@ function compactProofHistory(previousProof: ReturnType<typeof pickupProofFromMet
     ...previousHistory.slice(-4),
     {
       url: previousProof.url,
+      path: previousProof.path || null,
+      bucket: previousProof.bucket || "delivery-proofs",
       status: previousProof.status || null,
       uploaded_at: previousProof.uploaded_at || null,
       reviewed_at: previousProof.reviewed_at || null
@@ -188,18 +204,13 @@ function compactProofHistory(previousProof: ReturnType<typeof pickupProofFromMet
   ];
 }
 
-function sanitizeFileName(value: string) {
-  const cleaned = value.toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "");
-  return cleaned || "package-photo.jpg";
-}
-
-function isMissingBucketError(message?: string) {
-  return Boolean(message && /bucket.*not.*found|not found/i.test(message));
-}
-
-function friendlyUploadError(message: string) {
-  if (/schema is invalid|incompatible|schema.*cache|column.*does not exist/i.test(message)) {
-    return "Package photo uploads are temporarily unavailable. Please try again or contact support.";
-  }
-  return message || "Package photo upload failed. Try again.";
+function droppedProofHistoryPaths(
+  previousProof: ReturnType<typeof pickupProofFromMetadata>,
+  retainedHistory: Array<Record<string, unknown>>
+) {
+  const retained = new Set(retainedHistory.map((entry) => String(entry.path || "")).filter(Boolean));
+  const previousHistory = Array.isArray(previousProof?.history) ? previousProof.history : [];
+  return previousHistory
+    .map((entry) => String(entry.path || ""))
+    .filter((path) => path && !retained.has(path));
 }

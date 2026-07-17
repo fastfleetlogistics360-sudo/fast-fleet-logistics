@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
-import { uploadProfilePhoto } from "@/lib/storage";
+import { IMAGE_UPLOAD_ACCEPT, uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { ActiveOrderMessengerSheet } from "@/components/dashboard/active-order-messenger-sheet";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
@@ -1019,11 +1019,7 @@ function AccountTab({
         data: { user }
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Sign in again to upload your profile picture.");
-      const upload = await uploadProfilePhoto(user.id, file);
-      await Promise.allSettled([
-        supabase.from("profiles").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("user_id", user.id),
-        supabase.from("users").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("id", user.id)
-      ]);
+      const upload = await uploadProfilePhoto(file);
       onProfile({ ...profile, avatar_url: upload.publicUrl });
       setPhotoMessage("Profile picture updated.");
     } catch (error) {
@@ -1043,7 +1039,7 @@ function AccountTab({
             <p className="text-sm font-semibold text-slate-500">{profile.email || "No email"} · {profile.phone || "No phone"}</p>
             <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">
               {photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}
-              <input className="sr-only" type="file" accept="image/*" onChange={(event) => handleProfilePhoto(event.target.files?.[0] || null)} />
+              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => { void handleProfilePhoto(event.target.files?.[0] || null); event.currentTarget.value = ""; }} />
             </label>
           </div>
         </div>

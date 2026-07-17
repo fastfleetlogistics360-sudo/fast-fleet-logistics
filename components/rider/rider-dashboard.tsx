@@ -14,7 +14,7 @@ import { bicycleCrossStateRouteMaxKm, coordinatePoint, crossStatePickupRadiusKm,
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import { isCustomerPickupProofRequired, pickupProofFromMetadata, pickupProofNeedsUpload, pickupProofReviewExpired, pickupProofReviewSecondsRemaining, pickupProofStatusMessage } from "@/lib/pickup-proof";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
-import { compressImage, uploadProfilePhoto } from "@/lib/storage";
+import { IMAGE_UPLOAD_ACCEPT, compressImage, uploadProfilePhoto, validateClientFile } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -282,6 +282,7 @@ async function saveRiderAvailability(options: { online?: boolean; vehicleType?: 
 }
 
 async function uploadPickupProof(deliveryId: string, file: File) {
+  validateClientFile(file);
   const body = new FormData();
   body.set("deliveryId", deliveryId);
   body.set("file", await compressImage(file, 1280, 0.78));
@@ -1324,11 +1325,11 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
                 {proof?.status ? proof.status.replaceAll("_", " ") : "Needed"}
               </StatusBadge>
             </div>
-            {proof?.url ? <Image src={proof.url} alt="Package pickup proof" width={720} height={360} unoptimized className="mt-3 max-h-64 w-full rounded-fleet object-cover" /> : null}
+            {proof?.url ? <Image src={`/api/uploads/access?scope=delivery-proof&id=${encodeURIComponent(job.id)}`} alt="Package pickup proof" width={720} height={360} unoptimized className="mt-3 max-h-64 w-full rounded-fleet object-cover" /> : null}
             {needsUpload ? (
               <label className="form-field mt-3">
                 <span className="form-label">Package pickup photo</span>
-                <input className="form-input py-3" type="file" accept="image/*" onChange={(event) => onProofFile(event.target.files?.[0] || null)} />
+                <input className="form-input py-3" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => { onProofFile(event.target.files?.[0] || null); event.currentTarget.value = ""; }} />
                 {proofFile ? <span className="text-xs font-bold text-slate-500">{proofFile.name}</span> : null}
               </label>
             ) : null}
@@ -1544,11 +1545,7 @@ function AccountTab({ profile, onProfile, kycStatus, prefs, onPrefs }: { profile
         data: { user }
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Sign in again to upload your profile picture.");
-      const upload = await uploadProfilePhoto(user.id, file);
-      await Promise.allSettled([
-        supabase.from("users").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("id", user.id),
-        supabase.from("profiles").update({ avatar_url: upload.publicUrl, updated_at: new Date().toISOString() }).eq("user_id", user.id)
-      ]);
+      const upload = await uploadProfilePhoto(file);
       onProfile({ ...profile, avatar_url: upload.publicUrl });
       setPhotoMessage("Profile picture updated.");
     } catch (error) {
@@ -1568,7 +1565,7 @@ function AccountTab({ profile, onProfile, kycStatus, prefs, onPrefs }: { profile
             <p className="text-sm font-semibold text-slate-500">{profile.phone || "No phone"} · {profile.lga || "Lagos"}</p>
             <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">
               {photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}
-              <input className="sr-only" type="file" accept="image/*" onChange={(event) => handlePhoto(event.target.files?.[0] || null)} />
+              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => { void handlePhoto(event.target.files?.[0] || null); event.currentTarget.value = ""; }} />
             </label>
           </div>
         </div>
