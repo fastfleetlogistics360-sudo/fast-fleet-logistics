@@ -16,6 +16,10 @@ Use this before switching the public site from preview/demo storage to live Supa
 - Confirm the private `rider-documents` storage bucket exists.
 - Confirm Realtime is enabled for delivery/tracking tables used by the app.
 
+### Existing production projects: apply the secure-upload delta
+
+Do **not** rerun the complete `supabase-schema.sql` against an existing production project. After taking a database backup, run `supabase-secure-upload-delta.sql` once in the Supabase SQL Editor. It makes `delivery-proofs` private, removes direct browser writes, and limits proof reads to the delivery customer, the assigned rider, and authorized admins. The application then creates a fresh signed link only when an authorized participant opens the proof.
+
 ## 3. Configure auth
 
 - Enable Email auth.

@@ -1,5 +1,5 @@
 const CACHE_NAME = "fastfleet-shell-v14";
-const PAGES_CACHE = "fastfleet-pages-v14";
+const PAGES_CACHE = "fastfleet-pages-v15";
 const OFFLINE_QUEUE = "fastfleet-offline-bookings-v1";
 const APP_SHELL = [
   "/",
@@ -104,7 +104,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.method !== "GET") return;
-  if (url.pathname.startsWith("/api/uploads/access")) {
+  if (isPrivateProofRequest(url.pathname)) {
     event.respondWith(fetch(request, { cache: "no-store" }));
     return;
   }
@@ -139,6 +139,16 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+function isPrivateProofRequest(pathname) {
+  return (
+    pathname.startsWith("/api/uploads/access") ||
+    pathname.startsWith("/account/orders/") ||
+    pathname.startsWith("/customer/") ||
+    pathname.startsWith("/rider/") ||
+    pathname === "/dashboard"
+  );
+}
 
 self.addEventListener("sync", (event) => {
   if (event.tag === "fastfleet-offline-bookings") {

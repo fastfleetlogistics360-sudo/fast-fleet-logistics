@@ -337,7 +337,7 @@ The schema creates:
 | --- | --- | --- |
 | `rider-documents` | No | Rider KYC documents. |
 | `business-documents` | No | Business KYC documents. |
-| `delivery-proofs` | Yes | Proof of delivery images. |
+| `delivery-proofs` | No | Private pickup/delivery proof images; participants receive short-lived signed access only. |
 | `profile-photos` | Yes | User profile photos. |
 
 ### Required realtime tables
