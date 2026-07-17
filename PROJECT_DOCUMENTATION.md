@@ -285,10 +285,13 @@ Environment variables control backend behavior. Anything with `NEXT_PUBLIC_` is 
 | `NEXT_PUBLIC_ALLOW_DEMO_DATA` | Local/staging only | Yes | Enables demo fallbacks when true. Keep false in production. |
 | `NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK` | Local/staging only | Yes | Allows fallback Supabase config. Keep false in production. |
 | `CRON_SECRET` | Yes | No | Secret of at least 32 characters used to protect `/api/wallet/daily-commission`. |
+| `DELIVERY_CONFIRMATION_SECRET` | Recommended | No | Secret of at least 32 characters used to encrypt and authenticate six-digit delivery PINs. Falls back to the service-role key when omitted. |
+| `DELIVERY_SMS_WEBHOOK_URL` | Optional | No | Provider-neutral HTTPS webhook that sends delivery PIN messages to recipient phone numbers. |
+| `DELIVERY_SMS_WEBHOOK_TOKEN` | Optional | No | Bearer token for the delivery SMS webhook. |
 
 ### Key safety notes
 
-- Never put `SUPABASE_SERVICE_ROLE_KEY`, `SQUAD_SECRET_KEY`, `FASTFLEET_ADMIN_PASSWORD`, OAuth secrets, or `CRON_SECRET` inside client components.
+- Never put `SUPABASE_SERVICE_ROLE_KEY`, `SQUAD_SECRET_KEY`, `FASTFLEET_ADMIN_PASSWORD`, OAuth secrets, `CRON_SECRET`, or `DELIVERY_CONFIRMATION_SECRET` inside client components.
 - Never rename env vars without updating every route that reads them.
 - In production, set `NEXT_PUBLIC_ALLOW_DEMO_DATA=false` and `NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false`.
 - `lib/supabase/config.ts` has fallback Supabase values for non-production use. Do not rely on those for production.
@@ -1209,6 +1212,21 @@ Steps:
 7. Update tracking timeline display.
 8. Test customer, rider, and admin views.
 
+#### Secure delivery completion
+
+The final handoff follows this status path:
+
+`in_transit` → `awaiting_delivery_confirmation` → `delivered`
+
+- The assigned rider can record arrival at the drop-off point but cannot mark the delivery completed.
+- A six-digit PIN is generated only after arrival. It is encrypted at rest and separately authenticated with an HMAC digest.
+- The booking customer can view the PIN or confirm the handoff directly inside the authenticated messenger.
+- The assigned rider has five PIN attempts. PINs expire after 15 minutes and resends are rate-limited.
+- `finalizeConfirmedDelivery()` is the only customer/rider completion path and triggers linked-order completion, fleet release, notifications, and idempotent rider settlement.
+- Administrators retain an audited override for recipient-unavailable and support cases.
+
+Production database rollout uses `supabase-delivery-confirmation-delta.sql`. Do not rerun the complete schema for this change.
+
 ### 12.5 How to change wallet rules
 
 Files:
@@ -1529,7 +1547,10 @@ Commission basis:
 - Rider commission:
   - independent: 10 percent
   - fastfleets360: 5 percent
-- Business commission uses `business_profiles.commission_rate`.
+- Business commission:
+  - Pharmacy: 5 percent
+  - Restaurant and every other supported business category: 10 percent
+- `business_profiles.commission_rate` is reconciled against these rules by the daily commission route before a deduction is made.
 
 Authorization:
 

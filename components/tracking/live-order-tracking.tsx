@@ -10,6 +10,7 @@ import { formatDateTime, formatMoney } from "@/lib/format";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
 import { FastFleetMap } from "@/components/maps/fastfleet-map";
 import { PackagePickupProof } from "@/components/tracking/package-pickup-proof";
+import { CustomerDeliveryConfirmation } from "@/components/tracking/customer-delivery-confirmation";
 import { LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -75,7 +76,7 @@ const statusSteps = [
   { keys: ["accepted", "rider_arrived"], label: "Heading to pickup" },
   { keys: ["picked_up"], label: "Picked up" },
   { keys: ["in_transit"], label: "On the way" },
-  { keys: ["rider_arrived", "delivered"], label: "Arrived" },
+  { keys: ["rider_arrived", "awaiting_delivery_confirmation", "delivered"], label: "Arrived" },
   { keys: ["delivered"], label: "Delivered" }
 ];
 
@@ -85,17 +86,19 @@ const marketplaceStatusSteps = [
   { keys: ["packing"], label: "Packing" },
   { keys: ["ready_for_pickup"], label: "Ready for pickup" },
   { keys: ["rider_assigned", "accepted"], label: "Rider assigned" },
-  { keys: ["picked_up", "in_transit", "delivered"], label: "Dispatch started" }
+  { keys: ["picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered"], label: "Dispatch started" }
 ];
 
 export function LiveOrderTracking({
   initialOrder,
   initialLocation,
-  mode = "tracking"
+  mode = "tracking",
+  backHref = "/customer/dashboard"
 }: {
   initialOrder: TrackingOrder;
   initialLocation: DeliveryLocation | null;
   mode?: "tracking" | "messenger";
+  backHref?: string;
 }) {
   const [order, setOrder] = useState(initialOrder);
   const [location, setLocation] = useState<DeliveryLocation | null>(initialLocation);
@@ -309,6 +312,11 @@ export function LiveOrderTracking({
         connectionState={connectionState}
         stale={stale}
         showPickupProof={showPickupProof}
+        backHref={backHref}
+        onConfirmed={() => {
+          setOrder((current) => ({ ...current, status: "delivered", updated_at: new Date().toISOString() }));
+          setConnectionState("complete");
+        }}
       />
     );
   }
@@ -319,7 +327,7 @@ export function LiveOrderTracking({
         <main className="grid min-w-0 gap-5">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div>
-              <Link href="/dashboard" className="text-sm font-black text-fleet-ember">Back to dashboard</Link>
+              <Link href={backHref} className="text-sm font-black text-fleet-ember">Back to dashboard</Link>
               <h1 className="mt-2 text-3xl font-black text-fleet-night sm:text-5xl">{order.delivery_code}</h1>
               <p className="mt-2 text-sm font-semibold text-slate-600">
                 {marketplaceOnly ? "Marketplace order status from business preparation to dispatch." : "Live delivery tracking from pickup to drop-off."}
@@ -347,7 +355,7 @@ export function LiveOrderTracking({
                 {marketplaceStatusSteps.map((step) => {
                   const active = step.keys.includes(String(marketplaceStatus || order.status)) || isMarketplaceStepDone(step.label, String(marketplaceStatus || order.status));
                   return (
-                    <div key={step.label} className={cn("rounded-fleet border p-3", active ? "border-fleet-leaf bg-emerald-50 text-emerald-800" : "border-fleet-line bg-white text-slate-500")}>
+                    <div key={step.label} className={cn("rounded-[14px] border px-2.5 py-2", active ? "border-fleet-leaf bg-emerald-50 text-emerald-800" : "border-fleet-line bg-white text-slate-500")}>
                       <span className="block text-xs font-black uppercase leading-5">{step.label}</span>
                     </div>
                   );
@@ -362,7 +370,7 @@ export function LiveOrderTracking({
               {statusSteps.map((step) => {
                 const active = step.keys.includes(order.status) || isStepDone(step.label, order.status);
                 return (
-                  <div key={step.label} className={cn("rounded-fleet border p-3", active ? "border-fleet-leaf bg-emerald-50 text-emerald-800" : "border-fleet-line bg-white text-slate-500")}>
+                  <div key={step.label} className={cn("rounded-[14px] border px-2.5 py-2", active ? "border-fleet-leaf bg-emerald-50 text-emerald-800" : "border-fleet-line bg-white text-slate-500")}>
                     <span className="block text-xs font-black uppercase leading-5">{step.label}</span>
                   </div>
                 );
@@ -444,7 +452,9 @@ function OngoingDeliveryRoom({
   etaMinutes,
   connectionState,
   stale,
-  showPickupProof
+  showPickupProof,
+  backHref,
+  onConfirmed
 }: {
   order: TrackingOrder;
   pickup: LatLng | null;
@@ -455,6 +465,8 @@ function OngoingDeliveryRoom({
   connectionState: "loading" | "live" | "offline" | "complete";
   stale: boolean;
   showPickupProof: boolean;
+  backHref: string;
+  onConfirmed: () => void;
 }) {
   const riderName = order.rider?.full_name || "Rider pending";
   const riderTag = order.rider_id ? riderAccountTypeLabel(order.rider?.rider_account_type) : "Rider tag pending";
@@ -463,10 +475,10 @@ function OngoingDeliveryRoom({
 
   return (
     <section className="min-h-screen bg-[#eef3f7]">
-      <div className="mx-auto grid max-w-6xl gap-4 px-3 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:py-6">
+      <div className="mx-auto grid max-w-6xl gap-3 px-3 py-3 sm:px-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:py-5">
         <main className="min-w-0 overflow-hidden rounded-[24px] border border-white bg-white shadow-[0_24px_80px_rgba(8,17,31,0.12)]">
           <div className="border-b border-fleet-line bg-white px-4 py-4 sm:px-5">
-            <Link href="/dashboard" className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">Back to dashboard</Link>
+            <Link href={backHref} className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">Back to dashboard</Link>
             <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{isMarketplaceDelivery ? "Marketplace dispatch room" : "Live delivery room"}</p>
@@ -481,13 +493,13 @@ function OngoingDeliveryRoom({
             <LiveTrackingMap order={order} pickup={pickup} dropoff={dropoff} location={location} compactRoom />
           </div>
 
-          <div className="grid gap-3 border-b border-fleet-line bg-white px-4 py-4 sm:grid-cols-3 sm:px-5">
+          <div className="grid grid-cols-3 gap-2 border-b border-fleet-line bg-white px-3 py-3 sm:px-5">
             <MiniMetric label="ETA" value={etaMinutes ? `${etaMinutes} min` : "Updating"} />
             <MiniMetric label="Remaining" value={remainingKm ? `${remainingKm.toFixed(1)} km` : "Waiting"} />
             <MiniMetric label="Status" value={statusLabel(order.status)} />
           </div>
 
-          <div className="grid gap-3 bg-[#f7fafc] px-3 py-4 sm:px-5">
+          <div className="grid gap-2 bg-[#f7fafc] px-3 py-3 sm:px-5">
             {messages.map((message) => (
               <DeliveryRoomBubble key={message.key} message={message} />
             ))}
@@ -503,11 +515,12 @@ function OngoingDeliveryRoom({
               />
             ) : null}
             {showPickupProof ? <PackagePickupProof deliveryId={order.id} metadata={order.metadata} status={order.status} className="mt-1 rounded-[20px]" /> : null}
+            {order.status === "awaiting_delivery_confirmation" ? <CustomerDeliveryConfirmation deliveryId={order.id} status={order.status} onConfirmed={onConfirmed} /> : null}
           </div>
         </main>
 
         <aside className="grid content-start gap-4">
-          <Card className="p-5">
+          <Card className="p-4">
             <div className="flex items-start gap-3">
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-fleet bg-fleet-navy text-white">
                 <Bike className="h-5 w-5" />
@@ -539,7 +552,7 @@ function OngoingDeliveryRoom({
             </div>
           </Card>
 
-          <Card className="p-5">
+          <Card className="p-4">
             <h2 className="text-xl font-black text-fleet-night">Delivery details</h2>
             <div className="mt-4 grid gap-3">
               <InfoRow icon={MapPin} label="Pickup" value={order.pickup_address} />
@@ -558,9 +571,9 @@ function OngoingDeliveryRoom({
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[16px] bg-fleet-paper px-3 py-3">
-      <span className="block text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-500">{label}</span>
-      <strong className="mt-1 block text-sm font-black text-fleet-night">{value}</strong>
+    <div className="min-w-0 rounded-[13px] bg-fleet-paper px-2.5 py-2">
+      <span className="block truncate text-[0.58rem] font-black uppercase tracking-[0.1em] text-slate-500">{label}</span>
+      <strong className="mt-0.5 block truncate text-xs font-black text-fleet-night sm:text-sm">{value}</strong>
     </div>
   );
 }
@@ -581,7 +594,7 @@ function DeliveryRoomBubble({ message }: { message: DeliveryRoomMessage }) {
     <div className={cn("flex", fromRider ? "justify-start" : fromCustomer ? "justify-end" : "justify-center")}>
       <div
         className={cn(
-          "max-w-[92%] rounded-[20px] px-4 py-3 shadow-[0_14px_36px_rgba(8,17,31,0.08)] sm:max-w-[78%]",
+          "max-w-[88%] rounded-[16px] px-3 py-2.5 shadow-[0_9px_24px_rgba(8,17,31,0.07)] sm:max-w-[72%]",
           fromRider && "rounded-bl-md bg-white text-fleet-night",
           fromCustomer && "rounded-br-md bg-fleet-navy text-white",
           message.tone === "system" && "bg-emerald-50 text-emerald-900",
@@ -589,11 +602,11 @@ function DeliveryRoomBubble({ message }: { message: DeliveryRoomMessage }) {
         )}
       >
         <div className="flex items-center gap-2">
-          {message.active ? <span className="h-2.5 w-2.5 animate-pulseSoft rounded-full bg-fleet-gold" /> : null}
-          <span className={cn("text-[0.65rem] font-black uppercase tracking-[0.12em]", fromCustomer ? "text-white/70" : "text-slate-500")}>{message.meta}</span>
+          {message.active ? <span className="h-2 w-2 animate-pulseSoft rounded-full bg-fleet-gold" /> : null}
+          <span className={cn("text-[0.58rem] font-black uppercase tracking-[0.1em]", fromCustomer ? "text-white/70" : "text-slate-500")}>{message.meta}</span>
         </div>
-        <strong className="mt-1 block text-sm font-black leading-5">{message.title}</strong>
-        <p className={cn("mt-1 text-sm font-semibold leading-6", fromCustomer ? "text-white/80" : "text-slate-600")}>{message.body}</p>
+        <strong className="mt-0.5 block text-sm font-black leading-5">{message.title}</strong>
+        <p className={cn("mt-0.5 text-xs font-semibold leading-5", fromCustomer ? "text-white/80" : "text-slate-600")}>{message.body}</p>
       </div>
     </div>
   );
@@ -645,7 +658,7 @@ function deliveryRoomMessages(order: TrackingOrder, etaMinutes: number, remainin
     {
       key: "picked_up",
       title: "Package picked up",
-      body: "Pickup has been marked complete. FastConfirm™ appears here when a customer package photo review is required.",
+      body: "Pickup is complete. Package review will appear when confirmation is required.",
       meta: "FastConfirm™",
       tone: "rider",
       active: current === "picked_up"
@@ -657,13 +670,21 @@ function deliveryRoomMessages(order: TrackingOrder, etaMinutes: number, remainin
       meta: location && !stale ? "Live movement" : "Last known movement",
       tone: "rider",
       active: current === "in_transit"
+    },
+    {
+      key: "awaiting_delivery_confirmation",
+      title: "Rider is at the drop-off point",
+      body: "Confirm the handoff in this room or give the six-digit PIN to the rider after receiving the package.",
+      meta: "Secure handoff",
+      tone: "system",
+      active: current === "awaiting_delivery_confirmation"
     }
   ];
   return messages.filter((message) => isRoomMessageVisible(message.key, current));
 }
 
 function isRoomMessageVisible(key: string, status: string) {
-  const order = ["pending", "searching", "assigned", "accepted", "rider_arrived", "picked_up", "in_transit"];
+  const order = ["pending", "searching", "assigned", "accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"];
   const normalizedStatus = status === "rider_assigned" ? "assigned" : status === "received" ? "pending" : status;
   const statusIndex = order.indexOf(normalizedStatus);
   const messageIndex = order.indexOf(key);
@@ -746,8 +767,8 @@ function TrackingStateCard({ state, stale, completed, location, marketplaceOnly 
       : !location
       ? "The map will update once the rider starts delivery tracking from the rider app."
       : stale
-        ? "Showing the last known rider position while realtime reconnects."
-        : "Location updates are streaming to this order in realtime.";
+        ? "Showing the last known rider position while the connection recovers."
+        : "Rider location updates are active for this order.";
   return (
     <Card className="p-5">
       <h2 className="text-lg font-black text-fleet-night">{title}</h2>
@@ -835,7 +856,7 @@ function isComplete(status: string) {
 }
 
 function isOngoingDelivery(status: string) {
-  return ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(status);
+  return ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(status);
 }
 
 function statusLabel(status: string) {
@@ -852,6 +873,7 @@ function statusLabel(status: string) {
   if (status === "rider_arrived") return "Rider at pickup";
   if (status === "picked_up") return "Package picked up";
   if (status === "in_transit") return "On the way";
+  if (status === "awaiting_delivery_confirmation") return "Awaiting delivery confirmation";
   if (status === "delivered") return "Delivered";
   if (status === "cancelled") return "Cancelled";
   return status.replaceAll("_", " ");
@@ -864,7 +886,7 @@ function isMarketplacePrepStatus(status: string) {
 function isMarketplaceStepDone(label: string, status: string) {
   const order = ["Order received", "Preparing", "Packing", "Ready for pickup", "Rider assigned", "Dispatch started"];
   const statusIndex =
-    status === "delivered" || status === "in_transit" || status === "picked_up"
+    status === "delivered" || status === "awaiting_delivery_confirmation" || status === "in_transit" || status === "picked_up"
       ? 5
       : status === "rider_assigned" || status === "accepted"
         ? 4
@@ -883,7 +905,7 @@ function isMarketplaceStepDone(label: string, status: string) {
 function isStepDone(label: string, status: string) {
   const order = ["Rider assigned", "Heading to pickup", "Picked up", "On the way", "Arrived", "Delivered"];
   const statusIndex =
-    status === "delivered" ? 5 : status === "in_transit" ? 3 : status === "picked_up" ? 2 : status === "rider_arrived" ? 1 : status === "accepted" ? 0 : -1;
+    status === "delivered" ? 5 : status === "awaiting_delivery_confirmation" ? 4 : status === "in_transit" ? 3 : status === "picked_up" ? 2 : status === "rider_arrived" ? 1 : status === "accepted" ? 0 : -1;
   return order.indexOf(label) <= statusIndex;
 }
 

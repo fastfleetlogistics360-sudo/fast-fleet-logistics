@@ -10,6 +10,7 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
+import { businessCommissionRate } from "@/lib/business-commission";
 
 type BusinessRegistrationStatus = "submitted" | "active" | "paused" | "rejected";
 type BusinessDocumentKey = "storefront_photo" | "cac_certificate" | "director_government_id" | "address_proof";
@@ -34,15 +35,6 @@ const businessTypeOptions = ["Restaurant", "Grocery", "Pharmacy", "Fashion", "El
 type BusinessType = (typeof businessTypeOptions)[number];
 type StoredBusinessType = BusinessType | "Mall";
 
-const commissionByBusinessType: Record<BusinessType, number> = {
-  Restaurant: 12,
-  Grocery: 10,
-  Pharmacy: 5,
-  Fashion: 10,
-  Electronics: 10,
-  Gadgets: 10
-};
-
 export function BusinessRegistrationFlow() {
   const [authReady, setAuthReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
@@ -59,7 +51,7 @@ export function BusinessRegistrationFlow() {
     phone: "",
     email: "",
     businessType: "Restaurant" as BusinessType,
-    commissionRate: commissionByBusinessType.Restaurant,
+    commissionRate: businessCommissionRate("Restaurant"),
     industry: "Restaurant",
     dispatchVolume: "10 - 30 weekly deliveries",
     state: "",
@@ -140,7 +132,7 @@ export function BusinessRegistrationFlow() {
                 phone: business.phone || current.phone,
                 email: business.email || data.user.email || current.email,
                 businessType: storedBusinessType || current.businessType,
-                commissionRate: Number(business.commission_rate ?? commissionByBusinessType[storedBusinessType || current.businessType]),
+                commissionRate: Number(business.commission_rate ?? businessCommissionRate(storedBusinessType || current.businessType)),
                 industry: business.industry && business.industry !== "Mall" && business.industry !== "Shopping" ? business.industry : storedBusinessType || current.industry,
                 dispatchVolume: business.dispatch_volume || current.dispatchVolume,
                 state: normalizeState(business.operating_state || appUserResult.data?.default_zone) || current.state,
@@ -192,7 +184,7 @@ export function BusinessRegistrationFlow() {
       ...current,
       businessType,
       industry: businessType,
-      commissionRate: commissionByBusinessType[businessType]
+      commissionRate: businessCommissionRate(businessType)
     }));
   }
 

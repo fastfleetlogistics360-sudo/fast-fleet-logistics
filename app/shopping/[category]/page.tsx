@@ -8,7 +8,7 @@ type ShoppingCategoryPageProps = {
   params: Promise<{ category: string }>;
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export async function generateMetadata({ params }: ShoppingCategoryPageProps): Promise<Metadata> {
   const { category: categorySlug } = await params;

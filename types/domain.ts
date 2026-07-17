@@ -13,6 +13,7 @@ export type DeliveryStatus =
   | "rider_arrived"
   | "picked_up"
   | "in_transit"
+  | "awaiting_delivery_confirmation"
   | "delivered"
   | "cancelled";
 
@@ -94,6 +95,7 @@ export interface NotificationPayload {
   type:
     | "order_accepted"
     | "rider_arrived"
+    | "delivery_confirmation"
     | "delivery_completed"
     | "withdrawal_approved"
     | "rider_application"

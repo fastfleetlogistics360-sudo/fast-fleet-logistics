@@ -3,19 +3,9 @@ import { normalizeState } from "@/lib/launch-states";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { businessCommissionRate, normalizeBusinessCommissionType, type BusinessCommissionType } from "@/lib/business-commission";
 
-const businessTypes = ["Restaurant", "Mall", "Grocery", "Pharmacy", "Fashion", "Electronics", "Gadgets"] as const;
-type BusinessType = (typeof businessTypes)[number];
-
-const commissionByBusinessType: Record<BusinessType, number> = {
-  Restaurant: 12,
-  Mall: 10,
-  Grocery: 10,
-  Pharmacy: 5,
-  Fashion: 10,
-  Electronics: 10,
-  Gadgets: 10
-};
+type BusinessType = BusinessCommissionType;
 
 function clean(value: unknown, maxLength = 180) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
@@ -23,8 +13,7 @@ function clean(value: unknown, maxLength = 180) {
 
 function normalizeBusinessType(value: unknown): BusinessType | "" {
   const raw = clean(value, 80);
-  const normalized = raw === "Shopping" ? "Mall" : raw;
-  return businessTypes.includes(normalized as BusinessType) ? (normalized as BusinessType) : "";
+  return normalizeBusinessCommissionType(raw) || "";
 }
 
 export async function PATCH(request: Request) {
@@ -69,7 +58,7 @@ export async function PATCH(request: Request) {
         email: email || user.email || null,
         industry: businessType || null,
         business_type: businessType || null,
-        commission_rate: businessType ? commissionByBusinessType[businessType] : null,
+        commission_rate: businessType ? businessCommissionRate(businessType) : null,
         operating_state: state,
         pickup_address: pickupAddress,
         cac_number: cacNumber || null,
@@ -88,7 +77,7 @@ export async function PATCH(request: Request) {
           email: email || user.email || null,
           industry: businessType || null,
           business_type: businessType || null,
-          commission_rate: businessType ? commissionByBusinessType[businessType] : null,
+          commission_rate: businessType ? businessCommissionRate(businessType) : null,
           pickup_address: pickupAddress,
           cac_number: cacNumber || null,
           updated_at: now

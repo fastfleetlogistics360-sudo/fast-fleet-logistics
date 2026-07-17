@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { isBicycleDelivery, loadAssignedBicycleAsset, markBicycleAssetBusy, releaseBicycleAssetForDelivery } from "@/lib/fleet-assets";
+import { announceDeliveryConfirmation, createDeliveryConfirmation } from "@/lib/delivery-confirmation";
+import { isBicycleDelivery, loadAssignedBicycleAsset, markBicycleAssetBusy } from "@/lib/fleet-assets";
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import { bicycleCrossStateRouteMaxKm, coordinatePoint, crossStatePickupRadiusKm, haversineKm, isFreshLocation } from "@/lib/location/proximity";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
@@ -15,7 +16,7 @@ const statusFlow: Record<string, DeliveryStatus> = {
   accepted: "rider_arrived",
   rider_arrived: "picked_up",
   picked_up: "in_transit",
-  in_transit: "delivered"
+  in_transit: "awaiting_delivery_confirmation"
 };
 
 const jobSelect =
@@ -53,12 +54,13 @@ export async function GET(request: Request) {
 
     const admin = createAdminClient();
     const db = admin || supabase;
-    let { data: rider, error: riderError } = await db
+    const { data: loadedRider, error: riderError } = await db
       .from("rider_profiles")
       .select("id, vehicle_type, online, application_status, operating_zone, address")
       .eq("user_id", user.id)
       .maybeSingle<{ id: string; vehicle_type?: string | null; online?: boolean | null; application_status?: string | null; operating_zone?: string | null; address?: string | null }>();
     if (riderError) throw riderError;
+    let rider = loadedRider;
     if (!rider?.id && admin) {
       rider = await ensureApprovedRiderProfile(admin, user.id);
     }
@@ -162,7 +164,8 @@ export async function POST(request: Request) {
     if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
 
     const admin = createAdminClient();
-    const db = admin || supabase;
+    if (!admin) return NextResponse.json({ error: "Rider job updates are not configured." }, { status: 503 });
+    const db = admin;
 
     if (action === "accept") {
       const stateCheck = await canRiderAcceptPickupState(db, user.id, id);
@@ -193,16 +196,19 @@ export async function POST(request: Request) {
 
     const { data: current, error: currentError } = await db
       .from("deliveries")
-      .select("id, customer_id, delivery_code, status, rider_id, metadata")
+      .select("id, customer_id, delivery_code, dropoff_contact, status, rider_id, metadata")
       .eq("id", id)
-      .single<{ id: string; customer_id?: string | null; delivery_code?: string | null; status: string; rider_id?: string | null; metadata?: Record<string, unknown> | null }>();
+      .single<{ id: string; customer_id?: string | null; delivery_code?: string | null; dropoff_contact?: string | null; status: string; rider_id?: string | null; metadata?: Record<string, unknown> | null }>();
     if (currentError) throw currentError;
 
     if (current.rider_id !== rider.id) {
       return NextResponse.json({ error: "Only the assigned rider can update this delivery." }, { status: 403 });
     }
 
-    const nextStatus = statusFlow[String(current.status)] || "delivered";
+    const nextStatus = statusFlow[String(current.status)];
+    if (!nextStatus) {
+      return NextResponse.json({ error: "This delivery cannot advance from its current status." }, { status: 409 });
+    }
     const timestamp = new Date().toISOString();
     const patch: Record<string, unknown> = { status: nextStatus, updated_at: timestamp };
     if (current.status === "picked_up" && isCustomerPickupProofRequired(current.metadata)) {
@@ -230,10 +236,11 @@ export async function POST(request: Request) {
       }
     }
     if (nextStatus === "picked_up") patch.picked_up_at = timestamp;
-    if (nextStatus === "delivered") patch.delivered_at = timestamp;
+    const confirmation = nextStatus === "awaiting_delivery_confirmation" ? await createDeliveryConfirmation(db, current) : null;
 
-    const { error: updateError } = await db.from("deliveries").update(patch).eq("id", id);
+    const { data: updatedDelivery, error: updateError } = await db.from("deliveries").update(patch).eq("id", id).eq("status", current.status).select("id").maybeSingle<{ id: string }>();
     if (updateError) throw updateError;
+    if (!updatedDelivery?.id) return NextResponse.json({ error: "Delivery status changed. Refresh the job and try again." }, { status: 409 });
 
     await db.from("delivery_events").insert({
       delivery_id: id,
@@ -243,16 +250,16 @@ export async function POST(request: Request) {
       body: "Rider updated this delivery."
     });
     await db.from("delivery_locations").update({ status: nextStatus, updated_at: timestamp }).eq("order_id", id);
-    if (nextStatus === "delivered" || nextStatus === "cancelled") await releaseBicycleAssetForDelivery(db, id);
+    if (confirmation) await announceDeliveryConfirmation(db, current, confirmation);
     const currentMetadata = metadataRecord(current.metadata);
     const linkedBusinessOrder = typeof currentMetadata.business_order_id === "string" && currentMetadata.business_order_id.trim();
     await Promise.allSettled([
-      !linkedBusinessOrder && current.customer_id
+      nextStatus !== "awaiting_delivery_confirmation" && !linkedBusinessOrder && current.customer_id
         ? insertNotificationWithPush(db, {
             user_id: current.customer_id,
-            title: nextStatus === "delivered" ? "Delivery completed" : "Delivery updated",
+            title: "Delivery updated",
             body: `${current.delivery_code || "Your delivery"} is now ${nextStatus.replaceAll("_", " ")}.`,
-            type: nextStatus === "delivered" ? "delivery_completed" : "delivery_update",
+            type: "delivery_update",
             metadata: { delivery_id: id, delivery_code: current.delivery_code || id, status: nextStatus, url: accountMessengerHref(current.delivery_code || id), tag: `ff-${current.delivery_code || id}` }
           })
         : Promise.resolve(),
@@ -445,6 +452,7 @@ function mapDeliveryStatusToBusinessOrder(status: string) {
   if (status === "accepted") return "rider_assigned";
   if (status === "picked_up") return "picked_up";
   if (status === "in_transit") return "in_transit";
+  if (status === "awaiting_delivery_confirmation") return "awaiting_delivery_confirmation";
   if (status === "delivered") return "delivered";
   return null;
 }
@@ -472,7 +480,8 @@ async function syncLinkedBusinessOrder(db: SupabaseClient, deliveryId: string, s
     customer_id?: string | null;
     business_id?: string | null;
   }>();
-  const label = status === "rider_assigned" ? "Rider Assigned" : status === "picked_up" ? "Order Picked by Dispatch" : status === "in_transit" ? "On the Way" : status === "delivered" ? "Delivered" : status.replaceAll("_", " ");
+  if (status === "awaiting_delivery_confirmation") return;
+  const label = status === "rider_assigned" ? "Rider Assigned" : status === "picked_up" ? "Order Picked by Dispatch" : status === "in_transit" ? "On the Way" : status === "awaiting_delivery_confirmation" ? "Awaiting Delivery Confirmation" : status === "delivered" ? "Delivered" : status.replaceAll("_", " ");
   type PushNotificationInput = Parameters<typeof insertNotificationWithPush>[1];
   const orderCode = String(order?.order_code || order?.id || deliveryId);
   const notifications: Array<PushNotificationInput | null> = [
@@ -491,7 +500,7 @@ async function syncLinkedBusinessOrder(db: SupabaseClient, deliveryId: string, s
           title: "Order status updated",
           body: `${order?.order_code || "Order"} is ${label}.`,
           type: "business_order_update",
-          metadata: { order_id: order?.id, order_code: orderCode, delivery_id: deliveryId, status, url: "/business/dashboard#marketplace-orders", tag: `ff-business-${orderCode}` }
+          metadata: { order_id: order?.id, order_code: orderCode, delivery_id: deliveryId, status, url: accountMessengerHref(deliveryId), tag: `ff-business-${orderCode}` }
         }
       : null
   ];

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Bike, Clock3, MapPinned, PackageCheck, ShieldCheck } from "lucide-react";
+import { Clock3, MapPinned, PackageCheck, ShieldCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { formatDateTime, formatMoney, initials } from "@/lib/format";
 import { accountTrackingHref } from "@/lib/tracking-links";
@@ -115,7 +115,7 @@ export function DeliveryDetailsConsole() {
 function DriverAvatar({ delivery }: { delivery: DeliveryDetails }) {
   const name = delivery.rider?.full_name || "Driver";
   if (delivery.rider?.avatar_url) {
-    return <Image src={delivery.rider.avatar_url} alt="" width={72} height={72} unoptimized className="h-16 w-16 rounded-full object-cover" />;
+    return <Image src={delivery.rider.avatar_url} alt="" width={72} height={72} className="h-16 w-16 rounded-full object-cover" />;
   }
   return <span className="grid h-16 w-16 place-items-center rounded-full bg-fleet-navy text-lg font-black text-white">{initials(name)}</span>;
 }

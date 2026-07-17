@@ -28,6 +28,10 @@ Create `.env.local` from `.env.example`:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+DELIVERY_CONFIRMATION_SECRET=your-random-secret-with-at-least-32-characters
+# Optional provider-neutral recipient SMS integration:
+DELIVERY_SMS_WEBHOOK_URL=https://your-sms-service.example.com/send
+DELIVERY_SMS_WEBHOOK_TOKEN=your-private-webhook-token
 FASTFLEET_ADMIN_USERNAME=
 FASTFLEET_ADMIN_PASSWORD=
 FASTFLEET_ADMIN_SECRET=

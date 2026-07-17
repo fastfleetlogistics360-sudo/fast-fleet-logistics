@@ -75,6 +75,8 @@ function statusProgress(status?: string) {
       return 48;
     case "in_transit":
       return 72;
+    case "awaiting_delivery_confirmation":
+      return 92;
     case "delivered":
       return 100;
     default:

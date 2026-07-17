@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Loader2, Navigation, Route, ShieldCheck } from "lucide-react";
+import { ArrowRight, Loader2, Navigation, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { FastFleetMap } from "@/components/maps/fastfleet-map";
@@ -197,9 +197,9 @@ export function LiveLocationMap() {
             <div className="relative min-h-[280px] overflow-hidden rounded-[20px] border border-white/70 bg-white/70 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-xl sm:min-h-[360px]">
               <FastFleetMap
                 className="absolute inset-0 min-h-0 rounded-[20px] border-0"
-                label="FastFleets route lab"
+                label="Delivery route preview"
                 title={dropoff.trim() ? "Route preview ready" : "Set your drop-off"}
-                subtitle={dropoff.trim() ? `${pickupUsesCurrentLocation ? currentAddress || pickup || "Current location" : pickup || "Pickup"} to ${dropoff}` : "Add a destination to animate your fare preview."}
+                subtitle={dropoff.trim() ? `${pickupUsesCurrentLocation ? currentAddress || pickup || "Current location" : pickup || "Pickup"} to ${dropoff}` : "Add a destination to view the route and fare."}
                 badge={routeLoading ? "Calculating" : distanceKm ? `${distanceKm.toFixed(1)} km` : "Route needed"}
                 pickup={pickupCoordinates}
                 dropoff={dropoffCoordinates}
@@ -208,15 +208,6 @@ export function LiveLocationMap() {
                 progress={dropoff.trim() ? 66 : 26}
                 showLegend={false}
               />
-              <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-fleet border border-white/80 bg-white/80 p-3 shadow-lift backdrop-blur-xl">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="inline-flex items-center gap-2 text-sm font-black text-fleet-night">
-                    <Route className="h-4 w-4 text-fleet-ember" />
-                    Live interactive map
-                  </span>
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">Mobile ready</span>
-                </div>
-              </div>
             </div>
 
             <Card className="p-4">

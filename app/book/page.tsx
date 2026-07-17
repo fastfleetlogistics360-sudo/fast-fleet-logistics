@@ -22,9 +22,9 @@ export default async function BookPage() {
     <>
       <BackButton className="section-wrap pb-4 pt-4" />
       <CinematicPageHero
-        eyebrow="Dispatch command"
-        title="Book a rider with delivery-grade clarity."
-        body="Set pickup, drop-off, parcel details, speed, and payment in a compact booking flow built for real city movement."
+        eyebrow="Book delivery"
+        title="Book a rider with clear pricing."
+        body="Add the route, package details, delivery speed, and payment method."
         image="https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=2200&q=84"
       >
         <div className="flex flex-wrap gap-3">

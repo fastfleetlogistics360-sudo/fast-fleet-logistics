@@ -5,6 +5,7 @@ import { loadFareConfig } from "@/lib/fare-settings";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createClient } from "@/lib/supabase/server";
 import { extractNigerianState } from "@/lib/location/state-matching";
+import { accountMessengerHref } from "@/lib/tracking-links";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
 const vehicleTypes = new Set<VehicleType>(["bike", "car", "van"]);
@@ -164,7 +165,7 @@ export async function POST(request: Request) {
         title: "Dispatch created",
         body: `${delivery.delivery_code} is ${delivery.status.replaceAll("_", " ")}.`,
         type: "dispatch_created",
-        metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code, url: "/business/dashboard", tag: `ff-business-${delivery.delivery_code}` }
+        metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code, url: accountMessengerHref(delivery.delivery_code), tag: `ff-business-${delivery.delivery_code}` }
       })
     ]);
     await recordDeliveryIncome({

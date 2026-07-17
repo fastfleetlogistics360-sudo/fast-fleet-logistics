@@ -46,10 +46,10 @@ export function SupportTicketForm() {
         status: "open"
       });
       if (error) throw error;
-      setMessage("Support ticket sent. It will appear in the admin support queue.");
+      setMessage("Support request received. Our team will respond as soon as possible.");
       setForm({ name: "", phone: "", email: "", topic: "Delivery order", trackingCode: "", body: "" });
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not send ticket. Check Supabase connection.");
+    } catch {
+      setMessage("We could not send your request. Please try again.");
     } finally {
       setLoading(false);
     }

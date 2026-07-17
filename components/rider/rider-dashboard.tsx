@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Banknote, Bike, Clock, Home, LayoutDashboard, Loader2, MessageCircle, Navigation2, PackageCheck, Phone, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards, X } from "lucide-react";
+import { Banknote, Bike, Home, LayoutDashboard, Loader2, MessageCircle, Navigation2, PackageCheck, Phone, ShieldAlert, Star, ToggleLeft, ToggleRight, UserRound, WalletCards, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -402,6 +402,8 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
   const [liveLocation, setLiveLocation] = useState<LiveRiderLocation | null>(null);
   const [trackingActive, setTrackingActive] = useState(false);
   const [trackingMessage, setTrackingMessage] = useState<string | null>(null);
+  const [deliveryPin, setDeliveryPin] = useState("");
+  const [deliveryPinLoading, setDeliveryPinLoading] = useState(false);
   const [offerNotice, setOfferNotice] = useState<string | null>(null);
   const [pickupEtaMinutes, setPickupEtaMinutes] = useState<number | null>(null);
   const [pickupEtaLoading, setPickupEtaLoading] = useState(false);
@@ -410,7 +412,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
   const onlineMutationRef = useRef(false);
 
   const incomingJob = jobs.find((job) => job.status === "searching") || null;
-  const activeJob = jobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status)) || null;
+  const activeJob = jobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(job.status)) || null;
   const latestCompletedTrip = jobs.find((job) => job.status === "delivered") || null;
   const recentTrips = jobs.filter((job) => job.status === "delivered").slice(0, 5);
   const firstName = (profile.full_name || "Rider").split(/\s+/)[0] || "Rider";
@@ -438,6 +440,10 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
     } else {
       setActiveJobSheetOpen(false);
     }
+  }, [activeJob?.id, activeJob?.status]);
+
+  useEffect(() => {
+    setDeliveryPin("");
   }, [activeJob?.id, activeJob?.status]);
 
   useEffect(() => {
@@ -718,7 +724,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
     void load();
     const timer = window.setInterval(() => {
       void load(true);
-    }, 15000);
+    }, 60000);
 	    return () => {
 	      mounted = false;
 	      window.clearInterval(timer);
@@ -750,7 +756,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	      })
 	      .subscribe();
 	    void refreshAvailableJobs();
-	    const timer = window.setInterval(refreshAvailableJobs, 8000);
+	    const timer = window.setInterval(refreshAvailableJobs, 15000);
 
 	    return () => {
 	      mounted = false;
@@ -856,27 +862,54 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       setJobs((current) => current.map((item) => item.id === job.id ? (payload.job as JobRow) : item));
       if ((payload.job as JobRow)?.status === "delivered" || (payload.job as JobRow)?.status === "cancelled") {
         setTrackingActive(false);
-        setTrackingMessage("Delivery tracking stopped.");
-        if ((payload.job as JobRow)?.status === "delivered") {
-          const settlementResponse = await fetch("/api/wallet/settle-delivery", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ deliveryId: job.id })
-          });
-          const settlement = (await settlementResponse.json().catch(() => ({}))) as { amount?: number; error?: string };
-          if (settlementResponse.ok && settlement.amount) {
-            setWalletBalance((current) => current + Number(settlement.amount || 0));
-            setTrackingMessage(`Delivery completed. ${formatMoney(Number(settlement.amount || 0))} was credited to your rider wallet.`);
-          } else if (!settlementResponse.ok) {
-            setTrackingMessage(settlement.error || "Delivery completed, but rider earning could not be credited yet.");
-          }
-        }
+        setTrackingMessage((payload.job as JobRow)?.status === "delivered"
+          ? "Delivery confirmed successfully."
+          : "Delivery tracking stopped.");
+      } else if ((payload.job as JobRow)?.status === "awaiting_delivery_confirmation") {
+        setTrackingActive(false);
+        setTrackingMessage("Arrival recorded. Ask the recipient for the six-digit delivery PIN or wait for them to confirm in the messenger.");
       } else {
         setTrackingMessage(`Delivery status updated to ${(payload.job as JobRow).status.replaceAll("_", " ")}.`);
       }
       setProofFile(null);
     } catch (error) {
       setTrackingMessage(error instanceof Error ? error.message : "Could not update delivery status.");
+    }
+  }
+
+  async function verifyDeliveryPin(job: JobRow) {
+    const code = deliveryPin.replace(/\D/g, "").slice(0, 6);
+    if (code.length !== 6) {
+      setTrackingMessage("Enter the six-digit delivery PIN from the recipient.");
+      return;
+    }
+    setDeliveryPinLoading(true);
+    try {
+      const response = await fetch("/api/rider/delivery-confirmation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deliveryId: job.id, code })
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        job?: JobRow;
+        error?: string;
+        attemptsRemaining?: number;
+        settlement?: { credited?: boolean; amount?: number; error?: string };
+      };
+      if (!response.ok || !payload.job) throw new Error(payload.error || "Could not verify the delivery PIN.");
+      setJobs((current) => current.map((item) => item.id === job.id ? payload.job as JobRow : item));
+      setTrackingActive(false);
+      setDeliveryPin("");
+      if (payload.settlement?.credited && payload.settlement.amount) {
+        setWalletBalance((current) => current + Number(payload.settlement?.amount || 0));
+        setTrackingMessage(`Delivery confirmed. ${formatMoney(Number(payload.settlement.amount))} was credited to your rider wallet.`);
+      } else {
+        setTrackingMessage(payload.settlement?.error || "Delivery confirmed successfully.");
+      }
+    } catch (error) {
+      setTrackingMessage(error instanceof Error ? error.message : "Could not verify the delivery PIN.");
+    } finally {
+      setDeliveryPinLoading(false);
     }
   }
 
@@ -902,7 +935,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       if (!response.ok) throw new Error(payload.error || "Could not request withdrawal.");
       setWithdrawals((current) => [payload.withdrawal as WithdrawalRow, ...current]);
       setWalletBalance((current) => Math.max(0, current - amount));
-      setWithdrawalMessage("Withdrawal request submitted for admin payout review.");
+      setWithdrawalMessage("Withdrawal request submitted for payout review.");
       setWithdrawalOpen(false);
       setWithdrawalAmount("");
     } catch (error) {
@@ -963,10 +996,14 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	          liveLocation={liveLocation}
 	          trackingActive={trackingActive}
 	          trackingMessage={trackingMessage}
+	          deliveryPin={deliveryPin}
+	          deliveryPinLoading={deliveryPinLoading}
 	          onStartTracking={startDeliveryTracking}
 	          onStopTracking={stopDeliveryTracking}
 	          onProofFile={setProofFile}
 	          onAdvance={advanceJob}
+	          onDeliveryPin={setDeliveryPin}
+	          onVerifyDeliveryPin={verifyDeliveryPin}
 	          onClose={() => setActiveJobSheetOpen(false)}
 	        />
 	      ) : null}
@@ -1147,10 +1184,14 @@ function ActiveJobBottomSheet({
   liveLocation,
   trackingActive,
   trackingMessage,
+  deliveryPin,
+  deliveryPinLoading,
   onStartTracking,
   onStopTracking,
   onProofFile,
   onAdvance,
+  onDeliveryPin,
+  onVerifyDeliveryPin,
   onClose
 }: {
   job: JobRow;
@@ -1158,10 +1199,14 @@ function ActiveJobBottomSheet({
   liveLocation: LiveRiderLocation | null;
   trackingActive: boolean;
   trackingMessage: string | null;
+  deliveryPin: string;
+  deliveryPinLoading: boolean;
   onStartTracking: () => void;
   onStopTracking: () => void;
   onProofFile: (file: File | null) => void;
   onAdvance: (job: JobRow) => void;
+  onDeliveryPin: (value: string) => void;
+  onVerifyDeliveryPin: (job: JobRow) => void;
   onClose: () => void;
 }) {
   return (
@@ -1186,10 +1231,14 @@ function ActiveJobBottomSheet({
             liveLocation={liveLocation}
             trackingActive={trackingActive}
             trackingMessage={trackingMessage}
+            deliveryPin={deliveryPin}
+            deliveryPinLoading={deliveryPinLoading}
             onStartTracking={onStartTracking}
             onStopTracking={onStopTracking}
             onProofFile={onProofFile}
             onAdvance={onAdvance}
+            onDeliveryPin={onDeliveryPin}
+            onVerifyDeliveryPin={onVerifyDeliveryPin}
           />
         </div>
       </div>
@@ -1197,7 +1246,7 @@ function ActiveJobBottomSheet({
   );
 }
 
-function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessage, onStartTracking, onStopTracking, onProofFile, onAdvance }: { job: JobRow; proofFile: File | null; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; onStartTracking: () => void; onStopTracking: () => void; onProofFile: (file: File | null) => void; onAdvance: (job: JobRow) => void }) {
+function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessage, deliveryPin, deliveryPinLoading, onStartTracking, onStopTracking, onProofFile, onAdvance, onDeliveryPin, onVerifyDeliveryPin }: { job: JobRow; proofFile: File | null; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; deliveryPin: string; deliveryPinLoading: boolean; onStartTracking: () => void; onStopTracking: () => void; onProofFile: (file: File | null) => void; onAdvance: (job: JobRow) => void; onDeliveryPin: (value: string) => void; onVerifyDeliveryPin: (job: JobRow) => void }) {
   const proofRequired = job.status === "picked_up" && isCustomerPickupProofRequired(job.metadata);
   const proof = pickupProofFromMetadata(job.metadata);
   const needsUpload = proofRequired && pickupProofNeedsUpload(job.metadata);
@@ -1215,7 +1264,9 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
             : job.status === "picked_up"
               ? "Start trip"
               : job.status === "in_transit"
-                ? "Delivered"
+                ? "Arrived at drop-off"
+                : job.status === "awaiting_delivery_confirmation"
+                  ? "Enter delivery PIN"
                 : "Complete delivery";
   const actionDisabled = Boolean((needsUpload && !proofFile) || pendingReview);
   const customerName = job.users?.full_name || "Customer";
@@ -1284,6 +1335,35 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
           </div>
         ) : null}
 
+        {job.status === "awaiting_delivery_confirmation" ? (
+          <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-3 sm:p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-fleet-ember">Secure handoff</span>
+                <h3 className="mt-1 text-base font-black text-fleet-night">Enter the recipient&apos;s delivery PIN</h3>
+                <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">The customer can also confirm delivery directly from their messenger.</p>
+              </div>
+              <StatusBadge tone="amber">Awaiting PIN</StatusBadge>
+            </div>
+            <input
+              className="form-input mt-3 text-center font-mono text-2xl font-black tracking-[0.25em]"
+              value={deliveryPin}
+              onChange={(event) => onDeliveryPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              placeholder="000000"
+              aria-label="Six-digit delivery PIN"
+            />
+            <Button type="button" className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700" disabled={deliveryPinLoading || deliveryPin.length !== 6} onClick={() => onVerifyDeliveryPin(job)}>
+              {deliveryPinLoading ? "Verifying PIN..." : "Verify PIN and complete delivery"}
+            </Button>
+            <LinkButton href={`/support?topic=delivery-confirmation&delivery=${job.delivery_code}`} variant="secondary" className="mt-2 w-full">
+              Recipient unavailable or PIN issue
+            </LinkButton>
+          </div>
+        ) : null}
+
         <div className="grid gap-2 sm:grid-cols-2">
           {customerPhone ? (
             <LinkButton href={`tel:${customerPhone}`} variant="secondary" className="w-full">
@@ -1291,12 +1371,14 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
               Call customer
             </LinkButton>
           ) : null}
-          <Button type="button" variant={trackingActive ? "secondary" : "primary"} onClick={trackingActive ? onStopTracking : onStartTracking}>
-            {trackingActive ? "Stop Delivery Tracking" : "Start Delivery Tracking"}
-          </Button>
+          {job.status !== "awaiting_delivery_confirmation" ? (
+            <Button type="button" variant={trackingActive ? "secondary" : "primary"} onClick={trackingActive ? onStopTracking : onStartTracking}>
+              {trackingActive ? "Stop Delivery Tracking" : "Start Delivery Tracking"}
+            </Button>
+          ) : null}
         </div>
         {trackingMessage ? <div className="rounded-fleet bg-white p-3 text-xs font-bold leading-5 text-slate-600">{trackingMessage}</div> : null}
-        <Button type="button" className="w-full bg-fleet-navy hover:bg-fleet-night" disabled={actionDisabled} onClick={() => onAdvance(job)}>{label}</Button>
+        {job.status !== "awaiting_delivery_confirmation" ? <Button type="button" className="w-full bg-fleet-navy hover:bg-fleet-night" disabled={actionDisabled} onClick={() => onAdvance(job)}>{label}</Button> : null}
       </div>
     </Card>
   );
@@ -1327,13 +1409,13 @@ type ActiveJobMessage = {
 function ActiveJobBubble({ message }: { message: ActiveJobMessage }) {
   return (
     <div className="flex justify-start">
-      <div className={cn("max-w-[92%] rounded-[20px] rounded-bl-md bg-white px-4 py-3 shadow-[0_14px_36px_rgba(8,17,31,0.08)] sm:max-w-[78%]", message.active && "ring-2 ring-fleet-gold/70")}>
+      <div className={cn("max-w-[88%] rounded-[16px] rounded-bl-md bg-white px-3 py-2.5 shadow-[0_9px_24px_rgba(8,17,31,0.07)] sm:max-w-[72%]", message.active && "ring-2 ring-fleet-gold/70")}>
         <div className="flex items-center gap-2">
-          {message.active ? <span className="h-2.5 w-2.5 animate-pulseSoft rounded-full bg-fleet-gold" /> : null}
-          <span className="text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-500">{message.meta}</span>
+          {message.active ? <span className="h-2 w-2 animate-pulseSoft rounded-full bg-fleet-gold" /> : null}
+          <span className="text-[0.58rem] font-black uppercase tracking-[0.1em] text-slate-500">{message.meta}</span>
         </div>
-        <strong className="mt-1 block text-sm font-black leading-5 text-fleet-night">{message.title}</strong>
-        <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">{message.body}</p>
+        <strong className="mt-0.5 block text-sm font-black leading-5 text-fleet-night">{message.title}</strong>
+        <p className="mt-0.5 text-xs font-semibold leading-5 text-slate-600">{message.body}</p>
       </div>
     </div>
   );
@@ -1374,13 +1456,20 @@ function activeJobMessages(job: JobRow, customerName: string, trackingActive: bo
       title: "Trip in progress",
       body: trackingActive ? "Live delivery tracking is sharing your route movement." : "Start delivery tracking so the customer can follow the route.",
       active: job.status === "in_transit"
+    },
+    {
+      key: "awaiting_delivery_confirmation",
+      meta: "Secure handoff",
+      title: "Waiting for recipient confirmation",
+      body: "Ask the recipient for the six-digit PIN only after handing over the package.",
+      active: job.status === "awaiting_delivery_confirmation"
     }
   ];
   return messages.filter((message) => isActiveJobMessageVisible(message.key, job.status));
 }
 
 function isActiveJobMessageVisible(key: string, status: string) {
-  const order = ["accepted", "rider_arrived", "picked_up", "in_transit"];
+  const order = ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"];
   const statusIndex = order.indexOf(status);
   const messageIndex = order.indexOf(key);
   return statusIndex >= 0 && messageIndex <= statusIndex;
@@ -1392,7 +1481,7 @@ function JobsTab({ loading, jobs, online, onToggleOnline }: { loading: boolean; 
   const filteredJobs = jobs.filter((job) => {
     if (filter === "available") return job.status === "searching";
     if (filter === "completed") return job.status === "delivered";
-    return ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(job.status);
+    return ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(job.status);
   });
   return (
     <div className="grid gap-4">
@@ -1434,7 +1523,7 @@ function EarningsTab({ todayEarnings, withdrawals }: { todayEarnings: number; wi
 
 function ProfileImage({ src, name, className }: { src?: string | null; name: string; className?: string }) {
   if (src) {
-    return <Image src={src} alt="" width={96} height={96} unoptimized className={cn("shrink-0 rounded-full object-cover", className)} />;
+    return <Image src={src} alt="" width={96} height={96} className={cn("shrink-0 rounded-full object-cover", className)} />;
   }
   return <span className={cn("grid shrink-0 place-items-center rounded-full bg-fleet-navy text-lg font-black text-white", className)}>{initials(name)}</span>;
 }

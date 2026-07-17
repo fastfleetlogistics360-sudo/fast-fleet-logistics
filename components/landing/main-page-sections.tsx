@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, Bike, BriefcaseBusiness, Clock3, Handshake, PackageCheck, Play, ShieldCheck, ShoppingBag, Smartphone, Store, Truck, Utensils } from "lucide-react";
+import { ArrowRight, Bike, BriefcaseBusiness, Clock3, Handshake, PackageCheck, Play, ShieldCheck, Smartphone, Store, Truck, Utensils } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AnimatedDescriptionCards } from "@/components/landing/animated-description-cards";
 import type { DescriptionCard } from "@/components/landing/animated-description-cards";
@@ -15,35 +15,35 @@ const serviceCards: DescriptionCard[] = [
   {
     label: "Food",
     title: "Food delivery",
-    body: "Move meals from restaurants and vendors with speed, care, and clear delivery updates.",
+    body: "Order meals with clear pickup and delivery updates.",
     image: "https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=1200&q=80",
     icon: Utensils
   },
   {
     label: "Parcel",
     title: "Parcel delivery",
-    body: "Send documents, retail packages, gifts, and everyday errands across your city.",
+    body: "Send documents, packages, gifts, and everyday items.",
     image: "https://images.unsplash.com/photo-1607082349566-187342175e2f?auto=format&fit=crop&w=1200&q=80",
     icon: PackageCheck
   },
   {
     label: "Business",
     title: "Business logistics",
-    body: "Give vendors and offices a dependable layer for repeat dispatch and customer handoffs.",
+    body: "Manage repeat dispatches and customer handoffs from one dashboard.",
     image: "https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1200&q=80",
     icon: BriefcaseBusiness
   },
   {
     label: "Same day",
     title: "Same-day dispatch",
-    body: "Move urgent items quickly with riders built for fast city routes and visible progress.",
+    body: "Move urgent items with live status and route updates.",
     image: "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1200&q=80",
     icon: Clock3
   },
   {
     label: "Riders",
     title: "Rider partnership",
-    body: "Verified riders can onboard, earn from delivery trips, and grow with Fast Fleets 360.",
+    body: "Complete verification, accept jobs, and manage earnings.",
     image: "https://images.unsplash.com/photo-1616432043562-3671ea2e5242?auto=format&fit=crop&w=1200&q=80",
     icon: Bike
   }
@@ -52,29 +52,29 @@ const serviceCards: DescriptionCard[] = [
 const trustCards: DescriptionCard[] = [
   {
     label: "Speed",
-    title: "Fast riders",
-    body: "Nearby riders help keep pickup and delivery windows tight for everyday city movement.",
+    title: "Responsive dispatch",
+    body: "Available riders receive jobs matched to their operating area.",
     image: "https://images.unsplash.com/photo-1597074866923-dc0589150358?auto=format&fit=crop&w=1200&q=80",
     icon: Bike
   },
   {
     label: "Tracking",
     title: "Live tracking",
-    body: "Customers and businesses can follow delivery progress from dispatch to final handoff.",
+    body: "Customers and businesses can follow each ongoing delivery.",
     image: "https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1200&q=80",
     icon: Truck
   },
   {
     label: "Secure",
     title: "Secure delivery",
-    body: "Fast Fleets 360 keeps rider, package, route, and support details tied to each delivery.",
+    body: "Rider, package, route, and support records stay linked to each job.",
     image: "https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=1200&q=80",
     icon: ShieldCheck
   },
   {
     label: "Fair",
     title: "Affordable pricing",
-    body: "Clear distance-based delivery estimates help you know the cost before you book.",
+    body: "Review distance-based pricing before you book.",
     image: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1200&q=80",
     icon: Handshake
   }
@@ -84,7 +84,7 @@ const ctaCards = [
   {
     label: "Customers",
     title: "Send a package now",
-    body: "Book a Fast Fleets 360 rider for documents, food, parcels, shopping, and urgent errands.",
+    body: "Book delivery for documents, food, parcels, shopping, and urgent items.",
     href: "/book",
     cta: "Book delivery",
     image: "https://images.unsplash.com/photo-1580674285054-bed31e145f59?auto=format&fit=crop&w=1200&q=80",
@@ -93,7 +93,7 @@ const ctaCards = [
   {
     label: "Riders",
     title: "Earn with Fast Fleets 360",
-    body: "Apply as a rider, complete onboarding, and get ready for delivery opportunities.",
+    body: "Apply, complete verification, and receive delivery opportunities.",
     href: "/auth?account=driver",
     cta: "Become a rider",
     image: "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1200&q=80",
@@ -102,7 +102,7 @@ const ctaCards = [
   {
     label: "Businesses",
     title: "Partner with Fast Fleets 360",
-    body: "Give your store, office, or dispatch team a more reliable delivery layer.",
+    body: "Manage store, office, and customer deliveries from one workspace.",
     href: "/business/register",
     cta: "Register business",
     image: "https://images.unsplash.com/photo-1556761175-4b46a572b786?auto=format&fit=crop&w=1200&q=80",
@@ -116,15 +116,15 @@ export function MainPageSections() {
       <AnimatedDescriptionCards
         surface="light"
         eyebrow="Fast Fleets 360 services"
-        title="Delivery options for real city movement."
-        body="Fast Fleets 360 keeps everyday logistics simple for customers, restaurants, vendors, offices, riders, and growing businesses."
+        title="Delivery for customers and businesses."
+        body="Choose the service that fits your delivery."
         cards={serviceCards}
       />
       <AudienceCtaSection />
       <AnimatedDescriptionCards
         eyebrow="Why people trust Fast Fleets 360"
-        title="Useful delivery confidence, not noise."
-        body="Fast Fleets 360 combines rider speed, live visibility, safer package movement, and transparent pricing into one delivery experience."
+        title="Built for dependable delivery."
+        body="Clear pricing, verified accounts, and live job updates."
         cards={trustCards}
       />
       <AppComingSoonSection />
@@ -141,9 +141,9 @@ function AudienceCtaSection() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-3xl">
             <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-gold">Move with Fast Fleets 360</span>
-            <h2 className="mt-3 text-2xl font-black leading-tight sm:text-4xl">One delivery page for customers, riders, and businesses.</h2>
+            <h2 className="mt-3 text-2xl font-black leading-tight sm:text-4xl">One platform for customers, riders, and businesses.</h2>
             <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-white/[0.88]">
-              Book a delivery, start rider onboarding, or create a business dispatch account without leaving the Fast Fleets 360 flow.
+              Book a delivery, apply as a rider, or create a business account.
             </p>
           </div>
           <LinkButton href="/book" variant="secondary" className="w-full sm:w-auto">
@@ -208,9 +208,9 @@ function AppComingSoonSection() {
         <div className="smart-card-grid grid gap-4 rounded-fleet border border-white/70 bg-white/70 p-4 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-2xl sm:p-5 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Mobile app</span>
-            <h2 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Fast Fleets 360 mobile app access is expanding</h2>
+            <h2 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Mobile apps are coming soon</h2>
             <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
-              The web platform is live today while native app access rolls out across customer, rider, and business operations.
+              Use the web platform while customer, rider, and business apps are prepared for release.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-const activeDeliveryStatuses = ["accepted", "rider_arrived", "picked_up", "in_transit"];
+const activeDeliveryStatuses = ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"];
 const riderProfileSelect =
   "id, user_id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, operating_zone";
 

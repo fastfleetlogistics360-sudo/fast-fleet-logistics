@@ -183,9 +183,10 @@ export function PushNotificationRegistrar() {
       };
     }
 
-    void setupForUser();
+    const setupTimer = window.setTimeout(() => void setupForUser(), 1200);
     return () => {
       cancelled = true;
+      window.clearTimeout(setupTimer);
       removeRealtimeChannel?.();
       removeNativeRegistrationListener?.();
       removeNativeActionListener?.();

@@ -195,6 +195,7 @@ export async function PATCH(request: Request) {
 
     const customerId = typeof order.customer_id === "string" ? order.customer_id : "";
     const orderCode = String(order.order_code || id);
+    const businessUpdateUrl = deliveryId ? accountMessengerHref(deliveryId) : "/business/dashboard#marketplace-orders";
     await Promise.allSettled([
       customerId
         ? insertNotificationWithPush(db, {
@@ -210,7 +211,7 @@ export async function PATCH(request: Request) {
         title: status === "ready_for_pickup" ? "Dispatch request sent" : "Business order updated",
         body: `${String(order.order_code || "Order")} is ${status.replaceAll("_", " ")}.`,
         type: "business_order_update",
-        metadata: { order_id: id, order_code: orderCode, delivery_id: deliveryId, status, url: "/business/dashboard#marketplace-orders", tag: `ff-business-${orderCode}` }
+        metadata: { order_id: id, order_code: orderCode, delivery_id: deliveryId, status, url: businessUpdateUrl, tag: `ff-business-${orderCode}` }
       })
     ]);
 

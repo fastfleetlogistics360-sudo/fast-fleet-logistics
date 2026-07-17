@@ -63,6 +63,8 @@ export function AdvertHeroSlider({ slides: configuredSlides }: { slides?: MainHe
             src={item.image}
             alt=""
             loading={index === 0 ? "eager" : "lazy"}
+            fetchPriority={index === 0 ? "high" : "auto"}
+            decoding="async"
             className={`absolute inset-0 h-full w-full object-cover object-[75%_center] transition-[opacity,transform] duration-1000 md:object-center ${
               active === index ? "scale-100 opacity-100" : "scale-[1.02] opacity-0"
             }`}
@@ -92,9 +94,6 @@ export function AdvertHeroSlider({ slides: configuredSlides }: { slides?: MainHe
               </h1>
               <p className="mt-3 max-w-2xl text-base font-black leading-7 text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)] sm:text-xl">
                 {slide.subtitle}
-              </p>
-              <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-white/90 drop-shadow-[0_2px_12px_rgba(0,0,0,0.55)] sm:text-base">
-                {slide.description}
               </p>
             </motion.div>
           </AnimatePresence>

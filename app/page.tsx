@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { LaunchLandingPage } from "@/components/landing/launch-landing-page";
 import { loadPublicBrandPartners } from "@/lib/public-content";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Same-Day Dispatch in Lagos and Ogun",

@@ -44,7 +44,7 @@ const navItems = [
   { href: "/support", label: "Support" }
 ];
 
-const brandLogo = "/brand/fastfleet-logo-2026.png?v=20260629";
+const brandLogo = "/brand/fastfleet-logo-2026-header.png?v=20260717";
 
 const bottomItems: Array<{ href: string; label: string; icon: LucideIcon; activePaths?: string[] }> = [
   { href: "/book", label: "Book", icon: PackageCheck },

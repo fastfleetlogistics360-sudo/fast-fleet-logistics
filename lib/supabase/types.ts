@@ -199,6 +199,34 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["deliveries"]["Row"]>;
       };
+      delivery_confirmations: {
+        Row: {
+          id: string;
+          delivery_id: string;
+          code_digest: string;
+          code_ciphertext: string;
+          status: "pending" | "verified" | "expired" | "locked" | "replaced";
+          attempts: number;
+          max_attempts: number;
+          send_count: number;
+          recipient_phone_last4: string | null;
+          expires_at: string;
+          last_sent_at: string;
+          verified_at: string | null;
+          verified_by: string | null;
+          verification_method: "delivery_pin" | "customer_app" | "admin_override" | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["delivery_confirmations"]["Row"]> & {
+          delivery_id: string;
+          code_digest: string;
+          code_ciphertext: string;
+          expires_at: string;
+          last_sent_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["delivery_confirmations"]["Row"]>;
+      };
       notifications: {
         Row: {
           id: string;

@@ -9,6 +9,7 @@ import { canRetryMarketplaceListing, marketplaceBusinessTypeLabel, marketplaceLi
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { businessCommissionRate } from "@/lib/business-commission";
 
 type BusinessSummary = {
   id?: string | null;
@@ -47,9 +48,9 @@ export function MarketplaceListingApplication({
   const [loading, setLoading] = useState(false);
 
   const commissionRate = useMemo(() => {
-    const rate = Number(business?.commission_rate ?? 0);
-    return Number.isFinite(rate) && rate > 0 ? `${rate.toFixed(0)}%` : "Not set";
-  }, [business?.commission_rate]);
+    const rate = businessCommissionRate(business?.business_type || business?.industry);
+    return `${rate}%`;
+  }, [business?.business_type, business?.industry]);
   const dashboardHref = roleHome[role] || "/hub";
 
   if (role !== "business") {
@@ -100,8 +101,8 @@ export function MarketplaceListingApplication({
     return (
       <StatusScreen
         icon="success"
-        title="HORRAY! Your marketplace application was accepted."
-        body="Your business goes live on or before 7 business days."
+        title="Marketplace application approved"
+        body="Your business will be published within seven business days."
         actions={<LinkButton href="/business/dashboard">Return to Dashboard</LinkButton>}
       />
     );

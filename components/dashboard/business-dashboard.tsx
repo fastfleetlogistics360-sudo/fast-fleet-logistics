@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { BarChart3, Building2, Clock, Download, FileText, Home, LayoutDashboard, Loader2, MapPin, PackageCheck, Plus, ShieldCheck, Store, Upload, UserRound, WalletCards } from "lucide-react";
+import { BarChart3, Clock, Download, Home, LayoutDashboard, Loader2, MessageCircle, Plus, ShieldCheck, Store, Upload, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -15,6 +15,7 @@ import { uploadProfilePhoto } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
+import { ActiveOrderMessengerSheet } from "@/components/dashboard/active-order-messenger-sheet";
 import { ReviewPrompt } from "@/components/reviews/review-prompt";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
@@ -24,7 +25,8 @@ import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { accountTrackingHref } from "@/lib/tracking-links";
+import { businessCommissionRate } from "@/lib/business-commission";
+import { accountMessengerHref, accountTrackingHref } from "@/lib/tracking-links";
 
 type BusinessTab = "overview" | "dispatch" | "history" | "analytics" | "account";
 type BusinessKycStatus = "submitted" | "active" | "paused" | "rejected";
@@ -321,6 +323,20 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
             })
             .subscribe()
         );
+        orderChannels.push(
+          supabase
+            .channel(`business-deliveries:${user.id}`)
+            .on("postgres_changes", { event: "*", schema: "public", table: "deliveries", filter: `customer_id=eq.${user.id}` }, async () => {
+              const { data } = await supabase
+                .from("deliveries")
+                .select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, proof_url")
+                .eq("customer_id", user.id)
+                .order("created_at", { ascending: false })
+                .limit(50);
+              if (mounted && data) setOrders(data as DeliveryRow[]);
+            })
+            .subscribe()
+        );
         if (orderChannels.length) {
           removeOrderChannel = () => {
             orderChannels.forEach((channel) => {
@@ -337,7 +353,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
     void load(false, true);
     const timer = window.setInterval(() => {
       void load(true);
-    }, 15000);
+    }, 60000);
     return () => {
       mounted = false;
       window.clearInterval(timer);
@@ -392,7 +408,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
       if (!response.ok) throw new Error(payload.error || "Could not create dispatch.");
       setOrders((current) => [payload.delivery as DeliveryRow, ...current]);
       setDispatch(defaultDispatch);
-      setDispatchMessage("Dispatch created in Supabase.");
+      setDispatchMessage("Dispatch created.");
     } catch (error) {
       setDispatchMessage(error instanceof Error ? error.message : "Could not create dispatch.");
     } finally {
@@ -447,7 +463,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
       if (!response.ok) throw new Error(payload.error || "Could not create bulk dispatches.");
       setOrders((current) => [...(payload.deliveries as DeliveryRow[]), ...current]);
       setBulkRows([]);
-      setDispatchMessage(`${payload.deliveries.length} dispatches created in Supabase.`);
+      setDispatchMessage(`${payload.deliveries.length} dispatches created.`);
     } catch (error) {
       setDispatchMessage(error instanceof Error ? error.message : "Could not create bulk dispatches.");
     } finally {
@@ -535,7 +551,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
       if (!response.ok) throw new Error(payload.error || "Could not request withdrawal.");
       setWithdrawals((current) => [payload.withdrawal as WithdrawalRow, ...current]);
       setWalletBalance((current) => Math.max(0, current - amount));
-      setWithdrawalMessage("Business withdrawal request submitted for admin review.");
+      setWithdrawalMessage("Business withdrawal request submitted for review.");
       setWithdrawalOpen(false);
       setWithdrawalAmount("");
     } catch (error) {
@@ -564,9 +580,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
             <div className="flex min-w-0 items-start gap-3">
               <div className="min-w-0">
                 <h1 className="text-2xl font-black text-fleet-night sm:text-4xl">{profile.business_name || "Business dashboard"}</h1>
-                <p className="mt-1 text-sm font-semibold text-slate-600">
-                  {kycStatus === "active" ? "Dispatch, history, team, wallet, and account controls." : "Business KYC status and review updates."}
-                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-600">{kycStatus === "active" ? "Manage dispatches, orders, and payouts." : "View your verification status."}</p>
               </div>
             </div>
             <NotificationBell />
@@ -585,6 +599,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         </main>
       </div>
       <BusinessMobileTabs activeTab={activeTab} onChange={setActiveTab} disabled={kycStatus !== "active"} />
+      {kycStatus === "active" ? <ActiveOrderMessengerSheet orders={orders} hrefForOrder={(order) => accountMessengerHref(order.delivery_code || order.id)} /> : null}
       {withdrawalOpen ? <BusinessWithdrawalModal amount={withdrawalAmount} onAmount={setWithdrawalAmount} profile={profile} loading={withdrawalLoading} message={withdrawalMessage} onClose={() => setWithdrawalOpen(false)} onSubmit={requestWithdrawal} /> : null}
       <ReviewPrompt subject={reviewSubject} />
     </section>
@@ -603,7 +618,7 @@ function BusinessMobileTabs({ activeTab, onChange, disabled = false }: { activeT
         }}
         disabled={disabled}
         className={cn(
-          "grid min-h-14 place-items-center rounded-[18px] px-1 py-2 text-[0.62rem] font-black leading-none transition",
+          "grid min-h-12 place-items-center rounded-[15px] px-0.5 py-1.5 text-[0.58rem] font-black leading-none transition sm:min-h-14 sm:text-[0.62rem]",
           activeTab === tab.id && !disabled ? "bg-sky-50 text-fleet-blue ring-1 ring-sky-100" : "text-slate-500 hover:bg-fleet-paper",
           disabled && "cursor-not-allowed opacity-45 hover:bg-transparent"
         )}
@@ -615,15 +630,15 @@ function BusinessMobileTabs({ activeTab, onChange, disabled = false }: { activeT
   };
 
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-50 mx-auto grid max-w-3xl grid-cols-7 gap-1 rounded-[24px] border border-fleet-line bg-white/95 p-2 shadow-glow backdrop-blur" aria-label="Business dashboard navigation">
-      <Link href="/hub" className="grid min-h-14 place-items-center rounded-[18px] px-1 py-2 text-[0.62rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper">
+    <nav className="fixed inset-x-2 bottom-2 z-50 mx-auto grid max-w-3xl grid-cols-7 gap-0.5 rounded-[20px] border border-fleet-line bg-white/95 p-1.5 shadow-glow backdrop-blur sm:inset-x-3 sm:bottom-3 sm:gap-1 sm:rounded-[24px] sm:p-2" aria-label="Business dashboard navigation">
+      <Link href="/hub" className="grid min-h-12 place-items-center rounded-[15px] px-0.5 py-1.5 text-[0.58rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper sm:min-h-14 sm:text-[0.62rem]">
         <LayoutDashboard className="mb-1 h-4 w-4" />
         <span className="max-w-full truncate">Hub</span>
       </Link>
       {tabs.slice(0, 2).map(renderTab)}
-      <Link href="/marketplace/listing" className="grid min-h-14 place-items-center rounded-[18px] px-1 py-2 text-[0.62rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper">
+      <Link href="/marketplace/listing" className="grid min-h-12 place-items-center rounded-[15px] px-0.5 py-1.5 text-[0.58rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper sm:min-h-14 sm:text-[0.62rem]">
         <Store className="mb-1 h-4 w-4" />
-        <span className="max-w-full truncate">Shopping Listing</span>
+        <span className="max-w-full truncate">Listing</span>
       </Link>
       {tabs.slice(2).map(renderTab)}
     </nav>
@@ -642,8 +657,8 @@ function BusinessKycStatusView({ loading, profile, status, rejectionReason }: { 
             <h2 className="mt-2 text-3xl font-black text-fleet-night">{rejected ? "KYC rejected" : "KYC pending review"}</h2>
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
               {rejected
-                ? "Fast Fleets 360 admin reviewed your business profile and needs you to correct the details below before resubmitting."
-                : "Your business profile has been submitted. Dispatch tools unlock after Fast Fleets 360 admin approves your KYC."}
+                ? "Our review team needs you to correct the details below before resubmitting."
+                : "Your business profile has been submitted. Dispatch tools will become available after approval."}
             </p>
           </div>
           <StatusBadge tone={rejected ? "red" : "amber"}>{status.replaceAll("_", " ")}</StatusBadge>
@@ -667,7 +682,7 @@ function BusinessKycStatusView({ loading, profile, status, rejectionReason }: { 
           <div>
             <h3 className="text-xl font-black text-fleet-night">What happens next</h3>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-              Admin can approve or reject the business from the admin backpage. Once approved, this same dashboard opens dispatch, team, analytics, wallet, and history controls.
+              Our team will review your documents. Once approved, your dispatch, order, wallet, and account tools will become available here.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               {rejected ? <LinkButton href="/business/register" variant="secondary">Update KYC</LinkButton> : null}
@@ -685,7 +700,7 @@ function OverviewTab({ loading, profile, walletBalance, withdrawals, stats, orde
   const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || orders[0] || null;
   return (
     <div className="grid gap-5">
-      <Card className="p-5"><div className="flex items-center gap-4"><ProfileImage src={profile.avatar_url} name={profile.business_name || "Business"} className="h-16 w-16 rounded-fleet text-lg" /><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">Profile picture and business name editable in Account</p></div></div></Card>
+      <Card className="p-5"><div className="flex items-center gap-4"><ProfileImage src={profile.avatar_url} name={profile.business_name || "Business"} className="h-16 w-16 rounded-fleet text-lg" /><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">Business operations dashboard</p></div></div></Card>
       <WalletDashboardCard
         userName={profile.business_name?.trim().split(/\s+/)[0] || "Business"}
         balance={walletBalance}
@@ -742,7 +757,7 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div>
           <h2 className="text-xl font-black text-fleet-night">Marketplace orders</h2>
-          <p className="mt-1 text-sm font-semibold text-slate-500">New linked restaurant, mall, and product orders for this business.</p>
+          <p className="mt-1 text-sm font-semibold text-slate-500">Manage incoming customer orders and dispatch handoffs.</p>
         </div>
         <StatusBadge tone={orders.length ? "amber" : "neutral"}>{orders.length} orders</StatusBadge>
       </div>
@@ -781,7 +796,7 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
             </article>
           ))
         ) : (
-          <DashboardEmptyState title="No marketplace orders" body="Linked marketplace orders will appear here in realtime." ctaLabel="Manage listings" ctaHref="/admin" />
+          <DashboardEmptyState title="No marketplace orders" body="New customer orders will appear here." ctaLabel="Manage listing" ctaHref="/marketplace/listing" />
         )}
       </div>
     </Card>
@@ -790,30 +805,22 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
 
 function BusinessOrderObserver({ order }: { order: BusinessOrderRow }) {
   return (
-    <div className="mt-4 rounded-[20px] border border-fleet-line bg-[#f7fafc] p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">Marketplace dispatch room</span>
-          <h3 className="mt-1 text-sm font-black text-fleet-night">{businessOrderLabel(order.status)}</h3>
-        </div>
-        <StatusBadge tone={businessOrderTone(order.status)}>Observer</StatusBadge>
+    <div className="mt-3 flex flex-col gap-2 rounded-[16px] border border-fleet-line bg-[#f7fafc] p-2.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <span className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-fleet-ember">Ongoing job</span>
+        <h3 className="mt-0.5 text-sm font-black text-fleet-night">{businessOrderLabel(order.status)}</h3>
+        <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{order.dropoff_address || "Customer delivery address"}</p>
       </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <div className="rounded-[16px] bg-white p-3 text-sm font-bold leading-5 text-slate-600">
-          <span className="block text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-500">Customer handoff</span>
-          {order.dropoff_address || "Customer delivery address"}
-        </div>
-        <div className="rounded-[16px] bg-white p-3 text-sm font-bold leading-5 text-slate-600">
-          <span className="block text-[0.65rem] font-black uppercase tracking-[0.12em] text-slate-500">Business role</span>
-          Monitor pickup, transit, and delivery. FastConfirm™ decisions stay with the receiver.
-        </div>
-      </div>
+      <LinkButton href={accountMessengerHref(order.delivery_id || order.order_code || order.id)} size="sm" className="shrink-0">
+        <MessageCircle className="h-4 w-4" />
+        Open messenger
+      </LinkButton>
     </div>
   );
 }
 
 function isBusinessDispatchActive(status: string) {
-  return ["rider_assigned", "picked_up", "in_transit"].includes(status);
+  return ["rider_assigned", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(status);
 }
 
 function DispatchTab({ dispatch, onDispatch, estimate, loading, message, onSubmit, addresses, bulkRows, onCsv, onDownloadTemplate, onDispatchBulk, addressDraft, onAddressDraft, onAddAddress, onDeleteAddress }: { dispatch: DispatchForm; onDispatch: (form: DispatchForm) => void; estimate: number; loading: boolean; message: string | null; onSubmit: () => void; addresses: SavedAddress[]; bulkRows: BulkRow[]; onCsv: (text: string) => void; onDownloadTemplate: () => void; onDispatchBulk: () => void; addressDraft: { label: string; address: string }; onAddressDraft: (draft: { label: string; address: string }) => void; onAddAddress: () => void; onDeleteAddress: (id: string) => void }) {
@@ -976,7 +983,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
           <div>
             <h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2>
             <p className="text-sm font-semibold text-slate-500">
-              {marketplaceBusinessTypeLabel(profile.business_type || profile.industry) || "Business type not set"} · Commission {Number(profile.commission_rate || 0).toFixed(0)}%
+              {marketplaceBusinessTypeLabel(profile.business_type || profile.industry) || "Business type not set"} · Commission {businessCommissionRate(profile.business_type || profile.industry)}%
             </p>
             <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">
               {photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}
@@ -1040,12 +1047,12 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
 }
 
 function ProfileImage({ src, name, className }: { src?: string | null; name: string; className?: string }) {
-  if (src) return <Image src={src} alt="" width={96} height={96} unoptimized className={cn("shrink-0 object-cover", className)} />;
+  if (src) return <Image src={src} alt="" width={96} height={96} className={cn("shrink-0 object-cover", className)} />;
   return <span className={cn("grid shrink-0 place-items-center bg-fleet-navy font-black text-white", className)}>{initials(name)}</span>;
 }
 
 function OrderCard({ order, detail }: { order: DeliveryRow; detail?: boolean }) {
-  return <article className="rounded-fleet border border-fleet-line bg-white p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-slate-500">{formatDateTime(order.created_at)}</p><h3 className="mt-1 text-sm font-black text-fleet-night">{order.delivery_code}</h3><p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p></div><StatusBadge tone={order.status === "delivered" ? "green" : "amber"}>{order.status.replaceAll("_", " ")}</StatusBadge></div><div className="mt-3 flex items-center justify-between"><strong className="text-sm font-black text-fleet-night">{formatMoney(order.price_ngn)}</strong><LinkButton href={accountTrackingHref(order.delivery_code)} size="sm" variant="secondary">{detail ? "View details" : "Track"}</LinkButton></div>{detail ? <div className="mt-3 rounded-fleet bg-fleet-paper p-3 text-xs font-bold text-slate-500">Timeline: Booked to Rider assigned to Picked up to Delivered. Proof of delivery appears here when uploaded.</div> : null}</article>;
+  return <article className="rounded-fleet border border-fleet-line bg-white p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-slate-500">{formatDateTime(order.created_at)}</p><h3 className="mt-1 text-sm font-black text-fleet-night">{order.delivery_code}</h3><p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{order.pickup_address} to {order.dropoff_address}</p></div><StatusBadge tone={order.status === "delivered" ? "green" : "amber"}>{order.status.replaceAll("_", " ")}</StatusBadge></div><div className="mt-3 flex items-center justify-between"><strong className="text-sm font-black text-fleet-night">{formatMoney(order.price_ngn)}</strong><LinkButton href={detail ? accountMessengerHref(order.delivery_code) : accountTrackingHref(order.delivery_code)} size="sm" variant="secondary">{detail ? "Open messenger" : "Track"}</LinkButton></div></article>;
 }
 
 function businessOrderLabel(status: string) {
@@ -1057,6 +1064,7 @@ function businessOrderLabel(status: string) {
     rider_assigned: "Rider Assigned",
     picked_up: "Order Picked by Dispatch",
     in_transit: "On the Way",
+    awaiting_delivery_confirmation: "Awaiting Delivery Confirmation",
     delivered: "Delivered"
   };
   return labels[status] || status.replaceAll("_", " ");
@@ -1065,14 +1073,14 @@ function businessOrderLabel(status: string) {
 function businessOrderTone(status: string): "green" | "amber" | "red" | "blue" | "neutral" {
   if (status === "delivered") return "green";
   if (status === "cancelled") return "red";
-  if (["rider_assigned", "picked_up", "in_transit"].includes(status)) return "blue";
+  if (["rider_assigned", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(status)) return "blue";
   if (["received", "preparing", "packing", "ready_for_pickup"].includes(status)) return "amber";
   return "neutral";
 }
 
 function isBusinessOrderStatusLocked(current: string, target: string) {
   const order = ["received", "preparing", "packing", "ready_for_pickup"];
-  if (["rider_assigned", "picked_up", "in_transit", "delivered", "cancelled"].includes(current)) return true;
+  if (["rider_assigned", "picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered", "cancelled"].includes(current)) return true;
   return order.indexOf(target) < order.indexOf(current);
 }
 

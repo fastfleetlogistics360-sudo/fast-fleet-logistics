@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Headphones, Mail, MessageCircle, Phone, TicketCheck } from "lucide-react";
+import { Headphones, MessageCircle, TicketCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 import { LinkButton } from "@/components/ui/button";
@@ -21,8 +21,8 @@ export default function SupportPage() {
     <>
       <CinematicPageHero
         eyebrow="Operations support"
-        title="Dispatch help that keeps movement visible."
-        body="Ticket infrastructure for customers, riders, vendors, business dispatchers, and operations teams."
+        title="Help when you need it."
+        body="Get support for deliveries, rider accounts, business orders, and payments."
         image="https://images.unsplash.com/photo-1556761175-4b46a572b786?auto=format&fit=crop&w=2200&q=84"
       >
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -36,10 +36,8 @@ export default function SupportPage() {
       <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
         <div className="rounded-fleet border border-white/70 bg-white/80 p-5 shadow-lift backdrop-blur-xl">
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Support center</span>
-          <h2 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Commercial-grade support lanes.</h2>
-          <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">
-            Keep route issues, wallet questions, rider applications, delivery proof, and business dispatch requests in one Fast Fleets 360 support flow.
-          </p>
+          <h2 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Support for every delivery.</h2>
+          <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">Send your request with the relevant order details. Our team will route it to the right specialist.</p>
         </div>
         <Card>
           <SupportTicketForm />
@@ -54,23 +52,6 @@ export default function SupportPage() {
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{body as string}</p>
           </Card>
         ))}
-      </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Card className="p-5">
-          <Mail className="h-5 w-5 text-fleet-ember" />
-          <h3 className="mt-4 text-lg font-black text-fleet-night">Email and notification structure</h3>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-            Notification records support in-app, push, and email channels for order accepted, rider arrived, delivery completed, withdrawals, rider approvals, and promotions.
-          </p>
-        </Card>
-        <Card className="p-5">
-          <Phone className="h-5 w-5 text-fleet-ember" />
-          <h3 className="mt-4 text-lg font-black text-fleet-night">Operations escalation</h3>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-            Support tickets can be tied to deliveries, users, rider profiles, and admin SLA queues in Supabase.
-          </p>
-        </Card>
       </div>
     </section>
     </>

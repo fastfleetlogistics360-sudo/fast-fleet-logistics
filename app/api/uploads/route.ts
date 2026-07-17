@@ -121,7 +121,7 @@ function isMissingBucketError(message?: string) {
 
 function friendlyUploadError(message: string) {
   if (/schema is invalid|incompatible/i.test(message)) {
-    return "Supabase Storage rejected the upload because its storage schema is still incompatible. Re-run the schema, then try the upload again.";
+    return "Uploads are temporarily unavailable. Please try again or contact support.";
   }
   return message || "Upload failed. Try again.";
 }

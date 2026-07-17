@@ -8,28 +8,28 @@ const steps: DescriptionCard[] = [
   {
     label: "Pickup",
     title: "Set pickup location",
-    body: "Use your live location or enter a pickup address so a Fast Fleets 360 rider knows exactly where to start.",
+    body: "Use your live location or enter an accurate pickup address.",
     image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1200&q=80",
     icon: MapPin
   },
   {
     label: "Type",
     title: "Choose delivery type",
-    body: "Send food, documents, parcels, shopping items, or business dispatch orders with the right service flow.",
+    body: "Select the service and package details for the job.",
     image: "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?auto=format&fit=crop&w=1200&q=80",
     icon: PackageCheck
   },
   {
     label: "Track",
     title: "Track rider live",
-    body: "Stay close to the route with delivery status, rider movement, ETA, and handoff progress.",
+    body: "Follow rider movement, ETA, and delivery status in the messenger.",
     image: "https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1200&q=80",
     icon: Route
   },
   {
     label: "Proof",
     title: "Receive package safely",
-    body: "Fast Fleets 360 keeps the delivery visible until the package reaches the right person.",
+    body: "Review the handoff and any required delivery proof.",
     image: "https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55?auto=format&fit=crop&w=1200&q=80",
     icon: ClipboardCheck
   }
@@ -39,8 +39,8 @@ export function HowItWorks() {
   return (
     <AnimatedDescriptionCards
       eyebrow="How it works"
-      title="From pickup to proof, Fast Fleets 360 keeps it clear."
-      body="A clean delivery flow for customers, vendors, businesses, and riders moving across the city."
+      title="From pickup to proof, every step stays visible."
+      body="Book, track, and confirm delivery in one flow."
       cards={steps}
     />
   );

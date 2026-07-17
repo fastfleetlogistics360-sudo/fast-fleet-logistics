@@ -107,7 +107,7 @@ function notificationTag(notification: NotificationPayload, metadata: Record<str
   const explicit = stringValue(metadata, "tag");
   if (explicit) return topicValue(explicit);
   const code = stringValue(metadata, "delivery_code") || stringValue(metadata, "order_code") || stringValue(metadata, "delivery_id") || stringValue(metadata, "order_id");
-  if (code && ["delivery_update", "delivery_completed", "order_update", "package_confirmation"].includes(notification.type)) return topicValue(`ff-${code}`);
+  if (code && ["delivery_update", "delivery_completed", "delivery_confirmation", "order_update", "package_confirmation"].includes(notification.type)) return topicValue(`ff-${code}`);
   return topicValue(`ff-${notification.type}`);
 }
 
@@ -120,7 +120,7 @@ function fallbackUrlFor(notification: NotificationPayload, metadata: Record<stri
   if (notification.type === "package_confirmation" && stringValue(metadata, "status") !== "pending") return "/rider/dashboard";
 
   const trackingCode = stringValue(metadata, "delivery_code") || stringValue(metadata, "order_code") || stringValue(metadata, "delivery_id") || stringValue(metadata, "order_id");
-  if (trackingCode && ["delivery_update", "delivery_completed", "order_update", "package_confirmation"].includes(notification.type)) return accountMessengerHref(trackingCode);
+  if (trackingCode && ["delivery_update", "delivery_completed", "delivery_confirmation", "order_update", "package_confirmation"].includes(notification.type)) return accountMessengerHref(trackingCode);
   return "/hub";
 }
 
@@ -133,7 +133,7 @@ function enrichMetadata(notification: NotificationPayload) {
     url,
     tracking_url: url,
     tag,
-    live_update: ["delivery_update", "delivery_completed", "order_update", "package_confirmation"].includes(notification.type)
+    live_update: ["delivery_update", "delivery_completed", "delivery_confirmation", "order_update", "package_confirmation"].includes(notification.type)
   };
 }
 
@@ -141,8 +141,8 @@ function webPushPayload(notification: NotificationPayload, metadata: Record<stri
   return {
     title: notification.title,
     body: notification.body,
-    icon: "/icons/icon-192.png?v=20260713",
-    badge: "/icons/icon-180.png?v=20260713",
+    icon: "/icons/icon-192.png?v=20260717",
+    badge: "/icons/icon-180.png?v=20260717",
     tag: notificationTag(notification, metadata),
     renotify: true,
     data: {
@@ -283,7 +283,7 @@ async function sendWebPush(subscription: PushSubscriptionRow, notification: Noti
       "Content-Encoding": "aes128gcm",
       "Content-Type": "application/octet-stream",
       TTL: "1800",
-      Urgency: notification.type === "dispatch_request" || notification.type === "package_confirmation" ? "high" : "normal",
+      Urgency: notification.type === "dispatch_request" || notification.type === "package_confirmation" || notification.type === "delivery_confirmation" ? "high" : "normal",
       Topic: notificationTag(notification, metadata)
     },
     body

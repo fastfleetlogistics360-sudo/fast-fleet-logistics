@@ -9,7 +9,7 @@ import { PushNotificationRegistrar } from "@/components/notifications/push-notif
 
 export const runtime = "nodejs";
 
-const assetVersion = "20260713";
+const assetVersion = "20260717";
 const brandLogo = `/brand/fastfleet-logo-2026.png?v=${assetVersion}`;
 const brandIcon = `/icons/icon-192.png?v=${assetVersion}`;
 const seoKeywords = [

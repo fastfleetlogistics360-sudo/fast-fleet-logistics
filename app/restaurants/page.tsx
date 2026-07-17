@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { RestaurantVendorSelection } from "@/components/marketplace/order-marketplace";
 import { loadPublicRestaurantKitchens } from "@/lib/public-content";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Restaurant Delivery in Lagos",

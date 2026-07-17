@@ -24,7 +24,7 @@ const topicCopy: Record<SupportTopic, { label: string; subject: string; answer: 
   wallet: {
     label: "Wallet/payment",
     subject: "Wallet or payment support request",
-    answer: "For Squad debits, keep your payment reference. Wallet top-ups are verified from the callback, and support can reconcile pending credits from the admin panel.",
+    answer: "Keep the payment reference for any debit. Support can use it to review a pending wallet credit.",
     priority: "urgent"
   },
   business: {
@@ -103,10 +103,10 @@ export function SupportWidget() {
           body: form.body.trim()
         }
       ]);
-      setMessage("Support ticket opened. A representative can now reply from the admin backend.");
+      setMessage("Support request received. Our team will respond as soon as possible.");
       setConnect(false);
       setForm({ name: "", email: "", phone: "", trackingCode: "", body: "" });
-    } catch (error) {
+    } catch {
       try {
         window.localStorage.setItem(
           "fastfleet.pending_support_ticket",
@@ -115,7 +115,7 @@ export function SupportWidget() {
       } catch {
         // Ignore storage errors; the visible message is enough.
       }
-      setMessage(error instanceof Error ? error.message : "Ticket saved locally. Connect Supabase to send it to the backend.");
+      setMessage("We could not send your request. Please try again.");
     } finally {
       setLoading(false);
     }

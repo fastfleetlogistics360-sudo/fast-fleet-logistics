@@ -32,7 +32,7 @@ import type { LaunchStateStatus } from "@/lib/launch-states";
 import { type PickupProof, metadataRecord } from "@/lib/pickup-proof";
 
 type CustomerTab = "home" | "orders" | "track" | "account";
-type OrderStatus = "pending" | "assigned" | "searching" | "accepted" | "rider_arrived" | "picked_up" | "in_transit" | "delivered" | "cancelled";
+type OrderStatus = "pending" | "assigned" | "searching" | "accepted" | "rider_arrived" | "picked_up" | "in_transit" | "awaiting_delivery_confirmation" | "delivered" | "cancelled";
 
 type ProfileRow = {
   id?: string;
@@ -105,7 +105,7 @@ type LocalDelivery = Partial<OrderRow> & {
   source?: string;
 };
 
-const businessOrderStatuses = new Set(["received", "preparing", "packing", "ready_for_pickup", "rider_assigned", "picked_up", "in_transit", "delivered"]);
+const businessOrderStatuses = new Set(["received", "preparing", "packing", "ready_for_pickup", "rider_assigned", "picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered"]);
 
 type PromotionRow = {
   id: string;
@@ -153,7 +153,7 @@ const fallbackProfile: ProfileRow = {
 };
 
 const operationalStatuses = new Set<LaunchStateStatus>(["active", "live"]);
-const riderVisibleStatuses = new Set(["accepted", "rider_arrived", "picked_up", "in_transit"]);
+const riderVisibleStatuses = new Set(["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"]);
 const customerPanelClass = "rounded-[24px] border-white/80 bg-white/[0.92] shadow-[0_22px_55px_rgba(8,17,31,0.10)] ring-1 ring-fleet-line/35 backdrop-blur-2xl";
 const customerSoftPanelClass = "rounded-[22px] border border-white/80 bg-white/[0.86] shadow-[0_16px_42px_rgba(8,17,31,0.08)] ring-1 ring-fleet-line/30 backdrop-blur-2xl";
 
@@ -171,7 +171,7 @@ function isBusinessMarketplaceOrder(order: OrderRow) {
 
 function hasLiveDelivery(order: OrderRow) {
   if (isBusinessMarketplaceOrder(order)) return false;
-  return Boolean(order.delivery_id || ["rider_assigned", "picked_up", "in_transit", "delivered"].includes(String(order.status)));
+  return Boolean(order.delivery_id || ["rider_assigned", "picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered"].includes(String(order.status)));
 }
 
 function customerOrderLabel(status: string) {
@@ -298,6 +298,7 @@ export function CustomerDashboard() {
 
   useEffect(() => {
     let mounted = true;
+    let removeRealtime: (() => void) | null = null;
     async function load(silent = false) {
       if (!silent) setLoading(true);
       if (!silent) setLoadError(null);
@@ -326,6 +327,20 @@ export function CustomerDashboard() {
         setOrders(hydratedOrders);
         setPromotions(payload.promotions || []);
         setAddresses(payload.addresses || []);
+        if (!removeRealtime && payload.user?.id) {
+          const userId = payload.user.id;
+          const channels = [
+            supabase
+              .channel(`customer-dashboard-deliveries:${userId}`)
+              .on("postgres_changes", { event: "*", schema: "public", table: "deliveries", filter: `customer_id=eq.${userId}` }, () => void load(true))
+              .subscribe(),
+            supabase
+              .channel(`customer-dashboard-orders:${userId}`)
+              .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `customer_id=eq.${userId}` }, () => void load(true))
+              .subscribe()
+          ];
+          removeRealtime = () => channels.forEach((channel) => void supabase.removeChannel(channel));
+        }
       } catch (error) {
         if (!mounted) return;
         if (!silent) {
@@ -340,10 +355,11 @@ export function CustomerDashboard() {
     void load();
     const timer = window.setInterval(() => {
       void load(true);
-    }, 15000);
+    }, 60000);
     return () => {
       mounted = false;
       window.clearInterval(timer);
+      removeRealtime?.();
     };
   }, []);
 
@@ -805,7 +821,7 @@ function detailsHref(order: OrderRow) {
 
 function ProfileImage({ src, name, className }: { src?: string | null; name: string; className?: string }) {
   if (src) {
-    return <Image src={src} alt="" width={96} height={96} unoptimized className={cn("shrink-0 rounded-full object-cover", className)} />;
+    return <Image src={src} alt="" width={96} height={96} className={cn("shrink-0 rounded-full object-cover", className)} />;
   }
   return <span className={cn("grid shrink-0 place-items-center rounded-full bg-fleet-navy font-black text-white", className)}>{initials(name)}</span>;
 }
@@ -927,7 +943,7 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange, onPic
 
 function customerStepIndex(status: string) {
   if (["delivered"].includes(status)) return 4;
-  if (["in_transit"].includes(status)) return 3;
+  if (["in_transit", "awaiting_delivery_confirmation"].includes(status)) return 3;
   if (["picked_up"].includes(status)) return 2;
   if (["assigned", "accepted", "rider_arrived"].includes(status)) return 1;
   return 0;
@@ -942,6 +958,7 @@ function CustomerVendorProgress({ status, compact = false }: { status: string; c
     ["rider_assigned", "Rider Assigned"],
     ["picked_up", "Order Picked by Dispatch"],
     ["in_transit", "On the Way"],
+    ["awaiting_delivery_confirmation", "Confirming Delivery"],
     ["delivered", "Delivered"]
   ] as const;
   const index = Math.max(0, steps.findIndex(([value]) => value === status));

@@ -8,6 +8,7 @@ import {
   MIN_CRON_SECRET_LENGTH,
   authorizeCronRequest
 } from "../../lib/cron-auth.ts";
+import { businessCommissionRate } from "../../lib/business-commission.ts";
 
 const root = new URL("../../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), "utf8");
@@ -95,6 +96,19 @@ test("F-003 keeps authenticated GET for Vercel Cron and removes POST execution",
       schedule: "59 22 * * *"
     }
   ]);
+});
+
+test("F-003 business commission policy keeps Pharmacy at 5% and every other category at 10%", () => {
+  for (const businessType of ["Restaurant", "Mall", "Grocery", "Fashion", "Electronics", "Gadgets", "Unknown"]) {
+    assert.equal(businessCommissionRate(businessType), 10);
+  }
+  assert.equal(businessCommissionRate("Pharmacy"), 5);
+  assert.equal(businessCommissionRate("pharmacy"), 5);
+  assert.equal(businessCommissionRate("Med / Pharmacy"), 5);
+
+  const route = read("app/api/wallet/daily-commission/route.ts");
+  assert.match(route, /businessCommissionRate\(business\.business_type \|\| business\.industry\)/);
+  assert.match(route, /update\(\{ commission_rate: rate \}\)/);
 });
 
 test("F-003 repeated authorized commission processing does not duplicate deductions or notifications", async () => {
@@ -320,6 +334,9 @@ export { deductCommission, newEarningsForDate };
           ensureWallet: async () => state.wallet,
           riderCommissionRate: () => 10
         };
+      }
+      if (specifier === "@/lib/business-commission") {
+        return { businessCommissionRate };
       }
       throw new Error(`Unexpected import: ${specifier}`);
     }

@@ -144,7 +144,11 @@ export async function creditBusinessOrderWallet(db: SupabaseClient, orderId: str
       goods_amount_ngn: amount
     }
   });
-  if (transactionError) throw transactionError;
+  if (transactionError) {
+    const duplicate = String((transactionError as { code?: string; message?: string }).code || "") === "23505" || /duplicate|unique/i.test(String(transactionError.message || ""));
+    if (duplicate) return { credited: false, amount };
+    throw transactionError;
+  }
 
   const nextBalance = money(wallet.balance_ngn) + amount;
   await Promise.allSettled([
@@ -272,7 +276,11 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
       delivery_fee_ngn: amount
     }
   });
-  if (transactionError) throw transactionError;
+  if (transactionError) {
+    const duplicate = String((transactionError as { code?: string; message?: string }).code || "") === "23505" || /duplicate|unique/i.test(String(transactionError.message || ""));
+    if (duplicate) return { credited: false, amount };
+    throw transactionError;
+  }
 
   const nextBalance = money(wallet.balance_ngn) + amount;
   await Promise.allSettled([

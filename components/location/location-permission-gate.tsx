@@ -12,10 +12,10 @@ type GateState = "idle" | "requesting" | "blocked" | "error" | "ready";
 export function LocationPermissionGate() {
   const pathname = usePathname();
   const [state, setState] = useState<GateState>("idle");
-  const [message, setMessage] = useState("Fast Fleets 360 needs your location to improve delivery pricing, address suggestions, and live tracking.");
+  const [message, setMessage] = useState("Location helps us calculate routes, suggest addresses, and support live delivery tracking.");
   const requestedRef = useRef(false);
-  const locationSkippedPrefixes = ["/admin", "/auth", "/cookies", "/ndpr", "/offline", "/privacy", "/terms", "/waitlist"];
-  const skip = locationSkippedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  const locationRequiredPrefixes = ["/book", "/dashboard", "/customer/dashboard", "/business/dashboard", "/rider/dashboard"];
+  const skip = !locationRequiredPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
   useEffect(() => {
     if (skip || requestedRef.current) return;

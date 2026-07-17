@@ -199,7 +199,7 @@ function isMissingBucketError(message?: string) {
 
 function friendlyUploadError(message: string) {
   if (/schema is invalid|incompatible|schema.*cache|column.*does not exist/i.test(message)) {
-    return "Supabase Storage rejected this image because the storage schema is not ready. Re-run the Supabase schema, then try again.";
+    return "Package photo uploads are temporarily unavailable. Please try again or contact support.";
   }
   return message || "Package photo upload failed. Try again.";
 }

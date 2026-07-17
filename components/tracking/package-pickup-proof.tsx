@@ -29,7 +29,7 @@ export function PackagePickupProof({ deliveryId, metadata, status, className, re
   const [message, setMessage] = useState<string | null>(null);
   const proofRequired = isCustomerPickupProofRequired(metadata);
   const activeStatus = String(status || "");
-  const shouldShow = proofRequired && (Boolean(proof?.url) || ["picked_up", "in_transit", "delivered"].includes(activeStatus));
+  const shouldShow = proofRequired && (Boolean(proof?.url) || ["picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered"].includes(activeStatus));
   const secondsRemaining = pickupProofReviewSecondsRemaining(proof);
   const canReview = Boolean(!readonly && deliveryId && proof?.url && proof.status === "pending" && !pickupProofReviewExpired(proof));
 

@@ -8,7 +8,7 @@ type ShoppingVendorPageProps = {
   params: Promise<{ category: string; vendorId: string }>;
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export async function generateMetadata({ params }: ShoppingVendorPageProps): Promise<Metadata> {
   const { category: categorySlug, vendorId } = await params;

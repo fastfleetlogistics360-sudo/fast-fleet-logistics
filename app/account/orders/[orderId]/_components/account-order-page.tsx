@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { RiderAccountType } from "@/lib/rider-account-type";
+import { parseSelfServiceRole, parseUserRole, roleHome } from "@/lib/auth/roles";
 import { publicTrackingHref } from "@/lib/tracking-links";
 import { LiveOrderTracking, type DeliveryLocation, type TrackingOrder } from "@/components/tracking/live-order-tracking";
 
@@ -81,12 +82,19 @@ export async function AccountOrderPage({ params, mode }: { params: Promise<{ ord
 
   const admin = createAdminClient();
   const db = admin || supabase;
+  const { data: accountProfile } = await supabase
+    .from("profiles")
+    .select("account_type")
+    .eq("user_id", user.id)
+    .maybeSingle<{ account_type?: string | null }>();
+  const role = parseUserRole(accountProfile?.account_type) || parseSelfServiceRole(user.user_metadata?.account_type || user.user_metadata?.role) || "customer";
+  const backHref = roleHome[role];
 
   const directDelivery = await loadDirectDelivery(db, lookup, user.id);
   if (directDelivery) {
     const order = await toTrackingOrder(directDelivery);
     const location = await loadLocation(db, directDelivery.id);
-    return <LiveOrderTracking initialOrder={order} initialLocation={location} mode={mode} />;
+    return <LiveOrderTracking initialOrder={order} initialLocation={location} mode={mode} backHref={backHref} />;
   }
 
   const marketplaceOrder = await loadMarketplaceOrder(db, lookup, user.id);
@@ -96,10 +104,10 @@ export async function AccountOrderPage({ params, mode }: { params: Promise<{ ord
   if (linkedDelivery) {
     const order = await toTrackingOrder(linkedDelivery, marketplaceOrder);
     const location = await loadLocation(db, linkedDelivery.id);
-    return <LiveOrderTracking initialOrder={order} initialLocation={location} mode={mode} />;
+    return <LiveOrderTracking initialOrder={order} initialLocation={location} mode={mode} backHref={backHref} />;
   }
 
-  return <LiveOrderTracking initialOrder={toMarketplaceTrackingOrder(marketplaceOrder)} initialLocation={null} mode={mode} />;
+  return <LiveOrderTracking initialOrder={toMarketplaceTrackingOrder(marketplaceOrder)} initialLocation={null} mode={mode} backHref={backHref} />;
 }
 
 async function loadDirectDelivery(db: SupabaseClient, lookup: string, userId: string) {

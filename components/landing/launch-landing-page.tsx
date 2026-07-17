@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowUpRight, Bike, CalendarDays, CheckCircle2, CircleUserRound, LayoutDashboard, LogIn, MapPinned, Play, Rocket, Store, UserPlus } from "lucide-react";
+import { ArrowUpRight, Bike, CalendarDays, CheckCircle2, CircleUserRound, LayoutDashboard, LogIn, Play, Rocket, Store, UserPlus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AppleIcon, GoogleIcon, InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 import { readReturningProfile, saveReturningProfile } from "@/lib/auth/returning-profile";
@@ -19,26 +19,26 @@ type ActionItemConfig = {
 
 const actionItems: ActionItemConfig[] = [
   {
-    title: "Sign Up",
-    body: "Create an account in minutes",
+    title: "Sign up",
+    body: "Create your account",
     icon: UserPlus,
     href: "/auth?mode=signup&returnTo=/hub"
   },
   {
-    title: "Sign In",
-    body: "Access your account seamlessly",
+    title: "Sign in",
+    body: "Access your dashboard",
     icon: LogIn,
     href: "/auth?mode=login&returnTo=/hub"
   },
   {
-    title: "Register as a Driver",
-    body: "Join our network and start earning",
+    title: "Become a rider",
+    body: "Apply to join the rider network",
     icon: Bike,
     href: "/auth?account=driver&mode=signup&returnTo=/hub"
   },
   {
-    title: "Register Your Business",
-    body: "Grow your business with Fast Fleets 360",
+    title: "Register a business",
+    body: "Set up business delivery tools",
     icon: Store,
     href: "/auth?account=business&mode=signup&returnTo=/hub"
   }
@@ -53,7 +53,7 @@ const socialItems = [
 const heroBackgroundImage = "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1500&q=70";
 const heroBlurDataURL =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwMjA2MDgnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yOCcvPjxjaXJjbGUgY3g9JzQnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNDgnLz48L3N2Zz4=";
-const brandLogo = "/brand/fastfleet-logo-2026.png?v=20260629";
+const brandLogo = "/brand/fastfleet-logo-2026-header.png?v=20260717";
 
 const softLaunchStates = [
   { state: "Lagos State" },
@@ -145,7 +145,7 @@ export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { 
           {hasActiveSession ? (
             <Link href="/hub" className="inline-flex min-h-10 items-center gap-2 rounded-[14px] border border-white/20 bg-white/10 px-3.5 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-fleet-night focus:outline-none focus:ring-4 focus:ring-white/20">
               <LayoutDashboard className="h-4 w-4" />
-              Open App
+              Open dashboard
             </Link>
           ) : null}
         </header>
@@ -154,10 +154,10 @@ export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { 
           <div className="max-w-3xl">
             <p className="text-sm font-extrabold text-fleet-gold sm:text-base">Fast. Reliable. Always.</p>
             <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[0.98] tracking-normal text-white sm:text-6xl lg:text-7xl">
-              Delivering More, Everyday.
+              Delivering more, every day.
             </h1>
             <p className="mt-5 max-w-2xl text-sm font-semibold leading-7 text-white/[0.85] sm:text-lg">
-              Fast Fleets 360 connects people, businesses and communities through fast, safe and reliable delivery.
+              Fast Fleets 360 connects people and businesses through safe, visible, and reliable delivery.
             </p>
 
             <div
@@ -177,7 +177,7 @@ export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { 
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[14px] bg-fleet-ember px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(239,108,0,0.24)] transition hover:-translate-y-0.5 hover:bg-[#f47e18] focus:outline-none focus:ring-4 focus:ring-fleet-gold/25"
               >
                 <CircleUserRound className="h-4 w-4" />
-                Proceed to Main Page
+                Explore services
               </Link>
               <Link
                 href="/how-it-works"

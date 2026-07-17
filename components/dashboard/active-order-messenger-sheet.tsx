@@ -20,7 +20,7 @@ type MessengerOrder = {
   } | null;
 };
 
-const messengerStatuses = new Set(["accepted", "rider_arrived", "picked_up", "in_transit", "rider_assigned"]);
+const messengerStatuses = new Set(["pending", "searching", "assigned", "accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation", "rider_assigned"]);
 
 export function ActiveOrderMessengerSheet({
   orders,
@@ -76,29 +76,29 @@ export function ActiveOrderMessengerSheet({
       aria-live="polite"
       aria-label="Ongoing delivery messenger"
       className={cn(
-        "fixed inset-x-3 bottom-24 z-[60] mx-auto max-w-md rounded-[26px] border border-white/80 bg-white/95 p-4 shadow-[0_24px_70px_rgba(8,17,31,0.22)] ring-1 ring-fleet-line/30 backdrop-blur-2xl lg:bottom-5",
+        "fixed inset-x-3 bottom-24 z-[60] mx-auto max-w-sm rounded-[20px] border border-white/80 bg-white/95 p-3 shadow-[0_20px_55px_rgba(8,17,31,0.20)] ring-1 ring-fleet-line/30 backdrop-blur-2xl lg:bottom-5",
         className
       )}
     >
-      <button type="button" onClick={dismiss} className="mx-auto mb-3 block h-1.5 w-14 rounded-full bg-slate-300" aria-label="Dismiss messenger prompt" />
-      <div className="flex items-start gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[16px] bg-fleet-night text-white shadow-[0_14px_30px_rgba(8,17,31,0.20)]">
-          <MessageCircle className="h-5 w-5" />
+      <button type="button" onClick={dismiss} className="mx-auto mb-2 block h-1 w-12 rounded-full bg-slate-300" aria-label="Dismiss messenger prompt" />
+      <div className="flex items-start gap-2.5">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[13px] bg-fleet-night text-white shadow-[0_10px_24px_rgba(8,17,31,0.18)]">
+          <MessageCircle className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-2">
             <span>
               <span className="text-[0.65rem] font-black uppercase tracking-[0.12em] text-fleet-ember">Ongoing job</span>
-              <h2 className="mt-1 text-lg font-black leading-tight text-fleet-night">{statusHeadline(String(activeOrder.status || ""))}</h2>
+              <h2 className="mt-0.5 text-base font-black leading-tight text-fleet-night">{statusHeadline(String(activeOrder.status || ""))}</h2>
             </span>
-            <button type="button" onClick={dismiss} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fleet-paper text-slate-500" aria-label="Close messenger prompt">
+            <button type="button" onClick={dismiss} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-fleet-paper text-slate-500" aria-label="Close messenger prompt">
               <X className="h-4 w-4" />
             </button>
           </div>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{riderName} is connected to this delivery. Open the messenger for live updates.</p>
-          {route ? <p className="mt-2 line-clamp-2 text-xs font-bold leading-5 text-slate-500">{route}</p> : null}
-          <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
-            <Link href={href} className="inline-flex min-h-11 items-center justify-center rounded-[16px] bg-fleet-night px-4 text-sm font-black text-white transition hover:bg-fleet-ember">
+          <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-600">{riderName} is connected. Open the messenger for live updates.</p>
+          {route ? <p className="mt-1 line-clamp-1 text-[0.7rem] font-bold leading-4 text-slate-500">{route}</p> : null}
+          <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+            <Link href={href} className="inline-flex min-h-10 items-center justify-center rounded-[13px] bg-fleet-night px-3 text-xs font-black text-white transition hover:bg-fleet-ember">
               Open messenger
             </Link>
             <Button type="button" variant="secondary" onClick={dismiss}>Later</Button>
@@ -114,9 +114,12 @@ function storageKey(key: string) {
 }
 
 function statusHeadline(status: string) {
+  if (status === "pending" || status === "searching") return "Finding a rider";
+  if (status === "assigned") return "Rider assignment started";
   if (status === "accepted" || status === "rider_assigned") return "Rider accepted your job";
   if (status === "rider_arrived") return "Rider is at pickup";
   if (status === "picked_up") return "Package has been picked up";
   if (status === "in_transit") return "Delivery is in transit";
+  if (status === "awaiting_delivery_confirmation") return "Awaiting secure handoff confirmation";
   return "Delivery messenger is ready";
 }

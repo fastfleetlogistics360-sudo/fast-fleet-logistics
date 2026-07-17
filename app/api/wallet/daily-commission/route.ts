@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { authorizeCronRequest } from "@/lib/cron-auth";
+import { businessCommissionRate } from "@/lib/business-commission";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   ensureWallet,
@@ -115,16 +116,20 @@ function lagosBusinessDate() {
 async function deductBusinessCommissions(db: NonNullable<ReturnType<typeof createAdminClient>>, runDate: string): Promise<CommissionResult[]> {
   const { data: businesses, error } = await db
     .from("business_profiles")
-    .select("id, user_id, business_name, business_type, commission_rate, registration_status")
+    .select("id, user_id, business_name, business_type, industry, commission_rate, registration_status")
     .eq("registration_status", "active")
     .limit(500);
   if (error) throw error;
 
   const results: CommissionResult[] = [];
   for (const business of businesses || []) {
-    const rate = Number(business.commission_rate || 0);
-    if (!business.user_id || rate <= 0) {
-      results.push({ accountKind: "business", accountId: business.id, amount: 0, earnings: 0, rate, status: "skipped", reason: "No commission rate" });
+    const rate = businessCommissionRate(business.business_type || business.industry);
+    if (Number(business.commission_rate) !== rate) {
+      const { error: rateError } = await db.from("business_profiles").update({ commission_rate: rate }).eq("id", business.id);
+      if (rateError) throw rateError;
+    }
+    if (!business.user_id) {
+      results.push({ accountKind: "business", accountId: business.id, amount: 0, earnings: 0, rate, status: "skipped", reason: "Business account is not linked" });
       continue;
     }
     const result = await deductCommission(db, {

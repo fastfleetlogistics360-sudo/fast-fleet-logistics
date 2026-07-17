@@ -329,7 +329,7 @@ export function PhoneAuthForm({
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Enter your password to continue securely.</p>
         </div>
         <Image
-          src="/brand/fastfleet-logo-2026.png?v=20260629"
+          src="/brand/fastfleet-logo-2026-header.png?v=20260717"
           alt="Fast Fleets 360"
           width={44}
           height={44}
@@ -521,7 +521,7 @@ export function PhoneAuthForm({
               </select>
             </span>
             <span className="text-xs font-bold leading-5 text-slate-500">
-              Live states are controlled from admin. Other states receive early-access dashboard access while rollout expands.
+              Delivery availability depends on your selected state. Other states receive early access while coverage expands.
             </span>
             {fieldErrors.customerState ? <span className="text-xs font-bold text-red-600">{fieldErrors.customerState}</span> : null}
           </label>

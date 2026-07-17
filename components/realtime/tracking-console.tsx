@@ -18,6 +18,7 @@ const statusFlow = [
   ["assigned", "Courier assigned"],
   ["picked_up", "Picked up"],
   ["in_transit", "In transit"],
+  ["awaiting_delivery_confirmation", "Confirming handoff"],
   ["delivered", "Delivered"]
 ];
 
@@ -287,27 +288,34 @@ function publicTrackingMessages(delivery: TrackedDelivery, locationLabel: string
       title: "Rider is on the way",
       body: locationLabel ? `Latest rider movement: ${locationLabel}.` : "Rider movement will update here as location pings arrive.",
       active: current === "in_transit"
+    },
+    {
+      key: "awaiting_delivery_confirmation",
+      meta: "Secure handoff",
+      title: "Recipient confirmation pending",
+      body: "The rider is at the drop-off point. The authenticated customer messenger contains the secure confirmation controls.",
+      active: current === "awaiting_delivery_confirmation"
     }
   ];
   return messages.filter((message) => isPublicTrackingMessageVisible(message.key, current));
 }
 
 function isPublicTrackingMessageVisible(key: string, status: string) {
-  const order = ["accepted", "rider_arrived", "picked_up", "in_transit"];
+  const order = ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"];
   const statusIndex = order.indexOf(status);
   const messageIndex = order.indexOf(key);
   return statusIndex >= 0 && messageIndex <= statusIndex;
 }
 
 function isOngoingDeliveryStatus(status?: string) {
-  return ["accepted", "rider_arrived", "picked_up", "in_transit"].includes(String(status || ""));
+  return ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(String(status || ""));
 }
 
 function timelineIndex(status?: string) {
   if (!status || status === "draft" || status === "quoted" || status === "pending_payment" || status === "searching") return 0;
   if (status === "accepted" || status === "rider_arrived") return 1;
   if (status === "picked_up") return 2;
-  if (status === "in_transit") return 3;
+  if (status === "in_transit" || status === "awaiting_delivery_confirmation") return 3;
   if (status === "delivered") return 4;
   return 0;
 }
@@ -338,7 +346,7 @@ function InfoRow({ icon: Icon, label, value, imageUrl }: { icon: LucideIcon; lab
   return (
     <div className="flex gap-3 rounded-fleet bg-fleet-paper p-3">
       {imageUrl ? (
-        <Image src={imageUrl} alt="" width={40} height={40} unoptimized className="h-10 w-10 shrink-0 rounded-full object-cover" />
+        <Image src={imageUrl} alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-full object-cover" />
       ) : (
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-xs font-black text-fleet-navy">
           {label === "Driver" ? initials(value) : <Icon className="h-4 w-4 text-fleet-ember" />}

@@ -106,7 +106,7 @@ export async function PATCH(request: Request) {
     title: status === "accepted" ? "Marketplace application accepted" : "Marketplace application rejected",
     body:
       status === "accepted"
-        ? "HORRAY! Your marketplace application was accepted. Your business goes live on or before 7 business days."
+        ? "Your marketplace application was approved. Your business will be published within seven business days."
         : `${reason} You can try again after 60 business days.`,
     type: "marketplace_listing_application",
     metadata: { application_id: data.id, status, retry_after: retryAfter, url: "/business/dashboard", tag: `ff-marketplace-listing-${data.id}` }

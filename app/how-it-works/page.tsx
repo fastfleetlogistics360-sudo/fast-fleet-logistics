@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { Bike, Building2, CheckCircle2, CreditCard, LocateFixed, PackageCheck, Route, ShoppingBag, UserRound, WalletCards } from "lucide-react";
+import { CheckCircle2, CreditCard, LocateFixed, PackageCheck, Route, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,54 +12,34 @@ export const metadata: Metadata = {
 
 const steps: Array<{ title: string; body: string; icon: LucideIcon }> = [
   {
-    title: "Create or Sign In to Your Account",
-    body: "Start by creating an account or signing in securely. Fast Fleets 360 gives customers, riders, and business partners access to the right dashboard for their role, making booking, tracking, onboarding, payouts, and order management easier from one platform.",
+    title: "Sign in",
+    body: "Choose a customer, rider, or business account to access the tools for your role.",
     icon: UserRound
   },
   {
-    title: "Choose What You Want to Do",
-    body: "Fast Fleets 360 is built for different delivery needs. You can book a same-day dispatch, order food from restaurant partners, shop from category vendors, track a package, register as a rider, or create a business dispatch account.",
-    icon: ShoppingBag
-  },
-  {
-    title: "Enter Pickup and Drop-off Details",
-    body: "For normal delivery, you can use your live location or enter a pickup address, then add the drop-off location. The platform shows your estimated distance and delivery fee before you continue, giving you clear pricing before booking.",
-    icon: LocateFixed
-  },
-  {
-    title: "Confirm Your Delivery Fee",
-    body: "Fast Fleets 360 shows a delivery estimate based on route distance, plus a fixed platform fee, so customers know the total cost before placing an order.",
-    icon: CreditCard
-  },
-  {
-    title: "Place Your Order or Delivery Request",
-    body: "Customers can book riders for food, documents, parcels, shopping items, business dispatch, and urgent errands. Restaurant customers can select meals, add items to cart, confirm delivery details, and checkout through Squad. Shopping customers can choose a category, select a vendor, add vendor-specific products, and checkout.",
+    title: "Choose a service",
+    body: "Book a delivery, order from the marketplace, manage business dispatches, or accept rider jobs.",
     icon: PackageCheck
   },
   {
-    title: "A Rider Handles the Delivery",
-    body: "Fast Fleets 360 connects delivery requests to riders for fast city movement. Riders can onboard, complete verification, receive delivery opportunities, manage earnings, and grow as independent delivery partners.",
-    icon: Bike
+    title: "Add the route",
+    body: "Enter accurate pickup and drop-off addresses, contact details, and package information.",
+    icon: LocateFixed
   },
   {
-    title: "Track the Delivery Live",
-    body: "After dispatch, customers and businesses can follow the delivery status, rider movement, ETA, and package progress from pickup to final handoff.",
+    title: "Review and pay",
+    body: "Confirm the route, delivery fee, service details, and payment method before placing the request.",
+    icon: CreditCard
+  },
+  {
+    title: "Follow the ongoing job",
+    body: "Use the messenger to view rider assignment, live status, ETA, pickup, and delivery updates.",
     icon: Route
   },
   {
-    title: "Receive Your Package Safely",
-    body: "Fast Fleets 360 keeps the delivery visible until the package reaches the right person. The platform is designed to support safer package movement, clear handoff progress, and dependable delivery confidence.",
+    title: "Confirm delivery",
+    body: "Complete the handoff, review any required package proof, and keep the final delivery record in your account.",
     icon: CheckCircle2
-  },
-  {
-    title: "Businesses Can Manage Orders Better",
-    body: "Restaurants, shopping vendors, offices, and stores can register as business partners to receive orders, support repeat dispatch, and give their customers a more reliable delivery experience.",
-    icon: Building2
-  },
-  {
-    title: "Riders Can Earn With Fast Fleets 360",
-    body: "Riders can create a rider account, complete KYC verification, upload required documents, receive approval, accept delivery opportunities, manage earnings, and request withdrawals.",
-    icon: WalletCards
   }
 ];
 
@@ -79,10 +59,10 @@ export default function HowItWorksPage() {
         <div className="section-wrap relative z-10 grid min-h-[78vh] content-center py-16 sm:py-20">
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-gold">How Fast Fleets 360 Works</span>
           <h1 className="mt-4 max-w-4xl text-5xl font-black leading-none text-white sm:text-7xl">
-            City delivery made simple, fast, and reliable.
+            A clear route from booking to delivery.
           </h1>
           <p className="mt-6 max-w-3xl text-base font-semibold leading-8 text-white/[0.82] sm:text-xl">
-            Fast Fleets 360 Logistics makes city delivery simple, fast, and reliable for customers, riders, restaurants, shopping vendors, and businesses across Lagos and Ogun.
+            Book, pay, follow the ongoing job, and confirm the final handoff from one account.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <LinkButton href="/book">Book delivery</LinkButton>
@@ -110,13 +90,6 @@ export default function HowItWorksPage() {
               </Card>
             );
           })}
-        </div>
-
-        <div className="mt-6 rounded-fleet bg-fleet-night p-6 text-white sm:p-8">
-          <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-gold">In Simple Terms</span>
-          <p className="mt-3 max-w-4xl text-2xl font-black leading-tight sm:text-4xl">
-            Fast Fleets 360 helps people send packages, order food, shop from category vendors, track riders live, and connect businesses with verified delivery riders all from one logistics platform.
-          </p>
         </div>
       </section>
     </main>

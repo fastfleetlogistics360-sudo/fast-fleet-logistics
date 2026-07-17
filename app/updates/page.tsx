@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: "Promotions & Updates"
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 const updates = [
   { title: "Soft launch scheduled", date: "August 2026", body: "Fast Fleets 360 is preparing launch operations across Lagos, Ogun, and Kwara States.", icon: BellRing },

@@ -237,6 +237,8 @@ function statusProgress(status?: string) {
       return 55;
     case "in_transit":
       return 76;
+    case "awaiting_delivery_confirmation":
+      return 92;
     case "delivered":
       return 100;
     case "cancelled":
@@ -255,6 +257,7 @@ function statusLabel(status?: string) {
   if (status === "rider_arrived") return "Rider at pickup";
   if (status === "picked_up") return "Package picked up";
   if (status === "in_transit") return "On the way";
+  if (status === "awaiting_delivery_confirmation") return "Awaiting confirmation";
   if (status === "delivered") return "Delivered";
   if (status === "cancelled") return "Cancelled";
   return status.replaceAll("_", " ");

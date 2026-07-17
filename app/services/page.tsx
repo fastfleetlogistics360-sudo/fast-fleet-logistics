@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight, Bike, BriefcaseBusiness, PackageCheck, ShoppingBag, Truck } from "lucide-react";
+import { ArrowUpRight, Bike, BriefcaseBusiness, ShoppingBag, Truck } from "lucide-react";
 import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 
 export const metadata: Metadata = {
@@ -8,11 +8,10 @@ export const metadata: Metadata = {
 };
 
 const services = [
-  { title: "Marketplace", body: "Discover food, groceries, and everyday essentials from onboarding marketplace partners.", href: "/shopping", icon: ShoppingBag, label: "Explore marketplace" },
-  { title: "Delivery Services", body: "Book a dependable parcel or business dispatch with clear status updates from pickup to handoff.", href: "/book", icon: Truck, label: "Book a delivery" },
-  { title: "Business Solutions", body: "Give your business a dispatch workspace for repeat jobs, teams, billing, and delivery operations.", href: "/business/register", icon: BriefcaseBusiness, label: "Register a business" },
-  { title: "Rider Opportunities", body: "Join the delivery network, complete onboarding, and manage your rider application securely.", href: "/rider/onboarding", icon: Bike, label: "Become a rider" },
-  { title: "Future Offerings", body: "We are building more tools for local commerce, partner operations, and connected delivery journeys.", href: "/updates", icon: PackageCheck, label: "See updates" }
+  { title: "Marketplace", body: "Order food, groceries, and everyday essentials from local businesses.", href: "/shopping", icon: ShoppingBag, label: "Explore marketplace" },
+  { title: "Delivery", body: "Send parcels with clear pricing and live status updates.", href: "/book", icon: Truck, label: "Book a delivery" },
+  { title: "Business Dispatch", body: "Manage repeat deliveries, customer orders, teams, and payouts.", href: "/business/register", icon: BriefcaseBusiness, label: "Register a business" },
+  { title: "Rider Network", body: "Apply, complete verification, and manage delivery work in one place.", href: "/rider/onboarding", icon: Bike, label: "Become a rider" }
 ];
 
 export default function ServicesPage() {
@@ -21,7 +20,7 @@ export default function ServicesPage() {
       <CinematicPageHero
         eyebrow="Fast Fleets 360 services"
         title="One platform for moving what matters."
-        body="From a single parcel to a growing storefront, choose the Fast Fleets experience that fits your day."
+        body="Delivery services for customers, riders, and businesses."
         image="https://images.unsplash.com/photo-1580674684081-7617fbf3d745?auto=format&fit=crop&w=2200&q=84"
       />
       <section className="section-wrap py-8 sm:py-10">

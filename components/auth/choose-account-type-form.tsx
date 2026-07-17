@@ -124,7 +124,7 @@ export function ChooseAccountTypeForm() {
             </select>
           </span>
           <span className="text-xs font-bold leading-5 text-slate-500">
-            Live states are controlled from admin. Other states receive early-access dashboard access while rollout expands.
+            Delivery availability depends on your selected state. Other states receive early access while coverage expands.
           </span>
         </label>
       ) : null}

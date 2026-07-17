@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { businessCommissionRate } from "@/lib/business-commission";
 import { canRetryMarketplaceListing } from "@/lib/marketplace-listing";
 import { sendMarketplaceListingRequestEmail } from "@/lib/marketplace-listing-email";
 import { parseSelfServiceRole, parseUserRole } from "@/lib/auth/roles";
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
     const expectedAverageOrders = clean(body.expected_average_orders, 160) || clean(body.expectedAverageOrders, 160);
     const contactEmail = clean(body.contact_email, 180) || clean(body.contactEmail, 180) || business.email || user.email || "";
     const whatsappNumber = clean(body.whatsapp_number, 40) || clean(body.whatsappNumber, 40) || business.phone || "";
-    const commissionRate = business.commission_rate == null ? null : Number(business.commission_rate);
+    const commissionRate = businessCommissionRate(business.business_type || business.industry);
 
     if (storeName.length < 2) return NextResponse.json({ error: "Enter the store name." }, { status: 400 });
     if (storeCategory.length < 2) return NextResponse.json({ error: "Enter the store category." }, { status: 400 });
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
         user_id: user.id,
         store_name: storeName,
         store_category: storeCategory,
-        commission_rate: Number.isFinite(commissionRate) ? commissionRate : null,
+        commission_rate: commissionRate,
         item_count: itemCount,
         expected_average_orders: expectedAverageOrders,
         contact_email: contactEmail,
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
     const emailResult = await sendMarketplaceListingRequestEmail({
       storeName,
       storeCategory,
-      commissionRate: Number.isFinite(commissionRate) ? commissionRate : null,
+      commissionRate,
       itemCount,
       expectedAverageOrders,
       contactEmail,
