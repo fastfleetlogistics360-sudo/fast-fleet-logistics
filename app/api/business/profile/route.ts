@@ -4,6 +4,7 @@ import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { businessCommissionRate, normalizeBusinessCommissionType, type BusinessCommissionType } from "@/lib/business-commission";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 type BusinessType = BusinessCommissionType;
 
@@ -38,6 +39,8 @@ export async function PATCH(request: Request) {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in to save your business profile." }, { status: 401 });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.businessProfileMutation);
+    if (limited) return limited;
 
     const db = createAdminClient() || supabase;
     const { data: current, error: currentError } = await db

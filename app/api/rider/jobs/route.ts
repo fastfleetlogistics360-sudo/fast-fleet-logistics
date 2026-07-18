@@ -41,9 +41,6 @@ type RiderFleetAsset = Awaited<ReturnType<typeof loadAssignedBicycleAsset>>;
 
 export async function GET(request: Request) {
   try {
-    const limited = await enforceRateLimit(request, rateLimitPolicies.riderJobsRead);
-    if (limited) return limited;
-
     const requestUrl = new URL(request.url);
     const includeAvailable = requestUrl.searchParams.get("includeAvailable") !== "0";
     const supabase = await createClient();
@@ -51,6 +48,8 @@ export async function GET(request: Request) {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.riderJobsRead);
+    if (limited) return limited;
 
     const admin = createAdminClient();
     const db = admin || supabase;
@@ -147,6 +146,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
     const limited = await enforceRateLimit(request, rateLimitPolicies.riderJobsWrite);
     if (limited) return limited;
 
@@ -156,12 +160,6 @@ export async function POST(request: Request) {
     if (!id || !["accept", "decline", "advance"].includes(action)) {
       return NextResponse.json({ error: "Choose a job and valid rider action." }, { status: 400 });
     }
-
-    const supabase = await createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
 
     const admin = createAdminClient();
     if (!admin) return NextResponse.json({ error: "Rider job updates are not configured." }, { status: 503 });

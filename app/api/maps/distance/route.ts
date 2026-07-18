@@ -3,7 +3,7 @@ import { getGoogleRouteEstimate } from "@/lib/maps/route-distance";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
-  const limited = await enforceRateLimit(request, { ...rateLimitPolicies.maps, name: "maps:distance" });
+  const limited = await enforceRateLimit(request, rateLimitPolicies.mapsRouteEstimate);
   if (limited) return limited;
 
   const { searchParams } = new URL(request.url);

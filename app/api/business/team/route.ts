@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 const roles = new Set(["dispatcher", "viewer"]);
 
@@ -32,6 +33,8 @@ export async function POST(request: Request) {
 
     const { supabase, userId, businessProfileId, error, status } = await businessContext();
     if (error) return NextResponse.json({ error }, { status });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.businessTeamMutation);
+    if (limited) return limited;
 
     const { data, error: insertError } = await supabase
       .from("business_team_members")
@@ -71,6 +74,8 @@ export async function DELETE(request: Request) {
 
     const { supabase, businessProfileId, error, status } = await businessContext();
     if (error) return NextResponse.json({ error }, { status });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.businessTeamMutation);
+    if (limited) return limited;
 
     const { error: deleteError } = await supabase
       .from("business_team_members")

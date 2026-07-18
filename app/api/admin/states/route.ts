@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/app/api/admin/_auth";
+import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { defaultLaunchStateRecords, normalizeLaunchStatus, normalizeState } from "@/lib/launch-states";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
@@ -46,6 +46,8 @@ export async function POST(request: Request) {
   if (!(await requireAdminSession(request))) {
     return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   }
+  const limited = await enforceAdminMutationRateLimit(request, "destructive");
+  if (limited) return limited;
 
   const body = await request.json().catch(() => ({}));
   const state = normalizeState(String(body.state || ""));

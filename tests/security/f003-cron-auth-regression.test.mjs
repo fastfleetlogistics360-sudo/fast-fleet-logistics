@@ -334,6 +334,12 @@ export { deductCommission, newEarningsForDate };
       if (specifier === "@/lib/business-commission") {
         return { businessCommissionRate };
       }
+      if (specifier === "@/lib/rate-limit") {
+        return {
+          enforceRateLimit: options.enforceRateLimit || (async () => null),
+          rateLimitPolicies: { cronDailyCommission: {} }
+        };
+      }
       throw new Error(`Unexpected import: ${specifier}`);
     }
   };

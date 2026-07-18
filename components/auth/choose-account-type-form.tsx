@@ -50,33 +50,13 @@ export function ChooseAccountTypeForm() {
       if (!user) throw new Error("Please sign in again to choose an account type.");
 
       const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "Fast Fleets 360 user";
-      const now = new Date().toISOString();
       const selectedState = selected === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos";
-      const [metadataResult, usersResult, profilesResult] = await Promise.allSettled([
-        supabase.auth.updateUser({ data: { account_type: selected, role: selected, default_zone: selectedState, state: selected === "customer" ? selectedState : undefined } }),
-        supabase.from("users").upsert({
-          id: user.id,
-          email: user.email || null,
-          phone: user.phone || null,
-          full_name: fullName,
-          role: selected,
-          default_zone: selectedState,
-          updated_at: now
-        }),
-        supabase.from("profiles").upsert({
-          id: user.id,
-          user_id: user.id,
-          email: user.email || null,
-          phone: user.phone || null,
-          full_name: fullName,
-          account_type: selected,
-          lga: selectedState,
-          updated_at: now
-        })
-      ]);
-
-      const failed = [metadataResult, usersResult, profilesResult].find((result) => result.status === "rejected");
-      if (failed?.status === "rejected") throw failed.reason;
+      const response = await fetch("/api/account/bootstrap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: selected, state: selectedState, fullName })
+      });
+      if (!response.ok) throw new Error("Could not complete account setup. Please try again.");
 
       await fetch("/api/promos/launch-first-150/enroll", { method: "POST" }).catch(() => null);
       const destination = returnTo || "/hub";

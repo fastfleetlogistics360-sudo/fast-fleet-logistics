@@ -8,6 +8,7 @@ import {
   verifyAdminSession
 } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 export type TrustedAdminContext = {
   userId: string;
@@ -30,6 +31,18 @@ export async function requireAdminSession(request?: Request): Promise<TrustedAdm
     }
     return null;
   }
+}
+
+/**
+ * Call only after requireAdminSession(request) succeeds. This keeps every
+ * administrative mutation on a named, conservative policy without making
+ * administrators unlimited.
+ */
+export async function enforceAdminMutationRateLimit(request: Request, kind: "standard" | "destructive" = "standard") {
+  return enforceRateLimit(
+    request,
+    kind === "destructive" ? rateLimitPolicies.adminDestructiveMutation : rateLimitPolicies.adminStandardMutation
+  );
 }
 
 export async function hasCurrentSupabaseAdminAuthority(

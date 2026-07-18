@@ -6,7 +6,7 @@ import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 const googleMapsKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 export async function GET(request: Request) {
-  const limited = await enforceRateLimit(request, { ...rateLimitPolicies.maps, name: "maps:place-details" });
+  const limited = await enforceRateLimit(request, rateLimitPolicies.mapsGeocode);
   if (limited) return limited;
 
   const { searchParams } = new URL(request.url);
@@ -35,12 +35,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: googlePlacesError(payload.error?.message) }, { status: 502 });
     }
 
-    return NextResponse.json({
+    const result = NextResponse.json({
       address: payload.formattedAddress || payload.displayName?.text || "",
       latitude: payload.location?.latitude ?? null,
       longitude: payload.location?.longitude ?? null,
       state: stateFromAddressComponents(payload.addressComponents) || extractNigerianState(payload.formattedAddress || "")
     });
+    // A place id describes public map data. Keep this short CDN cache separate
+    // from user-specific tracking, checkout, and secure-file responses.
+    result.headers.set("Cache-Control", "public, s-maxage=600, stale-while-revalidate=3600");
+    return result;
   } catch {
     return NextResponse.json({ error: "Place details service failed." }, { status: 502 });
   }

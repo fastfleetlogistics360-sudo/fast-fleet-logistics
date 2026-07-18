@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/app/api/admin/_auth";
+import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import { defaultMainHeroSlides, mainHeroSlidesSettingsKey, normalizeMainHeroSlides } from "@/lib/main-hero-slides";
@@ -26,6 +26,8 @@ export async function PUT(request: Request) {
   if (!(await requireAdminSession(request))) {
     return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   }
+  const limited = await enforceAdminMutationRateLimit(request);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => ({}));
   const slides = normalizeMainHeroSlides((body as Record<string, unknown>).slides);

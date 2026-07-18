@@ -6,6 +6,7 @@ import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createClient } from "@/lib/supabase/server";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { accountMessengerHref } from "@/lib/tracking-links";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
 const vehicleTypes = new Set<VehicleType>(["bike", "car", "van"]);
@@ -40,6 +41,8 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "Please sign in before creating a dispatch." }, { status: 401 });
     }
+    const limited = await enforceRateLimit(request, rateLimitPolicies.businessDispatchCreate);
+    if (limited) return limited;
 
     const pickupAddress = clean(payload.pickupAddress);
     const dropoffAddress = clean(payload.dropoffAddress);

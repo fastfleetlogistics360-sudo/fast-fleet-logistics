@@ -19,14 +19,13 @@ type BulkRow = {
 
 export async function POST(request: Request) {
   try {
-    const limited = await enforceRateLimit(request, rateLimitPolicies.businessBulkDispatch);
-    if (limited) return limited;
-
     const supabase = await createClient();
     const {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in before creating dispatches." }, { status: 401 });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.businessBulkDispatch);
+    if (limited) return limited;
 
     const body = (await request.json()) as { rows?: BulkRow[] };
     const rows = Array.isArray(body.rows) ? body.rows.slice(0, 100) : [];

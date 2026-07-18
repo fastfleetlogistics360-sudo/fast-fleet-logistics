@@ -503,14 +503,14 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
   async function addAddress() {
     if (!addressDraft.label || !addressDraft.address) return;
     try {
-      const supabase = createClient();
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data, error } = await supabase.from("saved_addresses").insert({ user_id: user.id, label: addressDraft.label, address: addressDraft.address }).select("id, label, address").single();
-      if (error) throw error;
-      setAddresses((current) => [data as SavedAddress, ...current]);
+      const response = await fetch("/api/account/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "address", label: addressDraft.label, address: addressDraft.address })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { address?: SavedAddress; error?: string };
+      if (!response.ok || !payload.address) throw new Error(payload.error || "Could not save address.");
+      setAddresses((current) => [payload.address!, ...current]);
       setAddressDraft({ label: "", address: "" });
     } catch (error) {
       setDispatchMessage(error instanceof Error ? error.message : "Could not save address.");
@@ -520,8 +520,12 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
   async function deleteAddress(id: string) {
     setAddresses((current) => current.filter((item) => item.id !== id));
     try {
-      const supabase = createClient();
-      await supabase.from("saved_addresses").delete().eq("id", id);
+      const response = await fetch("/api/account/preferences", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      if (!response.ok) throw new Error("Could not delete this address.");
     } catch {
       // Keep the local UI responsive when remote business data is delayed.
     }

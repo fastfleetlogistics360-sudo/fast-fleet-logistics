@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { authorizeCronRequest } from "@/lib/cron-auth";
 import { businessCommissionRate } from "@/lib/business-commission";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import {
   ensureWallet,
   riderCommissionRate
@@ -34,6 +35,8 @@ async function runDailyCommission(request: Request) {
       { status: misconfigured ? 503 : 401 }
     );
   }
+  const limited = await enforceRateLimit(request, rateLimitPolicies.cronDailyCommission);
+  if (limited) return limited;
 
   console.info("daily_commission_run", {
     event: "authorized_execution",

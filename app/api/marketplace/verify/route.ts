@@ -8,15 +8,14 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   try {
-    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentVerify, name: "marketplace:verify" });
-    if (limited) return limited;
-
     const reference = paymentReference(request);
     if (!reference) return response({ error: "Missing payment reference." }, 400);
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return response({ error: "Please sign in to verify this marketplace payment." }, 401);
+    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentVerify, name: "marketplace:verify" });
+    if (limited) return limited;
     const db = createAdminClient();
     if (!db) return response({ error: "Secure payment verification is temporarily unavailable." }, 503);
 

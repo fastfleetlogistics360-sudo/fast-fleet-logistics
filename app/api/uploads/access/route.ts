@@ -25,9 +25,6 @@ type AccessTarget = {
 };
 
 export async function GET(request: Request) {
-  const limited = await enforceRateLimit(request, rateLimitPolicies.uploadAccess);
-  if (limited) return limited;
-
   const url = new URL(request.url);
   const scope = String(url.searchParams.get("scope") || "") as AccessScope;
   const id = String(url.searchParams.get("id") || "").trim();
@@ -43,6 +40,8 @@ export async function GET(request: Request) {
     logUploadRejection({ route: "/api/uploads/access", code: "UPLOAD_UNAUTHORIZED" });
     return NextResponse.json({ error: "Sign in to open this file.", code: "UPLOAD_UNAUTHORIZED" }, { status: 401 });
   }
+  const limited = await enforceRateLimit(request, rateLimitPolicies.uploadAccess);
+  if (limited) return limited;
 
   const admin = createAdminClient();
   if (!admin) return NextResponse.json({ error: "Secure file access is not configured." }, { status: 503 });

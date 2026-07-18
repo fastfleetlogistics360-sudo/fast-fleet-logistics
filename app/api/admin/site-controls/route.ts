@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/app/api/admin/_auth";
+import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
 import { defaultBrandPartners, normalizeBrandPartners } from "@/lib/brand-partners";
 import { DEFAULT_FARE_CONFIG, normalizeFareConfig } from "@/lib/fare";
 import { siteControlsSettingsKey } from "@/lib/fare-settings";
@@ -49,6 +49,8 @@ export async function PUT(request: Request) {
   if (!(await requireAdminSession(request))) {
     return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   }
+  const limited = await enforceAdminMutationRateLimit(request, "destructive");
+  if (limited) return limited;
 
   const parsed = parseControls(await request.json().catch(() => ({})));
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });

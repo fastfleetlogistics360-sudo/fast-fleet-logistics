@@ -232,36 +232,6 @@ function normalizeDispatchVehicle(vehicleType: string | null | undefined) {
   return null;
 }
 
-async function ensureClientRiderProfile(
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-  options: { online?: boolean; vehicleType?: string | null } = {}
-) {
-  const { data: existing, error: existingError } = await supabase
-    .from("rider_profiles")
-    .select(riderProfileFields)
-    .eq("user_id", userId)
-    .maybeSingle<RiderProfile>();
-  if (existingError) throw existingError;
-  if (!existing?.id) return null;
-
-  const dispatchVehicle = normalizeDispatchVehicle(options.vehicleType || existing?.vehicle_type) || "bike";
-  const patch: Partial<Pick<RiderProfile, "vehicle_type" | "online">> = {};
-  if (existing.application_status === "approved" && existing.vehicle_type !== dispatchVehicle) patch.vehicle_type = dispatchVehicle as RiderProfile["vehicle_type"];
-  if (existing.application_status === "approved" && typeof options.online === "boolean" && existing.online !== options.online) patch.online = options.online;
-
-  if (!Object.keys(patch).length) return { ...existing, vehicle_type: dispatchVehicle };
-
-  const { data, error } = await supabase
-    .from("rider_profiles")
-    .update(patch)
-    .eq("id", existing.id)
-    .select(riderProfileFields)
-    .maybeSingle<RiderProfile>();
-  if (error) throw error;
-  return data || { ...existing, ...patch };
-}
-
 async function fetchRiderAvailability(vehicleType?: string | null) {
   const params = new URLSearchParams();
   if (vehicleType) params.set("vehicleType", vehicleType);
@@ -280,6 +250,33 @@ async function saveRiderAvailability(options: { online?: boolean; vehicleType?: 
   const payload = (await response.json().catch(() => ({}))) as { profile?: RiderProfile | null; error?: string };
   if (!response.ok) throw new Error(payload.error || "Could not update rider availability.");
   return payload.profile || null;
+}
+
+async function publishRiderLocation(input: {
+  latitude: number;
+  longitude: number;
+  heading: number | null;
+  speed: number | null;
+  zone: string;
+  deliveryId?: string;
+  deliveryStatus?: string;
+}) {
+  const response = await fetch("/api/location/current", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      mode: "rider",
+      source: "rider-tracking",
+      latitude: input.latitude,
+      longitude: input.longitude,
+      heading: input.heading,
+      speed: input.speed,
+      zone: input.zone,
+      deliveryId: input.deliveryId,
+      deliveryStatus: input.deliveryStatus
+    })
+  });
+  if (!response.ok) throw new Error("Could not share your location.");
 }
 
 async function uploadPickupProof(deliveryId: string, file: File) {
@@ -481,8 +478,6 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       return;
     }
 
-    const supabase = createClient();
-    const riderProfileId = profile.id;
     const trackingJob = activeJob;
     let stopped = false;
 
@@ -499,33 +494,15 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
         };
         setLiveLocation(nextLocation);
         setTrackingMessage("Live delivery tracking is on.");
-        void Promise.allSettled([
-          supabase.from("rider_locations").upsert(
-            {
-              rider_profile_id: riderProfileId,
-              zone: profile.lga || "Lagos",
-              latitude: nextLocation.latitude,
-              longitude: nextLocation.longitude,
-              heading: nextLocation.heading,
-              speed: nextLocation.speed,
-              updated_at: nextLocation.updated_at
-            },
-            { onConflict: "rider_profile_id" }
-          ),
-          supabase.from("delivery_locations").upsert(
-            {
-              order_id: trackingJob.id,
-              rider_id: riderProfileId,
-              latitude: nextLocation.latitude,
-              longitude: nextLocation.longitude,
-              heading: nextLocation.heading,
-              speed: nextLocation.speed,
-              status: trackingJob.status,
-              updated_at: nextLocation.updated_at
-            },
-            { onConflict: "order_id" }
-          )
-        ]);
+        await publishRiderLocation({
+          latitude: nextLocation.latitude,
+          longitude: nextLocation.longitude,
+          heading: nextLocation.heading ?? null,
+          speed: nextLocation.speed ?? null,
+          zone: profile.lga || "Lagos",
+          deliveryId: trackingJob.id,
+          deliveryStatus: trackingJob.status
+        });
       } catch (error) {
         if (!stopped) setTrackingMessage(geolocationErrorMessage(error));
       }
@@ -542,8 +519,6 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 
   useEffect(() => {
     if (!online || !profile.id) return;
-    const supabase = createClient();
-    const riderProfileId = profile.id;
     let stopped = false;
 
     async function publishOnlineLocation() {
@@ -558,18 +533,13 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
           updated_at: new Date().toISOString()
         };
         setLiveLocation(nextLocation);
-        await supabase.from("rider_locations").upsert(
-          {
-            rider_profile_id: riderProfileId,
-            zone: profile.lga || "Lagos",
-            latitude: nextLocation.latitude,
-            longitude: nextLocation.longitude,
-            heading: nextLocation.heading,
-            speed: nextLocation.speed,
-            updated_at: nextLocation.updated_at
-          },
-          { onConflict: "rider_profile_id" }
-        );
+        await publishRiderLocation({
+          latitude: nextLocation.latitude,
+          longitude: nextLocation.longitude,
+          heading: nextLocation.heading ?? null,
+          speed: nextLocation.speed ?? null,
+          zone: profile.lga || "Lagos"
+        });
       } catch (error) {
         if (!stopped && incomingJob) setOfferNotice(geolocationErrorMessage(error));
       }
@@ -669,14 +639,14 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
         const applicationData = (latestApplicationResult.data || {}) as RiderProfile;
 	        let riderId = riderData.id || null;
 	        const approved = riderData.application_status === "approved" || initialKycStatus === "approved";
-	        if (!riderId && approved) {
-	          riderData = (await ensureClientRiderProfile(supabase, user.id, { vehicleType: riderData.vehicle_type })) || riderData;
+        if (!riderId && approved) {
+	          riderData = (await fetchRiderAvailability(riderData.vehicle_type).catch(() => null)) || riderData;
 	          riderId = riderData.id || null;
 	        }
 	        let dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || "bike";
 	        let effectiveOnline = Boolean(riderData.online);
 	        if (silent && approved && desiredOnlineRef.current === true && !effectiveOnline) {
-	          const restored = (await saveRiderAvailability({ online: true, vehicleType: riderData.vehicle_type }).catch(() => ensureClientRiderProfile(supabase, user.id, { online: true, vehicleType: riderData.vehicle_type })));
+	          const restored = await saveRiderAvailability({ online: true, vehicleType: riderData.vehicle_type }).catch(() => null);
 	          if (restored?.id) {
 	            riderData = restored;
 	            riderId = restored.id;
@@ -684,7 +654,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	          }
 	        }
 	        if (riderId && approved && (riderData.vehicle_type !== dispatchVehicle || riderData.application_status !== "approved")) {
-	          riderData = (await saveRiderAvailability({ vehicleType: dispatchVehicle }).catch(() => ensureClientRiderProfile(supabase, user.id, { vehicleType: dispatchVehicle }))) || riderData;
+	          riderData = (await saveRiderAvailability({ vehicleType: dispatchVehicle }).catch(() => null)) || riderData;
 	          riderId = riderData.id || null;
 	          dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || dispatchVehicle;
 	        }
@@ -784,12 +754,8 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
     setOnlineSince(nextOnline ? new Date() : null);
     try {
       const supabase = createClient();
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Sign in again to update rider availability.");
       const dispatchVehicle = normalizeDispatchVehicle(profile.vehicle_type) || "bike";
-      const updatedProfile = await saveRiderAvailability({ online: nextOnline, vehicleType: dispatchVehicle }).catch(() => ensureClientRiderProfile(supabase, user.id, { online: nextOnline, vehicleType: dispatchVehicle }));
+      const updatedProfile = await saveRiderAvailability({ online: nextOnline, vehicleType: dispatchVehicle });
       if (!updatedProfile?.id) throw new Error("Your approved rider profile was not found. Please contact support.");
       desiredOnlineRef.current = nextOnline;
       setProfile((current) => ({ ...current, ...updatedProfile, vehicle_type: dispatchVehicle, online: nextOnline }));

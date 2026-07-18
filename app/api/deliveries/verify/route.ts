@@ -8,9 +8,6 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   try {
-    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentVerify, name: "deliveries:verify" });
-    if (limited) return limited;
-
     const reference = paymentReference(request);
     const code = request.nextUrl.searchParams.get("code")?.trim().toUpperCase() || "";
     const deliveryId = request.nextUrl.searchParams.get("deliveryId") || "";
@@ -21,6 +18,8 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return response({ error: "Please sign in to verify this delivery payment." }, 401);
+    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentVerify, name: "deliveries:verify" });
+    if (limited) return limited;
     const db = createAdminClient();
     if (!db) return response({ error: "Secure payment verification is temporarily unavailable." }, 503);
 

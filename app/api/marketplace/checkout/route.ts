@@ -18,6 +18,11 @@ import { accountTrackingHref } from "@/lib/tracking-links";
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Please sign in before placing this order." }, { status: 401 });
     const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentCreate, name: "marketplace:checkout" });
     if (limited) return limited;
 
@@ -46,12 +51,6 @@ export async function POST(request: Request) {
     if (address.length < 6) {
       return NextResponse.json({ error: "Enter the delivery street address." }, { status: 400 });
     }
-    const supabase = await createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Please sign in before placing this order." }, { status: 401 });
-
     const admin = createAdminClient();
     if (!admin) {
       return NextResponse.json({ error: "Secure payment checkout is temporarily unavailable. Please try again." }, { status: 503 });

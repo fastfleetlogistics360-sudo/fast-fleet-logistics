@@ -48,18 +48,17 @@ export async function POST(request: Request) {
   let claimedMime: string | null = null;
   let fileSize: number | null = null;
   try {
-    const limited = await enforceRateLimit(request, rateLimitPolicies.uploadDeliveryProof);
-    if (limited) {
-      logUploadRejection({ route: "/api/rider/pickup-proof", code: "UPLOAD_RATE_LIMITED" });
-      return limited;
-    }
-
     const supabase = await createClient();
     const {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) throw new UploadSecurityError("UPLOAD_UNAUTHORIZED", "Please sign in as a rider.", { status: 401 });
     userId = user.id;
+    const limited = await enforceRateLimit(request, rateLimitPolicies.uploadDeliveryProof);
+    if (limited) {
+      logUploadRejection({ route: "/api/rider/pickup-proof", userId, code: "UPLOAD_RATE_LIMITED" });
+      return limited;
+    }
     if (multipartBodyTooLarge(request)) {
       throw new UploadSecurityError("UPLOAD_TOO_LARGE", "File is too large. Choose a file under 7 MB.");
     }
@@ -135,7 +134,7 @@ export async function POST(request: Request) {
     };
 
     await persistReplacement({
-      uploadNew: () => uploadValidatedObject(admin, { bucket: "delivery-proofs", path, upload: validated, publicBucket: false }),
+      uploadNew: () => uploadValidatedObject(admin, { bucket: "delivery-proofs", path, upload: validated, publicBucket: false, quota: { ownerId: user.id, scope: "rider_delivery_proofs" } }),
       persistNew: async () => {
         const { error: updateError } = await admin
           .from("deliveries")

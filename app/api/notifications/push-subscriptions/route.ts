@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,10 @@ export async function POST(request: Request) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  const limited = await enforceRateLimit(request, rateLimitPolicies.pushSubscriptionWrite);
+  if (limited) return limited;
+  const db = createAdminClient();
+  if (!db) return NextResponse.json({ error: "Secure push registration is temporarily unavailable." }, { status: 503 });
 
   const body = await request.json().catch(() => ({}));
   const platform = clean(body.platform) || "web";
@@ -25,7 +31,7 @@ export async function POST(request: Request) {
   if (!endpoint) return NextResponse.json({ error: "Missing push endpoint or token." }, { status: 400 });
 
   const now = new Date().toISOString();
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("push_subscriptions")
     .upsert(
       {
@@ -44,7 +50,7 @@ export async function POST(request: Request) {
     .select("id")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return NextResponse.json({ error: "Could not save this push subscription." }, { status: 503 });
   return NextResponse.json({ subscription: data });
 }
 
@@ -54,16 +60,20 @@ export async function DELETE(request: Request) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  const limited = await enforceRateLimit(request, rateLimitPolicies.pushSubscriptionWrite);
+  if (limited) return limited;
+  const db = createAdminClient();
+  if (!db) return NextResponse.json({ error: "Secure push registration is temporarily unavailable." }, { status: 503 });
 
   const body = await request.json().catch(() => ({}));
   const endpoint = clean(body.endpoint);
   const deviceId = clean(body.deviceId);
-  let query = supabase.from("push_subscriptions").delete().eq("user_id", user.id);
+  let query = db.from("push_subscriptions").delete().eq("user_id", user.id);
   if (endpoint) query = query.eq("endpoint", endpoint);
   else if (deviceId) query = query.eq("device_id", deviceId);
   else return NextResponse.json({ error: "Missing endpoint or device id." }, { status: 400 });
 
   const { error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return NextResponse.json({ error: "Could not remove this push subscription." }, { status: 503 });
   return NextResponse.json({ ok: true });
 }

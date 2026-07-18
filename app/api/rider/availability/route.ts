@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 const activeDeliveryStatuses = ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"];
 const riderProfileSelect =
@@ -43,16 +44,20 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const body = (await request.json().catch(() => ({}))) as { online?: unknown; vehicleType?: unknown };
-  return handleAvailability(body.vehicleType, typeof body.online === "boolean" ? body.online : undefined);
+  return handleAvailability(body.vehicleType, typeof body.online === "boolean" ? body.online : undefined, request);
 }
 
-async function handleAvailability(rawVehicleType: unknown, requestedOnline?: boolean) {
+async function handleAvailability(rawVehicleType: unknown, requestedOnline?: boolean, mutationRequest?: Request) {
   try {
     const supabase = await createClient();
     const {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in to update rider availability." }, { status: 401 });
+    if (mutationRequest) {
+      const limited = await enforceRateLimit(mutationRequest, rateLimitPolicies.riderAvailability);
+      if (limited) return limited;
+    }
 
     const admin = createAdminClient();
     const db = (admin || supabase) as SupabaseClient;

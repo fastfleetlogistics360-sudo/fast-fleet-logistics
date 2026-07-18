@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,6 @@ export async function GET(request: Request) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
-
   const url = new URL(request.url);
   const subjectType = url.searchParams.get("subjectType") || "";
   const subjectId = url.searchParams.get("deliveryId") || url.searchParams.get("orderId") || "";
@@ -76,6 +76,8 @@ export async function POST(request: Request) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  const limited = await enforceRateLimit(request, rateLimitPolicies.reviewCreate);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => ({}));
   const reviewerRole = String(body.reviewerRole || "");

@@ -9,9 +9,6 @@ import type { WalletType } from "@/types/domain";
 
 export async function POST(request: Request) {
   try {
-    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentCreate, name: "wallet:topup" });
-    if (limited) return limited;
-
     const { amount, walletType = "customer", returnTo } = (await request.json()) as {
       amount?: number;
       walletType?: WalletType;
@@ -36,6 +33,8 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "Please sign in before funding your wallet." }, { status: 401 });
     }
+    const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentCreate, name: "wallet:topup" });
+    if (limited) return limited;
     const admin = createAdminClient();
     if (!admin) {
       return NextResponse.json({ error: "Secure wallet funding is temporarily unavailable. Please try again." }, { status: 503 });

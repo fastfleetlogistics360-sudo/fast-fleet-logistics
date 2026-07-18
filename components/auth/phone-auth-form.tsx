@@ -137,43 +137,25 @@ export function PhoneAuthForm({
   }
 
   async function saveProfiles(
-    userId: string,
     userRole: SelfServiceRole,
     fallbackEmail?: string | null,
-    fallbackPhone?: string | null,
     avatarUrl?: string | null,
     displayName?: string | null
   ) {
-    const now = new Date().toISOString();
-    const supabase = createClient();
     const selectedState = userRole === "customer" ? normalizeState(customerState) || "Lagos" : "Lagos";
-    const avatarPatch = avatarUrl ? { avatar_url: avatarUrl } : {};
-    const profilePayload = {
-      id: userId,
-      user_id: userId,
-      full_name: fullName.trim() || displayName || null,
-      email: email.trim() || fallbackEmail || null,
-      phone: fallbackPhone || null,
-      account_type: userRole,
-      lga: selectedState,
-      updated_at: now
-    };
-
-    await Promise.allSettled([
-      supabase.from("users").upsert({
-        id: userId,
-        full_name: profilePayload.full_name,
-        phone: profilePayload.phone,
-        email: profilePayload.email,
-        ...avatarPatch,
+    const response = await fetch("/api/account/bootstrap", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         role: userRole,
-        default_zone: selectedState,
-        updated_at: now
-      }),
-      supabase.from("profiles").upsert({ ...profilePayload, ...avatarPatch })
-    ]);
+        state: selectedState,
+        fullName: fullName.trim() || displayName || "",
+        avatarUrl: avatarUrl || null
+      })
+    });
+    if (!response.ok) throw new Error("Could not complete account setup. Please try again.");
 
-    saveReturningProfile({ fullName: profilePayload.full_name, email: profilePayload.email });
+    saveReturningProfile({ fullName: fullName.trim() || displayName || null, email: email.trim() || fallbackEmail || null });
     await fetch("/api/promos/launch-first-150/enroll", { method: "POST" }).catch(() => null);
   }
 
@@ -214,10 +196,8 @@ export function PhoneAuthForm({
       if (result.data.session && result.data.user) {
         const upload = profilePhotoFile ? await uploadProfilePhoto(profilePhotoFile) : null;
         await saveProfiles(
-          result.data.user.id,
           role,
           result.data.user.email,
-          result.data.user.phone,
           upload?.publicUrl || null,
           result.data.user.user_metadata?.full_name || fullName
         );
@@ -248,10 +228,8 @@ export function PhoneAuthForm({
       const userRole = await getSavedRole(result.data.user.id, fallbackRole);
       if (userRole !== "admin") {
         await saveProfiles(
-          result.data.user.id,
           userRole,
           result.data.user.email,
-          result.data.user.phone,
           null,
           result.data.user.user_metadata?.full_name || result.data.user.user_metadata?.name || null
         );

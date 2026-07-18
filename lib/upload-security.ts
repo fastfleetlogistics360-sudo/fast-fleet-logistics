@@ -26,6 +26,7 @@ export type UploadRejectionCode =
   | "UPLOAD_ACTIVE_CONTENT"
   | "UPLOAD_UNAUTHORIZED"
   | "UPLOAD_RATE_LIMITED"
+  | "STORAGE_QUOTA_EXCEEDED"
   | "UPLOAD_STORAGE_FAILED";
 
 type UploadProfile = {
@@ -474,7 +475,7 @@ function uploadError(code: UploadRejectionCode, message: string) {
 function statusForCode(code: UploadRejectionCode) {
   if (code === "UPLOAD_TOO_LARGE") return 413;
   if (code === "UPLOAD_UNAUTHORIZED") return 403;
-  if (code === "UPLOAD_RATE_LIMITED") return 429;
+  if (code === "UPLOAD_RATE_LIMITED" || code === "STORAGE_QUOTA_EXCEEDED") return 429;
   if (code === "UPLOAD_STORAGE_FAILED") return 500;
   return 400;
 }

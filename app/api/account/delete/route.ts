@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ async function anonymizeCustomerDeliveries(admin: NonNullable<ReturnType<typeof 
   );
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -39,6 +40,8 @@ export async function POST() {
   if (error || !user) {
     return NextResponse.json({ error: "Please sign in again before deleting your account." }, { status: 401 });
   }
+  const limited = await enforceRateLimit(request, rateLimitPolicies.accountDelete);
+  if (limited) return limited;
 
   const admin = createAdminClient();
   if (!admin) {

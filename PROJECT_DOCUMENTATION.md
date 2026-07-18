@@ -1311,7 +1311,7 @@ Rules:
 4. If users need access, update RLS policies.
 5. Update TypeScript code that reads/writes the table.
 6. Update admin UI if admins need to view/edit the field.
-7. Rerun `supabase-schema.sql` in Supabase SQL Editor.
+7. For a new project, include the change in the initial schema. For an existing project, create and run a focused, forward-only delta instead; do not rerun the complete `supabase-schema.sql`.
 8. Test both existing rows and new rows.
 
 ### 12.9 How to add a new table

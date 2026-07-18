@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { MIN_WITHDRAWAL_NGN } from "@/lib/wallet-ledger";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
@@ -15,6 +16,8 @@ export async function POST(request: Request) {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.withdrawalRequest);
+    if (limited) return limited;
 
     const { data: rider, error: riderError } = await supabase
       .from("rider_profiles")

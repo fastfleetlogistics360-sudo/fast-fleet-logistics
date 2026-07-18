@@ -126,6 +126,15 @@ function legacyVehicleType(vehicleType: RiderVehicleType) {
 }
 
 export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Sign in to submit your rider application." }, { status: 401 });
+  }
   const limited = await enforceRateLimit(request, rateLimitPolicies.uploadKycSubmit);
   if (limited) return limited;
 
@@ -139,16 +148,6 @@ export async function POST(request: NextRequest) {
   }
   if (!/^\+234[789][01]\d{8}$/.test(form.phone)) return NextResponse.json({ error: "Enter a valid Nigerian phone number." }, { status: 400 });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error: authError
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: "Sign in to submit your rider application." }, { status: 401 });
-  }
 
   const now = new Date().toISOString();
   const db = createAdminClient() || supabase;

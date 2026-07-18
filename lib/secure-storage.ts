@@ -6,6 +6,13 @@ import {
   type UploadProfileName,
   type ValidatedUpload
 } from "@/lib/upload-security";
+import {
+  commitStorageQuota,
+  releaseStorageQuotaObject,
+  releaseStorageQuotaReservation,
+  reserveStorageQuota,
+  type StorageQuotaScope
+} from "@/lib/storage-quota";
 export { persistReplacement } from "@/lib/upload-transaction";
 
 export type StoredUpload = {
@@ -17,15 +24,40 @@ export type StoredUpload = {
 
 export async function uploadValidatedObject(
   db: SupabaseClient,
-  input: { bucket: string; path: string; upload: ValidatedUpload; publicBucket: boolean }
+  input: { bucket: string; path: string; upload: ValidatedUpload; publicBucket: boolean; quota?: { ownerId: string; scope: StorageQuotaScope } }
 ): Promise<StoredUpload> {
-  const result = await db.storage.from(input.bucket).upload(input.path, input.upload.bytes, {
-    cacheControl: input.publicBucket ? "31536000" : "no-cache",
-    contentType: input.upload.contentType,
-    upsert: false
-  });
-  if (result.error) {
-    throw new UploadSecurityError("UPLOAD_STORAGE_FAILED", friendlyStorageError(result.error.message), { status: 500 });
+  const quota = input.quota
+    ? {
+        ownerId: input.quota.ownerId,
+        bucket: input.bucket,
+        path: input.path,
+        scope: input.quota.scope,
+        bytes: input.upload.size
+      }
+    : null;
+  const reservationId = quota ? await reserveStorageQuota(db, quota) : null;
+
+  try {
+    const result = await db.storage.from(input.bucket).upload(input.path, input.upload.bytes, {
+      cacheControl: input.publicBucket ? "31536000" : "no-cache",
+      contentType: input.upload.contentType,
+      upsert: false
+    });
+    if (result.error) {
+      throw new UploadSecurityError("UPLOAD_STORAGE_FAILED", friendlyStorageError(result.error.message), { status: 500 });
+    }
+
+    if (quota && reservationId) {
+      try {
+        await commitStorageQuota(db, quota, reservationId);
+      } catch (error) {
+        await db.storage.from(input.bucket).remove([input.path]).catch(() => undefined);
+        throw error;
+      }
+    }
+  } catch (error) {
+    if (reservationId) await releaseStorageQuotaReservation(db, reservationId);
+    throw error;
   }
 
   const publicUrl = input.publicBucket ? db.storage.from(input.bucket).getPublicUrl(input.path).data.publicUrl : null;
@@ -89,6 +121,7 @@ export async function removeStoredObject(db: SupabaseClient, bucket: string, pat
   if (!path) return;
   const result = await db.storage.from(bucket).remove([path]);
   if (result.error) throw result.error;
+  await releaseStorageQuotaObject(db, bucket, path);
 }
 
 export function storagePathFromPublicUrl(value: string | null | undefined, bucket: string) {

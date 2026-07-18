@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import {
   formatWithdrawalLike,
   MAX_WITHDRAWAL_NGN,
@@ -88,6 +89,8 @@ export async function POST(request: Request) {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in before requesting withdrawal." }, { status: 401 });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.withdrawalRequest);
+    if (limited) return limited;
 
     const db = createAdminClient();
     if (!db) return NextResponse.json({ error: "Withdrawals are not configured. Add SUPABASE_SERVICE_ROLE_KEY in production." }, { status: 503 });

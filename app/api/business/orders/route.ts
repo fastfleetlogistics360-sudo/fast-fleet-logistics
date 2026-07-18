@@ -11,6 +11,7 @@ import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountMessengerHref } from "@/lib/tracking-links";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 const businessProgress = new Set(["received", "preparing", "packing", "ready_for_pickup"]);
 
@@ -64,6 +65,8 @@ export async function PATCH(request: Request) {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in to update business orders." }, { status: 401 });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.businessOrderStatusUpdate);
+    if (limited) return limited;
 
     const admin = createAdminClient();
     if (!admin) {

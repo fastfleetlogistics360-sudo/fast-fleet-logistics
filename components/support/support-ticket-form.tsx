@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Headphones, Loader2, Send } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 
@@ -30,22 +29,21 @@ export function SupportTicketForm() {
     setLoading(true);
     setMessage(null);
     try {
-      const supabase = createClient();
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      const { error } = await supabase.from("support_tickets").insert({
-        user_id: user?.id,
-        contact_name: form.name.trim() || user?.user_metadata?.full_name || null,
-        contact_email: form.email.trim() || user?.email || null,
-        contact_phone: form.phone.trim() || user?.phone || null,
-        topic: form.topic,
-        subject: `${form.topic} support`,
-        message: `${form.body.trim()}${form.trackingCode.trim() ? `\nTracking code: ${form.trackingCode.trim()}` : ""}`,
-        priority: form.topic === "Wallet and payments" ? "urgent" : "normal",
-        status: "open"
+      const response = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: form.topic,
+          subject: `${form.topic} support`,
+          body: form.body,
+          trackingCode: form.trackingCode,
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          priority: form.topic === "Wallet and payments" ? "urgent" : "normal"
+        })
       });
-      if (error) throw error;
+      if (!response.ok) throw new Error("Support request was rejected.");
       setMessage("Support request received. Our team will respond as soon as possible.");
       setForm({ name: "", phone: "", email: "", topic: "Delivery order", trackingCode: "", body: "" });
     } catch {

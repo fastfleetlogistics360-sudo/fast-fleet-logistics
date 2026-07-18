@@ -83,9 +83,6 @@ function parsePayload(value: unknown): BusinessRegistrationPayload | null {
 }
 
 export async function POST(request: Request) {
-  const limited = await enforceRateLimit(request, rateLimitPolicies.uploadKycSubmit);
-  if (limited) return limited;
-
   const payload = parsePayload(await request.json().catch(() => null));
   if (!payload) return NextResponse.json({ error: "Invalid business registration payload." }, { status: 400 });
 
@@ -105,6 +102,8 @@ export async function POST(request: Request) {
   if (authError || !user) {
     return NextResponse.json({ error: "Sign in to submit your business KYC." }, { status: 401 });
   }
+  const limited = await enforceRateLimit(request, rateLimitPolicies.businessRegistration);
+  if (limited) return limited;
 
   const db = createAdminClient() || supabase;
   const now = new Date().toISOString();

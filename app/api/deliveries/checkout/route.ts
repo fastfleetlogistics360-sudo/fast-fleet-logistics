@@ -42,6 +42,11 @@ type CheckoutPayload = {
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Please sign in before booking delivery." }, { status: 401 });
     const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentCreate, name: "deliveries:checkout" });
     if (limited) return limited;
 
@@ -98,11 +103,6 @@ export async function POST(request: Request) {
     });
     const estimate = quote.fare;
 
-    const supabase = await createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Please sign in before booking delivery." }, { status: 401 });
     const admin = createAdminClient();
     const db = admin || supabase;
     const promo = await quoteLaunchDeliveryPromo(db, user.id, quote);

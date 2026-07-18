@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/app/api/admin/_auth";
+import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import { normalizeState } from "@/lib/launch-states";
@@ -55,6 +55,8 @@ async function upsertFleetAsset(request: Request, editing: boolean) {
   if (!(await requireAdminSession(request))) {
     return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   }
+  const limited = await enforceAdminMutationRateLimit(request);
+  if (limited) return limited;
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const id = text(body.id);

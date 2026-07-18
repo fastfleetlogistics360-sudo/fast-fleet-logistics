@@ -20,6 +20,15 @@ Use this before switching the public site from preview/demo storage to live Supa
 
 Do **not** rerun the complete `supabase-schema.sql` against an existing production project. After taking a database backup, run `supabase-secure-upload-delta.sql` once in the Supabase SQL Editor. It makes `delivery-proofs` private, removes direct browser writes, and limits proof reads to the delivery customer, the assigned rider, and authorized admins. The application then creates a fresh signed link only when an authorized participant opens the proof.
 
+### Existing production projects: apply the F-008 abuse-protection deltas
+
+Before deploying the F-008 application code, take a database backup and run these two forward-only files once in the Supabase SQL Editor, in this order:
+
+1. `supabase-rate-limit-delta.sql` — removes the browser write policies for flows that now go through protected server routes.
+2. `supabase-storage-quota-delta.sql` — adds private, service-role-only storage quota accounting and its atomic reservation functions.
+
+Do **not** rerun `supabase-schema.sql` for either change. Confirm that `public.rate_limit_buckets` and `public.consume_rate_limit(...)` already exist before deployment. If either F-008 delta fails, do not deploy the matching application code; fix the migration forward after reviewing the SQL error and the backup.
+
 ## 3. Configure auth
 
 - Enable Email auth.
@@ -72,6 +81,8 @@ NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false
 ```
 
 Do not put service role keys, admin passwords, or Squad secret keys in client-side code.
+
+For `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, use a browser key restricted to your production and local-development HTTP referrers, enable only the Maps APIs the client actually needs, and configure billing-budget alerts and per-API quotas in Google Cloud. Server-mediated autocomplete, geocoding, and route calls have F-008 application limits; a browser Maps key cannot be protected by those server limits.
 
 ## 6. Run the production readiness endpoint
 

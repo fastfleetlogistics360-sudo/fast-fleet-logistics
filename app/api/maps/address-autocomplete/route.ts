@@ -5,7 +5,7 @@ import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 const googleMapsKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 export async function GET(request: Request) {
-  const limited = await enforceRateLimit(request, { ...rateLimitPolicies.maps, name: "maps:address-autocomplete" });
+  const limited = await enforceRateLimit(request, rateLimitPolicies.mapsAutocomplete);
   if (limited) return limited;
 
   const { searchParams } = new URL(request.url);

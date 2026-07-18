@@ -98,8 +98,12 @@ export function NotificationBell() {
   async function markRead(id: string) {
     setNotifications((current) => current.map((item) => (item.id === id ? { ...item, read: true, read_at: new Date().toISOString() } : item)));
     try {
-      const supabase = createClient();
-      await supabase.from("notifications").update({ read: true, read_at: new Date().toISOString() }).eq("id", id);
+      const response = await fetch("/api/notifications/read", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id] })
+      });
+      if (!response.ok) throw new Error("Could not update notification.");
     } catch {
       // Optimistic UI keeps the panel responsive in preview mode.
     }
@@ -124,8 +128,12 @@ export function NotificationBell() {
     const ids = notifications.filter(isUnread).map((item) => item.id);
     setNotifications((current) => current.map((item) => ({ ...item, read: true, read_at: item.read_at || new Date().toISOString() })));
     try {
-      const supabase = createClient();
-      await supabase.from("notifications").update({ read: true, read_at: new Date().toISOString() }).in("id", ids);
+      const response = await fetch("/api/notifications/read", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids })
+      });
+      if (!response.ok) throw new Error("Could not update notifications.");
     } catch {
       // Optimistic UI keeps the panel responsive in preview mode.
     }

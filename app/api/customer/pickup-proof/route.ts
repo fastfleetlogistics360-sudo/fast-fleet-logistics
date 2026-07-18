@@ -7,7 +7,7 @@ import {
   pickupProofRejectionCount,
   pickupProofReviewExpired
 } from "@/lib/pickup-proof";
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountMessengerHref } from "@/lib/tracking-links";
@@ -29,7 +29,12 @@ type DeliveryForReview = {
 
 export async function POST(request: Request) {
   try {
-    const limited = await enforceRateLimit(request, { name: "customer:pickup-proof", limit: 20, windowSeconds: 60 });
+    const supabase = await createClient();
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Please sign in to confirm your package." }, { status: 401 });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.customerPickupProof);
     if (limited) return limited;
 
     const payload = (await request.json().catch(() => ({}))) as ReviewPayload;
@@ -38,12 +43,6 @@ export async function POST(request: Request) {
     if (!deliveryId || (decision !== "approve" && decision !== "reject")) {
       return NextResponse.json({ error: "Choose a delivery and confirmation response." }, { status: 400 });
     }
-
-    const supabase = await createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Please sign in to confirm your package." }, { status: 401 });
 
     const admin = createAdminClient();
     if (!admin) return NextResponse.json({ error: "Package confirmation is not configured." }, { status: 503 });

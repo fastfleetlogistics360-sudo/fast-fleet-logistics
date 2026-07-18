@@ -368,16 +368,15 @@ export function CustomerDashboard() {
     setProfileSaving(true);
     setProfileMessage(null);
     try {
-      const supabase = createClient();
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Sign in again to update your profile.");
       const selectedState = normalizeState(profile.lga || profile.default_zone) || "Lagos";
-      await Promise.allSettled([
-        supabase.from("profiles").update({ full_name: profile.full_name, phone: profile.phone, avatar_url: profile.avatar_url || null, lga: selectedState, updated_at: new Date().toISOString() }).eq("user_id", user.id),
-        supabase.from("users").update({ full_name: profile.full_name, phone: profile.phone, avatar_url: profile.avatar_url || null, default_zone: selectedState, updated_at: new Date().toISOString() }).eq("id", user.id)
-      ]);
+      const saveResponse = await fetch("/api/account/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName: profile.full_name, phone: profile.phone, avatarUrl: profile.avatar_url || null, state: selectedState })
+      });
+      const savePayload = (await saveResponse.json().catch(() => ({}))) as { error?: string };
+      if (!saveResponse.ok) throw new Error(savePayload.error || "Could not update your profile.");
+      const supabase = createClient();
       const { data: launchRow } = await supabase.from("platform_launch_states").select("status").eq("state", selectedState).maybeSingle<{ status?: string | null }>();
       setLaunchStatus(normalizeLaunchStatus(launchRow?.status || (DEFAULT_LIVE_STATES.includes(selectedState as (typeof DEFAULT_LIVE_STATES)[number]) ? "active" : "waitlist")));
       setProfileMessage("Profile updated.");
@@ -394,12 +393,14 @@ export function CustomerDashboard() {
     setAddresses((current) => [optimistic, ...current]);
     setAddressDraft({ label: "", address: "" });
     try {
-      const supabase = createClient();
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      await supabase.from("saved_addresses").insert({ user_id: user.id, label: optimistic.label, address: optimistic.address });
+      const response = await fetch("/api/account/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "address", label: optimistic.label, address: optimistic.address })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { address?: SavedAddress; error?: string };
+      if (!response.ok || !payload.address) throw new Error(payload.error || "Could not save this address.");
+      setAddresses((current) => current.map((address) => (address.id === optimistic.id ? payload.address! : address)));
     } catch {
       // Optimistic address remains available locally for the session.
     }
@@ -408,8 +409,12 @@ export function CustomerDashboard() {
   async function deleteAddress(id: string) {
     setAddresses((current) => current.filter((address) => address.id !== id));
     try {
-      const supabase = createClient();
-      await supabase.from("saved_addresses").delete().eq("id", id);
+      const response = await fetch("/api/account/preferences", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      if (!response.ok) throw new Error("Could not delete this address.");
     } catch {
       // Optimistic delete keeps the UI responsive.
     }
@@ -460,16 +465,13 @@ export function CustomerDashboard() {
       const {
         data: { user }
       } = await supabase.auth.getUser();
-      await supabase.from("state_waitlist").upsert(
-        {
-          state: customerState,
-          email: profile.email || user?.email || "",
-          phone: profile.phone || user?.phone || null,
-          status: "waiting",
-          updated_at: new Date().toISOString()
-        },
-        { onConflict: "email,state" }
-      );
+      const response = await fetch("/api/account/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "waitlist", state: customerState, email: profile.email || user?.email || "", phone: profile.phone || user?.phone || null })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Could not join the waitlist yet.");
       setWaitlistMessage(`You're on the ${customerState} early-access list. We'll notify you before operations open.`);
     } catch (error) {
       setWaitlistMessage(error instanceof Error ? error.message : "Could not join the waitlist yet.");

@@ -6,6 +6,7 @@ import { sendMarketplaceListingRequestEmail } from "@/lib/marketplace-listing-em
 import { parseSelfServiceRole, parseUserRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 const listingSelect =
   "id, business_profile_id, user_id, store_name, store_category, commission_rate, item_count, expected_average_orders, contact_email, whatsapp_number, status, rejection_reason, reviewed_by, reviewed_at, retry_after, created_at, updated_at";
@@ -61,6 +62,8 @@ export async function POST(request: Request) {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in before applying for Marketplace Listing." }, { status: 401 });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.marketplaceProductWrite);
+    if (limited) return limited;
 
     const { data: accountProfile } = await supabase
       .from("profiles")

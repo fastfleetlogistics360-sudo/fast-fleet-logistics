@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/app/api/admin/_auth";
+import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
 import type { Database } from "@/lib/supabase/types";
@@ -92,6 +92,8 @@ export async function POST(request: Request) {
   if (!(await requireAdminSession(request))) {
     return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   }
+  const limited = await enforceAdminMutationRateLimit(request);
+  if (limited) return limited;
 
   const parsed = parsePayload(await request.json().catch(() => ({})));
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
@@ -111,6 +113,8 @@ export async function PATCH(request: Request) {
   if (!(await requireAdminSession(request))) {
     return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   }
+  const limited = await enforceAdminMutationRateLimit(request);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => ({}));
   const id = String(body.id || "").trim();

@@ -6,7 +6,7 @@ import {
   verifyDeliveryPin
 } from "@/lib/delivery-confirmation";
 import { finalizeConfirmedDelivery, type DeliveryForCompletion } from "@/lib/delivery-completion";
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { creditRiderDeliveryWallet } from "@/lib/wallet-ledger";
@@ -16,18 +16,17 @@ const riderJobSelect =
 
 export async function POST(request: Request) {
   try {
-    const limited = await enforceRateLimit(request, { name: "rider:delivery-confirmation", limit: 10, windowSeconds: 5 * 60 });
-    if (limited) return limited;
-    const payload = (await request.json().catch(() => ({}))) as { deliveryId?: string; code?: string };
-    const deliveryId = String(payload.deliveryId || "").trim();
-    const code = normalizeDeliveryPin(payload.code);
-    if (!deliveryId || code.length !== 6) return NextResponse.json({ error: "Enter the six-digit delivery PIN." }, { status: 400 });
-
     const supabase = await createClient();
     const {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in as the assigned rider." }, { status: 401 });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.riderDeliveryConfirmation);
+    if (limited) return limited;
+    const payload = (await request.json().catch(() => ({}))) as { deliveryId?: string; code?: string };
+    const deliveryId = String(payload.deliveryId || "").trim();
+    const code = normalizeDeliveryPin(payload.code);
+    if (!deliveryId || code.length !== 6) return NextResponse.json({ error: "Enter the six-digit delivery PIN." }, { status: 400 });
 
     const db = createAdminClient();
     if (!db) return NextResponse.json({ error: "Delivery confirmation is not configured." }, { status: 503 });

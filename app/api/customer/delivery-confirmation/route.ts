@@ -9,7 +9,7 @@ import {
   type DeliveryConfirmationTarget
 } from "@/lib/delivery-confirmation";
 import { finalizeConfirmedDelivery, type DeliveryForCompletion } from "@/lib/delivery-completion";
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { creditRiderDeliveryWallet } from "@/lib/wallet-ledger";
@@ -20,6 +20,8 @@ export async function GET(request: Request) {
   try {
     const context = await loadAuthorizedDelivery(request);
     if (context instanceof NextResponse) return context;
+    const limited = await enforceRateLimit(request, rateLimitPolicies.deliveryConfirmationRead);
+    if (limited) return limited;
     const { delivery, db } = context;
     if (delivery.status === "delivered") return noStoreJson({ status: "delivered" });
     if (delivery.status !== "awaiting_delivery_confirmation") {
@@ -52,8 +54,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const limited = await enforceRateLimit(request, { name: "customer:delivery-confirmation", limit: 12, windowSeconds: 5 * 60 });
-    if (limited) return limited;
     const payload = (await request.json().catch(() => ({}))) as { deliveryId?: string; action?: "confirm" | "resend" };
     const deliveryId = String(payload.deliveryId || "").trim();
     const action = payload.action;
@@ -63,6 +63,8 @@ export async function POST(request: Request) {
 
     const context = await loadAuthorizedDelivery(request, deliveryId);
     if (context instanceof NextResponse) return context;
+    const limited = await enforceRateLimit(request, rateLimitPolicies.customerDeliveryConfirmation);
+    if (limited) return limited;
     const { delivery, db, userId } = context;
     if (delivery.status === "delivered") {
       const settlement = await creditRiderDeliveryWallet(db, delivery.id);

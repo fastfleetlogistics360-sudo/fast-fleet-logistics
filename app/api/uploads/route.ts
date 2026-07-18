@@ -19,6 +19,7 @@ import {
 } from "@/lib/secure-storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import type { StorageQuotaScope } from "@/lib/storage-quota";
 
 export const runtime = "nodejs";
 
@@ -28,12 +29,6 @@ export async function POST(request: NextRequest) {
   let fileSize: number | null = null;
 
   try {
-    const ingressLimit = await enforceRateLimit(request, rateLimitPolicies.uploadIngress);
-    if (ingressLimit) {
-      logUploadRejection({ route: "/api/uploads", code: "UPLOAD_RATE_LIMITED", fileSize });
-      return ingressLimit;
-    }
-
     const supabase = await createClient();
     const [{ data: authData }, adminContext] = await Promise.all([
       supabase.auth.getUser(),
@@ -43,6 +38,11 @@ export async function POST(request: NextRequest) {
     userId = user?.id || adminContext?.userId || null;
     if (!user && !adminContext) {
       throw new UploadSecurityError("UPLOAD_UNAUTHORIZED", "Sign in again before uploading files.", { status: 401 });
+    }
+    const ingressLimit = await enforceRateLimit(request, rateLimitPolicies.uploadIngress);
+    if (ingressLimit) {
+      logUploadRejection({ route: "/api/uploads", userId, code: "UPLOAD_RATE_LIMITED", fileSize });
+      return ingressLimit;
     }
     if (multipartBodyTooLarge(request)) {
       throw new UploadSecurityError("UPLOAD_TOO_LARGE", "File is too large. Choose a file under 7 MB.");
@@ -106,7 +106,8 @@ export async function POST(request: NextRequest) {
             bucket: target.bucket,
             path,
             upload: validated,
-            publicBucket: target.public
+            publicBucket: target.public,
+            quota: { ownerId, scope: quotaScopeForUpload(kind) }
           });
 
     const response = NextResponse.json({
@@ -167,7 +168,7 @@ async function replaceProfilePhoto(
     .filter((value): value is string => Boolean(value));
 
   return persistReplacement({
-    uploadNew: () => uploadValidatedObject(admin, { bucket, path, upload, publicBucket: true }),
+    uploadNew: () => uploadValidatedObject(admin, { bucket, path, upload, publicBucket: true, quota: { ownerId: userId, scope: "profile_media" } }),
     persistNew: async (stored) => {
       const now = new Date().toISOString();
       const userUpdate = await admin.from("users").update({ avatar_url: stored.publicUrl, updated_at: now }).eq("id", userId);
@@ -182,4 +183,11 @@ async function replaceProfilePhoto(
     previousPaths,
     removePrevious: (previousPath) => removeStoredObject(admin, bucket, previousPath)
   });
+}
+
+function quotaScopeForUpload(kind: UploadKind): StorageQuotaScope {
+  if (kind === "profile-photo") return "profile_media";
+  if (kind === "rider-document") return "rider_kyc";
+  if (kind === "business-document") return "business_kyc";
+  return "admin_media";
 }

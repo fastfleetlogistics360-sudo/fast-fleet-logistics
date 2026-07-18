@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { Headphones, Loader2, MessageCircle, Send, X } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 
@@ -68,41 +67,23 @@ export function SupportWidget() {
     setLoading(true);
     setMessage(null);
     try {
-      const supabase = createClient();
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-      const ticket = await supabase
-        .from("support_tickets")
-        .insert({
-          user_id: user?.id,
+      const response = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "widget",
           topic,
           subject: selected?.subject,
-          message: `${form.body.trim()}${form.trackingCode.trim() ? `\nTracking code: ${form.trackingCode.trim()}` : ""}`,
+          body: form.body,
+          trackingCode: form.trackingCode,
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
           priority: selected?.priority || "normal",
-          status: "open",
-          contact_name: form.name.trim() || user?.user_metadata?.full_name || null,
-          contact_email: form.email.trim() || user?.email || null,
-          contact_phone: form.phone.trim() || user?.phone || null
+          automatedReply: selected?.answer
         })
-        .select("id")
-        .single();
-
-      if (ticket.error) throw ticket.error;
-      await supabase.from("support_messages").insert([
-        {
-          ticket_id: ticket.data.id,
-          sender_type: "bot",
-          sender_user_id: user?.id,
-          body: selected?.answer || "Fast Fleets 360 support triage started."
-        },
-        {
-          ticket_id: ticket.data.id,
-          sender_type: "customer",
-          sender_user_id: user?.id,
-          body: form.body.trim()
-        }
-      ]);
+      });
+      if (!response.ok) throw new Error("Support request was rejected.");
       setMessage("Support request received. Our team will respond as soon as possible.");
       setConnect(false);
       setForm({ name: "", email: "", phone: "", trackingCode: "", body: "" });
