@@ -9,6 +9,7 @@ import {
 } from "@/lib/marketplace-business-links";
 import { estimateMarketplaceCheckout, marketplacePickupAddress } from "@/lib/marketplace-pricing";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
+import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending, type PaymentIntentPurpose } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, initiateSquadPayment } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -52,14 +53,10 @@ export async function POST(request: Request) {
     if (!user) return NextResponse.json({ error: "Please sign in before placing this order." }, { status: 401 });
 
     const admin = createAdminClient();
-    const businessLinks = admin
-      ? await resolveMarketplaceBusinessLinks(admin, payload.kind, items)
-      : {
-          items,
-          linkedBusinessIds: [] as string[],
-          hasLinkedItems: false,
-          hasUnlinkedItems: items.some((item) => !item.businessId)
-        };
+    if (!admin) {
+      return NextResponse.json({ error: "Secure payment checkout is temporarily unavailable. Please try again." }, { status: 503 });
+    }
+    const businessLinks = await resolveMarketplaceBusinessLinks(admin, payload.kind, items);
     if (businessLinks.linkedBusinessIds.length > 1) {
       return NextResponse.json({ error: "Checkout items from one registered business at a time." }, { status: 400 });
     }
@@ -68,10 +65,7 @@ export async function POST(request: Request) {
     }
     const resolvedItems = businessLinks.items;
     const linkedBusinessId = businessLinks.linkedBusinessIds[0] || null;
-    if (linkedBusinessId && !admin) {
-      return NextResponse.json({ error: "Business marketplace orders are not configured. Add SUPABASE_SERVICE_ROLE_KEY in production." }, { status: 503 });
-    }
-    const business = admin ? await loadActiveLinkedBusiness(admin, linkedBusinessId) : null;
+    const business = await loadActiveLinkedBusiness(admin, linkedBusinessId);
     const marketplaceKind = payload.kind === "shopping" ? "shopping" : "restaurant";
     const quotePickupAddress = business ? businessPickupAddressFor(business, marketplacePickupAddress(resolvedItems, marketplaceKind)) : null;
     const fareConfig = await loadFareConfig();
@@ -90,12 +84,10 @@ export async function POST(request: Request) {
     callbackUrl.searchParams.set("code", reference);
     callbackUrl.searchParams.set("returnTo", accountTrackingHref(reference));
     const pickupAddress = estimate.pickupAddress;
+    let paymentIntentTarget: { purpose: PaymentIntentPurpose; internalReference: string; deliveryId?: string; orderId?: string } | null = null;
 
     if (business) {
       try {
-        if (!admin) {
-          return NextResponse.json({ error: "Business marketplace orders are not configured. Add SUPABASE_SERVICE_ROLE_KEY in production." }, { status: 503 });
-        }
         const { data: order, error: orderError } = await admin
           .from("orders")
           .insert({
@@ -125,13 +117,18 @@ export async function POST(request: Request) {
           .select("id, order_code")
           .single();
         if (orderError) throw orderError;
+        paymentIntentTarget = {
+          purpose: "marketplace_business_order",
+          internalReference: `order:${order.id}`,
+          orderId: order.id
+        };
 
-      } catch (error) {
-        return NextResponse.json({ error: error instanceof Error ? error.message : "Could not create the business marketplace order." }, { status: 500 });
+      } catch {
+        return NextResponse.json({ error: "Could not create the business marketplace order." }, { status: 500 });
       }
     } else {
       try {
-        const { error: deliveryError } = await supabase.from("deliveries").insert({
+        const { data: delivery, error: deliveryError } = await supabase.from("deliveries").insert({
           delivery_code: reference,
           customer_id: user.id,
           pickup_address: pickupAddress,
@@ -169,47 +166,81 @@ export async function POST(request: Request) {
             payment_provider: "squad",
             provider_reference: reference
           }
-        });
+        }).select("id").single();
         if (deliveryError) throw deliveryError;
-      } catch (error) {
-        return NextResponse.json({ error: error instanceof Error ? error.message : "Could not create the marketplace delivery." }, { status: 500 });
+        paymentIntentTarget = {
+          purpose: "marketplace_delivery_payment",
+          internalReference: `delivery:${delivery.id}`,
+          deliveryId: delivery.id
+        };
+      } catch {
+        return NextResponse.json({ error: "Could not create the marketplace delivery." }, { status: 500 });
       }
     }
 
-    const squadCheckout = await initiateSquadPayment({
-      amountNgn: expectedAmount,
-      email: payload.email,
-      reference,
-      callbackUrl: callbackUrl.toString(),
-      customerName: payload.phone || payload.email,
-      metadata: {
-        source: "fastfleet_marketplace",
-        kind: payload.kind,
-        phone: payload.phone || null,
-        delivery_address: address,
-        platform_fee_ngn: platformFee,
-        delivery_fee_ngn: deliveryFee,
-        delivery_distance_km: estimate.distanceKm,
-        route_source: estimate.routeSource,
-        route_type: estimate.routeType,
-        route_duration_seconds: estimate.durationSeconds,
-        bicycle_eligible: estimate.bicycleEligible,
-        vehicle_subtype: estimate.vehicleSubtype,
-        eta_minutes: estimate.etaMinutes,
-        items: resolvedItems
-      }
-    });
+    if (!paymentIntentTarget) {
+      return NextResponse.json({ error: "Secure payment checkout is temporarily unavailable. Please try again." }, { status: 503 });
+    }
+
+    let paymentIntent;
+    try {
+      paymentIntent = await createPaymentIntent(admin, {
+        reference,
+        internalReference: paymentIntentTarget.internalReference,
+        purpose: paymentIntentTarget.purpose,
+        ownerUserId: user.id,
+        amountNgn: expectedAmount,
+        deliveryId: paymentIntentTarget.deliveryId || null,
+        orderId: paymentIntentTarget.orderId || null
+      });
+    } catch {
+      await cancelMarketplacePaymentTarget(admin, paymentIntentTarget);
+      return NextResponse.json({ error: "Secure payment checkout is temporarily unavailable. Please try again." }, { status: 503 });
+    }
+
+    let squadCheckout;
+    try {
+      squadCheckout = await initiateSquadPayment({
+        amountNgn: expectedAmount,
+        email: payload.email,
+        reference,
+        callbackUrl: callbackUrl.toString(),
+        customerName: payload.phone || payload.email,
+        metadata: {
+          purpose: paymentIntentTarget.purpose,
+          internal_reference: paymentIntentTarget.internalReference
+        }
+      });
+    } catch {
+      await markPaymentIntentInitializationFailed(admin, paymentIntent.id).catch(() => undefined);
+      await cancelMarketplacePaymentTarget(admin, paymentIntentTarget);
+      return NextResponse.json({ error: "Payment checkout could not start. Please try again." }, { status: 502 });
+    }
+
+    await markPaymentIntentPending(admin, paymentIntent.id).catch(() => undefined);
 
     return NextResponse.json({
       reference: squadCheckout.reference,
       authorizationUrl: squadCheckout.authorizationUrl,
-      accessCode: squadCheckout.accessCode,
       userId: user.id,
       vehicleSubtype: estimate.vehicleSubtype,
       businessOrder: Boolean(business),
       status: business ? "pending" : "pending_payment"
     });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Marketplace checkout failed." }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Marketplace checkout failed." }, { status: 500 });
+  }
+}
+
+async function cancelMarketplacePaymentTarget(
+  db: NonNullable<ReturnType<typeof createAdminClient>> | Awaited<ReturnType<typeof createClient>>,
+  target: { purpose: PaymentIntentPurpose; internalReference: string; deliveryId?: string; orderId?: string }
+) {
+  if (target.orderId) {
+    await db.from("orders").update({ status: "cancelled", payment_status: "failed", updated_at: new Date().toISOString() }).eq("id", target.orderId);
+    return;
+  }
+  if (target.deliveryId) {
+    await db.from("deliveries").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", target.deliveryId);
   }
 }

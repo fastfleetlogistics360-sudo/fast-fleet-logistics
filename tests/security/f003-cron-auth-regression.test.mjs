@@ -90,12 +90,8 @@ test("F-003 keeps authenticated GET for Vercel Cron and removes POST execution",
 
   assert.match(route, /export async function GET\(request: Request\)/);
   assert.doesNotMatch(route, /export async function POST\(/);
-  assert.deepEqual(vercel.crons, [
-    {
-      path: "/api/wallet/daily-commission",
-      schedule: "59 22 * * *"
-    }
-  ]);
+  assert.ok(vercel.crons.some((cron) => cron.path === "/api/wallet/daily-commission" && cron.schedule === "59 22 * * *"));
+  assert.ok(vercel.crons.some((cron) => cron.path === "/api/payments/reconcile"));
 });
 
 test("F-003 business commission policy keeps Pharmacy at 5% and every other category at 10%", () => {

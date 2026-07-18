@@ -5,6 +5,7 @@ import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
+import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, initiateSquadPayment, paymentChannelsFor } from "@/lib/payments/squad";
 import { launchPromoMetadata, quoteLaunchDeliveryPromo, redeemLaunchDeliveryPromo, reserveLaunchDeliveryPromo, voidLaunchDeliveryPromo } from "@/lib/promos/launch-first-150";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
@@ -118,6 +119,9 @@ export async function POST(request: Request) {
     const email = user.email || profile?.email || "";
     if (paymentMethod !== "wallet" && !email.includes("@")) {
       return NextResponse.json({ error: "Add an email address to your account before Squad checkout." }, { status: 400 });
+    }
+    if (paymentMethod !== "wallet" && !admin) {
+      return NextResponse.json({ error: "Secure payment checkout is temporarily unavailable. Please try again." }, { status: 503 });
     }
 
     const code = `FF-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
@@ -234,6 +238,22 @@ export async function POST(request: Request) {
       });
     }
 
+    let paymentIntent;
+    try {
+      paymentIntent = await createPaymentIntent(db, {
+        reference: squadReference,
+        internalReference: `delivery:${delivery.id}`,
+        purpose: "delivery_payment",
+        ownerUserId: user.id,
+        amountNgn: payableFare.total,
+        deliveryId: delivery.id
+      });
+    } catch {
+      if (promoMetadata) await voidLaunchDeliveryPromo(db, delivery.id, "payment_intent_create_failed");
+      await db.from("deliveries").update({ status: "cancelled" }).eq("id", delivery.id);
+      return NextResponse.json({ error: "Secure payment checkout is temporarily unavailable. Please try again." }, { status: 503 });
+    }
+
     const siteUrl = paymentCallbackOrigin(request);
     const callbackUrl = new URL(`${siteUrl}/delivery/callback`);
     callbackUrl.searchParams.set("reference", squadReference);
@@ -251,49 +271,28 @@ export async function POST(request: Request) {
         customerName: profile?.full_name || null,
         channels: paymentChannelsFor(paymentMethod),
         metadata: {
-          source: "booking_checkout",
-          delivery_id: delivery.id,
+          purpose: "delivery_payment",
           delivery_code: delivery.delivery_code,
-          payment_method: paymentMethod,
-          pickup_address: pickup,
-          pickup_state: pickupState || null,
-          pickup_latitude: pickupLatitude,
-          pickup_longitude: pickupLongitude,
-          dropoff_address: dropoff,
-          dropoff_state: dropoffState || null,
-          dropoff_latitude: dropoffLatitude,
-          dropoff_longitude: dropoffLongitude,
-          route_source: quote.routeSource,
-          route_type: quote.routeType,
-          route_duration_seconds: quote.durationSeconds,
-          bicycle_eligible: quote.bicycleEligible,
-          vehicle_subtype: quote.vehicleSubtype,
-          delivery_fee_ngn: estimate.deliveryFee,
-          platform_fee_ngn: estimate.platformFee,
-          payable_delivery_fee_ngn: payableFare.deliveryFee,
-          payable_platform_fee_ngn: payableFare.platformFee,
-          payable_total_ngn: payableFare.total,
-          original_total_ngn: estimate.total,
-          launch_promo: promoMetadata,
-          customer_phone: profile?.phone || user.phone || String(payload.dropoffContact || payload.pickupContact || "").trim() || null,
-          customer_name: profile?.full_name || null
+          payment_method: paymentMethod
         }
       });
-    } catch (error) {
+    } catch {
+      await markPaymentIntentInitializationFailed(db, paymentIntent.id).catch(() => undefined);
       if (promoMetadata) await voidLaunchDeliveryPromo(db, delivery.id, "squad_initialize_failed");
-      await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, squad_error: error instanceof Error ? error.message : "initialize_failed" } }).eq("id", delivery.id);
-      return NextResponse.json({ error: error instanceof Error ? error.message : "Squad could not initialize this payment." }, { status: 502 });
+      await db.from("deliveries").update({ status: "cancelled" }).eq("id", delivery.id);
+      return NextResponse.json({ error: "Payment checkout could not start. Please try again." }, { status: 502 });
     }
+
+    await markPaymentIntentPending(db, paymentIntent.id).catch(() => undefined);
 
     return NextResponse.json({
       deliveryId: delivery.id,
       deliveryCode: delivery.delivery_code,
       reference: squadCheckout.reference,
-      authorizationUrl: squadCheckout.authorizationUrl,
-      accessCode: squadCheckout.accessCode
+      authorizationUrl: squadCheckout.authorizationUrl
     });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not create delivery checkout." }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Could not create delivery checkout." }, { status: 500 });
   }
 }
 

@@ -41,11 +41,13 @@ export async function convertMarketplaceDeliveryToBusinessOrder(
   delivery: MarketplaceDeliveryRow,
   options: {
     amountNgn?: number;
-    providerData?: Record<string, unknown> | null;
     targetBusinessProfileId?: string | null;
   } = {}
 ) {
   const metadata = metadataRecord(delivery.metadata);
+  const safeMetadata = { ...metadata };
+  delete safeMetadata.squad_raw;
+  delete safeMetadata.squad_raw_status;
   const reference = text(delivery.delivery_code);
   const rawItems = Array.isArray(metadata.items) ? metadata.items as MarketplaceCheckoutItem[] : [];
   if (!reference || !delivery.customer_id || !rawItems.length) return null;
@@ -136,16 +138,15 @@ export async function convertMarketplaceDeliveryToBusinessOrder(
       .update({
         status: "cancelled",
         metadata: {
-          ...metadata,
+          ...safeMetadata,
           converted_to_business_order_id: order.id,
           converted_to_business_order_at: new Date().toISOString(),
           converted_to_business_profile_id: business.id,
           original_marketplace_delivery_status: delivery.status || null,
-          provider_paid_at: typeof options.providerData?.created_at === "string" ? options.providerData.created_at : metadata.provider_paid_at || new Date().toISOString(),
-          provider_status: options.providerData?.transaction_status ?? metadata.provider_status ?? "Success",
-          provider_channel: options.providerData?.transaction_type ?? metadata.provider_channel ?? null,
-          squad_gateway_reference: options.providerData?.gateway_transaction_ref ?? metadata.squad_gateway_reference ?? null,
-          squad_raw: options.providerData ?? metadata.squad_raw ?? null
+          provider_paid_at: metadata.provider_paid_at || new Date().toISOString(),
+          provider_status: metadata.provider_status ?? "Success",
+          provider_channel: metadata.provider_channel ?? null,
+          squad_gateway_reference: metadata.squad_gateway_reference ?? null
         } as unknown as Json
       })
       .eq("id", delivery.id)

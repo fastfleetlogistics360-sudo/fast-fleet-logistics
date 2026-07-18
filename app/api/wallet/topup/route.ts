@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
+import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, getSquadPaymentEnvironment, initiateSquadPayment } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { WalletType } from "@/types/domain";
 
@@ -34,6 +36,11 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "Please sign in before funding your wallet." }, { status: 401 });
     }
+    const admin = createAdminClient();
+    if (!admin) {
+      return NextResponse.json({ error: "Secure wallet funding is temporarily unavailable. Please try again." }, { status: 503 });
+    }
+    const paymentDb = admin;
 
     const { data: profile } = await supabase.from("users").select("email, phone, full_name").eq("id", user.id).maybeSingle();
     const email = user.email || profile?.email;
@@ -56,14 +63,37 @@ export async function POST(request: Request) {
         payment_environment: paymentEnvironment,
         squad_environment: paymentEnvironment,
         wallet_type: walletType,
-        return_to: safeReturnTo,
-        email,
-        phone: profile?.phone || user.phone || null,
-        full_name: profile?.full_name || null
+        return_to: safeReturnTo
       }
     });
 
     if (fundingError) throw fundingError;
+
+    const { data: wallet, error: walletError } = await supabase
+      .from("wallets")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("wallet_type", walletType)
+      .single<{ id: string }>();
+    if (walletError || !wallet) throw walletError || new Error("Wallet funding target was not created.");
+
+    let paymentIntent;
+    try {
+      paymentIntent = await createPaymentIntent(paymentDb, {
+        reference,
+        internalReference: `wallet-funding:${reference}`,
+        purpose: "wallet_funding",
+        ownerUserId: user.id,
+        amountNgn,
+        walletId: wallet.id
+      });
+    } catch {
+      await supabase.rpc("mark_wallet_funding_failed", {
+        next_provider_reference: reference,
+        next_metadata: { payment_environment: paymentEnvironment, initialization_error: "payment_intent_create_failed" }
+      });
+      return NextResponse.json({ error: "Secure wallet funding is temporarily unavailable. Please try again." }, { status: 503 });
+    }
 
     const siteUrl = paymentCallbackOrigin(request);
     const callbackUrl = new URL(`${siteUrl}/wallet/callback`);
@@ -79,31 +109,28 @@ export async function POST(request: Request) {
         callbackUrl: callbackUrl.toString(),
         customerName: profile?.full_name || null,
         metadata: {
-          source: "wallet_topup",
-          payment_environment: paymentEnvironment,
-          squad_environment: paymentEnvironment,
-          wallet_type: walletType,
-          user_id: user.id
+          purpose: "wallet_funding"
         }
       });
       return NextResponse.json({
         reference: squadCheckout.reference,
-        authorizationUrl: squadCheckout.authorizationUrl,
-        accessCode: squadCheckout.accessCode
+        authorizationUrl: squadCheckout.authorizationUrl
       });
-    } catch (error) {
+    } catch {
+      await markPaymentIntentInitializationFailed(paymentDb, paymentIntent.id).catch(() => undefined);
       await supabase.rpc("mark_wallet_funding_failed", {
         next_provider_reference: reference,
         next_metadata: {
           payment_environment: paymentEnvironment,
           squad_environment: paymentEnvironment,
-          squad_initialize_error: error instanceof Error ? error.message : "Squad initialization failed"
+          squad_initialize_error: "initialization_failed"
         }
       });
-      return NextResponse.json({ error: error instanceof Error ? error.message : "Squad could not initialize this payment." }, { status: 502 });
+      return NextResponse.json({ error: "Wallet payment checkout could not start. Please try again." }, { status: 502 });
     }
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Wallet top-up failed." }, { status: 500 });
+    await markPaymentIntentPending(paymentDb, paymentIntent.id).catch(() => undefined);
+  } catch {
+    return NextResponse.json({ error: "Wallet top-up failed." }, { status: 500 });
   }
 }
 

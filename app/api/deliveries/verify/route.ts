@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { recordDeliveryIncome } from "@/lib/company-ledger";
-import { isPendingSquadStatus, isSuccessfulSquadStatus, verifySquadTransaction } from "@/lib/payments/squad";
-import { redeemLaunchDeliveryPromo, voidLaunchDeliveryPromo } from "@/lib/promos/launch-first-150";
+import { ensureLegacyDeliveryPaymentIntent } from "@/lib/payments/legacy-payment-intents";
+import { loadPaymentIntent } from "@/lib/payments/payment-intents";
+import { settleSquadPayment, PaymentSettlementError } from "@/lib/payments/settlement";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -11,119 +11,71 @@ export async function GET(request: NextRequest) {
     const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentVerify, name: "deliveries:verify" });
     if (limited) return limited;
 
-    const reference =
-      request.nextUrl.searchParams.get("reference") ||
-      request.nextUrl.searchParams.get("transaction_ref") ||
-      request.nextUrl.searchParams.get("TransactionRef") ||
-      request.nextUrl.searchParams.get("trxref");
+    const reference = paymentReference(request);
     const code = request.nextUrl.searchParams.get("code")?.trim().toUpperCase() || "";
     const deliveryId = request.nextUrl.searchParams.get("deliveryId") || "";
-
     if (!reference || (!code && !deliveryId)) {
-      return NextResponse.json({ error: "Missing payment reference or delivery code." }, { status: 400 });
+      return response({ error: "Missing payment reference or delivery code." }, 400);
     }
 
     const supabase = await createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Please sign in to verify this delivery payment." }, { status: 401 });
-    const admin = createAdminClient();
-    const db = admin || supabase;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return response({ error: "Please sign in to verify this delivery payment." }, 401);
+    const db = createAdminClient();
+    if (!db) return response({ error: "Secure payment verification is temporarily unavailable." }, 503);
 
-    const squadTransaction = await verifySquadTransaction(reference);
-
-    const query = db
+    let query = db
       .from("deliveries")
-      .select("id, delivery_code, customer_id, payment_method, price_ngn, status, metadata")
+      .select("id, delivery_code, customer_id, metadata")
       .eq("customer_id", user.id);
-    const { data: delivery, error: deliveryError } = deliveryId
-      ? await query.eq("id", deliveryId).maybeSingle()
-      : await query.eq("delivery_code", code).maybeSingle();
-
+    query = deliveryId ? query.eq("id", deliveryId) : query.eq("delivery_code", code);
+    const { data: delivery, error: deliveryError } = await query.maybeSingle<{
+      id: string;
+      delivery_code: string;
+      customer_id: string;
+      metadata: Record<string, unknown> | null;
+    }>();
     if (deliveryError) throw deliveryError;
-    if (!delivery) return NextResponse.json({ error: "Delivery not found for this payment." }, { status: 404 });
-
-    const metadata = (delivery.metadata || {}) as Record<string, unknown>;
-    if (String(metadata.provider_reference || "") !== reference) {
-      return NextResponse.json({ error: "Payment reference does not match this delivery." }, { status: 400 });
+    if (!delivery || String((delivery.metadata || {}).provider_reference || "") !== reference) {
+      return response({ error: "Delivery not found for this payment." }, 404);
     }
 
-    if (!isSuccessfulSquadStatus(squadTransaction.status)) {
-      const squadStatus = String(squadTransaction.status || "Pending");
-      await db.from("deliveries").update({
-        metadata: {
-          ...metadata,
-          provider_status: squadStatus,
-          squad_gateway_reference: squadTransaction.gatewayReference,
-          squad_raw_status: squadTransaction.raw
-        }
-      }).eq("id", delivery.id);
-      if (isPendingSquadStatus(squadStatus)) {
-        return NextResponse.json(
-          {
-            reference,
-            deliveryId: delivery.id,
-            deliveryCode: delivery.delivery_code,
-            status: "pending",
-            message: "Squad is still waiting for this payment to clear."
-          },
-          { status: 202 }
-        );
-      }
-      await voidLaunchDeliveryPromo(db, delivery.id, `squad_status_${squadStatus}`);
-      return NextResponse.json({ error: `Payment status is ${squadStatus}.` }, { status: 400 });
-    }
-
-    const amountNgn = squadTransaction.amountNgn;
-    if (Math.round(amountNgn) !== Math.round(Number(delivery.price_ngn || 0))) {
-      return NextResponse.json({ error: "Squad amount does not match this delivery total." }, { status: 400 });
-    }
-
-    if (delivery.status !== "searching") {
-      const { error: updateError } = await db
-        .from("deliveries")
-        .update({
-          status: "searching",
-          metadata: {
-            ...metadata,
-            provider_paid_at: squadTransaction.paidAt,
-            provider_status: squadTransaction.status,
-            provider_channel: squadTransaction.channel,
-            squad_gateway_reference: squadTransaction.gatewayReference,
-            squad_raw: squadTransaction.raw
-          },
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", delivery.id);
-      if (updateError) throw updateError;
-
-      await db.from("delivery_events").insert({
-        delivery_id: delivery.id,
-        actor_id: user.id,
-        status: "searching",
-        title: "Payment received",
-        body: "Squad payment confirmed. Fast Fleets 360 is notifying online drivers."
-      });
-    }
-
-    await recordDeliveryIncome({
-      amountNgn,
-      deliveryCode: delivery.delivery_code,
-      paymentMethod: squadTransaction.channel || delivery.payment_method || "squad",
+    const intent = (await loadPaymentIntent(db, reference)) || await ensureLegacyDeliveryPaymentIntent(db, {
       reference,
-      counterparty: user.email || user.id,
-      notes: "Squad delivery checkout was verified successfully."
+      ownerUserId: user.id,
+      deliveryId: delivery.id
     });
-    await redeemLaunchDeliveryPromo(db, delivery.id);
+    if (!intent || intent.delivery_id !== delivery.id) return response({ error: "Payment intent not found." }, 404);
 
-    return NextResponse.json({
-      deliveryId: delivery.id,
-      deliveryCode: delivery.delivery_code,
-      amount: amountNgn,
-      status: "successful"
-    });
+    const result = await settleSquadPayment(db, { reference, actor: { type: "customer", userId: user.id } });
+    return resultResponse(result, { deliveryId: delivery.id, deliveryCode: delivery.delivery_code });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Delivery payment verification failed." }, { status: 500 });
+    const status = error instanceof PaymentSettlementError ? 503 : 500;
+    return response({ error: status === 503 ? "Payment verification is temporarily unavailable." : "Delivery payment verification failed." }, status);
   }
+}
+
+function paymentReference(request: NextRequest) {
+  return request.nextUrl.searchParams.get("reference") || request.nextUrl.searchParams.get("transaction_ref") || request.nextUrl.searchParams.get("TransactionRef") || request.nextUrl.searchParams.get("trxref") || "";
+}
+
+function resultResponse(
+  result: Awaited<ReturnType<typeof settleSquadPayment>>,
+  delivery: { deliveryId: string; deliveryCode: string }
+) {
+  if (result.status === "settled" || result.status === "already_settled") {
+    return response({ ...delivery, amount: result.amountNgn, status: "successful" }, 200);
+  }
+  if (result.status === "pending" || result.status === "retryable") {
+    return response({ ...delivery, status: "pending", message: "Payment is still being confirmed." }, result.status === "pending" ? 202 : 503);
+  }
+  if (result.status === "forbidden") return response({ error: "Payment verification is not allowed." }, 403);
+  if (result.status === "not_found") return response({ error: "Payment intent not found." }, 404);
+  return response({ error: "This payment could not be confirmed. Contact support if you were charged." }, 409);
+}
+
+function response(body: Record<string, unknown>, status: number) {
+  const result = NextResponse.json(body, { status });
+  result.headers.set("Cache-Control", "no-store");
+  return result;
 }

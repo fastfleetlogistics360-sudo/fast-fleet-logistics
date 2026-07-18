@@ -277,6 +277,7 @@ Environment variables control backend behavior. Anything with `NEXT_PUBLIC_` is 
 | `SQUAD_SECRET_KEY` | Yes for payments | No | Squad secret key for initialization and verification. |
 | `SQUAD_BASE_URL` | Optional | No | Overrides the Squad API origin. Use sandbox or live base URL to match the key. |
 | `SQUAD_CALLBACK_ORIGIN` | Optional | No | Overrides callback origin for Squad redirects. |
+| `PAYMENT_CALLBACK_ORIGIN` | Recommended | No | Canonical server-side payment callback origin. Set the approved HTTPS production host. |
 | `NEXT_PUBLIC_SITE_URL` | Yes | Yes | Public site URL. Used for callbacks and readiness. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Optional but recommended | Yes | Browser Google Maps key. Also used by some server routes as fallback. |
 | `GOOGLE_MAPS_API_KEY` | Optional | No | Server Google Maps key for distance/reverse geocode. |

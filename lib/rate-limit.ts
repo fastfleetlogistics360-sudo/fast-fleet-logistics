@@ -21,6 +21,10 @@ export const rateLimitPolicies = {
   adminLogin: { name: "admin:login", limit: 5, windowSeconds: 10 * 60, message: "Too many admin login attempts. Try again later." },
   paymentCreate: { name: "payment:create", limit: 10, windowSeconds: 10 * 60 },
   paymentVerify: { name: "payment:verify", limit: 30, windowSeconds: 5 * 60 },
+  // Applied only after a valid Squad signature so forged requests cannot use
+  // the provider's shared ingress quota.
+  paymentWebhook: { name: "payment:webhook", limit: 1200, windowSeconds: 60 },
+  paymentManualReconcile: { name: "payment:manual-reconcile", limit: 10, windowSeconds: 10 * 60 },
   estimate: { name: "estimate", limit: 60, windowSeconds: 5 * 60 },
   maps: { name: "maps", limit: 50, windowSeconds: 60 },
   accountLookup: { name: "payments:account-lookup", limit: 20, windowSeconds: 10 * 60 },

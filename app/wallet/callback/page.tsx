@@ -9,6 +9,7 @@ import { LinkButton } from "@/components/ui/button";
 
 type VerificationState =
   | { status: "loading"; message: string }
+  | { status: "pending"; message: string }
   | { status: "success"; message: string; amount?: number; balance?: number | null }
   | { status: "error"; message: string };
 
@@ -35,10 +36,19 @@ function WalletCallbackContent() {
       return;
     }
 
+    let stopped = false;
+    let attempts = 0;
+
     async function verify() {
       try {
+        attempts += 1;
         const response = await fetch(`/api/wallet/verify?reference=${encodeURIComponent(reference || "")}`);
         const data = await response.json();
+        if (response.status === 202) {
+          setState({ status: "pending", message: data.message || "Payment is still being confirmed. This page will keep checking." });
+          if (!stopped && attempts < 8) window.setTimeout(verify, 5000);
+          return;
+        }
         if (!response.ok) throw new Error(data.error || "Payment verification failed.");
         setState({
           status: "success",
@@ -55,6 +65,9 @@ function WalletCallbackContent() {
     }
 
     verify();
+    return () => {
+      stopped = true;
+    };
   }, [reference, returnTo]);
 
   const Icon = state.status === "success" ? CheckCircle2 : state.status === "error" ? XCircle : Loader2;
@@ -67,9 +80,9 @@ function WalletCallbackContent() {
             state.status === "success" ? "bg-emerald-50 text-emerald-700" : state.status === "error" ? "bg-rose-50 text-rose-700" : "bg-sky-50 text-sky-700"
           }`}
         >
-          <Icon className={`h-8 w-8 ${state.status === "loading" ? "animate-spin" : ""}`} />
+          <Icon className={`h-8 w-8 ${state.status === "loading" || state.status === "pending" ? "animate-spin" : ""}`} />
         </div>
-        <h1 className="mt-5 text-3xl font-black text-fleet-night">{state.status === "success" ? "Wallet credited" : "Wallet top-up"}</h1>
+        <h1 className="mt-5 text-3xl font-black text-fleet-night">{state.status === "success" ? "Wallet credited" : state.status === "pending" ? "Payment pending" : "Wallet top-up"}</h1>
         <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-7 text-slate-600">
           {state.message}
           {state.status === "success" && state.amount ? ` Amount: ${formatMoney(state.amount)}.` : ""}

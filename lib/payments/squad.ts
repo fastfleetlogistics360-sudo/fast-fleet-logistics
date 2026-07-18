@@ -1,6 +1,9 @@
+import { randomUUID } from "crypto";
+
 export type SquadPaymentChannel = "card" | "bank" | "ussd" | "transfer";
 
 export type SquadTransaction = {
+  amountMinor: number;
   amountNgn: number;
   reference: string;
   status: string;
@@ -8,7 +11,6 @@ export type SquadTransaction = {
   channel: string;
   paidAt: string;
   gatewayReference: string | null;
-  raw: Record<string, unknown>;
 };
 
 type SquadInitiateInput = {
@@ -75,7 +77,7 @@ export function assertSquadConfigured() {
 }
 
 export function generatePaymentReference(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+  return `${prefix}-${Date.now()}-${randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`;
 }
 
 export function paymentChannelsFor(method: string): SquadPaymentChannel[] {
@@ -118,9 +120,7 @@ export async function initiateSquadPayment(input: SquadInitiateInput) {
 
   return {
     reference: text(data.transaction_ref) || input.reference,
-    authorizationUrl: checkoutUrl,
-    accessCode: text(data.access_token) || null,
-    raw: data
+    authorizationUrl: checkoutUrl
   };
 }
 
@@ -134,14 +134,14 @@ export async function verifySquadTransaction(reference: string): Promise<SquadTr
   const status = text(data.transaction_status || data.status || "Pending");
 
   return {
-    amountNgn: fromMinorAmount(data.transaction_amount),
+    amountMinor: fromMinorAmount(data.transaction_amount),
+    amountNgn: fromMinorAmount(data.transaction_amount) / 100,
     reference: text(data.transaction_ref) || reference,
     status,
     currency: text(data.transaction_currency_id || data.currency || "NGN"),
     channel: text(data.transaction_type || data.payment_type || "squad"),
     paidAt: text(data.created_at) || new Date().toISOString(),
-    gatewayReference: text(data.gateway_transaction_ref || data.gateway_ref) || null,
-    raw: data
+    gatewayReference: text(data.gateway_transaction_ref || data.gateway_ref) || null
   };
 }
 
@@ -206,13 +206,16 @@ function squadHeaders(secretKey: string) {
   };
 }
 
-function toMinorAmount(amountNgn: number) {
+export function toMinorAmount(amountNgn: number) {
   return Math.round(Number(amountNgn || 0) * 100);
 }
 
-function fromMinorAmount(value: unknown) {
+export function fromMinorAmount(value: unknown) {
   const amount = Number(value || 0);
-  return Number.isFinite(amount) ? amount / 100 : 0;
+  if (!Number.isSafeInteger(amount) || amount < 0) {
+    throw new SquadApiError("Squad returned an invalid transaction amount.", 502);
+  }
+  return amount;
 }
 
 function text(value: unknown) {
