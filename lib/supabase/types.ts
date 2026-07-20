@@ -635,6 +635,7 @@ export interface Database {
       support_tickets: {
         Row: {
           id: string;
+          idempotency_key: string | null;
           user_id: string | null;
           delivery_id: string | null;
           contact_name: string | null;

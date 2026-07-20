@@ -270,6 +270,9 @@ Environment variables control backend behavior. Anything with `NEXT_PUBLIC_` is 
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Yes | Supabase project URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Yes | Supabase public anon key used by browser/server auth client. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes for admin/server writes | No | Powerful Supabase key that bypasses RLS. Never expose it to browser code. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Yes for anonymous support | Yes | Public Cloudflare Turnstile widget key restricted to the deployed hostname. |
+| `TURNSTILE_SECRET_KEY` | Yes for anonymous support | No | Server-only key used to validate anonymous support submissions with Siteverify. |
+| `SUPPORT_TRUSTED_PROXY` | Yes outside standard Vercel detection | No | Trusted support ingress (`vercel` or `cloudflare`) used to select the one edge-verified client-IP header. |
 | `FASTFLEET_ADMIN_USERNAME` | Yes | No | Admin login username for `/admin`. |
 | `FASTFLEET_ADMIN_PASSWORD` | Yes | No | Admin login password for `/admin`. |
 | `FASTFLEET_ADMIN_SECRET` | Yes | No | Secret of at least 32 characters used to sign admin session cookies. |
@@ -574,6 +577,7 @@ Admin routes should always call `requireAdminSession()`.
 | Method and path | File | Purpose | Important tables/services |
 | --- | --- | --- | --- |
 | `POST /api/uploads` | `app/api/uploads/route.ts` | Upload profile photos, rider docs, business docs. | Supabase Storage |
+| `POST /api/support` | `app/api/support/route.ts` | Create a rate-limited, atomic support ticket; anonymous callers require Turnstile. | `create_support_ticket_with_messages`, `support_tickets`, `support_messages` |
 | `GET /api/site-controls` | `app/api/site-controls/route.ts` | Public-safe site controls, currently brand partners. | `platform_settings` |
 | `GET /api/health/readiness` | `app/api/health/readiness/route.ts` | Production readiness checks. | Env vars, Supabase, Squad |
 
@@ -637,8 +641,8 @@ The trigger `handle_new_auth_user()` creates/updates rows in both `users` and `p
 | `notifications` | In-app notifications. |
 | `promotions` | Active customer promotions. |
 | `push_subscriptions` | Web push subscription storage. |
-| `support_tickets` | Support cases. |
-| `support_messages` | Conversation messages for support tickets. |
+| `support_tickets` | Support cases. F-009 permits owners to read only explicitly granted safe columns; cross-user admin access is API-only and writes remain server-controlled. |
+| `support_messages` | Ticket conversation messages. Owners cannot read administrator sender IDs; sender identity is server-derived and direct browser writes are denied. |
 | `account_deletion_requests` | Account deletion requests and review status. |
 | `fraud_signals` | Risk/fraud records for admin review. |
 

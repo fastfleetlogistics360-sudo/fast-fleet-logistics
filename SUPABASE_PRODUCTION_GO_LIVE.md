@@ -29,6 +29,12 @@ Before deploying the F-008 application code, take a database backup and run thes
 
 Do **not** rerun `supabase-schema.sql` for either change. Confirm that `public.rate_limit_buckets` and `public.consume_rate_limit(...)` already exist before deployment. If either F-008 delta fails, do not deploy the matching application code; fix the migration forward after reviewing the SQL error and the backup.
 
+### Existing production projects: apply the F-009 support authorization migration
+
+After F-008 is active and before deploying F-009 application code, back up the database and run `security-remediation/migrations/202607200001_f009_support_authorization.sql` once. This removes every anonymous/authenticated support write policy, limits owner reads to safe columns, removes direct cross-user admin browser access, and adds the service-role-only atomic ticket creation function.
+
+Do not restore either `Anyone can create support ...` policy during rollback. If support creation must be paused, revoke the atomic function from `service_role` and roll the application forward while direct browser writes remain denied.
+
 ## 3. Configure auth
 
 - Enable Email auth.
@@ -67,6 +73,9 @@ For the Next app, set these in your host environment:
 NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=your-public-turnstile-site-key
+TURNSTILE_SECRET_KEY=your-server-only-turnstile-secret-key
+SUPPORT_TRUSTED_PROXY=vercel
 FASTFLEET_ADMIN_USERNAME=
 FASTFLEET_ADMIN_PASSWORD=
 FASTFLEET_ADMIN_SECRET=
@@ -80,7 +89,11 @@ NEXT_PUBLIC_ALLOW_DEMO_DATA=false
 NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false
 ```
 
-Do not put service role keys, admin passwords, or Squad secret keys in client-side code.
+Do not put service role keys, Turnstile secret keys, admin passwords, or Squad secret keys in client-side code.
+
+Create separate Cloudflare Turnstile widgets for staging and production and restrict each widget to its intended hostname. The site key is public; `TURNSTILE_SECRET_KEY` must remain server-only. Anonymous support submission fails closed when either key is missing. Authenticated support submission does not require Turnstile.
+
+`SUPPORT_TRUSTED_PROXY=vercel` reads only Vercel's edge-generated `x-vercel-forwarded-for`; generic `x-forwarded-for` and `x-real-ip` are never trusted by support. Vercel is also auto-detected when `VERCEL=1`. Set `SUPPORT_TRUSTED_PROXY=cloudflare` only when the origin cannot be reached except through Cloudflare (for example, an approved verified-proxy/origin-lock configuration); that mode trusts only `cf-connecting-ip`. Any other deployment intentionally returns `unknown-ip` until its verified ingress is configured.
 
 For `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, use a browser key restricted to your production and local-development HTTP referrers, enable only the Maps APIs the client actually needs, and configure billing-budget alerts and per-API quotas in Google Cloud. Server-mediated autocomplete, geocoding, and route calls have F-008 application limits; a browser Maps key cannot be protected by those server limits.
 
@@ -105,6 +118,9 @@ The endpoint returns `200` only when the required production environment variabl
 - Create a rider account and submit KYC.
 - Approve or reject rider KYC from admin.
 - Submit support ticket and confirm it appears in Supabase.
+- Submit an anonymous support ticket with Turnstile, then confirm missing/invalid tokens create no row.
+- Submit a signed-in support ticket without Turnstile and confirm stored contact identity matches the authenticated profile.
+- Confirm direct anon/authenticated browser inserts into `support_tickets` and `support_messages` are denied.
 - Test Squad wallet top-up in sandbox before switching to live keys.
 - Confirm receipts, wallet transactions, admin logs, and company transaction logs reconcile.
 

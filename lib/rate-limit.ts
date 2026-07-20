@@ -53,6 +53,10 @@ type RateLimitResult = {
   retry_after_seconds?: number;
 };
 
+export type RateLimitContext = {
+  trustedAnonymousIp?: string;
+};
+
 export const rateLimitPolicies = {
   adminLogin: policy("admin:login", 5, 10 * 60, "auth_sensitive", "ip_user_agent", "RATE_LIMITED_AUTH", "Too many admin login attempts. Try again later."),
   authSensitive: policy("auth:sensitive", 30, 10 * 60, "auth_sensitive", "authenticated_user_or_ip", "RATE_LIMITED_AUTH"),
@@ -132,13 +136,13 @@ function policy(
   };
 }
 
-export async function enforceRateLimit(request: Request, policy: RateLimitPolicy) {
+export async function enforceRateLimit(request: Request, policy: RateLimitPolicy, context?: RateLimitContext) {
   const admin = createAdminClient();
   if (!admin) {
     return NextResponse.json({ error: "Rate limit service is not configured." }, { status: 503 });
   }
 
-  const bucketKey = await rateLimitKey(request);
+  const bucketKey = await rateLimitKey(request, context);
   const { data, error } = await admin.rpc("consume_rate_limit", {
     next_key: bucketKey,
     next_route: policy.name,
@@ -175,11 +179,11 @@ function applyRateLimitHeaders(response: NextResponse, policy: RateLimitPolicy, 
   if (result.retry_after_seconds) response.headers.set("Retry-After", String(result.retry_after_seconds));
 }
 
-async function rateLimitKey(request: Request) {
+async function rateLimitKey(request: Request, context?: RateLimitContext) {
   const userId = await currentUserId();
   if (userId) return digest(`user:${userId}`);
 
-  const ip = clientIp(request);
+  const ip = context?.trustedAnonymousIp ?? clientIp(request);
   const userAgent = request.headers.get("user-agent") || "unknown-agent";
   return digest(`ip:${ip}:ua:${userAgent.slice(0, 120)}`);
 }
@@ -206,7 +210,7 @@ async function currentUserId() {
   }
 }
 
-function clientIp(request: Request) {
+export function clientIp(request: Request) {
   const candidates = [
     request.headers.get("x-forwarded-for")?.split(",")[0],
     request.headers.get("x-real-ip"),

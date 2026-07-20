@@ -70,7 +70,8 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  if (!(await requireAdminSession(request))) {
+  const trustedAdmin = await requireAdminSession(request);
+  if (!trustedAdmin) {
     return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   }
   const limited = await enforceAdminMutationRateLimit(request);
@@ -103,12 +104,13 @@ export async function PATCH(request: Request) {
 
   if (kind === "support_message") {
     const reply = String(body.body || "").trim();
-    if (reply.length < 2) return NextResponse.json({ error: "Write a reply before sending." }, { status: 400 });
+    if (reply.length < 2 || reply.length > 2_000) return NextResponse.json({ error: "Support replies must contain between 2 and 2,000 characters." }, { status: 400 });
     const { data, error } = await supabase
       .from("support_messages")
       .insert({
         ticket_id: id,
         sender_type: "admin",
+        sender_user_id: trustedAdmin.userId,
         body: reply
       })
       .select("id, sender_type, body, created_at")

@@ -28,6 +28,9 @@ Create `.env.local` from `.env.example`:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=your-public-turnstile-site-key
+TURNSTILE_SECRET_KEY=your-server-only-turnstile-secret-key
+SUPPORT_TRUSTED_PROXY=vercel
 DELIVERY_CONFIRMATION_SECRET=your-random-secret-with-at-least-32-characters
 # Optional provider-neutral recipient SMS integration:
 DELIVERY_SMS_WEBHOOK_URL=https://your-sms-service.example.com/send

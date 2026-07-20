@@ -4,48 +4,18 @@ import { useMemo, useState } from "react";
 import { Headphones, Loader2, MessageCircle, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
-
-type SupportTopic = "delivery" | "rider_kyc" | "wallet" | "business" | "other";
-
-const topicCopy: Record<SupportTopic, { label: string; subject: string; answer: string; priority: "normal" | "high" | "urgent" }> = {
-  delivery: {
-    label: "Delivery order",
-    subject: "Delivery support request",
-    answer: "Check your tracking page first. If the rider is delayed, keep the delivery code ready so support can inspect pickup, route, and timeline events quickly.",
-    priority: "high"
-  },
-  rider_kyc: {
-    label: "Driver KYC",
-    subject: "Driver KYC support request",
-    answer: "Most KYC delays come from unclear ID photos, missing vehicle papers, or bank details. Re-upload the correct document in Driver KYC, then ask support to review it.",
-    priority: "normal"
-  },
-  wallet: {
-    label: "Wallet/payment",
-    subject: "Wallet or payment support request",
-    answer: "Keep the payment reference for any debit. Support can use it to review a pending wallet credit.",
-    priority: "urgent"
-  },
-  business: {
-    label: "Business account",
-    subject: "Business account support request",
-    answer: "Business setup issues are usually profile, pickup address, or team access related. Confirm your business profile is submitted before requesting manual support.",
-    priority: "normal"
-  },
-  other: {
-    label: "Something else",
-    subject: "General support request",
-    answer: "Share the account email or phone, what you expected to happen, and what actually happened. Support can route the issue from there.",
-    priority: "normal"
-  }
-};
+import { SupportTurnstile, type SupportChallengeState } from "@/components/support/support-turnstile";
+import { newSupportIdempotencyKey, supportTopics, type SupportTopicKey } from "@/lib/support/policy";
 
 export function SupportWidget() {
   const [open, setOpen] = useState(false);
-  const [topic, setTopic] = useState<SupportTopic | null>(null);
+  const [topic, setTopic] = useState<SupportTopicKey | null>(null);
   const [connect, setConnect] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [challenge, setChallenge] = useState<SupportChallengeState>({ ready: false, required: true, token: null, error: null });
+  const [challengeReset, setChallengeReset] = useState(0);
+  const [idempotencyKey, setIdempotencyKey] = useState(newSupportIdempotencyKey);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -53,7 +23,7 @@ export function SupportWidget() {
     trackingCode: "",
     body: ""
   });
-  const selected = useMemo(() => (topic ? topicCopy[topic] : null), [topic]);
+  const selected = useMemo(() => (topic ? supportTopics[topic] : null), [topic]);
 
   function update<K extends keyof typeof form>(key: K, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -64,6 +34,10 @@ export function SupportWidget() {
       setMessage("Tell us a little more before connecting you to support.");
       return;
     }
+    if (!challenge.ready || (challenge.required && !challenge.token)) {
+      setMessage(challenge.error || "Complete the support verification before sending.");
+      return;
+    }
     setLoading(true);
     setMessage(null);
     try {
@@ -71,33 +45,27 @@ export function SupportWidget() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mode: "widget",
+          source: "widget",
           topic,
-          subject: selected?.subject,
           body: form.body,
           trackingCode: form.trackingCode,
           name: form.name,
           email: form.email,
           phone: form.phone,
-          priority: selected?.priority || "normal",
-          automatedReply: selected?.answer
+          idempotencyKey,
+          turnstileToken: challenge.token
         })
       });
-      if (!response.ok) throw new Error("Support request was rejected.");
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Support request was rejected.");
       setMessage("Support request received. Our team will respond as soon as possible.");
       setConnect(false);
       setForm({ name: "", email: "", phone: "", trackingCode: "", body: "" });
-    } catch {
-      try {
-        window.localStorage.setItem(
-          "fastfleet.pending_support_ticket",
-          JSON.stringify({ topic, form, created_at: new Date().toISOString() })
-        );
-      } catch {
-        // Ignore storage errors; the visible message is enough.
-      }
-      setMessage("We could not send your request. Please try again.");
+      setIdempotencyKey(newSupportIdempotencyKey());
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "We could not send your request. Please try again.");
     } finally {
+      setChallengeReset((value) => value + 1);
       setLoading(false);
     }
   }
@@ -119,7 +87,7 @@ export function SupportWidget() {
             <StatusBadge tone="green">Auto help first</StatusBadge>
             <p className="mt-3 text-sm font-bold leading-6 text-slate-600">Pick the problem. I’ll suggest the fastest fix first, then connect you to a representative if needed.</p>
             <div className="mt-4 grid gap-2">
-              {(Object.keys(topicCopy) as SupportTopic[]).map((item) => (
+              {(Object.keys(supportTopics) as SupportTopicKey[]).map((item) => (
                 <button
                   key={item}
                   type="button"
@@ -132,14 +100,14 @@ export function SupportWidget() {
                     topic === item ? "border-fleet-ember bg-orange-50 text-fleet-night" : "border-fleet-line bg-white text-slate-600"
                   }`}
                 >
-                  {topicCopy[item].label}
+                  {supportTopics[item].label}
                 </button>
               ))}
             </div>
             {selected ? (
               <div className="mt-4 rounded-fleet bg-fleet-paper p-3">
                 <strong className="text-sm font-black text-fleet-night">Suggested solution</strong>
-                <p className="mt-2 text-xs font-bold leading-5 text-slate-600">{selected.answer}</p>
+                <p className="mt-2 text-xs font-bold leading-5 text-slate-600">{selected.automatedReply}</p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <Button type="button" size="sm" variant="secondary" onClick={() => setMessage("Glad that helped. Support is still here if you need it.")}>
                     Solved
@@ -157,7 +125,9 @@ export function SupportWidget() {
                 <input className="form-input" value={form.phone} onChange={(event) => update("phone", event.target.value)} placeholder="Phone" inputMode="tel" />
                 <input className="form-input" value={form.trackingCode} onChange={(event) => update("trackingCode", event.target.value)} placeholder="Tracking code, if any" />
                 <textarea className="form-textarea" value={form.body} onChange={(event) => update("body", event.target.value)} placeholder="Tell the representative what happened" />
-                <Button type="button" onClick={createTicket} disabled={loading}>
+                <SupportTurnstile onChange={setChallenge} resetSignal={challengeReset} />
+                {challenge.error ? <p className="text-xs font-bold text-red-700">{challenge.error}</p> : null}
+                <Button type="button" onClick={createTicket} disabled={loading || !challenge.ready || (challenge.required && !challenge.token)}>
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   Connect to representative
                 </Button>
