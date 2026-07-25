@@ -42,12 +42,14 @@ FASTFLEET_ADMIN_USER_ID=
 SQUAD_SECRET_KEY=sandbox_or_live_squad_secret_key
 SQUAD_BASE_URL=https://sandbox-api-d.squadco.com
 SQUAD_CALLBACK_ORIGIN=http://localhost:3000
+GOOGLE_MAPS_API_KEY=server-google-maps-key
+GOOGLE_PLACES_API_KEY=server-google-places-key
 GOOGLE_ROUTES_API_KEY=server-google-routes-key
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=browser-google-maps-key
 NEXT_PUBLIC_SITE_URL=https://fastfleet.com.ng
 ```
 
-Run `supabase-schema.sql` in the Supabase SQL editor before testing live auth, orders, rider documents, wallets, withdrawals, notifications, fleet assets, and admin operations. Delivery pricing requires Google Routes API access through `GOOGLE_ROUTES_API_KEY` or `GOOGLE_MAPS_API_KEY`; the public key is still used by browser maps and Places autocomplete.
+Run `supabase-schema.sql` in the Supabase SQL editor before testing live auth, orders, rider documents, wallets, withdrawals, notifications, fleet assets, and admin operations. Server-side address search, place details, reverse geocoding, and route estimates require their corresponding server-only Google keys. `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is only for browser Maps and Places use.
 
 ## Soft Launch Setup
 

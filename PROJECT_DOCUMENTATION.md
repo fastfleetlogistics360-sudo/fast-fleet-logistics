@@ -212,7 +212,10 @@ SQUAD_SECRET_KEY=sandbox_or_live_squad_secret_key
 SQUAD_BASE_URL=https://sandbox-api-d.squadco.com
 SQUAD_CALLBACK_ORIGIN=http://localhost:3000
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=optional-google-maps-key
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=browser-google-maps-key
+GOOGLE_MAPS_API_KEY=server-google-maps-key
+GOOGLE_PLACES_API_KEY=server-google-places-key
+GOOGLE_ROUTES_API_KEY=server-google-routes-key
 NEXT_PUBLIC_ALLOW_DEMO_DATA=false
 NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false
 ```
@@ -282,9 +285,10 @@ Environment variables control backend behavior. Anything with `NEXT_PUBLIC_` is 
 | `SQUAD_CALLBACK_ORIGIN` | Optional | No | Overrides callback origin for Squad redirects. |
 | `PAYMENT_CALLBACK_ORIGIN` | Recommended | No | Canonical server-side payment callback origin. Set the approved HTTPS production host. |
 | `NEXT_PUBLIC_SITE_URL` | Yes | Yes | Public site URL. Used for callbacks and readiness. |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Optional but recommended | Yes | Browser Google Maps key. Also used by some server routes as fallback. |
-| `GOOGLE_MAPS_API_KEY` | Optional | No | Server Google Maps key for distance/reverse geocode. |
-| `GOOGLE_PLACES_API_KEY` | Optional | No | Server Places API key for place details/autocomplete. |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Yes for browser Maps/Places | Yes | Browser-only Google Maps key. Restrict it to approved web referrers and browser APIs; server routes never use it. |
+| `GOOGLE_MAPS_API_KEY` | Yes for reverse geocoding | No | Server-only Google Maps key for reverse geocoding. Never expose it as `NEXT_PUBLIC_*`. |
+| `GOOGLE_PLACES_API_KEY` | Yes for server address search/place details | No | Server-only Places key for address autocomplete and place details. Never expose it as `NEXT_PUBLIC_*`. |
+| `GOOGLE_ROUTES_API_KEY` | Yes for route estimates | No | Server-only Routes API key for delivery pricing and route estimates. Never expose it as `NEXT_PUBLIC_*`. |
 | `RESEND_API_KEY` | Optional | No | Not used directly for Supabase Auth confirmation. Configure Resend SMTP in Supabase dashboard. |
 | `NEXT_PUBLIC_ALLOW_DEMO_DATA` | Local/staging only | Yes | Enables demo fallbacks when true. Keep false in production. |
 | `NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK` | Local/staging only | Yes | Allows fallback Supabase config. Keep false in production. |
@@ -1626,8 +1630,9 @@ Google key variables:
 - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
 - `GOOGLE_MAPS_API_KEY`
 - `GOOGLE_PLACES_API_KEY`
+- `GOOGLE_ROUTES_API_KEY`
 
-If Google Places errors mention Places API New, enable Places API New in Google Cloud or set `GOOGLE_PLACES_API_KEY` to a server key that has the correct API enabled.
+Use separate browser and server keys. Restrict the browser key to approved HTTPS referrers and browser APIs. Keep server keys in deployment environment variables only, restrict them to the required APIs, and never expose them as `NEXT_PUBLIC_*` values. If Google Places errors mention Places API New, enable Places API New in Google Cloud or set `GOOGLE_PLACES_API_KEY` to a server key that has the correct API enabled.
 
 ## 16. Deployment And Production Checklist
 
@@ -1659,7 +1664,10 @@ FASTFLEET_ADMIN_USER_ID=your-supabase-admin-user-uuid
 SQUAD_SECRET_KEY=your-live-squad-secret
 SQUAD_BASE_URL=https://api-d.squadco.com
 SQUAD_CALLBACK_ORIGIN=https://your-domain.com
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-google-maps-key
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-browser-google-maps-key
+GOOGLE_MAPS_API_KEY=your-server-google-maps-key
+GOOGLE_PLACES_API_KEY=your-server-google-places-key
+GOOGLE_ROUTES_API_KEY=your-server-google-routes-key
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 NEXT_PUBLIC_ALLOW_DEMO_DATA=false
 NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false
@@ -1879,12 +1887,11 @@ Check:
 
 Check:
 
-- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` exists for browser map.
-- `GOOGLE_MAPS_API_KEY` exists for server distance/reverse-geocode.
-- `GOOGLE_PLACES_API_KEY` exists for Places API New routes.
-- APIs are enabled in Google Cloud.
-- Billing is enabled in Google Cloud.
-- Key restrictions allow the right domain/server.
+- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` exists for browser Maps/Places and is restricted to approved HTTPS referrers.
+- `GOOGLE_MAPS_API_KEY` exists for server reverse geocoding.
+- `GOOGLE_PLACES_API_KEY` exists for server address autocomplete and place details.
+- `GOOGLE_ROUTES_API_KEY` exists for server route estimates and delivery pricing.
+- APIs are enabled in Google Cloud, billing is enabled, and each key is restricted to only the APIs and environment that use it.
 
 ### Production readiness endpoint fails
 
