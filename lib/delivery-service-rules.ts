@@ -58,6 +58,18 @@ export function classifyDelivery(input: DeliveryRuleInput, fareConfig: FareConfi
   };
 }
 
+export function recommendedMarketplaceVehicle({
+  kind,
+  items
+}: {
+  kind: "restaurant" | "shopping";
+  items: DeliveryRuleItem[];
+}): VehicleType {
+  if (kind === "restaurant") return "bike";
+  if (isBulkyMarketplaceCart(items)) return "van";
+  return isLightMarketplaceCart(items) ? "bike" : "car";
+}
+
 function classifyRouteType(pickupState: string, dropoffState: string, distanceKm: number): RouteType {
   if (!pickupState || !dropoffState) return "unknown";
   if (pickupState === dropoffState) return "same_state";
@@ -85,4 +97,8 @@ function isLightMarketplaceCart(items: DeliveryRuleItem[] | undefined) {
     const label = `${item.name || ""} ${item.productName || ""} ${item.category || ""}`;
     return !bulkyItemPattern.test(label);
   });
+}
+
+function isBulkyMarketplaceCart(items: DeliveryRuleItem[] | undefined) {
+  return Boolean(items?.some((item) => bulkyItemPattern.test(`${item.name || ""} ${item.productName || ""} ${item.category || ""}`)));
 }

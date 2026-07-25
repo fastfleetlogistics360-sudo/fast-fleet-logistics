@@ -1,6 +1,6 @@
 import { estimateFareForDistance, normalizeFareConfig, type FareConfig } from "@/lib/fare";
 import { classifyDelivery, type DeliveryRuleItem, type RouteType, type VehicleSubtype } from "@/lib/delivery-service-rules";
-import { getGoogleRouteEstimate, type RouteLocation } from "@/lib/maps/route-distance";
+import { getGoogleRouteEstimate, type GoogleRouteEstimate, type RouteLocation } from "@/lib/maps/route-distance";
 import type { DeliverySpeed, FareEstimate, VehicleType } from "@/types/domain";
 
 export type DeliveryQuoteInput = {
@@ -30,17 +30,23 @@ export type DeliveryQuote = {
   lightOrder: boolean;
   bicycleEligible: boolean;
   vehicleSubtype: VehicleSubtype | null;
+  vehicle: VehicleType;
+  speed: DeliverySpeed;
   fare: FareEstimate;
 };
 
 export async function createDeliveryQuote(input: DeliveryQuoteInput): Promise<DeliveryQuote> {
-  const fareConfig = normalizeFareConfig(input.fareConfig);
-  const pickupAddress = cleanAddress(input.pickup.address);
-  const dropoffAddress = cleanAddress(input.dropoff.address);
   const route = await getGoogleRouteEstimate({
     origin: input.pickup,
     destination: input.dropoff
   });
+  return createDeliveryQuoteFromRoute(input, route);
+}
+
+export function createDeliveryQuoteFromRoute(input: DeliveryQuoteInput, route: GoogleRouteEstimate): DeliveryQuote {
+  const fareConfig = normalizeFareConfig(input.fareConfig);
+  const pickupAddress = cleanAddress(input.pickup.address);
+  const dropoffAddress = cleanAddress(input.dropoff.address);
   const classification = classifyDelivery(
     {
       pickupAddress,
@@ -81,6 +87,8 @@ export async function createDeliveryQuote(input: DeliveryQuoteInput): Promise<De
     lightOrder: classification.lightOrder,
     bicycleEligible: classification.bicycleEligible,
     vehicleSubtype: classification.vehicleSubtype,
+    vehicle: input.vehicle,
+    speed: input.speed,
     fare: {
       ...fare,
       etaMinutes

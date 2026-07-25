@@ -5,7 +5,7 @@ export type CoordinatePoint = {
 
 export const crossStatePickupRadiusKm = 10;
 export const bicycleCrossStateRouteMaxKm = 10;
-export const riderLocationFreshMinutes = 10;
+export const riderLocationFreshMinutes = 30;
 export const riderLocationFreshMs = riderLocationFreshMinutes * 60 * 1000;
 
 export function coordinatePoint(latitude: unknown, longitude: unknown): CoordinatePoint | null {
@@ -26,9 +26,9 @@ export function haversineKm(from: CoordinatePoint, to: CoordinatePoint) {
   return earthKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function isFreshLocation(updatedAt: string | null | undefined, now = Date.now()) {
+export function isFreshLocation(updatedAt: string | null | undefined, now = Date.now(), freshnessMinutes = riderLocationFreshMinutes) {
   const timestamp = updatedAt ? Date.parse(updatedAt) : NaN;
-  return Number.isFinite(timestamp) && now - timestamp <= riderLocationFreshMs;
+  return Number.isFinite(timestamp) && now - timestamp <= freshnessMinutes * 60 * 1000;
 }
 
 function degreesToRadians(value: number) {

@@ -35,6 +35,12 @@ After F-008 is active and before deploying F-009 application code, back up the d
 
 Do not restore either `Anyone can create support ...` policy during rollback. If support creation must be paused, revoke the atomic function from `service_role` and roll the application forward while direct browser writes remain denied.
 
+### Existing production projects: apply the F-012 rider eligibility migration
+
+Before deploying the F-012 application build, take a database backup and run `security-remediation/migrations/202607260001_f012_rider_eligibility.sql` once in the Supabase SQL Editor. It adds the configurable delivery-policy defaults and replaces `accept_delivery_offer(...)` with the authoritative cross-border location, bicycle-distance, and atomic bicycle-reservation checks.
+
+Run the entire transactional file; do not copy fragments. Verify Admin → Operations control → Fare controls shows `10` km pickup radius, `30` minutes location freshness, the configured Bicycle max km, `30` km fresh-food maximum route, and `2` interstate business days. If the migration fails, do not deploy the matching application code. No historical delivery rows are changed.
+
 ## 3. Configure auth
 
 - Enable Email auth.
@@ -84,6 +90,9 @@ SQUAD_SECRET_KEY=your-live-or-test-squad-secret
 SQUAD_BASE_URL=https://sandbox-api-d.squadco.com
 SQUAD_CALLBACK_ORIGIN=https://your-domain.com
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-google-maps-browser-key
+GOOGLE_MAPS_API_KEY=your-server-geocoding-key
+GOOGLE_PLACES_API_KEY=your-server-places-key
+GOOGLE_ROUTES_API_KEY=your-server-routes-key
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 NEXT_PUBLIC_ALLOW_DEMO_DATA=false
 NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false

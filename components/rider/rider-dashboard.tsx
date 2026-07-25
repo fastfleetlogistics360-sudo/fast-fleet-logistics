@@ -77,6 +77,7 @@ type JobRow = {
   proof_url?: string | null;
   rider_id?: string | null;
   vehicle_type?: string | null;
+  vehicle_subtype?: string | null;
   metadata?: Record<string, unknown> | null;
   users?: {
     full_name?: string | null;
@@ -103,7 +104,7 @@ const tabs: Array<{ id: RiderTab; label: string; icon: LucideIcon }> = [
 ];
 
 const jobFields =
-  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
+  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, vehicle_subtype, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
 
 const riderProfileFields =
   "id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, operating_zone, address";
@@ -222,7 +223,7 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
     ...((availableByAddressResult.data || []) as JobRow[]),
     ...((availableByMetadataResult.data || []) as JobRow[]),
     ...((availableNearbyResult.data || []) as JobRow[])
-  ].filter((job) => !isRejectedByRider(job, riderId) && (pickupMatchesRiderState(job.pickup_address, riderZone, job.metadata) || jobMatchesCrossStateFallback(job, riderLocation)));
+  ].filter((job) => !isRejectedByRider(job, riderId) && jobMatchesFallbackEligibility(job, riderZone, riderLocation));
   return mergeJobs([...available, ...assigned]);
 }
 
@@ -347,13 +348,25 @@ function jobMatchesCrossStateFallback(
     || coordinatePoint(job.metadata?.pickupLatitude, job.metadata?.pickupLongitude);
   if (!riderPoint || !pickupPoint) return false;
   if (haversineKm(riderPoint, pickupPoint) > crossStatePickupRadiusKm) return false;
-  if (!isBicycleJob(job.metadata)) return true;
+  if (!isBicycleJob(job.metadata, job.vehicle_subtype)) return true;
   const routeKm = Number(job.distance_km || job.metadata?.delivery_distance_km || job.metadata?.distance_km || 0);
   return Number.isFinite(routeKm) && routeKm > 0 && routeKm <= bicycleCrossStateRouteMaxKm;
 }
 
-function isBicycleJob(metadata: Record<string, unknown> | null | undefined) {
-  const subtype = String(metadata?.vehicle_subtype || metadata?.vehicleSubtype || "").toLowerCase();
+function jobMatchesFallbackEligibility(
+  job: JobRow,
+  riderZone: string | null | undefined,
+  riderLocation: { latitude?: number | string | null; longitude?: number | string | null; updated_at?: string | null } | null
+) {
+  if (isBicycleJob(job.metadata, job.vehicle_subtype)) {
+    const routeKm = Number(job.distance_km || job.metadata?.delivery_distance_km || job.metadata?.distance_km || 0);
+    if (!Number.isFinite(routeKm) || routeKm <= 0 || routeKm > bicycleCrossStateRouteMaxKm) return false;
+  }
+  return pickupMatchesRiderState(job.pickup_address, riderZone, job.metadata) || jobMatchesCrossStateFallback(job, riderLocation);
+}
+
+function isBicycleJob(metadata: Record<string, unknown> | null | undefined, explicitSubtype?: string | null) {
+  const subtype = String(explicitSubtype || metadata?.vehicle_subtype || metadata?.vehicleSubtype || "").toLowerCase();
   return subtype === "bicycle";
 }
 

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { loadDeliveryPolicy } from "@/lib/delivery-policy";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
+import { geocodeAddress } from "@/lib/maps/geocode";
 import {
   businessPickupAddressFor,
   loadActiveLinkedBusiness,
@@ -37,6 +39,7 @@ export async function POST(request: Request) {
         platformFee?: number;
         deliveryFee?: number;
       };
+      interstateConfirmed?: boolean;
     };
 
     const items = Array.isArray(payload.items) ? payload.items : [];
@@ -67,8 +70,21 @@ export async function POST(request: Request) {
     const business = await loadActiveLinkedBusiness(admin, linkedBusinessId);
     const marketplaceKind = payload.kind === "shopping" ? "shopping" : "restaurant";
     const quotePickupAddress = business ? businessPickupAddressFor(business, marketplacePickupAddress(resolvedItems, marketplaceKind)) : null;
-    const fareConfig = await loadFareConfig();
-    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: resolvedItems, address, pickupAddress: quotePickupAddress, fareConfig });
+    const [fareConfig, deliveryPolicy] = await Promise.all([loadFareConfig(), loadDeliveryPolicy()]);
+    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: resolvedItems, address, pickupAddress: quotePickupAddress, fareConfig, deliveryPolicy });
+    if (!estimate.allowed) {
+      return NextResponse.json({ error: estimate.policyMessage || "This marketplace order cannot be delivered to that address." }, { status: 422 });
+    }
+    if (estimate.interstateDispatch && payload.interstateConfirmed !== true) {
+      return NextResponse.json(
+        {
+          error: estimate.policyMessage || "Confirm the interstate delivery timing before checkout.",
+          requiresInterstateConfirmation: true,
+          interstateDeliveryDays: estimate.interstateDeliveryDays
+        },
+        { status: 409 }
+      );
+    }
     const platformFee = estimate.platformFee;
     const deliveryFee = estimate.deliveryFee;
     const expectedAmount = estimate.total;
@@ -83,6 +99,7 @@ export async function POST(request: Request) {
     callbackUrl.searchParams.set("code", reference);
     callbackUrl.searchParams.set("returnTo", accountTrackingHref(reference));
     const pickupAddress = estimate.pickupAddress;
+    const [pickupPoint, dropoffPoint] = await Promise.all([geocodeAddress(pickupAddress), geocodeAddress(address)]);
     let paymentIntentTarget: { purpose: PaymentIntentPurpose; internalReference: string; deliveryId?: string; orderId?: string } | null = null;
 
     if (business) {
@@ -100,7 +117,7 @@ export async function POST(request: Request) {
             pickup_address: pickupAddress,
             dropoff_address: address,
             package_type: payload.kind === "shopping" ? "shopping items" : "food order",
-            vehicle_type: "bike",
+            vehicle_type: estimate.vehicle,
             vehicle_subtype: estimate.vehicleSubtype,
             status: "pending",
             amount: expectedAmount,
@@ -131,12 +148,16 @@ export async function POST(request: Request) {
           delivery_code: reference,
           customer_id: user.id,
           pickup_address: pickupAddress,
+          pickup_latitude: pickupPoint?.latitude || null,
+          pickup_longitude: pickupPoint?.longitude || null,
           dropoff_address: address,
+          dropoff_latitude: dropoffPoint?.latitude || null,
+          dropoff_longitude: dropoffPoint?.longitude || null,
           pickup_contact: payload.kind === "shopping" ? "Shopping vendor" : "Restaurant vendor",
           dropoff_contact: payload.phone || payload.email,
           parcel_type: payload.kind === "shopping" ? "shopping items" : "food order",
-          vehicle_type: "bike",
-          delivery_speed: "same_day",
+          vehicle_type: estimate.vehicle,
+          delivery_speed: estimate.deliverySpeed,
           payment_method: "card",
           status: "pending_payment",
           price_ngn: expectedAmount,
@@ -154,6 +175,10 @@ export async function POST(request: Request) {
             items: resolvedItems,
             pickup_state: estimate.pickupState || null,
             dropoff_state: estimate.dropoffState || null,
+            pickup_latitude: pickupPoint?.latitude || null,
+            pickup_longitude: pickupPoint?.longitude || null,
+            dropoff_latitude: dropoffPoint?.latitude || null,
+            dropoff_longitude: dropoffPoint?.longitude || null,
             delivery_fee_ngn: deliveryFee,
             platform_fee_ngn: platformFee,
             delivery_distance_km: estimate.distanceKm,
@@ -162,6 +187,9 @@ export async function POST(request: Request) {
             route_duration_seconds: estimate.durationSeconds,
             bicycle_eligible: estimate.bicycleEligible,
             vehicle_subtype: estimate.vehicleSubtype,
+            marketplace_vehicle: estimate.vehicle,
+            interstate_dispatch: estimate.interstateDispatch,
+            interstate_delivery_days: estimate.interstateDeliveryDays,
             payment_provider: "squad",
             provider_reference: reference
           }
@@ -223,6 +251,8 @@ export async function POST(request: Request) {
       authorizationUrl: squadCheckout.authorizationUrl,
       userId: user.id,
       vehicleSubtype: estimate.vehicleSubtype,
+      vehicle: estimate.vehicle,
+      interstateDispatch: estimate.interstateDispatch,
       businessOrder: Boolean(business),
       status: business ? "pending" : "pending_payment"
     });

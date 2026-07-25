@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from "@/lib/brand-partners";
+import { DEFAULT_DELIVERY_POLICY, normalizeDeliveryPolicy, type DeliveryPolicy } from "@/lib/delivery-policy";
 import { DEFAULT_FARE_CONFIG, fareSpeedTypes, fareVehicleTypes, normalizeFareConfig, speedLabel, vehicleLabel, type FareConfig } from "@/lib/fare";
 import { defaultLaunchStateRecords, launchStatusLabel, rememberLiveState } from "@/lib/launch-states";
 import type { LaunchStateRecord } from "@/lib/launch-states";
@@ -412,6 +413,7 @@ type SiteControls = {
     payout_sla_hours: number;
   };
   fare_config: FareConfig;
+  delivery_policy: DeliveryPolicy;
 };
 
 type RiskSignal = {
@@ -806,11 +808,13 @@ const defaultSiteControls: SiteControls = {
     max_withdrawal_ngn: 200000,
     payout_sla_hours: 10
   },
-  fare_config: DEFAULT_FARE_CONFIG
+  fare_config: DEFAULT_FARE_CONFIG,
+  delivery_policy: DEFAULT_DELIVERY_POLICY
 };
 
 function normalizeSiteControls(value: unknown): SiteControls {
   const controls = (value || {}) as Partial<SiteControls>;
+  const fareConfig = normalizeFareConfig(controls.fare_config);
   return {
     ...defaultSiteControls,
     ...controls,
@@ -819,7 +823,8 @@ function normalizeSiteControls(value: unknown): SiteControls {
       ...defaultSiteControls.wallet_policy,
       ...(controls.wallet_policy || {})
     },
-    fare_config: normalizeFareConfig(controls.fare_config)
+    fare_config: fareConfig,
+    delivery_policy: normalizeDeliveryPolicy(controls.delivery_policy, fareConfig)
   };
 }
 
@@ -1379,6 +1384,22 @@ export function AdminPanel() {
 
   function updateFareConfig(patch: Partial<Pick<FareConfig, "platformFee" | "ogunSurcharge" | "bicyclePlatformFee" | "bicycleMaxDistanceKm">>) {
     setSiteControls((current) => ({ ...current, fare_config: { ...normalizeFareConfig(current.fare_config), ...patch } }));
+  }
+
+  function updateDeliveryPolicy(patch: {
+    rider?: Partial<DeliveryPolicy["rider"]>;
+    marketplace?: Partial<DeliveryPolicy["marketplace"]>;
+  }) {
+    setSiteControls((current) => {
+      const policy = normalizeDeliveryPolicy(current.delivery_policy, current.fare_config);
+      return {
+        ...current,
+        delivery_policy: {
+          rider: { ...policy.rider, ...(patch.rider || {}) },
+          marketplace: { ...policy.marketplace, ...(patch.marketplace || {}) }
+        }
+      };
+    });
   }
 
   function editFleetAsset(asset: AdminFleetAsset) {
@@ -2288,10 +2309,20 @@ export function AdminPanel() {
               <AdminNumberInput label="Platform fee" value={siteControls.fare_config.platformFee} onChange={(value) => updateFareConfig({ platformFee: value })} />
               <AdminNumberInput label="Ogun surcharge" value={siteControls.fare_config.ogunSurcharge} onChange={(value) => updateFareConfig({ ogunSurcharge: value })} />
             </div>
+            <div className="rounded-fleet border border-fleet-line bg-white p-3">
+              <strong className="text-sm font-black text-fleet-night">Cross-border and marketplace rules</strong>
+              <p className="mt-1 text-xs font-bold leading-5 text-slate-500">Riders outside the pickup state need a recent live location inside the pickup radius. The bicycle route cap above applies everywhere.</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <AdminNumberInput label="Cross-border pickup radius (km)" value={siteControls.delivery_policy.rider.crossBorderPickupRadiusKm} onChange={(value) => updateDeliveryPolicy({ rider: { crossBorderPickupRadiusKm: value } })} />
+                <AdminNumberInput label="Rider location freshness (minutes)" value={siteControls.delivery_policy.rider.locationFreshnessMinutes} onChange={(value) => updateDeliveryPolicy({ rider: { locationFreshnessMinutes: value } })} />
+                <AdminNumberInput label="Fresh food maximum route (km)" value={siteControls.delivery_policy.marketplace.freshFoodMaxRouteKm} onChange={(value) => updateDeliveryPolicy({ marketplace: { freshFoodMaxRouteKm: value } })} />
+                <AdminNumberInput label="Interstate delivery estimate (business days)" value={siteControls.delivery_policy.marketplace.interstateDeliveryDays} onChange={(value) => updateDeliveryPolicy({ marketplace: { interstateDeliveryDays: value } })} />
+              </div>
+            </div>
           </div>
           <Button type="button" className="mt-4 w-full" onClick={saveSiteControls} disabled={busyAction === "site-controls:save"}>
             {busyAction === "site-controls:save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save live fare settings
+            Save live delivery settings
           </Button>
         </Card>
 

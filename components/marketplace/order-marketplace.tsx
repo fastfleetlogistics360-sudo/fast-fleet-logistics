@@ -119,6 +119,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const [address, setAddress] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [interstateConfirmed, setInterstateConfirmed] = useState(false);
   const [activeMenuType, setActiveMenuType] = useState("All Items");
   const checkoutRef = useRef<HTMLDivElement | null>(null);
 
@@ -188,6 +189,10 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
     if (!menuTypes.includes(activeMenuType)) setActiveMenuType("All Items");
   }, [activeMenuType, menuTypes]);
 
+  useEffect(() => {
+    setInterstateConfirmed(false);
+  }, [estimate?.interstateDispatch, estimate?.distanceKm]);
+
   function changeQuantity(key: string, delta: number) {
     setQuantities((current) => ({ ...current, [key]: Math.max(0, (current[key] || 0) + delta) }));
   }
@@ -210,6 +215,14 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       setMessage(estimateError || "Please wait for the delivery estimate to finish.");
       return;
     }
+    if (!estimate.allowed) {
+      setMessage(estimate.policyMessage || "This order cannot be delivered to that address.");
+      return;
+    }
+    if (estimate.interstateDispatch && !interstateConfirmed) {
+      setMessage(estimate.policyMessage || "Confirm the interstate delivery timing before checkout.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -226,7 +239,8 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             platformFee: estimate.platformFee,
             deliveryFee: estimate.deliveryFee
           },
-          amount: estimate.total
+          amount: estimate.total,
+          interstateConfirmed
         })
       });
       const payload = await response.json();
@@ -244,9 +258,9 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             pickup_address: selectedItems.map((item) => item.store).filter(Boolean).join(", ") || (kind === "restaurant" ? "Restaurant pickup" : "Shopping pickup"),
             dropoff_address: address,
             status: payload.status || (businessOrder ? "received" : "searching"),
-            vehicle_type: "bike",
+            vehicle_type: payload.vehicle || estimate.vehicle,
             vehicle_subtype: payload.vehicleSubtype || null,
-            delivery_speed: "same_day",
+            delivery_speed: estimate.deliverySpeed,
             price_ngn: estimate.total,
             distance_km: estimate.distanceKm,
             eta_minutes: estimate.etaMinutes,
@@ -369,7 +383,14 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             <input className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email for receipt" type="email" />
             <input className="form-input" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" inputMode="tel" />
             <AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} placeholder="Enter recipient street address" />
-            <Button type="button" onClick={checkout} disabled={loading || estimateLoading}>
+            {estimate?.policyMessage ? <div className={`rounded-fleet p-3 text-xs font-bold leading-5 ${estimate.allowed ? "bg-blue-50 text-blue-800" : "bg-rose-50 text-rose-800"}`}>{estimate.policyMessage}</div> : null}
+            {estimate?.interstateDispatch ? (
+              <label className="flex items-start gap-2 rounded-fleet border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-900">
+                <input type="checkbox" className="mt-0.5" checked={interstateConfirmed} onChange={(event) => setInterstateConfirmed(event.target.checked)} />
+                I understand this is an interstate dispatch and delivery timing starts after the seller prepares my order.
+              </label>
+            ) : null}
+            <Button type="button" onClick={checkout} disabled={loading || estimateLoading || !estimate?.allowed || Boolean(estimate?.interstateDispatch && !interstateConfirmed)}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
               Pay with Squad
             </Button>

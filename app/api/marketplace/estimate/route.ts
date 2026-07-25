@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadDeliveryPolicy } from "@/lib/delivery-policy";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { businessPickupAddressFor, loadActiveLinkedBusiness, resolveMarketplaceBusinessLinks } from "@/lib/marketplace-business-links";
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Enter the delivery street address." }, { status: 400 });
     }
 
-    const fareConfig = await loadFareConfig();
+    const [fareConfig, deliveryPolicy] = await Promise.all([loadFareConfig(), loadDeliveryPolicy()]);
     const marketplaceKind = payload.kind === "shopping" ? "shopping" : "restaurant";
     const admin = createAdminClient();
     let quoteItems = items;
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
       const business = await loadActiveLinkedBusiness(admin, businessLinks.linkedBusinessIds[0] || null);
       if (business) pickupAddress = businessPickupAddressFor(business, marketplacePickupAddress(quoteItems, marketplaceKind));
     }
-    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: quoteItems, address, pickupAddress, fareConfig });
+    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: quoteItems, address, pickupAddress, fareConfig, deliveryPolicy });
 
     return NextResponse.json({
       itemsTotal: estimate.itemsTotal,
@@ -55,7 +56,13 @@ export async function POST(request: Request) {
       routeType: estimate.routeType,
       routeSource: estimate.routeSource,
       bicycleEligible: estimate.bicycleEligible,
-      vehicleSubtype: estimate.vehicleSubtype
+      vehicleSubtype: estimate.vehicleSubtype,
+      vehicle: estimate.vehicle,
+      deliverySpeed: estimate.deliverySpeed,
+      allowed: estimate.allowed,
+      policyMessage: estimate.policyMessage,
+      interstateDispatch: estimate.interstateDispatch,
+      interstateDeliveryDays: estimate.interstateDeliveryDays
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not estimate marketplace delivery." }, { status: 500 });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
 import { defaultBrandPartners, normalizeBrandPartners } from "@/lib/brand-partners";
+import { DEFAULT_DELIVERY_POLICY, normalizeDeliveryPolicy, serializeDeliveryPolicy } from "@/lib/delivery-policy";
 import { DEFAULT_FARE_CONFIG, normalizeFareConfig } from "@/lib/fare";
 import { siteControlsSettingsKey } from "@/lib/fare-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -22,7 +23,8 @@ const defaultControls = {
     max_withdrawal_ngn: 200000,
     payout_sla_hours: 10
   },
-  fare_config: DEFAULT_FARE_CONFIG
+  fare_config: DEFAULT_FARE_CONFIG,
+  delivery_policy: DEFAULT_DELIVERY_POLICY
 };
 
 export async function GET() {
@@ -42,7 +44,8 @@ export async function GET() {
   }
 
   const value = (data?.value || {}) as Record<string, unknown>;
-  return NextResponse.json({ controls: { ...defaultControls, ...value, fare_config: normalizeFareConfig(value.fare_config) } });
+  const fareConfig = normalizeFareConfig(value.fare_config);
+  return NextResponse.json({ controls: { ...defaultControls, ...value, fare_config: fareConfig, delivery_policy: normalizeDeliveryPolicy(value.delivery_policy, fareConfig) } });
 }
 
 export async function PUT(request: Request) {
@@ -71,7 +74,7 @@ export async function PUT(request: Request) {
   return NextResponse.json({ controls: data.value });
 }
 
-function parseControls(body: Record<string, unknown>): { controls: typeof defaultControls } | { error: string } {
+function parseControls(body: Record<string, unknown>): { controls: Record<string, unknown> } | { error: string } {
   const walletPolicy = (body.wallet_policy || {}) as Record<string, unknown>;
   const supportStatus = String(body.support_status || "open");
 
@@ -79,6 +82,7 @@ function parseControls(body: Record<string, unknown>): { controls: typeof defaul
     return { error: "Choose a valid support flow status." };
   }
 
+  const fareConfig = normalizeFareConfig(body.fare_config);
   const controls = {
     bookings_enabled: Boolean(body.bookings_enabled),
     rider_onboarding_enabled: Boolean(body.rider_onboarding_enabled),
@@ -94,7 +98,8 @@ function parseControls(body: Record<string, unknown>): { controls: typeof defaul
       max_withdrawal_ngn: clampMoney(walletPolicy.max_withdrawal_ngn, 1000, 5000000, defaultControls.wallet_policy.max_withdrawal_ngn),
       payout_sla_hours: clampMoney(walletPolicy.payout_sla_hours, 1, 168, defaultControls.wallet_policy.payout_sla_hours)
     },
-    fare_config: normalizeFareConfig(body.fare_config)
+    fare_config: fareConfig,
+    delivery_policy: serializeDeliveryPolicy(normalizeDeliveryPolicy(body.delivery_policy, fareConfig))
   };
 
   if (controls.wallet_policy.max_withdrawal_ngn < controls.wallet_policy.min_withdrawal_ngn) {

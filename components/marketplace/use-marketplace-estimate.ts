@@ -29,6 +29,12 @@ export type MarketplaceEstimate = {
   total: number;
   distanceKm: number;
   etaMinutes: number;
+  vehicle: "bike" | "car" | "van";
+  deliverySpeed: "same_day" | "interstate";
+  allowed: boolean;
+  policyMessage: string | null;
+  interstateDispatch: boolean;
+  interstateDeliveryDays: number | null;
 };
 
 export function useMarketplaceEstimate({

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadDeliveryPolicy, type DeliveryPolicy } from "@/lib/delivery-policy";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
 import { isBicycleDelivery, loadAssignedBicycleAsset } from "@/lib/fleet-assets";
 import { normalizeState } from "@/lib/launch-states";
-import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
-import { bicycleCrossStateRouteMaxKm, coordinatePoint, crossStatePickupRadiusKm, haversineKm, isFreshLocation } from "@/lib/location/proximity";
+import { extractNigerianState } from "@/lib/location/state-matching";
+import { geocodeAddress } from "@/lib/maps/geocode";
 import { repairMarketplaceDeliveriesForBusiness } from "@/lib/marketplace-order-repair";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
+import { riderCanReceiveDelivery } from "@/lib/rider-eligibility";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountMessengerHref } from "@/lib/tracking-links";
@@ -110,7 +112,15 @@ export async function PATCH(request: Request) {
     const customerDropoffAddress = String(order.dropoff_address || "");
     const businessPickupContact = businessProfile.business_name || "Business pickup";
     const marketplaceCustomerContact = String(order.customer_contact || "Marketplace customer");
-    const marketplaceEstimate = await estimateBusinessOrderDelivery(order, businessPickupAddress);
+    const [deliveryPolicy, pickupPoint, dropoffPoint] = await Promise.all([
+      loadDeliveryPolicy(),
+      geocodeAddress(businessPickupAddress),
+      geocodeAddress(customerDropoffAddress)
+    ]);
+    const marketplaceEstimate = await estimateBusinessOrderDelivery(order, businessPickupAddress, deliveryPolicy);
+    if (status === "ready_for_pickup" && !marketplaceEstimate.allowed) {
+      return NextResponse.json({ error: marketplaceEstimate.policyMessage || "This marketplace order cannot be dispatched to that address." }, { status: 422 });
+    }
 
     if (status === "ready_for_pickup" && !deliveryId) {
       const deliveryCode = String(order.order_code || `FF-BIZ-ORDER-${Date.now().toString(36).toUpperCase()}`);
@@ -120,12 +130,16 @@ export async function PATCH(request: Request) {
           delivery_code: deliveryCode,
           customer_id: businessProfile.user_id,
           pickup_address: businessPickupAddress,
+          pickup_latitude: pickupPoint?.latitude || null,
+          pickup_longitude: pickupPoint?.longitude || null,
           pickup_contact: businessPickupContact,
           dropoff_address: customerDropoffAddress,
+          dropoff_latitude: dropoffPoint?.latitude || null,
+          dropoff_longitude: dropoffPoint?.longitude || null,
           dropoff_contact: marketplaceCustomerContact,
           parcel_type: order.package_type || "Marketplace order",
-          vehicle_type: normalizeVehicle(order.vehicle_type),
-          delivery_speed: "same_day",
+          vehicle_type: marketplaceEstimate.vehicle,
+          delivery_speed: marketplaceEstimate.deliverySpeed,
           payment_method: "card",
           status: "searching",
           price_ngn: marketplaceEstimate.deliveryFee,
@@ -146,6 +160,10 @@ export async function PATCH(request: Request) {
             marketplace_kind: order.marketplace_kind || null,
             pickup_state: marketplaceEstimate.pickupState || null,
             dropoff_state: marketplaceEstimate.dropoffState || null,
+            pickup_latitude: pickupPoint?.latitude || null,
+            pickup_longitude: pickupPoint?.longitude || null,
+            dropoff_latitude: dropoffPoint?.latitude || null,
+            dropoff_longitude: dropoffPoint?.longitude || null,
             order_total_ngn: Number(order.amount || 0),
             goods_amount_ngn: marketplaceEstimate.itemsTotal,
             delivery_fee_ngn: marketplaceEstimate.deliveryFee,
@@ -154,7 +172,10 @@ export async function PATCH(request: Request) {
             route_type: marketplaceEstimate.routeType,
             route_duration_seconds: marketplaceEstimate.durationSeconds,
             bicycle_eligible: marketplaceEstimate.bicycleEligible,
-            vehicle_subtype: marketplaceEstimate.vehicleSubtype
+            vehicle_subtype: marketplaceEstimate.vehicleSubtype,
+            marketplace_vehicle: marketplaceEstimate.vehicle,
+            interstate_dispatch: marketplaceEstimate.interstateDispatch,
+            interstate_delivery_days: marketplaceEstimate.interstateDeliveryDays
           }
         })
         .select("id, delivery_code")
@@ -171,7 +192,17 @@ export async function PATCH(request: Request) {
           title: "Ready for pickup",
           body: "Business marked this order ready. Fast Fleets 360 is finding a courier."
         }),
-        notifyApprovedRiders(db, delivery.id, delivery.delivery_code, businessPickupAddress, { vehicle_subtype: marketplaceEstimate.vehicleSubtype })
+        notifyApprovedRiders(db, delivery.id, delivery.delivery_code, {
+          pickup_address: businessPickupAddress,
+          pickup_latitude: pickupPoint?.latitude || null,
+          pickup_longitude: pickupPoint?.longitude || null,
+          distance_km: marketplaceEstimate.distanceKm,
+          vehicle_subtype: marketplaceEstimate.vehicleSubtype,
+          metadata: {
+            pickup_state: marketplaceEstimate.pickupState || null,
+            vehicle_subtype: marketplaceEstimate.vehicleSubtype
+          }
+        }, deliveryPolicy.rider)
       ]);
     } else if (status === "ready_for_pickup" && deliveryId) {
       await db
@@ -224,20 +255,16 @@ export async function PATCH(request: Request) {
   }
 }
 
-async function estimateBusinessOrderDelivery(order: Record<string, unknown>, pickupAddress: string) {
+async function estimateBusinessOrderDelivery(order: Record<string, unknown>, pickupAddress: string, deliveryPolicy: DeliveryPolicy) {
   const fareConfig = await loadFareConfig();
   return estimateMarketplaceCheckout({
     kind: order.marketplace_kind === "shopping" ? "shopping" : "restaurant",
     items: Array.isArray(order.items) ? order.items as Parameters<typeof estimateMarketplaceCheckout>[0]["items"] : [],
     address: String(order.dropoff_address || ""),
     pickupAddress,
-    fareConfig
+    fareConfig,
+    deliveryPolicy
   });
-}
-
-function normalizeVehicle(value: unknown) {
-  const vehicle = String(value || "").toLowerCase();
-  return vehicle === "car" || vehicle === "van" ? vehicle : "bike";
 }
 
 function appendStateToAddress(address: string, state: string) {
@@ -246,7 +273,20 @@ function appendStateToAddress(address: string, state: string) {
   return extractNigerianState(address) === normalizedState ? address : `${address}, ${normalizedState}`;
 }
 
-async function notifyApprovedRiders(db: SupabaseClient, deliveryId: string, deliveryCode: string, pickupAddress: string, metadata: Record<string, unknown> = {}) {
+async function notifyApprovedRiders(
+  db: SupabaseClient,
+  deliveryId: string,
+  deliveryCode: string,
+  delivery: {
+    pickup_address: string;
+    pickup_latitude?: number | null;
+    pickup_longitude?: number | null;
+    distance_km: number;
+    vehicle_subtype?: string | null;
+    metadata: Record<string, unknown>;
+  },
+  policy: DeliveryPolicy["rider"]
+) {
   const { data: riders } = await db
     .from("rider_profiles")
     .select("id, user_id, operating_zone, address")
@@ -254,14 +294,24 @@ async function notifyApprovedRiders(db: SupabaseClient, deliveryId: string, deli
     .eq("online", true)
     .limit(25);
 
-  const bicycle = isBicycleDelivery(metadata);
+  const bicycle = isBicycleDelivery(delivery.metadata, delivery.vehicle_subtype);
   const eligibleRiders = [];
   for (const rider of riders || []) {
-    if (!(await riderMatchesPickupForNotification(db, rider, pickupAddress, metadata))) continue;
-    if (bicycle) {
-      const asset = await loadAssignedBicycleAsset(db, rider.id);
-      if (!asset?.id || asset.status !== "available") continue;
-    }
+    const [locationResult, asset] = await Promise.all([
+      db
+        .from("rider_locations")
+        .select("latitude, longitude, updated_at")
+        .eq("rider_profile_id", rider.id)
+        .maybeSingle<{ latitude?: number | string | null; longitude?: number | string | null; updated_at?: string | null }>(),
+      bicycle ? loadAssignedBicycleAsset(db, rider.id) : Promise.resolve(null)
+    ]);
+    if (!riderCanReceiveDelivery({
+      job: delivery,
+      riderZone: rider.operating_zone || rider.address,
+      riderLocation: locationResult.data || null,
+      hasAvailableBicycle: Boolean(asset?.id && asset.status === "available"),
+      policy
+    })) continue;
     eligibleRiders.push(rider);
   }
 
@@ -276,28 +326,4 @@ async function notifyApprovedRiders(db: SupabaseClient, deliveryId: string, deli
       metadata: { delivery_id: deliveryId, delivery_code: deliveryCode, url: "/rider/dashboard", tag: `ff-dispatch-${deliveryCode}` }
     }));
   if (rows.length) await Promise.allSettled(rows.map((row) => insertNotificationWithPush(db, row)));
-}
-
-async function riderMatchesPickupForNotification(
-  db: SupabaseClient,
-  rider: { id?: string | null; operating_zone?: string | null; address?: string | null },
-  pickupAddress: string,
-  metadata: Record<string, unknown>
-) {
-  if (pickupMatchesRiderState(pickupAddress, rider.operating_zone || rider.address)) return true;
-  const pickupPoint = coordinatePoint(metadata.pickup_latitude, metadata.pickup_longitude)
-    || coordinatePoint(metadata.pickupLatitude, metadata.pickupLongitude);
-  if (!pickupPoint || !rider.id) return false;
-  if (isBicycleDelivery(metadata)) {
-    const routeKm = Number(metadata.delivery_distance_km || metadata.distance_km || 0);
-    if (!Number.isFinite(routeKm) || routeKm <= 0 || routeKm > bicycleCrossStateRouteMaxKm) return false;
-  }
-  const { data } = await db
-    .from("rider_locations")
-    .select("latitude, longitude, updated_at")
-    .eq("rider_profile_id", rider.id)
-    .maybeSingle<{ latitude?: number | string | null; longitude?: number | string | null; updated_at?: string | null }>();
-  if (!isFreshLocation(data?.updated_at)) return false;
-  const riderPoint = coordinatePoint(data?.latitude, data?.longitude);
-  return Boolean(riderPoint && haversineKm(riderPoint, pickupPoint) <= crossStatePickupRadiusKm);
 }

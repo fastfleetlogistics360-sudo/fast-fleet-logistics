@@ -3,12 +3,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { announceDeliveryConfirmation, createDeliveryConfirmation } from "@/lib/delivery-confirmation";
-import { isBicycleDelivery, loadAssignedBicycleAsset, markBicycleAssetBusy } from "@/lib/fleet-assets";
-import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
-import { bicycleCrossStateRouteMaxKm, coordinatePoint, crossStatePickupRadiusKm, haversineKm, isFreshLocation } from "@/lib/location/proximity";
+import { loadDeliveryPolicy, type DeliveryPolicy } from "@/lib/delivery-policy";
+import { isBicycleDelivery, loadAssignedBicycleAsset } from "@/lib/fleet-assets";
+import { extractNigerianState } from "@/lib/location/state-matching";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { isCustomerPickupProofRequired, metadataRecord, pickupProofFromMetadata, pickupProofReviewExpired } from "@/lib/pickup-proof";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+import { riderCanReceiveDelivery } from "@/lib/rider-eligibility";
 import { accountMessengerHref } from "@/lib/tracking-links";
 import type { DeliveryStatus } from "@/types/domain";
 
@@ -20,7 +21,7 @@ const statusFlow: Record<string, DeliveryStatus> = {
 };
 
 const jobSelect =
-  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
+  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, vehicle_subtype, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
 
 type JobRow = {
   id: string;
@@ -28,6 +29,7 @@ type JobRow = {
   pickup_latitude?: number | string | null;
   pickup_longitude?: number | string | null;
   distance_km?: number | string | null;
+  vehicle_subtype?: string | null;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -72,7 +74,10 @@ export async function GET(request: Request) {
     }
     const riderState = extractNigerianState(rider.operating_zone || rider.address);
     const canLoadAvailable = includeAvailable && rider.online && rider.application_status === "approved" && riderState;
-    const bicycleAsset = canLoadAvailable ? await loadAssignedBicycleAsset(db, rider.id) : null;
+    const [bicycleAsset, deliveryPolicy] = await Promise.all([
+      canLoadAvailable ? loadAssignedBicycleAsset(db, rider.id) : Promise.resolve(null),
+      loadDeliveryPolicy()
+    ]);
     const riderLocationQuery = canLoadAvailable
       ? db
           .from("rider_locations")
@@ -136,7 +141,7 @@ export async function GET(request: Request) {
     ].filter(
       (job) =>
         !isRejectedByRider(job, rider.id) &&
-        jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, riderLocation)
+        jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, riderLocation, deliveryPolicy.rider)
     );
     return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]) });
   } catch (error) {
@@ -166,14 +171,10 @@ export async function POST(request: Request) {
     const db = admin;
 
     if (action === "accept") {
-      const stateCheck = await canRiderAcceptPickupState(db, user.id, id);
+      const stateCheck = await canRiderAcceptPickupState(db, user.id, id, (await loadDeliveryPolicy()).rider);
       if (!stateCheck.ok) return NextResponse.json({ error: stateCheck.error }, { status: 403 });
       const { error } = await supabase.rpc("accept_delivery_offer", { target_delivery_id: id });
       if (error) throw error;
-      if (stateCheck.bicycle) {
-        const asset = await markBicycleAssetBusy(db, stateCheck.riderProfileId, id);
-        if (asset?.id) await attachFleetAssetToDelivery(db, id, asset.id, asset.asset_code || null);
-      }
       await syncLinkedBusinessOrder(db, id, "rider_assigned");
       return updateResponse(db, id);
     }
@@ -338,8 +339,9 @@ async function ensureApprovedRiderProfile(admin: NonNullable<ReturnType<typeof c
 async function canRiderAcceptPickupState(
   db: SupabaseClient,
   userId: string,
-  deliveryId: string
-): Promise<{ ok: true; bicycle: boolean; riderProfileId: string } | { ok: false; error: string }> {
+  deliveryId: string,
+  policy: DeliveryPolicy["rider"]
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const [{ data: rider, error: riderError }, { data: delivery, error: deliveryError }] = await Promise.all([
     db
       .from("rider_profiles")
@@ -348,7 +350,7 @@ async function canRiderAcceptPickupState(
       .maybeSingle<{ id: string; operating_zone?: string | null; address?: string | null }>(),
     db
       .from("deliveries")
-      .select("id, pickup_address, pickup_latitude, pickup_longitude, distance_km, metadata")
+      .select("id, pickup_address, pickup_latitude, pickup_longitude, distance_km, vehicle_subtype, metadata")
       .eq("id", deliveryId)
       .maybeSingle<JobRow>()
   ]);
@@ -357,9 +359,8 @@ async function canRiderAcceptPickupState(
   if (deliveryError) throw deliveryError;
   const riderZone = rider?.operating_zone || rider?.address || "";
   if (!extractNigerianState(riderZone)) return { ok: false, error: "Your rider operating state is missing. Update your rider profile before accepting jobs." };
-  const sameStatePickup = pickupMatchesRiderState(delivery?.pickup_address, riderZone, delivery?.metadata);
   let riderLocation: RiderLocationRow | null = null;
-  if (!sameStatePickup && rider?.id) {
+  if (rider?.id) {
     const { data, error } = await db
       .from("rider_locations")
       .select("latitude, longitude, updated_at")
@@ -368,68 +369,40 @@ async function canRiderAcceptPickupState(
     if (error) throw error;
     riderLocation = data || null;
   }
-  if (!sameStatePickup && !jobMatchesCrossStateProximity(delivery || null, riderLocation)) {
-    return { ok: false, error: `This pickup is outside your registered rider state and not within ${crossStatePickupRadiusKm}km of your latest live location.` };
+  const asset = await loadAssignedBicycleAsset(db, rider?.id);
+  if (!delivery || !riderCanReceiveDelivery({
+    job: delivery,
+    riderZone,
+    riderLocation,
+    hasAvailableBicycle: Boolean(asset?.id && asset.status === "available"),
+    policy
+  })) {
+    return { ok: false, error: `This pickup is outside your registered rider state or more than ${policy.crossBorderPickupRadiusKm}km from a recent live location. Bicycle jobs also require an available bicycle and a route of ${policy.bicycleMaxRouteKm}km or less.` };
   }
-  const bicycle = isBicycleDelivery(delivery?.metadata);
-  if (bicycle) {
-    const asset = await loadAssignedBicycleAsset(db, rider?.id);
-    if (!asset?.id || asset.status !== "available") {
-      return { ok: false, error: "This delivery is reserved for an available assigned Fast Fleets bicycle." };
-    }
-  }
-  return { ok: true, bicycle, riderProfileId: rider?.id || "" };
+  return { ok: true };
 }
 
 function jobMatchesRiderFleet(job: JobRow, bicycleAsset: RiderFleetAsset) {
-  const bicycleJob = isBicycleDelivery(job.metadata);
+  const bicycleJob = isBicycleDelivery(job.metadata, job.vehicle_subtype);
   if (bicycleJob) return Boolean(bicycleAsset?.id && bicycleAsset.status === "available");
   return !bicycleAsset?.id;
 }
 
-function jobMatchesRiderDispatch(job: JobRow, riderZone: string | null | undefined, bicycleAsset: RiderFleetAsset, riderLocation: RiderLocationRow | null) {
+function jobMatchesRiderDispatch(
+  job: JobRow,
+  riderZone: string | null | undefined,
+  bicycleAsset: RiderFleetAsset,
+  riderLocation: RiderLocationRow | null,
+  policy: DeliveryPolicy["rider"]
+) {
   if (!jobMatchesRiderFleet(job, bicycleAsset)) return false;
-  if (pickupMatchesRiderState(job.pickup_address, riderZone, job.metadata)) return true;
-  return jobMatchesCrossStateProximity(job, riderLocation);
-}
-
-function jobMatchesCrossStateProximity(job: JobRow | null, riderLocation: RiderLocationRow | null) {
-  if (!job || !isFreshLocation(riderLocation?.updated_at)) return false;
-  const riderPoint = coordinatePoint(riderLocation?.latitude, riderLocation?.longitude);
-  const pickupPoint = deliveryPickupPoint(job);
-  if (!riderPoint || !pickupPoint) return false;
-  if (haversineKm(riderPoint, pickupPoint) > crossStatePickupRadiusKm) return false;
-  if (!isBicycleDelivery(job.metadata)) return true;
-  const routeKm = Number(job.distance_km || job.metadata?.delivery_distance_km || job.metadata?.distance_km || 0);
-  return Number.isFinite(routeKm) && routeKm > 0 && routeKm <= bicycleCrossStateRouteMaxKm;
-}
-
-function deliveryPickupPoint(job: JobRow) {
-  const metadata = job.metadata || {};
-  return coordinatePoint(job.pickup_latitude, job.pickup_longitude)
-    || coordinatePoint(metadata.pickup_latitude, metadata.pickup_longitude)
-    || coordinatePoint(metadata.pickupLatitude, metadata.pickupLongitude);
-}
-
-async function attachFleetAssetToDelivery(db: SupabaseClient, deliveryId: string, assetId: string, assetCode: string | null) {
-  const { data: delivery } = await db
-    .from("deliveries")
-    .select("metadata")
-    .eq("id", deliveryId)
-    .maybeSingle<{ metadata?: Record<string, unknown> | null }>();
-  const metadata = delivery?.metadata && typeof delivery.metadata === "object" && !Array.isArray(delivery.metadata) ? delivery.metadata : {};
-  await db
-    .from("deliveries")
-    .update({
-      fleet_asset_id: assetId,
-      metadata: {
-        ...metadata,
-        fleet_asset_id: assetId,
-        fleet_asset_code: assetCode
-      },
-      updated_at: new Date().toISOString()
-    })
-    .eq("id", deliveryId);
+  return riderCanReceiveDelivery({
+    job,
+    riderZone,
+    riderLocation,
+    hasAvailableBicycle: Boolean(bicycleAsset?.id && bicycleAsset.status === "available"),
+    policy
+  });
 }
 
 function isRejectedByRider(job: JobRow, riderId: string | null | undefined) {
