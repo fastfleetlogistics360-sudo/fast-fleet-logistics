@@ -121,11 +121,27 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const [loading, setLoading] = useState(false);
   const [interstateConfirmed, setInterstateConfirmed] = useState(false);
   const [activeMenuType, setActiveMenuType] = useState("All Items");
+  const [checkoutIsVisible, setCheckoutIsVisible] = useState(false);
   const checkoutRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setLiveStores(stores);
   }, [stores]);
+
+  useEffect(() => {
+    const checkoutElement = checkoutRef.current;
+    if (!checkoutElement) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setCheckoutIsVisible(entries.some((entry) => entry.isIntersecting));
+      },
+      { rootMargin: "0px 0px -30% 0px" }
+    );
+
+    observer.observe(checkoutElement);
+    return () => observer.disconnect();
+  }, []);
 
   const selectedItems = useMemo(
     () =>
@@ -399,7 +415,16 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
         </Card>
         </div>
       </div>
-      <MobileCartBar count={selectedItems.length} total={total} label="Your Order" onOpen={() => checkoutRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} />
+      <MobileCartBar
+        count={selectedItems.length}
+        total={total}
+        label="Your Order"
+        visible={!checkoutIsVisible}
+        onOpen={() => {
+          setCheckoutIsVisible(true);
+          checkoutRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+      />
     </section>
     </>
   );
@@ -456,8 +481,8 @@ function RestaurantMenuItemCard({
   );
 }
 
-function MobileCartBar({ count, total, label, onOpen }: { count: number; total: number; label: string; onOpen: () => void }) {
-  if (!count) return null;
+function MobileCartBar({ count, total, label, visible, onOpen }: { count: number; total: number; label: string; visible: boolean; onOpen: () => void }) {
+  if (!count || !visible) return null;
   return (
     <div className="fixed inset-x-3 bottom-24 z-40 mx-auto flex max-w-xl items-center gap-3 rounded-[20px] border border-fleet-ember/20 bg-white/95 p-3 shadow-[0_18px_48px_rgba(8,17,31,0.18)] backdrop-blur-2xl lg:hidden">
       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[16px] bg-orange-50 text-fleet-ember">
