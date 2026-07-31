@@ -478,7 +478,7 @@ function BusinessDocumentDropzone({
     if (file) onFile(type, label, file);
   }
 
-  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+  function handleDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault();
     handleFiles(event.dataTransfer.files);
   }
@@ -488,19 +488,56 @@ function BusinessDocumentDropzone({
     event.currentTarget.value = "";
   }
 
+  if (!camera) {
+    return (
+      <label
+        className="grid min-h-36 cursor-pointer place-items-center rounded-[16px] border border-dashed border-fleet-line bg-fleet-paper p-3 text-center transition hover:border-fleet-gold hover:bg-white"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handleDrop}
+      >
+        <input className="sr-only" type="file" accept={accept} onChange={handleChange} />
+        <span className="grid h-11 w-11 place-items-center rounded-full bg-white text-fleet-ember shadow-lift">
+          <FileUp className="h-5 w-5" />
+        </span>
+        <span>
+          <strong className="mt-3 block text-sm font-black text-fleet-night">{label}</strong>
+          <span className="mt-1 block text-xs font-semibold text-slate-500">Browse or drop a file</span>
+        </span>
+        {doc ? (
+          <span className="mt-3 block w-full">
+            <span className="block truncate text-xs font-bold text-slate-600">{doc.name}</span>
+            <span className="mt-2 block h-2 rounded-full bg-white">
+              <span className="block h-2 rounded-full bg-fleet-navy" style={{ width: `${doc.progress}%` }} />
+            </span>
+          </span>
+        ) : null}
+        {error ? <span className="mt-3 text-xs font-bold text-red-600">{error}</span> : null}
+      </label>
+    );
+  }
+
   return (
-    <label
+    <div
       className="grid min-h-36 cursor-pointer place-items-center rounded-[16px] border border-dashed border-fleet-line bg-fleet-paper p-3 text-center transition hover:border-fleet-gold hover:bg-white"
       onDragOver={(event) => event.preventDefault()}
       onDrop={handleDrop}
     >
-      <input className="sr-only" type="file" accept={accept} capture={camera ? "environment" : undefined} onChange={handleChange} />
+      <input id={`${type}-camera`} className="sr-only" type="file" accept={accept} capture="environment" onChange={handleChange} />
+      <input id={`${type}-upload`} className="sr-only" type="file" accept={accept} onChange={handleChange} />
       <span className="grid h-11 w-11 place-items-center rounded-full bg-white text-fleet-ember shadow-lift">
-        {camera ? <Camera className="h-5 w-5" /> : <FileUp className="h-5 w-5" />}
+        <Camera className="h-5 w-5" />
       </span>
       <span>
         <strong className="mt-3 block text-sm font-black text-fleet-night">{label}</strong>
-        <span className="mt-1 block text-xs font-semibold text-slate-500">Browse or use camera</span>
+        <span className="mt-1 block text-xs font-semibold text-slate-500">Take a photo or choose an existing image</span>
+      </span>
+      <span className="mt-3 flex flex-wrap justify-center gap-2">
+        <label htmlFor={`${type}-camera`} className="cursor-pointer rounded-fleet bg-fleet-navy px-3 py-2 text-xs font-black text-white transition hover:bg-fleet-night">
+          Take photo
+        </label>
+        <label htmlFor={`${type}-upload`} className="cursor-pointer rounded-fleet border border-fleet-line bg-white px-3 py-2 text-xs font-black text-fleet-night transition hover:border-fleet-gold">
+          Upload existing photo
+        </label>
       </span>
       {doc ? (
         <span className="mt-3 block w-full">
@@ -511,6 +548,6 @@ function BusinessDocumentDropzone({
         </span>
       ) : null}
       {error ? <span className="mt-3 text-xs font-bold text-red-600">{error}</span> : null}
-    </label>
+    </div>
   );
 }
