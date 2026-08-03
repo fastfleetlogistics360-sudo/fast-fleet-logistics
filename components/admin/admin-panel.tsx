@@ -2115,6 +2115,13 @@ export function AdminPanel() {
           onClick={() => openAdminSection("delivery-timelines")}
         />
         <ActionCard
+          icon={ClipboardCheck}
+          title="Heavy logistics"
+          body="Review truck and heavy-load transport requests."
+          count="Queue"
+          onClick={() => window.location.assign("/admin/heavy-logistics")}
+        />
+        <ActionCard
           icon={CircleDollarSign}
           title="Withdrawal review"
           body="Approve, reject with reason, or mark rider payouts as credited."

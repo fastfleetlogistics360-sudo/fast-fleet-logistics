@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight, Bike, BriefcaseBusiness, ShoppingBag, Truck } from "lucide-react";
+import { ArrowUpRight, Bike, BriefcaseBusiness, ShoppingBag, Truck, Warehouse } from "lucide-react";
 import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 
 export const metadata: Metadata = {
@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 const services = [
   { title: "Marketplace", body: "Order food, groceries, and everyday essentials from local businesses.", href: "/shopping", icon: ShoppingBag, label: "Explore marketplace" },
   { title: "Delivery", body: "Send parcels with clear pricing and live status updates.", href: "/book", icon: Truck, label: "Book a delivery" },
+  { title: "Heavy Logistics", body: "Request transport for building materials, furniture, bulk goods, and more.", href: "/heavy-logistics", icon: Warehouse, label: "Request transport" },
   { title: "Business Dispatch", body: "Manage repeat deliveries, customer orders, teams, and payouts.", href: "/business/register", icon: BriefcaseBusiness, label: "Register a business" },
   { title: "Rider Network", body: "Apply, complete verification, and manage delivery work in one place.", href: "/rider/onboarding", icon: Bike, label: "Become a rider" }
 ];

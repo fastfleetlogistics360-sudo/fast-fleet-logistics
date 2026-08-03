@@ -87,6 +87,7 @@ export const rateLimitPolicies = {
   withdrawalRequest: policy("wallet:withdrawal-request", 5, 24 * 60 * 60, "withdrawal", "authenticated_user_or_ip", "RATE_LIMITED_WITHDRAWAL"),
   businessRegistration: policy("business:registration", 5, 30 * 60, "business", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION"),
   businessDispatchCreate: policy("business:dispatch-create", 12, 10 * 60, "business", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION"),
+  heavyLogisticsRequest: policy("heavy-logistics:request", 8, 60 * 60, "business", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION", "Too many transport requests. Try again later."),
   businessBulkDispatch: policy("business:bulk-dispatch", 5, 10 * 60, "business", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION", "Too many bulk dispatch attempts. Try again later."),
   businessTeamMutation: policy("business:team-mutation", 20, 60 * 60, "business", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION"),
   businessOrderStatusUpdate: policy("business:order-status-update", 60, 10 * 60, "business", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION"),

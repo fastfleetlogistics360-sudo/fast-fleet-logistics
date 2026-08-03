@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, BellRing, BookOpenText, Compass, Gift, Headphones, LayoutDashboard, MapPinned, PackageCheck, ShoppingBag, Store, Truck, Utensils, X } from "lucide-react";
+import { ArrowRight, BellRing, BookOpenText, Compass, Gift, Headphones, LayoutDashboard, MapPinned, PackageCheck, ShoppingBag, Store, Truck, Utensils, Warehouse, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { UserRole } from "@/types/domain";
 import type { HubPromotionSlide } from "@/lib/hub-promotion-slides";
@@ -80,6 +80,7 @@ export function QuickActionHub({
     ...marketplaceActions,
     { title: "Restaurants", href: "/restaurants", icon: Utensils, tone: "orange" },
     { title: "Book a Delivery", href: "/book", icon: Truck, tone: "orange" },
+    { title: "Heavy Logistics", href: "/heavy-logistics", icon: Warehouse, tone: "navy" },
     { title: "Track a Delivery", href: "/track", icon: MapPinned, tone: "blue" },
     { title: "Explore Services", href: "/services", icon: Compass, tone: "blue" },
     { title: "Promotions & Updates", href: "/updates", icon: BellRing, tone: "pink" },

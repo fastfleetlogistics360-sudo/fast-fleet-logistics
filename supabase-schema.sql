@@ -2003,6 +2003,36 @@ begin
 end;
 $$;
 
+create table if not exists public.heavy_logistics_requests (
+  id uuid primary key default gen_random_uuid(),
+  request_code text not null unique,
+  customer_id uuid not null references public.users(id) on delete cascade,
+  category text not null check (category in ('building_materials', 'furniture', 'office_equipment', 'farm_produce', 'bulk_goods', 'other_heavy_items')),
+  item_type text not null,
+  quantity text not null,
+  pickup_address text not null,
+  pickup_access text not null default 'not_sure' check (pickup_access in ('easy', 'narrow', 'roadside_transfer', 'not_sure')),
+  dropoff_address text not null,
+  dropoff_access text not null default 'not_sure' check (dropoff_access in ('easy', 'narrow', 'roadside_transfer', 'not_sure')),
+  contact_name text not null,
+  contact_phone text not null,
+  preferred_pickup_at timestamptz,
+  pickup_window text,
+  instructions text,
+  status text not null default 'submitted' check (status in ('submitted', 'under_review', 'quoted', 'scheduled', 'vehicle_assigned', 'in_transit', 'completed', 'cancelled')),
+  quoted_price_ngn numeric,
+  internal_notes text,
+  reviewed_by uuid references public.users(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists heavy_logistics_requests_set_updated_at on public.heavy_logistics_requests;
+create trigger heavy_logistics_requests_set_updated_at
+before update on public.heavy_logistics_requests
+for each row execute function public.set_updated_at();
+
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
@@ -2615,6 +2645,8 @@ create index if not exists deliveries_rider_id_idx on public.deliveries(rider_id
 create index if not exists deliveries_status_idx on public.deliveries(status);
 create index if not exists deliveries_code_idx on public.deliveries(delivery_code);
 create index if not exists deliveries_created_at_idx on public.deliveries(created_at desc);
+create index if not exists heavy_logistics_requests_customer_idx on public.heavy_logistics_requests(customer_id, created_at desc);
+create index if not exists heavy_logistics_requests_status_idx on public.heavy_logistics_requests(status, created_at desc);
 create index if not exists notifications_user_read_idx on public.notifications(user_id, read_at);
 create index if not exists push_subscriptions_user_idx on public.push_subscriptions(user_id, updated_at desc);
 create index if not exists push_subscriptions_provider_idx on public.push_subscriptions(provider, platform);
@@ -2647,6 +2679,7 @@ create index if not exists delivery_locations_rider_idx on public.delivery_locat
 create index if not exists business_team_members_business_idx on public.business_team_members(business_profile_id, created_at desc);
 create index if not exists business_team_members_email_idx on public.business_team_members(email);
 
+alter table public.heavy_logistics_requests enable row level security;
 alter table public.users enable row level security;
 alter table public.profiles enable row level security;
 alter table public.orders enable row level security;
@@ -3229,6 +3262,22 @@ create policy "Withdrawal owner and admin access"
     public.current_user_role() = 'admin'
     or exists (select 1 from public.rider_profiles rp where rp.id = rider_profile_id and rp.user_id = auth.uid())
   );
+
+drop policy if exists "Customers and admins read heavy logistics requests" on public.heavy_logistics_requests;
+create policy "Customers and admins read heavy logistics requests"
+  on public.heavy_logistics_requests for select
+  using (customer_id = auth.uid() or public.current_user_is_admin());
+
+drop policy if exists "Customers create heavy logistics requests" on public.heavy_logistics_requests;
+create policy "Customers create heavy logistics requests"
+  on public.heavy_logistics_requests for insert
+  with check (customer_id = auth.uid() or public.current_user_is_admin());
+
+drop policy if exists "Admins update heavy logistics requests" on public.heavy_logistics_requests;
+create policy "Admins update heavy logistics requests"
+  on public.heavy_logistics_requests for update
+  using (public.current_user_is_admin())
+  with check (public.current_user_is_admin());
 
 drop policy if exists "Users manage own notifications" on public.notifications;
 create policy "Users manage own notifications"

@@ -17,6 +17,16 @@ export type DeliveryStatus =
   | "delivered"
   | "cancelled";
 
+export type HeavyLogisticsStatus =
+  | "submitted"
+  | "under_review"
+  | "quoted"
+  | "scheduled"
+  | "vehicle_assigned"
+  | "in_transit"
+  | "completed"
+  | "cancelled";
+
 export type RiderApplicationStatus =
   | "pending_review"
   | "submitted"
