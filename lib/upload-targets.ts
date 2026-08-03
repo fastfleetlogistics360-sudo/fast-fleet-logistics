@@ -1,9 +1,9 @@
 import type { UploadProfileName } from "@/lib/upload-security";
 
-export type UploadKind = "profile-photo" | "rider-document" | "business-document" | "hero-image";
+export type UploadKind = "profile-photo" | "rider-document" | "business-document" | "hero-image" | "marketplace-image";
 
 export type UploadTarget = {
-  bucket: "profile-photos" | "rider-documents" | "business-documents" | "hero-images";
+  bucket: "profile-photos" | "rider-documents" | "business-documents" | "hero-images" | "marketplace-images";
   profile: UploadProfileName;
   public: boolean;
   context: string;
@@ -51,6 +51,9 @@ export function resolveUploadTarget(kind: UploadKind, documentType: string): Upl
   }
   if (kind === "hero-image") {
     return { bucket: "hero-images", profile: "admin-banner", public: true, context: "site-media", adminOnly: true };
+  }
+  if (kind === "marketplace-image") {
+    return { bucket: "marketplace-images", profile: "general-image", public: true, context: "marketplace", adminOnly: true };
   }
   if (kind === "rider-document" && isRiderDocumentType(documentType)) {
     return {

@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     const categoryLimit = await enforceRateLimit(
       request,
-      kind === "hero-image"
+      kind === "hero-image" || kind === "marketplace-image"
         ? rateLimitPolicies.uploadAdminMedia
         : kind === "profile-photo"
           ? rateLimitPolicies.uploadAvatar

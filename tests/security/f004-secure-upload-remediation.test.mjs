@@ -233,6 +233,21 @@ test("F-004 migration makes sensitive buckets private and removes direct browser
   assert.doesNotMatch(migration, /create policy "Assigned riders upload delivery proofs"/);
 });
 
+test("F-004 marketplace image uploads remain admin-mediated and public-read only", () => {
+  const targets = read("lib/upload-targets.ts");
+  const uploadRoute = read("app/api/uploads/route.ts");
+  const migration = read("supabase-marketplace-images-delta.sql");
+
+  assert.match(targets, /"marketplace-image"/);
+  assert.match(targets, /bucket: "marketplace-images"/);
+  assert.match(targets, /profile: "general-image"/);
+  assert.match(targets, /adminOnly: true/);
+  assert.match(uploadRoute, /kind === "hero-image" \|\| kind === "marketplace-image"/);
+  assert.match(migration, /'marketplace-images', 'marketplace-images', true/);
+  assert.match(migration, /create policy "Marketplace images are public"/);
+  assert.doesNotMatch(migration, /create policy "Admins upload marketplace images"/);
+});
+
 async function imageFixture(format, width, height) {
   const image = sharp({ create: { width, height, channels: 3, background: { r: 32, g: 96, b: 160 } } });
   if (format === "jpeg") return image.jpeg().toBuffer();

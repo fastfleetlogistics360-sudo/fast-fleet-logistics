@@ -95,7 +95,7 @@ import {
   normalizeHubPromotionSlides,
   type HubPromotionSlide
 } from "@/lib/hub-promotion-slides";
-import { IMAGE_UPLOAD_ACCEPT, uploadHeroImage } from "@/lib/storage";
+import { IMAGE_UPLOAD_ACCEPT, uploadHeroImage, uploadMarketplaceImage } from "@/lib/storage";
 import { clearServiceWorkerSession } from "@/lib/service-worker-session";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -3180,6 +3180,59 @@ function walletEnvironmentTone(environment: string): "green" | "amber" | "red" |
   return "neutral";
 }
 
+function MarketplaceImageField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  inputClassName = ""
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  inputClassName?: string;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+
+    setUploading(true);
+    setProgress(10);
+    setError(null);
+    try {
+      const upload = await uploadMarketplaceImage(file, (nextProgress) => setProgress(Math.round(nextProgress)));
+      onChange(upload.publicUrl);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Image upload failed. Try again.");
+    } finally {
+      setUploading(false);
+      setProgress(0);
+    }
+  }
+
+  return (
+    <div className="grid gap-2">
+      <label className="form-field">
+        <span className="form-label">{label}</span>
+        <input className={`form-input ${inputClassName}`} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder || "https://..."} />
+      </label>
+      <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-fleet border border-fleet-line bg-white px-3 py-2 text-xs font-black text-fleet-night transition hover:border-fleet-ember">
+        <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={handleUpload} disabled={uploading} />
+        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+        {uploading ? `Uploading ${progress}%` : value ? "Replace with device image" : "Upload from device"}
+      </label>
+      <span className="text-xs font-bold leading-5 text-slate-500">Images are resized before upload and saved to Supabase. Save this menu to publish the image.</span>
+      {error ? <span className="text-xs font-bold leading-5 text-red-600">{error}</span> : null}
+    </div>
+  );
+}
+
 function RestaurantMenuSection({
   restaurants,
   businesses,
@@ -3279,10 +3332,7 @@ function RestaurantMenuSection({
                       }
                     />
                   </label>
-                  <label className="form-field">
-                    <span className="form-label">Restaurant photo URL</span>
-                    <input className="form-input" value={kitchen.imageUrl} onChange={(event) => onKitchenChange(kitchen.id, { imageUrl: event.target.value })} />
-                  </label>
+                  <MarketplaceImageField label="Restaurant photo URL" value={kitchen.imageUrl} onChange={(imageUrl) => onKitchenChange(kitchen.id, { imageUrl })} />
                 </div>
                 <label className="form-field">
                   <span className="form-label">Linked business</span>
@@ -3335,10 +3385,7 @@ function RestaurantMenuSection({
                     <span className="form-label">Portion</span>
                     <input className="form-input bg-white" value={item.portion} onChange={(event) => onItemChange(kitchen.id, item.id, { portion: event.target.value })} />
                   </label>
-                  <label className="form-field">
-                    <span className="form-label">Small photo URL</span>
-                    <input className="form-input bg-white" value={item.imageUrl} onChange={(event) => onItemChange(kitchen.id, item.id, { imageUrl: event.target.value })} />
-                  </label>
+                  <MarketplaceImageField label="Small photo URL" value={item.imageUrl} inputClassName="bg-white" onChange={(imageUrl) => onItemChange(kitchen.id, item.id, { imageUrl })} />
                   <Button type="button" size="sm" variant="secondary" onClick={() => onRemoveItem(kitchen.id, item.id)} disabled={kitchen.items.length <= 1}>
                     <Trash2 className="h-4 w-4" />
                     Remove
@@ -3674,10 +3721,7 @@ function MallMenuSection({
                             ))}
                           </select>
                         </label>
-                        <label className="form-field">
-                          <span className="form-label">Store photo URL</span>
-                          <input className="form-input bg-white" value={store.image || ""} onChange={(event) => onStoreChange(mall.id, store.id, { image: event.target.value || undefined })} placeholder="Uses product or pickup photo if empty" />
-                        </label>
+                        <MarketplaceImageField label="Store photo URL" value={store.image || ""} inputClassName="bg-white" placeholder="Uses product or pickup photo if empty" onChange={(image) => onStoreChange(mall.id, store.id, { image: image || undefined })} />
                       </div>
 
                       <div className="grid gap-3 rounded-fleet border border-fleet-line bg-white p-3 lg:grid-cols-2">
@@ -3694,10 +3738,7 @@ function MallMenuSection({
                           <span className="form-label">Pickup address</span>
                           <input className="form-input bg-white" value={mall.location} onChange={(event) => onMallChange(mall.id, { location: event.target.value })} />
                         </label>
-                        <label className="form-field">
-                          <span className="form-label">Fallback cover photo URL</span>
-                          <input className="form-input bg-white" value={mall.image} onChange={(event) => onMallChange(mall.id, { image: event.target.value })} />
-                        </label>
+                        <MarketplaceImageField label="Fallback cover photo URL" value={mall.image} inputClassName="bg-white" onChange={(image) => onMallChange(mall.id, { image })} />
                       </div>
                     </div>
                   </div>
@@ -3731,10 +3772,7 @@ function MallMenuSection({
                             inputMode="numeric"
                           />
                         </label>
-                        <label className="form-field">
-                          <span className="form-label">Product photo URL</span>
-                          <input className="form-input" value={product.image} onChange={(event) => onProductChange(mall.id, store.id, product.id, { image: event.target.value })} />
-                        </label>
+                        <MarketplaceImageField label="Product photo URL" value={product.image} onChange={(image) => onProductChange(mall.id, store.id, product.id, { image })} />
                         <label className="form-field">
                           <span className="form-label">Product vendor</span>
                           <select className="form-input" value={product.businessId || ""} onChange={(event) => onProductChange(mall.id, store.id, product.id, { businessId: event.target.value || undefined })}>

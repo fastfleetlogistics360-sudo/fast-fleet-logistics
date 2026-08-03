@@ -2,6 +2,8 @@ export const IMAGE_UPLOAD_ACCEPT = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,i
 export const KYC_DOCUMENT_UPLOAD_ACCEPT = `${IMAGE_UPLOAD_ACCEPT},.pdf,application/pdf`;
 export const BULK_CSV_UPLOAD_ACCEPT = ".csv,text/csv";
 export const MAX_UPLOAD_BYTES = 7 * 1024 * 1024;
+const MAX_MARKETPLACE_SOURCE_BYTES = 25 * 1024 * 1024;
+const MAX_MARKETPLACE_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 export async function compressImage(file: File, maxSize = 1280, quality = 0.78): Promise<File> {
   if (!file.type.startsWith("image/")) return file;
@@ -65,7 +67,16 @@ export async function uploadHeroImage(file: File, onProgress?: (progress: number
   return { ...result, publicUrl: result.publicUrl };
 }
 
-type UploadKind = "profile-photo" | "rider-document" | "business-document" | "hero-image";
+export async function uploadMarketplaceImage(file: File, onProgress?: (progress: number) => void) {
+  validateClientFile(file, { maxBytes: MAX_MARKETPLACE_SOURCE_BYTES });
+  const compressed = await compressImage(file, 1600, 0.8);
+  validateClientFile(compressed, { maxBytes: MAX_MARKETPLACE_UPLOAD_BYTES });
+  const result = await uploadViaApi("marketplace-image", compressed, undefined, onProgress);
+  if (!result.publicUrl) throw new Error("Marketplace image upload did not return a safe public image URL.");
+  return { ...result, publicUrl: result.publicUrl };
+}
+
+type UploadKind = "profile-photo" | "rider-document" | "business-document" | "hero-image" | "marketplace-image";
 
 async function uploadViaApi(kind: UploadKind, file: File, documentType?: string, onProgress?: (progress: number) => void) {
   const body = new FormData();

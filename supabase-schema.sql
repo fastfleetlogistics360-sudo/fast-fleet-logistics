@@ -3462,7 +3462,8 @@ values
   ('business-documents', 'business-documents', false, 7340032, array['image/jpeg', 'image/png', 'image/webp', 'application/pdf']::text[]),
   ('delivery-proofs', 'delivery-proofs', false, 7340032, array['image/jpeg', 'image/png', 'image/webp']::text[]),
   ('profile-photos', 'profile-photos', true, 7340032, array['image/jpeg', 'image/png', 'image/webp']::text[]),
-  ('hero-images', 'hero-images', true, 7340032, array['image/jpeg', 'image/png', 'image/webp']::text[])
+  ('hero-images', 'hero-images', true, 7340032, array['image/jpeg', 'image/png', 'image/webp']::text[]),
+  ('marketplace-images', 'marketplace-images', true, 7340032, array['image/jpeg', 'image/png', 'image/webp']::text[])
 on conflict (id) do update set
   name = excluded.name,
   public = excluded.public,
@@ -3544,6 +3545,15 @@ create policy "Hero images are public"
   on storage.objects for select
   to public
   using (bucket_id = 'hero-images');
+
+drop policy if exists "Admins upload marketplace images" on storage.objects;
+drop policy if exists "Admins update marketplace images" on storage.objects;
+drop policy if exists "Admins delete marketplace images" on storage.objects;
+drop policy if exists "Marketplace images are public" on storage.objects;
+create policy "Marketplace images are public"
+  on storage.objects for select
+  to public
+  using (bucket_id = 'marketplace-images');
 
 do $$ begin
   alter publication supabase_realtime add table public.orders;

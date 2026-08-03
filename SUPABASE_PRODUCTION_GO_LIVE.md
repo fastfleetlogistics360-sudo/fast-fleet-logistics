@@ -20,6 +20,10 @@ Use this before switching the public site from preview/demo storage to live Supa
 
 Do **not** rerun the complete `supabase-schema.sql` against an existing production project. After taking a database backup, run `supabase-secure-upload-delta.sql` once in the Supabase SQL Editor. It makes `delivery-proofs` private, removes direct browser writes, and limits proof reads to the delivery customer, the assigned rider, and authorized admins. The application then creates a fresh signed link only when an authorized participant opens the proof.
 
+### Existing production projects: apply the marketplace-image delta
+
+Before deploying device uploads for restaurant covers, food items, shopping vendors, or products, run `supabase-marketplace-images-delta.sql` once in the Supabase SQL Editor. It creates the public `marketplace-images` bucket while keeping all writes behind the authenticated admin upload route. Do not add browser upload, update, or delete policies to this bucket.
+
 ### Existing production projects: apply the F-008 abuse-protection deltas
 
 Before deploying the F-008 application code, take a database backup and run these two forward-only files once in the Supabase SQL Editor, in this order:
