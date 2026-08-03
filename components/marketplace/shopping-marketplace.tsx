@@ -637,7 +637,9 @@ function ShoppingVendorMenuSection({
           const canBuy = product.available && price !== null;
           return (
             <article key={key} className="flex min-h-full flex-col overflow-hidden rounded-[16px] border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.05)] transition hover:border-fleet-ember">
-              <img src={product.image || vendorImage} alt={product.name} loading="lazy" decoding="async" className="h-24 w-full object-cover sm:h-28" />
+              <div className="h-24 w-full bg-fleet-paper p-2 sm:h-28">
+                <img src={product.image || vendorImage} alt={product.name} loading="lazy" decoding="async" className="h-full w-full object-contain" />
+              </div>
               <div className="flex flex-1 flex-col p-2.5">
                 <span className="w-fit rounded-full bg-fleet-paper px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-[0.1em] text-fleet-ember">{categoryLabel}</span>
                 <h4 className="mt-1.5 line-clamp-2 min-h-[2.25rem] break-words text-sm font-black leading-tight text-fleet-night">{product.name}</h4>

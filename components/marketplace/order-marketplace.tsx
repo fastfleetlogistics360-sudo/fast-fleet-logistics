@@ -449,7 +449,7 @@ function RestaurantMenuItemCard({
     <article className="flex min-h-full flex-col overflow-hidden rounded-[16px] border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.06)] transition hover:border-fleet-ember">
       <div className="relative h-24 overflow-hidden bg-fleet-paper sm:h-28">
         {item.imageUrl ? (
-          <Image src={item.imageUrl} alt={item.name} fill sizes="(min-width: 1280px) 18vw, (min-width: 768px) 30vw, 50vw" quality={62} loading="lazy" className="object-cover" />
+          <Image src={item.imageUrl} alt={item.name} fill sizes="(min-width: 1280px) 18vw, (min-width: 768px) 30vw, 50vw" quality={62} loading="lazy" className="object-contain p-2" />
         ) : (
           <div className="grid h-full w-full place-items-center text-fleet-ember">
             <Utensils className="h-7 w-7" />

@@ -1767,6 +1767,35 @@ export function AdminPanel() {
     );
   }
 
+  function addKitchen() {
+    const identifier = Date.now().toString(36);
+    const imageUrl = defaultRestaurantKitchens[0].imageUrl;
+    const itemImageUrl = defaultRestaurantKitchens[0].items[0].imageUrl;
+    setRestaurantMenus((menus) => [
+      ...menus,
+      {
+        id: `new-restaurant-${identifier}`,
+        name: "New restaurant",
+        area: "",
+        address: "",
+        description: "Add a short restaurant description.",
+        mealTypes: ["Meals"],
+        imageUrl,
+        items: [
+          {
+            id: `new-restaurant-item-${identifier}`,
+            name: "New food item",
+            type: "Meal",
+            price: 0,
+            portion: "1 portion",
+            imageUrl: itemImageUrl
+          }
+        ]
+      }
+    ]);
+    setAdminMessage("New restaurant added. Complete its details, upload images, then save restaurant menus to publish it.");
+  }
+
   function addKitchenItem(kitchenId: string) {
     setRestaurantMenus((menus) =>
       menus.map((kitchen) =>
@@ -2204,6 +2233,7 @@ export function AdminPanel() {
         busyAction={busyAction}
         onKitchenChange={updateKitchen}
         onItemChange={updateKitchenItem}
+        onAddKitchen={addKitchen}
         onAddItem={addKitchenItem}
         onRemoveItem={removeKitchenItem}
         onRemoveKitchen={removeKitchen}
@@ -3239,6 +3269,7 @@ function RestaurantMenuSection({
   busyAction,
   onKitchenChange,
   onItemChange,
+  onAddKitchen,
   onAddItem,
   onRemoveItem,
   onRemoveKitchen,
@@ -3249,6 +3280,7 @@ function RestaurantMenuSection({
   busyAction: string | null;
   onKitchenChange: (kitchenId: string, patch: Partial<RestaurantKitchen>) => void;
   onItemChange: (kitchenId: string, itemId: string, patch: Partial<RestaurantMenuItem>) => void;
+  onAddKitchen: () => void;
   onAddItem: (kitchenId: string) => void;
   onRemoveItem: (kitchenId: string, itemId: string) => void;
   onRemoveKitchen: (kitchenId: string) => void;
@@ -3271,10 +3303,16 @@ function RestaurantMenuSection({
             </p>
           </div>
         </div>
-        <Button type="button" onClick={onSave} disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Save restaurant menus
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={onAddKitchen} disabled={saving}>
+            <Plus className="h-4 w-4" />
+            Add new restaurant
+          </Button>
+          <Button type="button" onClick={onSave} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save restaurant menus
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-5 p-4">
