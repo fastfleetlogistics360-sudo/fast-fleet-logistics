@@ -17,6 +17,7 @@ export type MallStore = {
   businessId?: string;
   name: string;
   image?: string;
+  operatingStatus?: "open" | "closed";
   category: MallCategory;
   products: MallProduct[];
 };
@@ -336,6 +337,7 @@ function normalizeMallStore(value: unknown): MallStore | null {
     businessId: text(store.businessId) || undefined,
     name,
     image: text(store.image) || undefined,
+    operatingStatus: store.operatingStatus === "closed" ? "closed" : "open",
     category,
     products: products.length ? (products as MallProduct[]) : []
   };

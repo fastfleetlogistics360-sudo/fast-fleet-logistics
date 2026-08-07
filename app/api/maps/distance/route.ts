@@ -25,8 +25,7 @@ export async function GET(request: Request) {
       durationSeconds: route.durationSeconds,
       source: route.source
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Distance service failed.";
-    return NextResponse.json({ error: message }, { status: message.includes("API key") ? 503 : 502 });
+  } catch {
+    return NextResponse.json({ error: "Distance service is temporarily unavailable. Please try again." }, { status: 503 });
   }
 }

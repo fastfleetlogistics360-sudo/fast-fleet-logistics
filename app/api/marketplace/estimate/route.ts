@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       interstateDispatch: estimate.interstateDispatch,
       interstateDeliveryDays: estimate.interstateDeliveryDays
     });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not estimate marketplace delivery." }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Could not estimate marketplace delivery. Please try again." }, { status: 500 });
   }
 }

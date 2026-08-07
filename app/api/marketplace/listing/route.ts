@@ -49,8 +49,8 @@ export async function GET() {
       business,
       application
     });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load marketplace listing status." }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Could not load marketplace listing status. Please try again." }, { status: 500 });
   }
 }
 
@@ -150,8 +150,8 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ application, emailSent: emailResult.sent });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not submit Marketplace Listing request." }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Could not submit Marketplace Listing request. Please try again." }, { status: 500 });
   }
 }
 

@@ -17,7 +17,7 @@ export async function GET() {
   const { data, error } = await supabase.from("platform_settings").select("value").eq("key", restaurantMenuSettingsKey).maybeSingle();
   if (error) {
     if (canUseDemoFallback()) return NextResponse.json({ restaurants: defaultRestaurantKitchens, demo: true });
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: "Restaurant listings are temporarily unavailable. Please try again." }, { status: 503 });
   }
 
   return NextResponse.json({ restaurants: normalizeRestaurantKitchens(data?.value || defaultRestaurantKitchens) });

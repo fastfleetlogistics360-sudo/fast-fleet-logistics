@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   }
 
   if (!googleMapsKey) {
-    return NextResponse.json({ error: "Google Maps API key is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "Address suggestion service is temporarily unavailable. Please try again." }, { status: 503 });
   }
 
   try {

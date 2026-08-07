@@ -22,6 +22,7 @@ export type RateLimitCategory =
   | "map_cost"
   | "upload"
   | "secure_access"
+  | "tracking"
   | "delivery_action"
   | "live_location"
   | "withdrawal"
@@ -75,6 +76,9 @@ export const rateLimitPolicies = {
   mapsAutocomplete: policy("maps:autocomplete", 50, 60, "map_cost", "authenticated_user_or_ip", "MAP_REQUEST_LIMITED"),
   mapsGeocode: policy("maps:geocode", 40, 60, "map_cost", "authenticated_user_or_ip", "MAP_REQUEST_LIMITED"),
   mapsRouteEstimate: policy("maps:route-estimate", 30, 60, "map_cost", "authenticated_user_or_ip", "MAP_REQUEST_LIMITED"),
+  // Tracking codes expose delivery progress. Keep public lookups practical for
+  // customers while making code enumeration materially harder.
+  trackingLookup: policy("tracking:lookup", 20, 5 * 60, "tracking", "authenticated_user_or_ip", "RATE_LIMITED", "Too many tracking lookups. Try again in a few minutes."),
   accountLookup: policy("payments:account-lookup", 20, 10 * 60, "payment", "authenticated_user_or_ip", "RATE_LIMITED_PAYMENT"),
   riderJobsRead: policy("rider:jobs:read", 120, 60, "delivery_action", "authenticated_user_or_ip", "RATE_LIMITED"),
   riderJobsWrite: policy("rider:jobs:write", 25, 60, "delivery_action", "authenticated_user_or_ip", "RATE_LIMITED"),

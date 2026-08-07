@@ -13,7 +13,7 @@ export async function GET() {
   const { data, error } = await supabase.from("platform_settings").select("value").eq("key", mallMenuSettingsKey).maybeSingle();
   if (error) {
     if (canUseDemoFallback()) return NextResponse.json({ malls: defaultShoppingMalls, demo: true });
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: "Shopping listings are temporarily unavailable. Please try again." }, { status: 503 });
   }
 
   return NextResponse.json({ malls: normalizeShoppingMalls(data?.value || defaultShoppingMalls) });

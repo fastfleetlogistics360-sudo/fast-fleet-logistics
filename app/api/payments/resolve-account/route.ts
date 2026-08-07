@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         { status: 503 }
       );
     }
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Account verification failed." }, { status: 500 });
+    return NextResponse.json({ error: "Account verification failed. Please try again." }, { status: 500 });
   }
 }
 

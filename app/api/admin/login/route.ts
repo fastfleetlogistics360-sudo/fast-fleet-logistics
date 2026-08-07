@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       name: ADMIN_SESSION_COOKIE,
       value: createAdminSession(Date.now(), config),
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: "strict",
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: ADMIN_SESSION_MAX_AGE_SECONDS

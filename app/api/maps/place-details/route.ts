@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   }
 
   if (!googleMapsKey) {
-    return NextResponse.json({ error: "Google Maps API key is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "Place details service is temporarily unavailable. Please try again." }, { status: 503 });
   }
 
   try {
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     const payload = await response.json();
 
     if (!response.ok) {
-      return NextResponse.json({ error: googlePlacesError(payload.error?.message) }, { status: 502 });
+      return NextResponse.json({ error: "Place details service is temporarily unavailable. Please try again." }, { status: 502 });
     }
 
     const result = NextResponse.json({
@@ -53,11 +53,4 @@ export async function GET(request: Request) {
 function stateFromAddressComponents(components: Array<{ longText?: string; shortText?: string; types?: string[] }> | undefined) {
   const area = components?.find((component) => component.types?.includes("administrative_area_level_1"));
   return extractNigerianState(area?.longText || area?.shortText || "");
-}
-
-function googlePlacesError(message?: string) {
-  if (message?.toLowerCase().includes("blocked")) {
-    return "Google Places API (New) is blocked for this key. Enable Places API (New) or set GOOGLE_PLACES_API_KEY to a server key that allows Place Details.";
-  }
-  return message || "Place details failed.";
 }

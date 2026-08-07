@@ -115,7 +115,7 @@ For `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, use a browser key restricted to your prod
 After deployment, open:
 
 ```txt
-https://fastfleet.com.ng/api/health/readiness
+curl -H "Authorization: Bearer $CRON_SECRET" https://fastfleet.com.ng/api/health/readiness
 ```
 
 The endpoint returns `200` only when the required production environment variables, Supabase admin access, critical tables, storage bucket, and Squad API check pass. Add this endpoint to your uptime monitor.

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { checkSquadKey } from "@/lib/payments/squad";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
+import { authorizeCronRequest } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,14 @@ type Check = {
   message: string;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authorization = authorizeCronRequest(request);
+  if (!authorization.authorized) {
+    return NextResponse.json(
+      { error: authorization.reason === "misconfigured" ? "Readiness monitoring is not securely configured." : "Readiness monitoring authorization required." },
+      { status: authorization.reason === "misconfigured" ? 503 : 401, headers: { "Cache-Control": "no-store" } }
+    );
+  }
   const checks: Check[] = [];
 
   for (const key of requiredEnv) {

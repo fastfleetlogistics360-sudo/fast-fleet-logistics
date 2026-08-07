@@ -12,6 +12,7 @@ import { useMarketplaceEstimate } from "@/components/marketplace/use-marketplace
 import { cn } from "@/lib/cn";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { formatMoney } from "@/lib/format";
+import { vendorIsOpen, vendorStatusLabel } from "@/lib/vendor-presentation";
 import {
   buildShoppingCategoryGroups,
   defaultShoppingMalls,
@@ -207,6 +208,7 @@ function ShoppingCategoryVendorCard({ vendor }: { vendor: ShoppingCategoryVendor
             <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-fleet-ember transition group-hover:translate-x-0.5" />
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5 text-[0.65rem] font-black text-slate-500">
+            <StatusBadge tone={vendorIsOpen(store.operatingStatus) ? "green" : "red"}>{vendorStatusLabel(store.operatingStatus)}</StatusBadge>
             <span className="rounded-full bg-fleet-paper px-2 py-1">
               {productCount} product{productCount === 1 ? "" : "s"}
             </span>
@@ -316,6 +318,10 @@ function ShoppingStorefront({
   }, [activeVendorFilter, selectedVendor, vendorFilters]);
 
   function changeQuantity(mall: ShoppingMall, vendor: MallStore, product: MallProduct, delta: number) {
+    if (!vendorIsOpen(vendor.operatingStatus)) {
+      setMessage(`${vendor.name} is currently closed and cannot accept orders.`);
+      return;
+    }
     if (typeof product.price !== "number") return;
     const price = product.price;
     setCart((current) => {
@@ -353,6 +359,11 @@ function ShoppingStorefront({
 
   async function checkout() {
     setMessage(null);
+    const closedVendor = vendors.find((vendor) => !vendorIsOpen(vendor.store.operatingStatus));
+    if (closedVendor && cartItems.some((item) => item.vendorId === closedVendor.store.id)) {
+      setMessage(`${closedVendor.store.name} is currently closed and cannot accept orders.`);
+      return;
+    }
     if (!cartItems.length) {
       setMessage("Add at least one priced shopping product before checkout.");
       return;
@@ -600,6 +611,7 @@ function ShoppingVendorMenuSection({
   const { mall, store } = vendor;
   const vendorImage = getShoppingStoreImage(store, mall);
   const categoryLabel = shoppingCategoryLabel(store.category);
+  const orderingOpen = vendorIsOpen(store.operatingStatus);
 
   return (
     <section className="overflow-hidden rounded-[20px] border border-fleet-line bg-white shadow-[0_12px_28px_rgba(8,17,31,0.07)]">
@@ -614,8 +626,9 @@ function ShoppingVendorMenuSection({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h3 className="break-words text-xl font-black leading-tight text-fleet-night">{store.name}</h3>
-              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">{store.products.length} products available</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">{orderingOpen ? `${store.products.length} products available` : "Currently closed for orders"}</p>
             </div>
+            <StatusBadge tone={orderingOpen ? "green" : "red"}>{vendorStatusLabel(store.operatingStatus)}</StatusBadge>
             {showVendorLink ? (
               <Link href={shoppingVendorCategoryPath(store)} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-fleet border border-fleet-line bg-white px-3 text-xs font-black text-fleet-night transition hover:border-fleet-ember">
                 Open vendor page
@@ -634,7 +647,7 @@ function ShoppingVendorMenuSection({
           const key = cartKey(mall.id, store.id, product.id);
           const quantity = cart[key]?.quantity || 0;
           const price = typeof product.price === "number" ? product.price : null;
-          const canBuy = product.available && price !== null;
+          const canBuy = orderingOpen && product.available && price !== null;
           return (
             <article key={key} className="flex min-h-full flex-col overflow-hidden rounded-[16px] border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.05)] transition hover:border-fleet-ember">
               <div className="h-24 w-full bg-fleet-paper p-2 sm:h-28">
@@ -658,11 +671,13 @@ function ShoppingVendorMenuSection({
                   </div>
                   <span className="text-xs font-black text-fleet-night">{formatMoney(quantity * Number(price || 0))}</span>
                 </div>
-              ) : (
+              ) : orderingOpen ? (
                 <Button type="button" size="sm" variant="dark" onClick={() => onAskPrice(product, store, mall)} className="mt-auto w-full justify-center">
                   <MessageCircle className="h-4 w-4" />
                   Ask Price
                 </Button>
+              ) : (
+                <span className="mt-auto inline-flex min-h-9 items-center justify-center rounded-[12px] bg-slate-100 px-2 text-xs font-black text-slate-500">Vendor closed</span>
               )}
               </div>
             </article>

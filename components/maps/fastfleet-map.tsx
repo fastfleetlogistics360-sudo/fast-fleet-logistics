@@ -53,7 +53,7 @@ export function FastFleetMap({
   customerName = "Customer",
   riderAvatarUrl,
   customerAvatarUrl,
-  showLegend = true
+  showLegend = false
 }: FastFleetMapProps) {
   const routeProgress = progress ?? statusProgress(status);
   const points = mapLayoutPoints(pickup, dropoff, rider, routeProgress);

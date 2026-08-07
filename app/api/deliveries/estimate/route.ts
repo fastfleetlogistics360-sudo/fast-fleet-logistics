@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       vehicleSubtype: quote.vehicleSubtype,
       launchPromo: promo
     });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not estimate delivery." }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Could not estimate delivery. Please try again." }, { status: 500 });
   }
 }

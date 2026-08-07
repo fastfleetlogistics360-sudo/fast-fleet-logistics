@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeRiderAccountType, type RiderAccountType } from "@/lib/rider-account-type";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
 type DeliveryRow = {
   id: string;
@@ -48,6 +49,12 @@ export async function GET(request: Request) {
   if (!code) {
     return NextResponse.json({ error: "Enter a tracking code." }, { status: 400 });
   }
+  if (code.length > 80) {
+    return NextResponse.json({ error: "Enter a valid tracking code." }, { status: 400 });
+  }
+
+  const limited = await enforceRateLimit(request, rateLimitPolicies.trackingLookup);
+  if (limited) return limited;
 
   const supabase = createAdminClient();
   if (!supabase) {

@@ -1,6 +1,9 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
-export const ADMIN_SESSION_COOKIE = "fastfleet_admin_session";
+// The production prefix prevents a sibling subdomain from setting or shadowing
+// this privileged cookie. The unprefixed development name keeps local HTTP
+// development usable, because browsers require Secure for __Host- cookies.
+export const ADMIN_SESSION_COOKIE = process.env.NODE_ENV === "production" ? "__Host-fastfleet_admin_session" : "fastfleet_admin_session";
 export const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 export const MIN_ADMIN_SECRET_LENGTH = 32;
 

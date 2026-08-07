@@ -3,8 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { ArrowUpRight, Bike, CalendarDays, CheckCircle2, CircleUserRound, LayoutDashboard, LogIn, Play, Rocket, Store, UserPlus } from "lucide-react";
+import { motion } from "framer-motion";
+import { Bike, CircleUserRound, LayoutDashboard, LogIn, Play, Store, UserPlus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AppleIcon, GoogleIcon, InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 import { readReturningProfile, saveReturningProfile } from "@/lib/auth/returning-profile";
@@ -55,12 +55,6 @@ const heroBlurDataURL =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwMjA2MDgnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yOCcvPjxjaXJjbGUgY3g9JzQnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNDgnLz48L3N2Zz4=";
 const brandLogo = "/brand/fastfleet-logo-2026-header.png?v=20260717";
 
-const softLaunchStates = [
-  { state: "Lagos State" },
-  { state: "Ogun State" },
-  { state: "Kwara State" }
-];
-
 function isInstalledApp() {
   if (typeof window === "undefined") return false;
   const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
@@ -71,7 +65,6 @@ export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { 
   const [storePopup, setStorePopup] = useState(false);
   const [partners, setPartners] = useState<BrandPartner[]>(initialPartners);
   const [hasActiveSession, setHasActiveSession] = useState(false);
-  const reduceMotion = useReducedMotion();
   const activePartners = partners.filter((partner) => partner.active);
   const partnerLoop = [...activePartners, ...activePartners];
 
@@ -191,7 +184,6 @@ export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { 
             </div>
           </div>
 
-          <LaunchStatusPanels reduceMotion={Boolean(reduceMotion)} />
         </div>
         <div className="mx-auto mt-8 grid justify-items-center gap-6">
           <div className="flex flex-wrap items-center justify-center gap-4">
@@ -276,44 +268,6 @@ export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { 
         }
       `}</style>
     </main>
-  );
-}
-
-function LaunchStatusPanels({ reduceMotion }: { reduceMotion: boolean }) {
-  return (
-    <section className="mt-7 grid max-w-4xl gap-3 sm:grid-cols-2" aria-label="Launch and marketplace availability">
-      <motion.article
-        initial={reduceMotion ? false : { opacity: 0, y: 12 }}
-        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-        className="overflow-hidden rounded-[18px] border border-white/[0.15] bg-white/[0.09] p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.22)] backdrop-blur-xl"
-      >
-        <div className="flex items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-fleet-gold"><Rocket className="h-4 w-4" /> Launch Status</span>
-          <CalendarDays className="h-4 w-4 text-fleet-ember" />
-        </div>
-        <strong className="mt-3 block text-lg font-black text-white">Soft Launch Scheduled</strong>
-        <span className="mt-1 block text-sm font-black text-fleet-gold">August 2026</span>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {softLaunchStates.map((item) => <span key={item.state} className="rounded-full border border-white/[0.12] bg-black/[0.15] px-2.5 py-1 text-[0.68rem] font-bold text-white/80">{item.state}</span>)}
-        </div>
-        <Link href="/updates#launch" className="mt-4 inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:text-fleet-gold">Learn More <ArrowUpRight className="h-4 w-4" /></Link>
-      </motion.article>
-
-      <motion.article
-        initial={reduceMotion ? false : { opacity: 0, y: 12 }}
-        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-        transition={{ duration: 0.32, delay: 0.07, ease: [0.22, 1, 0.36, 1] }}
-        className="rounded-[18px] border border-white/[0.15] bg-[#07131f]/95 p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.22)]"
-      >
-        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-fleet-gold"><Store className="h-4 w-4" /> Marketplace Onboarding</div>
-        <strong className="mt-3 block text-lg font-black text-white">2 Partners Onboarded</strong>
-        <div className="mt-3 grid gap-1 text-xs font-bold text-fleet-mint"><span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Nectar &amp; Greens</span><span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> FarmFresh by V-A.V</span></div>
-        <div className="mt-4 flex items-end justify-between gap-3"><span className="text-sm font-black text-white">28 Marketplace Slots Available</span><span className="text-[0.65rem] font-black uppercase tracking-[0.12em] text-white/60">2 / 30 Filled</span></div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"><span className="block h-full w-[6.67%] rounded-full bg-fleet-leaf" /></div>
-        <div className="mt-3 flex items-center justify-between gap-3 text-[0.68rem] font-bold text-white/[0.65]"><span>Onboarding ends: Aug 10, 2026</span><Link href="/business/register" className="text-fleet-gold transition hover:text-white">Reserve Your Slot</Link></div>
-      </motion.article>
-    </section>
   );
 }
 

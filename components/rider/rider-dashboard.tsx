@@ -1252,6 +1252,9 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
   const actionDisabled = Boolean((needsUpload && !proofFile) || pendingReview);
   const customerName = job.users?.full_name || "Customer";
   const customerPhone = job.dropoff_contact || job.pickup_contact || job.users?.phone || "";
+  const navigatingToDropoff = ["in_transit", "awaiting_delivery_confirmation"].includes(job.status);
+  const navigationDestination = navigatingToDropoff ? job.dropoff_address : job.pickup_address;
+  const navigationHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(navigationDestination)}`;
   const messages = activeJobMessages(job, customerName, trackingActive, proofRequired, proof?.status || null, needsUpload, pendingReview);
   return (
     <Card className="overflow-hidden p-0">
@@ -1260,7 +1263,10 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
           <div className="min-w-0">
             <StatusBadge tone="blue">Active delivery</StatusBadge>
             <h2 className="mt-3 break-words text-2xl font-black text-fleet-night">{job.delivery_code}</h2>
-            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{job.pickup_address} to {job.dropoff_address}</p>
+            <div className="mt-3 grid gap-2 text-sm font-semibold leading-5 text-slate-600">
+              <span><strong className="mr-2 text-[0.62rem] uppercase tracking-[0.12em] text-emerald-700">Pickup</strong>{job.pickup_address}</span>
+              <span><strong className="mr-2 text-[0.62rem] uppercase tracking-[0.12em] text-fleet-ember">Delivery</strong>{job.dropoff_address}</span>
+            </div>
           </div>
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-fleet-navy text-white">
             <MessageCircle className="h-5 w-5" />
@@ -1281,6 +1287,10 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
           customerAvatarUrl={job.users?.avatar_url}
           customerName={customerName}
         />
+        <a href={navigationHref} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] border border-transparent bg-fleet-navy px-4 text-sm font-extrabold text-white shadow-[0_12px_28px_rgba(8,17,31,0.18)] transition hover:-translate-y-0.5 hover:bg-[#10233a] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20">
+          <Navigation2 className="h-4 w-4" />
+          Navigate to {navigatingToDropoff ? "delivery" : "pickup"}
+        </a>
       </div>
 
       <div className="grid gap-3 border-b border-fleet-line bg-white p-4 sm:grid-cols-3 sm:p-5">

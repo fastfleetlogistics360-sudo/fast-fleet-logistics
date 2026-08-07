@@ -5,6 +5,7 @@ import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { geocodeAddress } from "@/lib/maps/geocode";
 import {
   businessPickupAddressFor,
+  findClosedMarketplaceVendor,
   loadActiveLinkedBusiness,
   resolveMarketplaceBusinessLinks,
   type MarketplaceCheckoutItem
@@ -57,6 +58,10 @@ export async function POST(request: Request) {
     const admin = createAdminClient();
     if (!admin) {
       return NextResponse.json({ error: "Secure payment checkout is temporarily unavailable. Please try again." }, { status: 503 });
+    }
+    const closedVendor = await findClosedMarketplaceVendor(admin, payload.kind, items);
+    if (closedVendor) {
+      return NextResponse.json({ error: `${closedVendor} is currently closed and cannot accept orders.` }, { status: 409 });
     }
     const businessLinks = await resolveMarketplaceBusinessLinks(admin, payload.kind, items);
     if (businessLinks.linkedBusinessIds.length > 1) {

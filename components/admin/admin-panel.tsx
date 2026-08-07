@@ -1779,6 +1779,7 @@ export function AdminPanel() {
         area: "",
         address: "",
         description: "Add a short restaurant description.",
+        operatingStatus: "open",
         mealTypes: ["Meals"],
         imageUrl,
         items: [
@@ -1864,6 +1865,7 @@ export function AdminPanel() {
       const nextStore: MallStore = {
         id: `new-${shoppingCategorySlug(category)}-${Date.now().toString(36)}`,
         name: `New ${category} vendor`,
+        operatingStatus: "open",
         category,
         image: shoppingCategoryMeta[category].image,
         products: [
@@ -3362,9 +3364,16 @@ function RestaurantMenuSection({
                 </label>
                 <label className="form-field">
                   <span className="form-label">Description</span>
-                  <textarea className="form-input min-h-20" value={kitchen.description} onChange={(event) => onKitchenChange(kitchen.id, { description: event.target.value })} />
+                  <textarea className="form-input min-h-20" maxLength={180} value={kitchen.description} onChange={(event) => onKitchenChange(kitchen.id, { description: event.target.value })} />
                 </label>
                 <div className="grid gap-3 md:grid-cols-2">
+                  <label className="form-field">
+                    <span className="form-label">Ordering status</span>
+                    <select className="form-input" value={kitchen.operatingStatus || "open"} onChange={(event) => onKitchenChange(kitchen.id, { operatingStatus: event.target.value as RestaurantKitchen["operatingStatus"] })}>
+                      <option value="open">Open for orders</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </label>
                   <label className="form-field">
                     <span className="form-label">Meal types</span>
                     <input
@@ -3752,6 +3761,13 @@ function MallMenuSection({
                             {mallCategories.map((category) => (
                               <option key={category} value={category}>{category}</option>
                             ))}
+                          </select>
+                        </label>
+                        <label className="form-field">
+                          <span className="form-label">Ordering status</span>
+                          <select className="form-input bg-white" value={store.operatingStatus || "open"} onChange={(event) => onStoreChange(mall.id, store.id, { operatingStatus: event.target.value as MallStore["operatingStatus"] })}>
+                            <option value="open">Open for orders</option>
+                            <option value="closed">Closed</option>
                           </select>
                         </label>
                       </div>

@@ -14,6 +14,7 @@ export type RestaurantKitchen = {
   area: string;
   address: string;
   description: string;
+  operatingStatus?: "open" | "closed";
   mealTypes: string[];
   imageUrl: string;
   items: RestaurantMenuItem[];
@@ -171,6 +172,7 @@ export function normalizeRestaurantKitchens(value: unknown): RestaurantKitchen[]
         area: text(kitchen.area) || fallback.area,
         address: text(kitchen.address) || fallback.address,
         description: text(kitchen.description) || fallback.description,
+        operatingStatus: kitchen.operatingStatus === "closed" ? ("closed" as const) : ("open" as const),
         mealTypes: Array.isArray(kitchen.mealTypes) ? kitchen.mealTypes.map(text).filter(Boolean) : fallback.mealTypes,
         imageUrl: text(kitchen.imageUrl) || fallback.imageUrl,
         items: items.length > 0 ? (items as RestaurantMenuItem[]) : fallback.items

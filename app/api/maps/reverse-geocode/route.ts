@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   }
 
   if (!googleMapsKey) {
-    return NextResponse.json({ error: "Google Maps API key is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "Location service is temporarily unavailable. Please try again." }, { status: 503 });
   }
 
   const params = new URLSearchParams({
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     const payload = await response.json();
 
     if (!response.ok || payload.status !== "OK") {
-      return NextResponse.json({ error: payload.error_message || payload.status || "Reverse geocoding failed." }, { status: 502 });
+      return NextResponse.json({ error: "Location service is temporarily unavailable. Please try again." }, { status: 502 });
     }
 
     return NextResponse.json({

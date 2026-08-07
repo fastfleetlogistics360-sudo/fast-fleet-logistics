@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useMarketplaceEstimate } from "@/components/marketplace/use-marketplace-estimate";
+import { shortVendorDescription, vendorIsOpen, vendorStatusLabel } from "@/lib/vendor-presentation";
 
 type StoreItem = {
   id?: string;
@@ -30,6 +31,7 @@ export type Store = {
   area: string;
   address?: string;
   description: string;
+  operatingStatus?: "open" | "closed";
   mealTypes?: string[];
   imageUrl?: string;
   items: StoreItem[];
@@ -37,7 +39,7 @@ export type Store = {
 
 export function RestaurantVendorSelection({ stores }: { stores: Store[] }) {
   const [liveStores, setLiveStores] = useState<Store[]>(stores);
-  const vendorCount = liveStores.length;
+  const openVendorCount = liveStores.filter((store) => vendorIsOpen(store.operatingStatus)).length;
   const itemCount = liveStores.reduce((count, store) => count + store.items.length, 0);
 
   useEffect(() => {
@@ -57,7 +59,7 @@ export function RestaurantVendorSelection({ stores }: { stores: Store[] }) {
                 Open a kitchen page, pick menu items, add your delivery address, and checkout with Squad.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <StatusBadge tone="green">{vendorCount} restaurants</StatusBadge>
+                <StatusBadge tone={openVendorCount ? "green" : "amber"}>{openVendorCount} open</StatusBadge>
                 <StatusBadge tone="neutral">{itemCount} menu items</StatusBadge>
               </div>
             </div>
@@ -83,15 +85,16 @@ export function RestaurantVendorSelection({ stores }: { stores: Store[] }) {
                       <Utensils className="h-8 w-8" />
                     </div>
                   )}
-                  <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-[0.1em] text-fleet-ember">
-                    {store.area}
-                  </span>
+                  <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
+                    <span className="rounded-full bg-white/95 px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-[0.1em] text-fleet-ember">{store.area}</span>
+                    <StatusBadge tone={vendorIsOpen(store.operatingStatus) ? "green" : "red"} className="bg-white/95">{vendorStatusLabel(store.operatingStatus)}</StatusBadge>
+                  </div>
                 </div>
                 <div className="p-3">
                   <div className="flex items-start justify-between gap-3">
                     <span className="min-w-0">
                       <strong className="line-clamp-1 block text-base font-black leading-tight text-fleet-night">{store.name}</strong>
-                      <span className="mt-1 line-clamp-2 block text-xs font-bold leading-5 text-slate-500">{store.description}</span>
+                      <span className="mt-1 line-clamp-2 block text-xs font-bold leading-5 text-slate-500">{shortVendorDescription(store.description)}</span>
                     </span>
                     <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-fleet-ember transition group-hover:translate-x-0.5" />
                   </div>
@@ -123,6 +126,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const [activeMenuType, setActiveMenuType] = useState("All Items");
   const [checkoutIsVisible, setCheckoutIsVisible] = useState(false);
   const checkoutRef = useRef<HTMLDivElement | null>(null);
+  const orderingOpen = liveStores.every((store) => vendorIsOpen(store.operatingStatus));
 
   useEffect(() => {
     setLiveStores(stores);
@@ -148,7 +152,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       liveStores.flatMap((store) =>
         store.items
           .map((item) => {
-            const key = itemKey(store.name, item.name);
+            const key = itemKey(store.id || store.name, item.id || item.name);
             const quantity = quantities[key] || 0;
             return {
               ...item,
@@ -193,7 +197,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       liveStores
         .flatMap((store) =>
           store.items.map((item) => {
-            const key = itemKey(store.name, item.name);
+            const key = itemKey(store.id || store.name, item.id || item.name);
             return { store, item, key, quantity: quantities[key] || 0 };
           })
         )
@@ -210,11 +214,16 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   }, [estimate?.interstateDispatch, estimate?.distanceKm]);
 
   function changeQuantity(key: string, delta: number) {
+    if (!orderingOpen) return;
     setQuantities((current) => ({ ...current, [key]: Math.max(0, (current[key] || 0) + delta) }));
   }
 
   async function checkout() {
     setMessage(null);
+    if (!orderingOpen) {
+      setMessage("This restaurant is currently closed and cannot accept orders.");
+      return;
+    }
     if (selectedItems.length === 0) {
       setMessage("Add at least one item before checkout.");
       return;
@@ -308,7 +317,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             <h1 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">{title}</h1>
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">Choose items, add your address, and pay with Squad.</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <StatusBadge tone="green">{liveStores.length} restaurant{liveStores.length === 1 ? "" : "s"}</StatusBadge>
+              <StatusBadge tone={orderingOpen ? "green" : "red"}>{orderingOpen ? "Open for orders" : "Closed"}</StatusBadge>
               <StatusBadge tone="neutral">{selectedItems.length} selected</StatusBadge>
             </div>
           </div>
@@ -349,12 +358,13 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
                 </button>
               ))}
             </div>
+            {!orderingOpen ? <div className="mt-4 rounded-fleet border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-800">This restaurant is closed right now. You can browse the menu, but ordering is unavailable.</div> : null}
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-4">
             {menuItems.length ? (
               menuItems.map(({ store, item, key, quantity }) => (
-                <RestaurantMenuItemCard key={key} store={store} item={item} itemKeyValue={key} quantity={quantity} showStoreName={liveStores.length > 1} onQuantity={changeQuantity} />
+                <RestaurantMenuItemCard key={key} store={store} item={item} itemKeyValue={key} quantity={quantity} showStoreName={liveStores.length > 1} orderingOpen={orderingOpen} onQuantity={changeQuantity} />
               ))
             ) : (
               <Card className="col-span-full p-5 text-center">
@@ -406,7 +416,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
                 I understand this is an interstate dispatch and delivery timing starts after the seller prepares my order.
               </label>
             ) : null}
-            <Button type="button" onClick={checkout} disabled={loading || estimateLoading || !estimate?.allowed || Boolean(estimate?.interstateDispatch && !interstateConfirmed)}>
+            <Button type="button" onClick={checkout} disabled={!orderingOpen || loading || estimateLoading || !estimate?.allowed || Boolean(estimate?.interstateDispatch && !interstateConfirmed)}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
               Pay with Squad
             </Button>
@@ -436,6 +446,7 @@ function RestaurantMenuItemCard({
   itemKeyValue,
   quantity,
   showStoreName,
+  orderingOpen,
   onQuantity,
 }: {
   store: Store;
@@ -443,6 +454,7 @@ function RestaurantMenuItemCard({
   itemKeyValue: string;
   quantity: number;
   showStoreName: boolean;
+  orderingOpen: boolean;
   onQuantity: (key: string, delta: number) => void;
 }) {
   return (
@@ -466,11 +478,11 @@ function RestaurantMenuItemCard({
         <strong className="mt-2 block text-base font-black text-fleet-ember">{formatMoney(item.price)}</strong>
         <div className="mt-auto flex items-center justify-between gap-2 pt-2">
           <div className="inline-flex h-9 items-center rounded-[12px] bg-fleet-paper p-0.5">
-            <button type="button" onClick={() => onQuantity(itemKeyValue, -1)} className="grid h-8 w-8 place-items-center rounded-[10px] text-fleet-night" aria-label={`Remove ${item.name}`}>
+            <button type="button" disabled={!orderingOpen} onClick={() => onQuantity(itemKeyValue, -1)} className="grid h-8 w-8 place-items-center rounded-[10px] text-fleet-night disabled:opacity-40" aria-label={`Remove ${item.name}`}>
               <Minus className="h-3.5 w-3.5" />
             </button>
             <span className="min-w-7 text-center text-xs font-black text-fleet-night">{quantity}</span>
-            <button type="button" onClick={() => onQuantity(itemKeyValue, 1)} className="grid h-8 w-8 place-items-center rounded-[10px] bg-fleet-night text-white shadow-[0_8px_18px_rgba(8,17,31,0.16)]" aria-label={`Add ${item.name}`}>
+            <button type="button" disabled={!orderingOpen} onClick={() => onQuantity(itemKeyValue, 1)} className="grid h-8 w-8 place-items-center rounded-[10px] bg-fleet-night text-white shadow-[0_8px_18px_rgba(8,17,31,0.16)] disabled:opacity-40" aria-label={`Add ${item.name}`}>
               <Plus className="h-3.5 w-3.5" />
             </button>
           </div>

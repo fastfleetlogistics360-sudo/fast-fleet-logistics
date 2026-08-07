@@ -58,6 +58,33 @@ export async function resolveMarketplaceBusinessLinks(
   };
 }
 
+/** Server-side guard for the public status shown on marketplace cards. */
+export async function findClosedMarketplaceVendor(
+  db: SupabaseClient,
+  kind: MarketplaceKind | undefined,
+  items: MarketplaceCheckoutItem[]
+) {
+  if (kind === "shopping") {
+    const { data } = await db.from("platform_settings").select("value").eq("key", mallMenuSettingsKey).maybeSingle<PlatformSettingRow>();
+    const malls = normalizeShoppingMalls(data?.value || defaultShoppingMalls);
+    for (const item of items) {
+      const vendorId = text(item.vendorId || item.storeId);
+      const vendorName = text(item.vendorName || item.store);
+      const store = malls.flatMap((mall) => mall.stores).find((entry) => sameId(entry.id, vendorId) || sameText(entry.name, vendorName));
+      if (store?.operatingStatus === "closed") return store.name;
+    }
+    return null;
+  }
+
+  const { data } = await db.from("platform_settings").select("value").eq("key", restaurantMenuSettingsKey).maybeSingle<PlatformSettingRow>();
+  const kitchens = normalizeRestaurantKitchens(data?.value || defaultRestaurantKitchens);
+  for (const item of items) {
+    const kitchen = kitchens.find((entry) => sameId(entry.id, item.storeId) || sameText(entry.name, item.store));
+    if (kitchen?.operatingStatus === "closed") return kitchen.name;
+  }
+  return null;
+}
+
 export async function loadActiveLinkedBusiness(db: SupabaseClient, businessProfileId: string | null | undefined) {
   const id = text(businessProfileId);
   if (!id) return null;
