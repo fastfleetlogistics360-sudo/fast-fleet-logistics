@@ -50,7 +50,9 @@ Until `android/key.properties` exists, Gradle can create an unsigned proof bundl
 ## Required Before Upload
 
 - Add Android upload signing key and confirm Play App Signing.
-- Add `android/app/google-services.json` from Firebase before testing native Android push notifications.
+- Increase `versionCode` for every bundle uploaded after the first one.
+- Native Android push registration is disabled by default (`NEXT_PUBLIC_ENABLE_NATIVE_PUSH` is not set) so it cannot interrupt app startup before Firebase is configured.
+- Add `android/app/google-services.json` from Firebase, deploy with `NEXT_PUBLIC_ENABLE_NATIVE_PUSH=true`, and test on a physical Android device before enabling native Android push notifications in a release.
 - After Play Console creates the app signing certificate, set `ANDROID_APP_LINKS_SHA256_CERT_FINGERPRINTS` in production to the Play signing SHA-256 fingerprint so `https://fastfleet.com.ng/.well-known/assetlinks.json` can verify Android App Links.
 - Set bundle identifiers and signing teams in Xcode/Android Studio.
 - Add production privacy strings for location, notifications, camera/photo uploads, and document uploads.

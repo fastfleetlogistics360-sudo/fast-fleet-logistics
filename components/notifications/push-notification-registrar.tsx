@@ -3,6 +3,10 @@
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+// Native FCM requires android/app/google-services.json in the installed binary.
+// Keep it opt-in so native startup remains safe until Firebase is configured.
+const nativePushEnabled = process.env.NEXT_PUBLIC_ENABLE_NATIVE_PUSH === "true";
+
 type NativePushToken = {
   value?: string;
 };
@@ -163,7 +167,7 @@ export function PushNotificationRegistrar() {
       } = await supabase.auth.getUser();
       if (!user || cancelled) return;
 
-      void registerNativePush();
+      if (nativePushEnabled) void registerNativePush();
       void registerWebPush();
 
       const channel = supabase
