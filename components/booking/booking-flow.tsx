@@ -85,6 +85,7 @@ type BookingEstimate = FareEstimate & {
     maxRedemptions?: number;
     discountCapNgn?: number;
   } | null;
+  campusBenefit?: { applied?: boolean; message?: string | null } | null;
 };
 
 export function BookingFlow() {
@@ -495,6 +496,7 @@ export function BookingFlow() {
               <SummaryRow label="Speed" value={speedLabel(selectedSpeed)} />
               <SummaryRow label="Delivery fee" value={formatMoney(estimate.deliveryFee)} />
               <SummaryRow label="Platform fee" value={formatMoney(estimate.platformFee)} />
+              {estimate.campusBenefit?.applied ? <p className="rounded-fleet bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">{estimate.campusBenefit.message}</p> : null}
               {estimate.launchPromo?.applied ? <SummaryRow label="Launch promo" value={`-${formatMoney(estimate.launchPromo.totalDiscount || 0)}`} highlight /> : null}
             </div>
           </Card>
@@ -604,6 +606,7 @@ function EstimatePanel({ estimate, vehicle, speed }: { estimate: BookingEstimate
       ) : estimate.launchPromo && !estimate.launchPromo.applied && estimate.launchPromo.reason ? (
         <p className="mt-2 text-sm font-bold text-slate-500">{estimate.launchPromo.reason}</p>
       ) : null}
+      {estimate.campusBenefit?.applied ? <p className="mt-3 rounded-fleet bg-emerald-50 p-3 text-sm font-bold leading-6 text-emerald-800">{estimate.campusBenefit.message}</p> : null}
       <div className="mt-5 grid gap-3">
         <SummaryRow label="Delivery fee" value={formatMoney(estimate.deliveryFee)} />
         <SummaryRow label="Platform fee" value={formatMoney(estimate.platformFee)} />

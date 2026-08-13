@@ -42,6 +42,8 @@ type AddressAutocompleteInputProps = {
   onChange: (value: string) => void;
   onSelect?: (selection: AddressSelection) => void;
   placeholder?: string;
+  /** Vendors can search mapped landmarks such as gates, cafés, and campuses. */
+  mode?: "address" | "place";
 };
 
 export function AddressAutocompleteInput({
@@ -49,7 +51,8 @@ export function AddressAutocompleteInput({
   value,
   onChange,
   onSelect,
-  placeholder = "Start typing the full street address"
+  placeholder = "Start typing the full street address",
+  mode = "address"
 }: AddressAutocompleteInputProps) {
   const inputId = useId();
   const sessionToken = useMemo(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`), []);
@@ -73,7 +76,7 @@ export function AddressAutocompleteInput({
     async function getPredictions() {
       if (window.google && window.google.maps && window.google.maps.places) {
         try {
-          const browserPredictions = await fetchBrowserAddressPredictions(query, currentLocation, window.google);
+          const browserPredictions = await fetchBrowserAddressPredictions(query, currentLocation, window.google, mode);
           if (cancelled) return;
           setPredictions(mergePredictions(browserPredictions));
           setOpen(browserPredictions.length > 0);
@@ -85,7 +88,7 @@ export function AddressAutocompleteInput({
       }
 
       try {
-        const fallbackPredictions = await fetchServerAddressPredictions(query, currentLocation, sessionToken, controller.signal);
+        const fallbackPredictions = await fetchServerAddressPredictions(query, currentLocation, sessionToken, controller.signal, mode);
         if (cancelled) return;
         setPredictions(mergePredictions(fallbackPredictions));
         setOpen(fallbackPredictions.length > 0);
@@ -106,7 +109,7 @@ export function AddressAutocompleteInput({
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [selectedPlaceId, sessionToken, value]);
+  }, [mode, selectedPlaceId, sessionToken, value]);
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent) {
@@ -216,14 +219,15 @@ export function AddressAutocompleteInput({
 async function fetchBrowserAddressPredictions(
   value: string,
   currentLocation: { latitude: number; longitude: number } | null,
-  google: any
+  google: any,
+  mode: "address" | "place"
 ): Promise<AddressPrediction[]> {
   const service = new google.maps.places.AutocompleteService();
   const request: Record<string, unknown> = {
     input: value,
-    componentRestrictions: { country: "ng" },
-    types: ["address"]
+    componentRestrictions: { country: "ng" }
   };
+  if (mode === "address") request.types = ["address"];
 
   if (currentLocation) {
     request.location = new google.maps.LatLng(currentLocation.latitude, currentLocation.longitude);
@@ -281,9 +285,10 @@ async function fetchServerAddressPredictions(
   value: string,
   currentLocation: { latitude: number; longitude: number } | null,
   sessionToken: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  mode: "address" | "place" = "address"
 ): Promise<AddressPrediction[]> {
-  const params = new URLSearchParams({ input: value, sessionToken });
+  const params = new URLSearchParams({ input: value, sessionToken, mode });
   if (currentLocation) {
     params.set("latitude", String(currentLocation.latitude));
     params.set("longitude", String(currentLocation.longitude));

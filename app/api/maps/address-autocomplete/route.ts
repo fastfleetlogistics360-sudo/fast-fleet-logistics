@@ -10,6 +10,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const input = searchParams.get("input")?.trim() || "";
+  const mode = searchParams.get("mode") === "place" ? "place" : "address";
   const latitude = Number(searchParams.get("latitude"));
   const longitude = Number(searchParams.get("longitude"));
 
@@ -22,26 +23,26 @@ export async function GET(request: Request) {
   }
 
   try {
-    const predictions = await fetchNewPlacePredictions(input, latitude, longitude, request);
+    const predictions = await fetchNewPlacePredictions(input, latitude, longitude, request, mode);
     if (predictions.length) return NextResponse.json({ predictions });
   } catch {
     // The legacy endpoint below keeps autocomplete working when Places API (New) is not enabled for the key.
   }
 
   try {
-    return NextResponse.json({ predictions: await fetchLegacyPlacePredictions(input, latitude, longitude, request) });
+    return NextResponse.json({ predictions: await fetchLegacyPlacePredictions(input, latitude, longitude, request, mode) });
   } catch {
     return NextResponse.json({ error: "Address suggestion service failed." }, { status: 502 });
   }
 }
 
-async function fetchNewPlacePredictions(input: string, latitude: number, longitude: number, request: Request) {
+async function fetchNewPlacePredictions(input: string, latitude: number, longitude: number, request: Request, mode: "address" | "place") {
   const body: Record<string, unknown> = {
     input,
     includedRegionCodes: ["ng"],
-    languageCode: "en",
-    includedPrimaryTypes: ["street_address", "premise", "route", "subpremise"]
+    languageCode: "en"
   };
+  if (mode === "address") body.includedPrimaryTypes = ["street_address", "premise", "route", "subpremise"];
 
   if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
     body.locationBias = {
@@ -82,12 +83,12 @@ async function fetchNewPlacePredictions(input: string, latitude: number, longitu
     .filter((prediction: { placeId?: string; description?: string }) => prediction.placeId && prediction.description);
 }
 
-async function fetchLegacyPlacePredictions(input: string, latitude: number, longitude: number, request: Request) {
+async function fetchLegacyPlacePredictions(input: string, latitude: number, longitude: number, request: Request, mode: "address" | "place") {
   const params = new URLSearchParams({
     input,
     key: googleMapsKey || "",
     components: "country:ng",
-    types: "address",
+    types: mode === "address" ? "address" : "geocode",
     language: "en"
   });
 

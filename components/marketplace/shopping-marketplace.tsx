@@ -556,6 +556,7 @@ function ShoppingStorefront({
               <Summary label="Products" value={formatMoney(productsTotal)} />
               <Summary label="Delivery fee" value={estimateLoading ? "Estimating..." : estimate ? formatMoney(deliveryFee) : "Add address"} />
               <Summary label="Platform fee" value={formatMoney(platformFee)} />
+              {estimate?.campus?.lecturerBenefit ? <div className="rounded-fleet bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">{estimate.campus.message}</div> : null}
               {estimate ? <Summary label="Route distance" value={`${estimate.distanceKm.toFixed(1)} km`} /> : null}
               <Summary label="Final total" value={formatMoney(finalTotal)} strong />
             </div>

@@ -7,6 +7,7 @@ import { isBicycleDelivery, loadAssignedBicycleAsset } from "@/lib/fleet-assets"
 import { normalizeState } from "@/lib/launch-states";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { geocodeAddress } from "@/lib/maps/geocode";
+import { campusFeeMetadata, loadCampusProgram } from "@/lib/campus-program";
 import { repairMarketplaceDeliveriesForBusiness } from "@/lib/marketplace-order-repair";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { riderCanReceiveDelivery } from "@/lib/rider-eligibility";
@@ -108,16 +109,17 @@ export async function PATCH(request: Request) {
 
     const nextPatch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
     let deliveryId = typeof order.delivery_id === "string" ? order.delivery_id : null;
-    const businessPickupAddress = appendStateToAddress(businessProfile.pickup_address || String(order.pickup_address || "Business pickup"), businessState);
+    const businessPickupAddress = appendStateToAddress(String(order.pickup_address || businessProfile.pickup_address || "Business pickup"), businessState);
     const customerDropoffAddress = String(order.dropoff_address || "");
     const businessPickupContact = businessProfile.business_name || "Business pickup";
     const marketplaceCustomerContact = String(order.customer_contact || "Marketplace customer");
-    const [deliveryPolicy, pickupPoint, dropoffPoint] = await Promise.all([
+    const [deliveryPolicy, campusProgram, pickupPoint, dropoffPoint] = await Promise.all([
       loadDeliveryPolicy(),
+      loadCampusProgram(),
       geocodeAddress(businessPickupAddress),
       geocodeAddress(customerDropoffAddress)
     ]);
-    const marketplaceEstimate = await estimateBusinessOrderDelivery(order, businessPickupAddress, deliveryPolicy);
+    const marketplaceEstimate = await estimateBusinessOrderDelivery(order, businessPickupAddress, deliveryPolicy, campusProgram);
     if (status === "ready_for_pickup" && !marketplaceEstimate.allowed) {
       return NextResponse.json({ error: marketplaceEstimate.policyMessage || "This marketplace order cannot be dispatched to that address." }, { status: 422 });
     }
@@ -142,8 +144,8 @@ export async function PATCH(request: Request) {
           delivery_speed: marketplaceEstimate.deliverySpeed,
           payment_method: "card",
           status: "searching",
-          price_ngn: marketplaceEstimate.deliveryFee,
-          delivery_fee_ngn: marketplaceEstimate.deliveryFee,
+          price_ngn: marketplaceEstimate.campusAdjustment.riderEarningNgn,
+          delivery_fee_ngn: marketplaceEstimate.campusAdjustment.riderEarningNgn,
           platform_fee_ngn: marketplaceEstimate.platformFee,
           distance_km: marketplaceEstimate.distanceKm,
           eta_minutes: marketplaceEstimate.etaMinutes,
@@ -173,6 +175,8 @@ export async function PATCH(request: Request) {
             route_duration_seconds: marketplaceEstimate.durationSeconds,
             bicycle_eligible: marketplaceEstimate.bicycleEligible,
             vehicle_subtype: marketplaceEstimate.vehicleSubtype,
+            ...campusFeeMetadata({ program: campusProgram, adjustment: marketplaceEstimate.campusAdjustment }),
+            campus_rider_priority_until: marketplaceEstimate.campusAdjustment.applied ? new Date(Date.now() + campusProgram.riderPriorityMinutes * 60_000).toISOString() : null,
             marketplace_vehicle: marketplaceEstimate.vehicle,
             interstate_dispatch: marketplaceEstimate.interstateDispatch,
             interstate_delivery_days: marketplaceEstimate.interstateDeliveryDays
@@ -196,11 +200,13 @@ export async function PATCH(request: Request) {
           pickup_address: businessPickupAddress,
           pickup_latitude: pickupPoint?.latitude || null,
           pickup_longitude: pickupPoint?.longitude || null,
-          distance_km: marketplaceEstimate.distanceKm,
+            distance_km: marketplaceEstimate.distanceKm,
           vehicle_subtype: marketplaceEstimate.vehicleSubtype,
           metadata: {
             pickup_state: marketplaceEstimate.pickupState || null,
-            vehicle_subtype: marketplaceEstimate.vehicleSubtype
+            vehicle_subtype: marketplaceEstimate.vehicleSubtype,
+            ...campusFeeMetadata({ program: campusProgram, adjustment: marketplaceEstimate.campusAdjustment }),
+            campus_rider_priority_until: marketplaceEstimate.campusAdjustment.applied ? new Date(Date.now() + campusProgram.riderPriorityMinutes * 60_000).toISOString() : null
           }
         }, deliveryPolicy.rider)
       ]);
@@ -255,7 +261,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-async function estimateBusinessOrderDelivery(order: Record<string, unknown>, pickupAddress: string, deliveryPolicy: DeliveryPolicy) {
+async function estimateBusinessOrderDelivery(order: Record<string, unknown>, pickupAddress: string, deliveryPolicy: DeliveryPolicy, campusProgram: Awaited<ReturnType<typeof loadCampusProgram>>) {
   const fareConfig = await loadFareConfig();
   return estimateMarketplaceCheckout({
     kind: order.marketplace_kind === "shopping" ? "shopping" : "restaurant",
@@ -263,7 +269,8 @@ async function estimateBusinessOrderDelivery(order: Record<string, unknown>, pic
     address: String(order.dropoff_address || ""),
     pickupAddress,
     fareConfig,
-    deliveryPolicy
+    deliveryPolicy,
+    campusProgram
   });
 }
 
@@ -289,7 +296,7 @@ async function notifyApprovedRiders(
 ) {
   const { data: riders } = await db
     .from("rider_profiles")
-    .select("id, user_id, operating_zone, address")
+    .select("id, user_id, operating_zone, address, campus_zone_id")
     .eq("application_status", "approved")
     .eq("online", true)
     .limit(25);
@@ -308,6 +315,7 @@ async function notifyApprovedRiders(
     if (!riderCanReceiveDelivery({
       job: delivery,
       riderZone: rider.operating_zone || rider.address,
+      riderCampusZone: rider.campus_zone_id,
       riderLocation: locationResult.data || null,
       hasAvailableBicycle: Boolean(asset?.id && asset.status === "available"),
       policy

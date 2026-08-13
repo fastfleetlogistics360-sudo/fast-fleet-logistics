@@ -22,6 +22,7 @@ import {
   Loader2,
   Map,
   Menu,
+  MapPin,
   PackageCheck,
   PauseCircle,
   Pencil,
@@ -102,6 +103,8 @@ import { Card } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { HubPromotionSlidesSection } from "@/components/admin/hub-promotion-slides-section";
+import { DEFAULT_CAMPUS_PROGRAM, normalizeCampusProgram, type CampusProgram } from "@/lib/campus-program";
+import { AddressAutocompleteInput, type AddressSelection } from "@/components/location/address-autocomplete-input";
 
 const heatmap: Array<[string, number]> = [
   ["Lekki", 96],
@@ -132,6 +135,7 @@ type AdminSectionId =
   | "hub-promotions"
   | "restaurant-menus"
   | "mall-menus"
+  | "campus-program"
   | "fleet-assets"
   | "ops-control"
   | "field-insights"
@@ -151,6 +155,7 @@ const adminSectionIds = new Set<string>([
   "hub-promotions",
   "restaurant-menus",
   "mall-menus",
+  "campus-program",
   "fleet-assets",
   "ops-control",
   "field-insights",
@@ -191,7 +196,8 @@ const adminNavGroups: Array<{
       { id: "main-hero", label: "Main hero", icon: FilePenLine, count: (stats) => String(stats.heroSlides) },
       { id: "hub-promotions", label: "Hub promotions", icon: FilePenLine, count: (stats) => String(stats.hubPromotions) },
       { id: "restaurant-menus", label: "Kitchens", icon: Utensils },
-      { id: "mall-menus", label: "Shopping", icon: StoreIcon }
+      { id: "mall-menus", label: "Shopping", icon: StoreIcon },
+      { id: "campus-program", label: "KWASU campus", icon: MapPin }
     ]
   },
   {
@@ -273,6 +279,7 @@ type AdminRider = {
   plate_number: string | null;
   vehicle_color: string | null;
   operating_zone: string | null;
+  campus_zone_id?: string | null;
   online?: boolean | null;
   created_at: string;
   users?: {
@@ -930,6 +937,9 @@ export function AdminPanel() {
   const [hubPromotionUploadProgress, setHubPromotionUploadProgress] = useState<Record<string, number>>({});
   const [restaurantMenus, setRestaurantMenus] = useState<RestaurantKitchen[]>(defaultRestaurantKitchens);
   const [mallMenus, setMallMenus] = useState<ShoppingMall[]>(defaultShoppingMalls);
+  const [campusProgram, setCampusProgram] = useState<CampusProgram>(DEFAULT_CAMPUS_PROGRAM);
+  const [campusUserQuery, setCampusUserQuery] = useState("");
+  const [campusUsers, setCampusUsers] = useState<Array<{ id: string; full_name?: string | null; email?: string | null; phone?: string | null; role?: string | null }>>([]);
   const [companyLogForm, setCompanyLogForm] = useState<CompanyTransactionForm>(blankCompanyTransactionForm);
   const [companyLogSearch, setCompanyLogSearch] = useState("");
   const [companyLogCategory, setCompanyLogCategory] = useState<"all" | CompanyTransactionCategory>("all");
@@ -1008,7 +1018,8 @@ export function AdminPanel() {
         reviewsResponse,
         riskSignalsResponse,
         restaurantsResponse,
-        mallsResponse
+        mallsResponse,
+        campusProgramResponse
       ] = await Promise.all([
         fetch("/api/admin/states"),
         fetch("/api/admin/riders"),
@@ -1025,7 +1036,8 @@ export function AdminPanel() {
         fetch("/api/admin/reviews"),
         fetch("/api/admin/risk-signals"),
         fetch("/api/admin/restaurants"),
-        fetch("/api/admin/malls")
+        fetch("/api/admin/malls"),
+        fetch("/api/admin/campus-program")
       ]);
       const statesResult = await statesResponse.json().catch(() => ({}));
       const ridersResult = await ridersResponse.json().catch(() => ({}));
@@ -1043,6 +1055,7 @@ export function AdminPanel() {
       const riskSignalsResult = await riskSignalsResponse.json().catch(() => ({}));
       const restaurantsResult = await restaurantsResponse.json().catch(() => ({}));
       const mallsResult = await mallsResponse.json().catch(() => ({}));
+      const campusProgramResult = await campusProgramResponse.json().catch(() => ({}));
       const failedSections = [
         ["states", statesResponse, statesResult],
         ["riders", ridersResponse, ridersResult],
@@ -1059,7 +1072,8 @@ export function AdminPanel() {
         ["reviews", reviewsResponse, reviewsResult],
         ["risk/support", riskSignalsResponse, riskSignalsResult],
         ["restaurants", restaurantsResponse, restaurantsResult],
-        ["malls", mallsResponse, mallsResult]
+        ["malls", mallsResponse, mallsResult],
+        ["KWASU campus", campusProgramResponse, campusProgramResult]
       ]
         .filter(([, response]) => !(response as Response).ok)
         .map(([label, , result]) => `${label}: ${String((result as { error?: string }).error || "request failed")}`);
@@ -1106,6 +1120,7 @@ export function AdminPanel() {
         const savedMalls = readDemoMallMenus();
         setMallMenus(mallsResult.demo && savedMalls.length > 0 ? savedMalls : normalizeShoppingMalls(mallsResult.malls));
       }
+      if (campusProgramResult.program) setCampusProgram(normalizeCampusProgram(campusProgramResult.program));
       if (statesResult.demo || ridersResult.demo || fleetAssetsResult.demo || businessesResult.demo || marketplaceListingsResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || promoReportResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || reviewsResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
         setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, bicycle fleet assets, business KYC, marketplace listings, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, reviews, risk signals, company logs, restaurant menus, and shopping menus write to Supabase.");
       } else if (failedSections.length > 0) {
@@ -1192,6 +1207,21 @@ export function AdminPanel() {
     } finally {
       setBusyAction(null);
     }
+  }
+
+  async function updateRiderCampusZone(rider: AdminRider) {
+    const campusZoneId = window.prompt("Campus zone: enter kwasu-campus to assign this rider, or leave blank to remove:", rider.campus_zone_id || "")?.trim();
+    if (campusZoneId === undefined) return;
+    setBusyAction(`rider:${rider.id}:campus`);
+    try {
+      const response = await fetch("/api/admin/riders", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: rider.id, status: rider.application_status, operatingZone: rider.operating_zone || "", riderAccountType: rider.rider_account_type || "independent", campusZoneId }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not update this rider's campus zone.");
+      setAdminRiders((items) => items.map((item) => item.id === rider.id ? { ...item, campus_zone_id: campusZoneId || null } : item));
+      setAdminMessage(`${rider.users?.full_name || "Rider"} ${campusZoneId ? "is now assigned to KWASU Campus" : "was removed from the campus zone"}.`);
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "Could not update this rider's campus zone.");
+    } finally { setBusyAction(null); }
   }
 
   async function reviewBusiness(id: string, status: AdminBusiness["registration_status"]) {
@@ -1853,6 +1883,50 @@ export function AdminPanel() {
     );
   }
 
+  async function searchCampusUsers(query = campusUserQuery) {
+    const trimmed = query.trim();
+    setCampusUserQuery(query);
+    if (trimmed.length < 2) {
+      setCampusUsers([]);
+      return;
+    }
+    const response = await fetch(`/api/admin/campus-program?query=${encodeURIComponent(trimmed)}`);
+    const result = await response.json().catch(() => ({}));
+    if (response.ok && Array.isArray(result.users)) setCampusUsers(result.users);
+    else setAdminMessage(result.error || "Could not search user accounts.");
+  }
+
+  function updateCampusProgram(patch: Partial<CampusProgram>) {
+    setCampusProgram((current) => normalizeCampusProgram({ ...current, ...patch }));
+  }
+
+  function addLecturerBenefit(userId: string) {
+    setCampusProgram((current) => normalizeCampusProgram({
+      ...current,
+      lecturerEnrollments: [...current.lecturerEnrollments.filter((entry) => entry.userId !== userId), { userId, active: true }]
+    }));
+  }
+
+  function removeLecturerBenefit(userId: string) {
+    setCampusProgram((current) => normalizeCampusProgram({ ...current, lecturerEnrollments: current.lecturerEnrollments.filter((entry) => entry.userId !== userId) }));
+  }
+
+  async function saveCampusProgram() {
+    setBusyAction("campus-program:save");
+    setAdminMessage(null);
+    try {
+      const response = await fetch("/api/admin/campus-program", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(campusProgram) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not save the KWASU campus programme.");
+      setCampusProgram(normalizeCampusProgram(result.program));
+      setAdminMessage("KWASU campus settings and lecturer benefits saved. Only assigned vendors, riders, and lecturer accounts use this programme.");
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "Could not save the KWASU campus programme.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   function addMallStore(category: MallCategory) {
     setMallMenus((malls) => {
       const baseMall = malls[0] || {
@@ -2262,6 +2336,19 @@ export function AdminPanel() {
         onSave={saveMallMenus}
       />
 
+      <CampusProgramSection
+        program={campusProgram}
+        users={campusUsers}
+        userQuery={campusUserQuery}
+        busyAction={busyAction}
+        onProgramChange={updateCampusProgram}
+        onUniversitySelect={(selection) => updateCampusProgram({ universityAddress: selection.address, universityPlaceId: selection.placeId || "", latitude: selection.latitude ?? null, longitude: selection.longitude ?? null })}
+        onSearchUsers={searchCampusUsers}
+        onAddLecturer={addLecturerBenefit}
+        onRemoveLecturer={removeLecturerBenefit}
+        onSave={saveCampusProgram}
+      />
+
       <FleetAssetsSection
         assets={fleetAssets}
         riders={approvedFleetRiders}
@@ -2434,10 +2521,11 @@ export function AdminPanel() {
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
-        <RiderApprovalSection
-          riders={adminRiders}
-          busyAction={busyAction}
-          onReview={reviewRider}
+      <RiderApprovalSection
+        riders={adminRiders}
+        busyAction={busyAction}
+        onReview={reviewRider}
+        onCampusZone={updateRiderCampusZone}
         />
         <BusinessKycSection
           businesses={adminBusinesses}
@@ -3358,10 +3446,27 @@ function RestaurantMenuSection({
                     <input className="form-input" value={kitchen.area} onChange={(event) => onKitchenChange(kitchen.id, { area: event.target.value })} />
                   </label>
                 </div>
-                <label className="form-field">
-                  <span className="form-label">Address</span>
-                  <input className="form-input" value={kitchen.address} onChange={(event) => onKitchenChange(kitchen.id, { address: event.target.value })} />
-                </label>
+                <AddressAutocompleteInput
+                  label="Google pickup location"
+                  value={kitchen.address}
+                  onChange={(address) => onKitchenChange(kitchen.id, { address })}
+                  onSelect={(selection) => onKitchenChange(kitchen.id, { address: selection.address, pickupPlaceId: selection.placeId, pickupLatitude: selection.latitude, pickupLongitude: selection.longitude })}
+                  placeholder="Search street, gate, landmark, or restaurant"
+                  mode="place"
+                />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="form-field">
+                    <span className="form-label">Rider pickup note</span>
+                    <input className="form-input" value={kitchen.pickupNote || ""} onChange={(event) => onKitchenChange(kitchen.id, { pickupNote: event.target.value })} placeholder="e.g. Main gate, beside the bookstore" />
+                  </label>
+                  <label className="form-field">
+                    <span className="form-label">Campus programme</span>
+                    <select className="form-input" value={kitchen.campusZoneId || ""} onChange={(event) => onKitchenChange(kitchen.id, { campusZoneId: event.target.value || undefined })}>
+                      <option value="">Normal app pricing</option>
+                      <option value="kwasu-campus">KWASU Campus</option>
+                    </select>
+                  </label>
+                </div>
                 <label className="form-field">
                   <span className="form-label">Description</span>
                   <textarea className="form-input min-h-20" maxLength={180} value={kitchen.description} onChange={(event) => onKitchenChange(kitchen.id, { description: event.target.value })} />
@@ -3449,6 +3554,73 @@ function RestaurantMenuSection({
             </div>
           </article>
         ))}
+      </div>
+    </Card>
+  );
+}
+
+function CampusProgramSection({
+  program,
+  users,
+  userQuery,
+  busyAction,
+  onProgramChange,
+  onUniversitySelect,
+  onSearchUsers,
+  onAddLecturer,
+  onRemoveLecturer,
+  onSave
+}: {
+  program: CampusProgram;
+  users: Array<{ id: string; full_name?: string | null; email?: string | null; phone?: string | null; role?: string | null }>;
+  userQuery: string;
+  busyAction: string | null;
+  onProgramChange: (patch: Partial<CampusProgram>) => void;
+  onUniversitySelect: (selection: AddressSelection) => void;
+  onSearchUsers: (query: string) => void;
+  onAddLecturer: (userId: string) => void;
+  onRemoveLecturer: (userId: string) => void;
+  onSave: () => void;
+}) {
+  const saving = busyAction === "campus-program:save";
+  return (
+    <Card id="campus-program" className="mt-6 scroll-mt-24 overflow-hidden">
+      <div className="flex flex-col gap-4 border-b border-fleet-line p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-fleet bg-emerald-700 text-white"><MapPin className="h-5 w-5" /></span>
+          <div>
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Campus programme</span>
+            <h2 className="mt-1 text-2xl font-black text-fleet-night">KWASU delivery zone and lecturer benefit</h2>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">Applies only to vendors marked KWASU Campus, assigned campus riders, and lecturer accounts you approve below. Everyone else continues with normal app pricing.</p>
+          </div>
+        </div>
+        <Button type="button" onClick={onSave} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Save campus programme</Button>
+      </div>
+      <div className="grid gap-5 p-5">
+        <label className="flex items-center justify-between rounded-fleet border border-fleet-line bg-fleet-paper p-4 text-sm font-black text-fleet-night">
+          Enable KWASU Campus programme
+          <input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={program.enabled} onChange={(event) => onProgramChange({ enabled: event.target.checked })} />
+        </label>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="form-field"><span className="form-label">University name</span><input className="form-input" value={program.universityName} onChange={(event) => onProgramChange({ universityName: event.target.value })} /></label>
+          <AddressAutocompleteInput label="Pinned university location" value={program.universityAddress} onChange={(universityAddress) => onProgramChange({ universityAddress })} onSelect={onUniversitySelect} placeholder="Search KWASU, gate, or exact campus landmark" mode="place" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <AdminNumberInput label="Lecturer radius (km)" value={program.radiusKm} onChange={(radiusKm) => onProgramChange({ radiusKm })} />
+          <AdminNumberInput label="Bicycle cap (km)" value={program.bicycleCapKm} onChange={(bicycleCapKm) => onProgramChange({ bicycleCapKm })} />
+          <AdminNumberInput label="Normal pricing after (km)" value={program.normalPricingAfterKm} onChange={(normalPricingAfterKm) => onProgramChange({ normalPricingAfterKm })} />
+          <AdminNumberInput label="Campus delivery cap (NGN)" value={program.deliveryFeeCapNgn} onChange={(deliveryFeeCapNgn) => onProgramChange({ deliveryFeeCapNgn })} />
+          <AdminNumberInput label="Overage after 20 km (NGN/km)" value={program.overagePerKmNgn} onChange={(overagePerKmNgn) => onProgramChange({ overagePerKmNgn })} />
+          <AdminNumberInput label="Campus bicycle speed (km/h)" value={program.bicycleSpeedKmh} onChange={(bicycleSpeedKmh) => onProgramChange({ bicycleSpeedKmh })} />
+          <AdminNumberInput label="Campus rider priority (minutes)" value={program.riderPriorityMinutes} onChange={(riderPriorityMinutes) => onProgramChange({ riderPriorityMinutes })} />
+        </div>
+        <div className="rounded-fleet border border-emerald-200 bg-emerald-50 p-4">
+          <strong className="text-sm font-black text-emerald-900">No Delivery / Platform Fee — KWASU Lecturers</strong>
+          <p className="mt-1 text-xs font-bold leading-5 text-emerald-800">For an approved account within {program.radiusKm} km of the pinned university location, marketplace drop-offs and direct-dispatch pickups receive ₦0 delivery and platform fees. Riders retain the operational delivery earning.</p>
+          <div className="mt-3 flex gap-2"><input className="form-input bg-white" value={userQuery} onChange={(event) => onSearchUsers(event.target.value)} placeholder="Search user name, email, or phone" /><Button type="button" variant="secondary" onClick={() => onSearchUsers(userQuery)}>Search</Button></div>
+          {users.length ? <div className="mt-3 grid gap-2">{users.map((user) => <div key={user.id} className="flex flex-wrap items-center justify-between gap-3 rounded-fleet bg-white p-3 text-sm"><span><strong className="block text-fleet-night">{user.full_name || "Unnamed user"}</strong><span className="text-xs font-bold text-slate-500">{user.email || user.phone || user.id}</span></span><Button type="button" size="sm" onClick={() => onAddLecturer(user.id)}>Approve lecturer benefit</Button></div>)}</div> : null}
+          <div className="mt-3 grid gap-2">{program.lecturerEnrollments.length ? program.lecturerEnrollments.map((entry) => <div key={entry.userId} className="flex items-center justify-between rounded-fleet border border-emerald-100 bg-white p-3 text-xs font-bold text-slate-700"><span>{entry.userId}</span><Button type="button" size="sm" variant="destructive" onClick={() => onRemoveLecturer(entry.userId)}>Remove</Button></div>) : <p className="text-xs font-bold text-emerald-800">No lecturer accounts approved yet.</p>}</div>
+        </div>
       </div>
     </Card>
   );
@@ -3785,6 +3957,28 @@ function MallMenuSection({
                         <MarketplaceImageField label="Store photo URL" value={store.image || ""} inputClassName="bg-white" placeholder="Uses product or pickup photo if empty" onChange={(image) => onStoreChange(mall.id, store.id, { image: image || undefined })} />
                       </div>
 
+                      <AddressAutocompleteInput
+                        label="Google pickup location for this vendor"
+                        value={store.pickupAddress || mall.location}
+                        onChange={(pickupAddress) => onStoreChange(mall.id, store.id, { pickupAddress })}
+                        onSelect={(selection) => onStoreChange(mall.id, store.id, { pickupAddress: selection.address, pickupPlaceId: selection.placeId, pickupLatitude: selection.latitude, pickupLongitude: selection.longitude })}
+                        placeholder="Search street, gate, landmark, or store"
+                        mode="place"
+                      />
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="form-field">
+                          <span className="form-label">Rider pickup note</span>
+                          <input className="form-input bg-white" value={store.pickupNote || ""} onChange={(event) => onStoreChange(mall.id, store.id, { pickupNote: event.target.value || undefined })} placeholder="e.g. Faculty gate, opposite the ATM" />
+                        </label>
+                        <label className="form-field">
+                          <span className="form-label">Campus programme</span>
+                          <select className="form-input bg-white" value={store.campusZoneId || ""} onChange={(event) => onStoreChange(mall.id, store.id, { campusZoneId: event.target.value || undefined })}>
+                            <option value="">Normal app pricing</option>
+                            <option value="kwasu-campus">KWASU Campus</option>
+                          </select>
+                        </label>
+                      </div>
+
                       <div className="grid gap-3 rounded-fleet border border-fleet-line bg-white p-3 lg:grid-cols-2">
                         <VendorLinkField label="Advert QR link" path={shoppingVendorAdvertPath(store)} />
                         <VendorLinkField label="Category vendor link" path={shoppingVendorCategoryPath(store)} />
@@ -4004,11 +4198,13 @@ function DeliveryTimelineSection({
 function RiderApprovalSection({
   riders,
   busyAction,
-  onReview
+  onReview,
+  onCampusZone
 }: {
   riders: AdminRider[];
   busyAction: string | null;
   onReview: (id: string, status: AdminRider["application_status"], riderAccountType?: RiderAccountType, options?: { tagOnly?: boolean }) => void;
+  onCampusZone: (rider: AdminRider) => void;
 }) {
   const [accountTypesByRider, setAccountTypesByRider] = useState<Record<string, RiderAccountType>>({});
   return (
@@ -4040,6 +4236,7 @@ function RiderApprovalSection({
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
                     {rider.vehicle_type || "Vehicle pending"} · {rider.plate_number || "No plate"} · {rider.operating_zone || "No zone"}
                   </span>
+                  {rider.campus_zone_id ? <span className="mt-1 inline-block rounded-full bg-emerald-50 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-emerald-700">KWASU campus rider</span> : null}
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
                     {rider.users?.email || "No email"} · {rider.users?.phone || "No phone"}
                   </span>
@@ -4097,6 +4294,7 @@ function RiderApprovalSection({
                   </>
                 )}
               </div>
+              {rider.application_status === "approved" ? <Button type="button" size="sm" variant="secondary" className="mt-2" onClick={() => onCampusZone(rider)} disabled={busyAction === `rider:${rider.id}:campus`}>Manage KWASU campus duty</Button> : null}
             </article>
           );
         })}

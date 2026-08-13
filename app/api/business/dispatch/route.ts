@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { accountMessengerHref } from "@/lib/tracking-links";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+import { campusFeeMetadata, loadCampusProgram, resolveLecturerBenefit } from "@/lib/campus-program";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
 const vehicleTypes = new Set<VehicleType>(["bike", "car", "van"]);
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
     const deliverySpeed: DeliverySpeed = payload.scheduleMode === "Schedule for later" ? "scheduled" : "standard";
     const paymentMethod = "wallet";
     const fareConfig = await loadFareConfig();
-    const quote = await createDeliveryQuote({
+    const [quote, campusProgram] = await Promise.all([createDeliveryQuote({
       pickup: { address: pickupAddress, latitude: pickupLatitude, longitude: pickupLongitude },
       dropoff: { address: dropoffAddress, latitude: dropoffLatitude, longitude: dropoffLongitude },
       pickupState: extractNigerianState(pickupAddress),
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
       speed: deliverySpeed,
       parcelType: clean(payload.packageType) || "Parcel",
       fareConfig
-    });
+    }), loadCampusProgram()]);
     const fare = quote.fare;
     const deliveryCode = `FF-BIZ-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
@@ -86,6 +87,13 @@ export async function POST(request: Request) {
     if (businessProfile?.registration_status !== "active") {
       return NextResponse.json({ error: "Business KYC must be approved before creating dispatches." }, { status: 403 });
     }
+    const lecturerBenefit = await resolveLecturerBenefit({ program: campusProgram, userId: user.id, address: pickupAddress, deliveryFee: fare.deliveryFee, platformFee: fare.platformFee });
+    const payableFare = lecturerBenefit.applied ? { ...fare, deliveryFee: 0, platformFee: 0, total: 0 } : fare;
+    const campusMetadata = campusFeeMetadata({
+      program: campusProgram,
+      adjustment: { applied: false, campusZoneId: null, deliveryFee: fare.deliveryFee, platformFee: fare.platformFee, totalDiscount: 0, riderEarningNgn: fare.deliveryFee, pricingBand: "normal" },
+      lecturerBenefit
+    });
 
     const { data: delivery, error } = await supabase
       .from("deliveries")
@@ -105,7 +113,7 @@ export async function POST(request: Request) {
         delivery_speed: deliverySpeed,
         payment_method: paymentMethod,
         status: "pending_payment",
-        price_ngn: fare.total,
+        price_ngn: payableFare.total,
         delivery_fee_ngn: fare.deliveryFee,
         platform_fee_ngn: fare.platformFee,
         distance_km: fare.distanceKm,
@@ -132,6 +140,9 @@ export async function POST(request: Request) {
           vehicle_subtype: quote.vehicleSubtype,
           delivery_fee_ngn: fare.deliveryFee,
           platform_fee_ngn: fare.platformFee,
+          payable_delivery_fee_ngn: payableFare.deliveryFee,
+          payable_platform_fee_ngn: payableFare.platformFee,
+          ...campusMetadata,
           sender_name: senderName,
           sender_phone: senderPhone,
           recipient_name: recipientName,
@@ -145,6 +156,10 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
+    if (payableFare.total === 0) {
+      await supabase.from("deliveries").update({ status: "searching" }).eq("id", delivery.id);
+      delivery.status = "searching";
+    } else {
     const { error: walletError } = await supabase.rpc("pay_delivery_from_wallet", {
       target_delivery_id: delivery.id,
       next_metadata: { source: "business_dashboard" }
@@ -154,6 +169,7 @@ export async function POST(request: Request) {
       throw walletError;
     }
     delivery.status = "searching";
+    }
 
     await Promise.allSettled([
       supabase.from("delivery_events").insert({
@@ -161,7 +177,7 @@ export async function POST(request: Request) {
         actor_id: user.id,
         status: delivery.status,
         title: "Business dispatch created",
-        body: "Wallet payment received. Fast Fleets 360 is finding a courier."
+        body: lecturerBenefit.applied ? lecturerBenefit.message || "KWASU lecturer benefit applied. Fast Fleets 360 is finding a courier." : "Wallet payment received. Fast Fleets 360 is finding a courier."
       }),
       insertNotificationWithPush(supabase, {
         user_id: user.id,
@@ -172,12 +188,12 @@ export async function POST(request: Request) {
       })
     ]);
     await recordDeliveryIncome({
-      amountNgn: fare.total,
+      amountNgn: payableFare.total,
       deliveryCode: delivery.delivery_code,
       paymentMethod: "wallet",
       reference: `${delivery.delivery_code}-wallet-checkout`,
       counterparty: businessProfile?.business_name || user.email || user.id,
-      notes: "Business wallet balance was debited for this dispatch."
+      notes: lecturerBenefit.applied ? "KWASU lecturer benefit covered the delivery and platform fees." : "Business wallet balance was debited for this dispatch."
     });
 
     return NextResponse.json({ delivery });

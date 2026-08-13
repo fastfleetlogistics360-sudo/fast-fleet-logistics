@@ -57,9 +57,9 @@ export async function GET(request: Request) {
     const db = admin || supabase;
     const { data: loadedRider, error: riderError } = await db
       .from("rider_profiles")
-      .select("id, vehicle_type, online, application_status, operating_zone, address")
+      .select("id, vehicle_type, online, application_status, operating_zone, address, campus_zone_id")
       .eq("user_id", user.id)
-      .maybeSingle<{ id: string; vehicle_type?: string | null; online?: boolean | null; application_status?: string | null; operating_zone?: string | null; address?: string | null }>();
+      .maybeSingle<{ id: string; vehicle_type?: string | null; online?: boolean | null; application_status?: string | null; operating_zone?: string | null; address?: string | null; campus_zone_id?: string | null }>();
     if (riderError) throw riderError;
     let rider = loadedRider;
     if (!rider?.id && admin) {
@@ -141,7 +141,7 @@ export async function GET(request: Request) {
     ].filter(
       (job) =>
         !isRejectedByRider(job, rider.id) &&
-        jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, riderLocation, deliveryPolicy.rider)
+        jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, riderLocation, deliveryPolicy.rider, rider.campus_zone_id)
     );
     return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]) });
   } catch (error) {
@@ -345,9 +345,9 @@ async function canRiderAcceptPickupState(
   const [{ data: rider, error: riderError }, { data: delivery, error: deliveryError }] = await Promise.all([
     db
       .from("rider_profiles")
-      .select("id, operating_zone, address")
+        .select("id, operating_zone, address, campus_zone_id")
       .eq("user_id", userId)
-      .maybeSingle<{ id: string; operating_zone?: string | null; address?: string | null }>(),
+      .maybeSingle<{ id: string; operating_zone?: string | null; address?: string | null; campus_zone_id?: string | null }>(),
     db
       .from("deliveries")
       .select("id, pickup_address, pickup_latitude, pickup_longitude, distance_km, vehicle_subtype, metadata")
@@ -373,6 +373,7 @@ async function canRiderAcceptPickupState(
   if (!delivery || !riderCanReceiveDelivery({
     job: delivery,
     riderZone,
+    riderCampusZone: rider?.campus_zone_id,
     riderLocation,
     hasAvailableBicycle: Boolean(asset?.id && asset.status === "available"),
     policy
@@ -393,12 +394,14 @@ function jobMatchesRiderDispatch(
   riderZone: string | null | undefined,
   bicycleAsset: RiderFleetAsset,
   riderLocation: RiderLocationRow | null,
-  policy: DeliveryPolicy["rider"]
+  policy: DeliveryPolicy["rider"],
+  riderCampusZone?: string | null
 ) {
   if (!jobMatchesRiderFleet(job, bicycleAsset)) return false;
   return riderCanReceiveDelivery({
     job,
     riderZone,
+    riderCampusZone,
     riderLocation,
     hasAvailableBicycle: Boolean(bicycleAsset?.id && bicycleAsset.status === "available"),
     policy

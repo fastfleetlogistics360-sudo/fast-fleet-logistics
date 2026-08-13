@@ -3,9 +3,11 @@ import { loadDeliveryPolicy } from "@/lib/delivery-policy";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { businessPickupAddressFor, loadActiveLinkedBusiness, resolveMarketplaceBusinessLinks } from "@/lib/marketplace-business-links";
-import { estimateMarketplaceCheckout, marketplacePickupAddress, type MarketplacePricingItem } from "@/lib/marketplace-pricing";
+import { configuredMarketplacePickupAddress, estimateMarketplaceCheckout, marketplacePickupAddress, type MarketplacePricingItem } from "@/lib/marketplace-pricing";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { campusFeeMetadata, loadCampusProgram, resolveLecturerBenefit } from "@/lib/campus-program";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   try {
@@ -27,7 +29,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Enter the delivery street address." }, { status: 400 });
     }
 
-    const [fareConfig, deliveryPolicy] = await Promise.all([loadFareConfig(), loadDeliveryPolicy()]);
+    const [fareConfig, deliveryPolicy, campusProgram, supabase] = await Promise.all([loadFareConfig(), loadDeliveryPolicy(), loadCampusProgram(), createClient()]);
     const marketplaceKind = payload.kind === "shopping" ? "shopping" : "restaurant";
     const admin = createAdminClient();
     let quoteItems = items;
@@ -42,15 +44,27 @@ export async function POST(request: Request) {
       }
       quoteItems = businessLinks.items;
       const business = await loadActiveLinkedBusiness(admin, businessLinks.linkedBusinessIds[0] || null);
-      if (business) pickupAddress = businessPickupAddressFor(business, marketplacePickupAddress(quoteItems, marketplaceKind));
+      const configuredPickup = configuredMarketplacePickupAddress(quoteItems);
+      if (configuredPickup) pickupAddress = configuredPickup;
+      else if (business) pickupAddress = businessPickupAddressFor(business, marketplacePickupAddress(quoteItems, marketplaceKind));
     }
-    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: quoteItems, address, pickupAddress, fareConfig, deliveryPolicy });
+    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: quoteItems, address, pickupAddress, fareConfig, deliveryPolicy, campusProgram });
+    const { data: { user } } = await supabase.auth.getUser();
+    const lecturerBenefit = await resolveLecturerBenefit({
+      program: campusProgram,
+      userId: user?.id,
+      address,
+      deliveryFee: estimate.deliveryFee,
+      platformFee: estimate.platformFee
+    });
+    const deliveryFee = lecturerBenefit.applied ? 0 : estimate.deliveryFee;
+    const platformFee = lecturerBenefit.applied ? 0 : estimate.platformFee;
 
     return NextResponse.json({
       itemsTotal: estimate.itemsTotal,
-      deliveryFee: estimate.deliveryFee,
-      platformFee: estimate.platformFee,
-      total: estimate.total,
+      deliveryFee,
+      platformFee,
+      total: estimate.itemsTotal + deliveryFee + platformFee,
       distanceKm: estimate.distanceKm,
       etaMinutes: estimate.etaMinutes,
       routeType: estimate.routeType,
@@ -62,7 +76,14 @@ export async function POST(request: Request) {
       allowed: estimate.allowed,
       policyMessage: estimate.policyMessage,
       interstateDispatch: estimate.interstateDispatch,
-      interstateDeliveryDays: estimate.interstateDeliveryDays
+      interstateDeliveryDays: estimate.interstateDeliveryDays,
+      campus: {
+        applied: estimate.campusAdjustment.applied,
+        pricingBand: estimate.campusAdjustment.pricingBand,
+        lecturerBenefit: lecturerBenefit.applied,
+        message: lecturerBenefit.message,
+        metadata: campusFeeMetadata({ program: campusProgram, adjustment: estimate.campusAdjustment, lecturerBenefit })
+      }
     });
   } catch {
     return NextResponse.json({ error: "Could not estimate marketplace delivery. Please try again." }, { status: 500 });

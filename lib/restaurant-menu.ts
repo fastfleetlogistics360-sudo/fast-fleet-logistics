@@ -13,6 +13,11 @@ export type RestaurantKitchen = {
   name: string;
   area: string;
   address: string;
+  pickupPlaceId?: string;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
+  pickupNote?: string;
+  campusZoneId?: string;
   description: string;
   operatingStatus?: "open" | "closed";
   mealTypes: string[];
@@ -171,6 +176,11 @@ export function normalizeRestaurantKitchens(value: unknown): RestaurantKitchen[]
         name,
         area: text(kitchen.area) || fallback.area,
         address: text(kitchen.address) || fallback.address,
+        pickupPlaceId: text(kitchen.pickupPlaceId) || undefined,
+        pickupLatitude: coordinate(kitchen.pickupLatitude, 90),
+        pickupLongitude: coordinate(kitchen.pickupLongitude, 180),
+        pickupNote: text(kitchen.pickupNote) || undefined,
+        campusZoneId: text(kitchen.campusZoneId) || undefined,
         description: text(kitchen.description) || fallback.description,
         operatingStatus: kitchen.operatingStatus === "closed" ? ("closed" as const) : ("open" as const),
         mealTypes: Array.isArray(kitchen.mealTypes) ? kitchen.mealTypes.map(text).filter(Boolean) : fallback.mealTypes,
@@ -211,4 +221,9 @@ export function slug(value: string) {
 
 function text(value: unknown) {
   return String(value || "").trim();
+}
+
+function coordinate(value: unknown, max: number) {
+  const number = Number(value);
+  return Number.isFinite(number) && Math.abs(number) <= max ? number : undefined;
 }

@@ -148,6 +148,7 @@ export interface Database {
           acceptance_rate: number;
           level: "Bronze" | "Silver" | "Gold" | "Elite";
           online: boolean;
+          campus_zone_id: string | null;
           suspended_at: string | null;
           suspension_reason: string | null;
           reviewed_by: string | null;

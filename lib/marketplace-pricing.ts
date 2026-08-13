@@ -3,6 +3,7 @@ import type { DeliveryPolicy } from "@/lib/delivery-policy";
 import { createDeliveryQuote, createDeliveryQuoteFromRoute, type DeliveryQuote } from "@/lib/delivery-quotes";
 import { recommendedMarketplaceVehicle } from "@/lib/delivery-service-rules";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
+import { applyCampusPrice, campusVendorZoneId, type CampusProgram } from "@/lib/campus-program";
 import type { VehicleType } from "@/types/domain";
 
 export type MarketplaceKind = "restaurant" | "shopping";
@@ -15,6 +16,7 @@ export type MarketplacePricingItem = {
   storeAddress?: string;
   pickupAddress?: string;
   mallLocation?: string;
+  campusZoneId?: string;
   quantity?: number;
   price?: number;
   subtotal?: number;
@@ -26,7 +28,8 @@ export async function estimateMarketplaceCheckout({
   address,
   pickupAddress,
   fareConfig,
-  deliveryPolicy
+  deliveryPolicy,
+  campusProgram
 }: {
   kind?: MarketplaceKind;
   items: MarketplacePricingItem[];
@@ -34,6 +37,7 @@ export async function estimateMarketplaceCheckout({
   pickupAddress?: string | null;
   fareConfig?: FareConfig;
   deliveryPolicy: DeliveryPolicy;
+  campusProgram?: CampusProgram;
 }) {
   const marketplaceKind = kind === "shopping" ? "shopping" : "restaurant";
   const resolvedPickupAddress = sanitizeAddressText(pickupAddress || "") || marketplacePickupAddress(items, marketplaceKind);
@@ -61,6 +65,19 @@ export async function estimateMarketplaceCheckout({
     speed,
     initialQuote
   });
+  const campusAdjustment = applyCampusPrice({
+    program: campusProgram || { ...DEFAULT_CAMPUS_PROGRAM_DISABLED },
+    campusZoneId: campusVendorZoneId(items),
+    distanceKm: quote.distanceKm,
+    deliveryFee: quote.fare.deliveryFee,
+    platformFee: quote.fare.platformFee,
+    bicycleEligible: quote.vehicle === "bike" && quote.lightOrder
+  });
+  const bicycleEligible = campusAdjustment.applied ? true : quote.bicycleEligible;
+  const vehicleSubtype = bicycleEligible ? "bicycle" : quote.vehicleSubtype;
+  const campusEtaMinutes = campusAdjustment.applied
+    ? Math.max(quote.etaMinutes, Math.round((quote.distanceKm / (campusProgram?.bicycleSpeedKmh || DEFAULT_CAMPUS_PROGRAM_DISABLED.bicycleSpeedKmh)) * 60 + 22))
+    : quote.etaMinutes;
 
   return {
     itemsTotal,
@@ -69,24 +86,42 @@ export async function estimateMarketplaceCheckout({
     pickupState: quote.pickupState,
     dropoffState: quote.dropoffState,
     distanceKm: quote.distanceKm,
-    etaMinutes: quote.etaMinutes,
+    etaMinutes: campusEtaMinutes,
     durationSeconds: quote.durationSeconds,
     routeSource: quote.routeSource,
     routeType: quote.routeType,
     lightOrder: quote.lightOrder,
-    bicycleEligible: quote.bicycleEligible,
-    vehicleSubtype: quote.vehicleSubtype,
+    bicycleEligible,
+    vehicleSubtype,
     vehicle: quote.vehicle,
     deliverySpeed: quote.speed,
     allowed: marketplacePolicy.allowed,
     policyMessage: marketplacePolicy.message,
     interstateDispatch: marketplacePolicy.interstateDispatch,
     interstateDeliveryDays: marketplacePolicy.interstateDeliveryDays,
-    deliveryFee: quote.fare.deliveryFee,
-    platformFee: quote.fare.platformFee,
-    total: itemsTotal + quote.fare.deliveryFee + quote.fare.platformFee
+    deliveryFee: campusAdjustment.deliveryFee,
+    platformFee: campusAdjustment.platformFee,
+    campusAdjustment,
+    total: itemsTotal + campusAdjustment.deliveryFee + campusAdjustment.platformFee
   };
 }
+
+const DEFAULT_CAMPUS_PROGRAM_DISABLED: CampusProgram = {
+  enabled: false,
+  zoneId: "",
+  universityName: "",
+  universityAddress: "",
+  latitude: null,
+  longitude: null,
+  radiusKm: 20,
+  bicycleCapKm: 20,
+  normalPricingAfterKm: 30,
+  deliveryFeeCapNgn: 1000,
+  overagePerKmNgn: 80,
+  bicycleSpeedKmh: 15,
+  riderPriorityMinutes: 4,
+  lecturerEnrollments: []
+};
 
 function quoteForMarketplaceVehicle({
   pickupAddress,
@@ -158,11 +193,20 @@ function evaluateMarketplacePolicy({
 }
 
 export function marketplacePickupAddress(items: MarketplacePricingItem[], kind: MarketplaceKind) {
-  const candidates = items
-    .map((item) => item.pickupAddress || item.storeAddress || item.mallLocation || item.store || "")
-    .map((value) => sanitizeAddressText(value))
-    .filter(Boolean);
+  const candidates = configuredMarketplacePickupAddresses(items);
   const unique = Array.from(new Set(candidates));
 
   return unique.join(", ") || (kind === "shopping" ? "Shopping pickup" : "Restaurant pickup");
+}
+
+export function configuredMarketplacePickupAddress(items: MarketplacePricingItem[]) {
+  const unique = Array.from(new Set(configuredMarketplacePickupAddresses(items)));
+  return unique.length === 1 ? unique[0] : "";
+}
+
+function configuredMarketplacePickupAddresses(items: MarketplacePricingItem[]) {
+  return items
+    .map((item) => item.pickupAddress || item.storeAddress || item.mallLocation || item.store || "")
+    .map((value) => sanitizeAddressText(value))
+    .filter(Boolean);
 }

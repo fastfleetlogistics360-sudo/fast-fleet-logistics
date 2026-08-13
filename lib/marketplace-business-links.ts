@@ -22,6 +22,11 @@ export type MarketplaceCheckoutItem = {
   vendorId?: string;
   vendorName?: string;
   category?: string;
+  campusZoneId?: string;
+  pickupPlaceId?: string;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
+  pickupNote?: string;
 };
 
 export type LinkedBusinessRow = {
@@ -128,7 +133,19 @@ async function resolveRestaurantBusinessLinks(db: SupabaseClient, items: Marketp
       || kitchens.find((entry) => sameText(entry.name, item.store))
       || kitchens.find((entry) => sameText(entry.address, item.storeAddress));
     const businessId = text(kitchen?.businessId);
-    return businessId ? { ...item, businessId } : withoutBusinessId(item);
+    const resolved = kitchen
+      ? {
+          ...item,
+          storeAddress: kitchen.address,
+          pickupAddress: kitchen.address,
+          pickupPlaceId: kitchen.pickupPlaceId,
+          pickupLatitude: kitchen.pickupLatitude,
+          pickupLongitude: kitchen.pickupLongitude,
+          pickupNote: kitchen.pickupNote,
+          campusZoneId: kitchen.campusZoneId
+        }
+      : item;
+    return businessId ? { ...resolved, businessId } : withoutBusinessId(resolved);
   });
 }
 
@@ -151,6 +168,8 @@ async function resolveShoppingBusinessLinks(db: SupabaseClient, items: Marketpla
     const vendorId = text(item.vendorId || item.storeId);
     const vendorName = text(item.vendorName || item.store);
     let resolvedBusinessId = "";
+    let resolvedStore: (typeof malls)[number]["stores"][number] | null = null;
+    let resolvedMall: (typeof malls)[number] | null = null;
 
     for (const mall of searchMalls) {
       const store = mall.stores.find((entry) => sameId(entry.id, vendorId))
@@ -161,10 +180,24 @@ async function resolveShoppingBusinessLinks(db: SupabaseClient, items: Marketpla
       const product = store.products.find((entry) => sameId(entry.id, item.productId))
         || store.products.find((entry) => sameText(entry.name, productName));
       resolvedBusinessId = text(product?.businessId || store.businessId);
+      resolvedStore = store;
+      resolvedMall = mall;
       break;
     }
+    const resolved = resolvedStore
+      ? {
+          ...item,
+          storeAddress: resolvedStore.pickupAddress || resolvedMall?.location || item.storeAddress,
+          pickupAddress: resolvedStore.pickupAddress || resolvedMall?.location || item.pickupAddress,
+          pickupPlaceId: resolvedStore.pickupPlaceId,
+          pickupLatitude: resolvedStore.pickupLatitude,
+          pickupLongitude: resolvedStore.pickupLongitude,
+          pickupNote: resolvedStore.pickupNote,
+          campusZoneId: resolvedStore.campusZoneId
+        }
+      : item;
 
-    return resolvedBusinessId ? { ...item, businessId: resolvedBusinessId } : withoutBusinessId(item);
+    return resolvedBusinessId ? { ...resolved, businessId: resolvedBusinessId } : withoutBusinessId(resolved);
   });
 }
 

@@ -5,6 +5,7 @@ import { loadFareConfig } from "@/lib/fare-settings";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { createClient } from "@/lib/supabase/server";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+import { campusFeeMetadata, loadCampusProgram, resolveLecturerBenefit } from "@/lib/campus-program";
 import type { VehicleType } from "@/types/domain";
 
 type BulkRow = {
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Row ${invalidIndex + 1} is missing required dispatch details.` }, { status: 400 });
     }
 
-    const fareConfig = await loadFareConfig();
+    const [fareConfig, campusProgram] = await Promise.all([loadFareConfig(), loadCampusProgram()]);
     const deliveries = await Promise.all(normalizedRows.map(async (row, index) => {
       const quote = await createDeliveryQuote({
         pickup: { address: row.pickup },
@@ -68,6 +69,13 @@ export async function POST(request: Request) {
         fareConfig
       });
       const fare = quote.fare;
+      const lecturerBenefit = await resolveLecturerBenefit({ program: campusProgram, userId: user.id, address: row.pickup, deliveryFee: fare.deliveryFee, platformFee: fare.platformFee });
+      const payableFare = lecturerBenefit.applied ? { ...fare, deliveryFee: 0, platformFee: 0, total: 0 } : fare;
+      const campusMetadata = campusFeeMetadata({
+        program: campusProgram,
+        adjustment: { applied: false, campusZoneId: null, deliveryFee: fare.deliveryFee, platformFee: fare.platformFee, totalDiscount: 0, riderEarningNgn: fare.deliveryFee, pricingBand: "normal" },
+        lecturerBenefit
+      });
       return {
         customer_id: user.id,
         delivery_code: `FF-BULK-${Date.now().toString(36).toUpperCase()}-${index + 1}`,
@@ -80,7 +88,7 @@ export async function POST(request: Request) {
         delivery_speed: "standard",
         payment_method: "wallet",
         status: "pending_payment",
-        price_ngn: fare.total,
+        price_ngn: payableFare.total,
         delivery_fee_ngn: fare.deliveryFee,
         platform_fee_ngn: fare.platformFee,
         distance_km: fare.distanceKm,
@@ -100,6 +108,9 @@ export async function POST(request: Request) {
           vehicle_subtype: quote.vehicleSubtype,
           delivery_fee_ngn: fare.deliveryFee,
           platform_fee_ngn: fare.platformFee,
+          payable_delivery_fee_ngn: payableFare.deliveryFee,
+          payable_platform_fee_ngn: payableFare.platformFee,
+          ...campusMetadata,
           sender_name: row.senderName,
           sender_phone: row.senderPhone,
           recipient_name: row.recipientName,
@@ -121,12 +132,12 @@ export async function POST(request: Request) {
     if (error) throw error;
 
     const paymentResults = await Promise.allSettled(
-      (data || []).map((delivery) =>
-        supabase.rpc("pay_delivery_from_wallet", {
-          target_delivery_id: delivery.id,
-          next_metadata: { source: "business_bulk_dispatch" }
-        })
-      )
+      (data || []).map(async (delivery) => {
+        if (Number(delivery.price_ngn || 0) === 0) {
+          return supabase.from("deliveries").update({ status: "searching" }).eq("id", delivery.id);
+        }
+        return supabase.rpc("pay_delivery_from_wallet", { target_delivery_id: delivery.id, next_metadata: { source: "business_bulk_dispatch" } });
+      })
     );
     const failedPayment = paymentResults.find((result) => result.status === "rejected" || ("value" in result && result.value.error));
     if (failedPayment) {

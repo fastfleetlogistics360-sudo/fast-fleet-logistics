@@ -688,6 +688,9 @@ create table if not exists public.business_profiles (
   updated_at timestamptz not null default now()
 );
 
+alter table if exists public.rider_profiles
+  add column if not exists campus_zone_id text;
+
 alter table if exists public.business_profiles
   add column if not exists business_type text,
   add column if not exists commission_rate numeric(5,2),
@@ -1536,6 +1539,8 @@ declare
   rider_location_updated_at timestamptz;
   pickup_distance_km numeric;
   bicycle_delivery boolean := false;
+  campus_priority_until timestamptz;
+  campus_zone_id text;
 begin
   if auth.uid() is null then
     raise exception 'Authentication required';
@@ -1575,6 +1580,13 @@ begin
     raise exception 'This dispatch order needs a different vehicle type';
   end if;
 
+  campus_zone_id := nullif(trim(target_delivery.metadata->>'campus_zone_id'), '');
+  campus_priority_until := nullif(target_delivery.metadata->>'campus_rider_priority_until', '')::timestamptz;
+  if campus_zone_id is not null and campus_priority_until is not null and campus_priority_until > now()
+    and coalesce(target_rider.campus_zone_id, '') <> campus_zone_id then
+    raise exception 'This campus delivery is currently reserved for its assigned campus riders';
+  end if;
+
   rider_zone := coalesce(target_rider.operating_zone, target_rider.address);
   rider_state := coalesce(nullif(trim(split_part(rider_zone, ',', 2)), ''), trim(rider_zone));
   if rider_state is null or rider_state = '' then
@@ -1588,6 +1600,9 @@ begin
   cross_border_pickup_radius_km := least(50, greatest(1, coalesce(nullif(site_controls #>> '{delivery_policy,rider,cross_border_pickup_radius_km}', '')::numeric, 10)));
   location_freshness_minutes := least(60, greatest(10, coalesce(nullif(site_controls #>> '{delivery_policy,rider,location_freshness_minutes}', '')::integer, 30)));
   bicycle_max_route_km := least(50, greatest(1, coalesce(nullif(site_controls #>> '{fare_config,bicycleMaxDistanceKm}', '')::numeric, 10)));
+  if target_delivery.metadata ? 'campus_zone_id' then
+    bicycle_max_route_km := least(30, greatest(1, coalesce(nullif(target_delivery.metadata->>'campus_bicycle_cap_km', '')::numeric, bicycle_max_route_km)));
+  end if;
 
   pickup_matches_rider_state := target_delivery.pickup_address ilike '%' || rider_state || '%'
     or lower(coalesce(target_delivery.metadata->>'pickup_state', '')) = lower(rider_state);
@@ -2638,6 +2653,7 @@ create index if not exists marketplace_listing_applications_status_idx on public
 create index if not exists rider_profiles_user_id_idx on public.rider_profiles(user_id);
 create index if not exists rider_profiles_status_idx on public.rider_profiles(application_status);
 create index if not exists rider_profiles_online_zone_idx on public.rider_profiles(online, operating_zone);
+create index if not exists rider_profiles_online_campus_zone_idx on public.rider_profiles(online, campus_zone_id) where campus_zone_id is not null;
 create index if not exists rider_applications_user_id_idx on public.rider_applications(user_id);
 create index if not exists rider_applications_status_idx on public.rider_applications(status, created_at desc);
 create index if not exists deliveries_customer_id_idx on public.deliveries(customer_id);

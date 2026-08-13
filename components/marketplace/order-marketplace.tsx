@@ -400,8 +400,9 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
 
           <div className="mt-5 grid gap-2 text-sm font-bold">
             <Summary label="Items" value={formatMoney(itemsTotal)} />
-            <Summary label="Platform fee" value={formatMoney(platformFee)} />
-            <Summary label="Delivery fee" value={estimateLoading ? "Estimating..." : estimate ? formatMoney(deliveryFee) : "Add address"} />
+              <Summary label="Platform fee" value={formatMoney(platformFee)} />
+              <Summary label="Delivery fee" value={estimateLoading ? "Estimating..." : estimate ? formatMoney(deliveryFee) : "Add address"} />
+              {estimate?.campus?.lecturerBenefit ? <div className="rounded-fleet bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">{estimate.campus.message}</div> : null}
             {estimate ? <Summary label="Route distance" value={`${estimate.distanceKm.toFixed(1)} km`} /> : null}
           </div>
 

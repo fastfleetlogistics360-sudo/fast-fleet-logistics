@@ -10,7 +10,8 @@ import {
   resolveMarketplaceBusinessLinks,
   type MarketplaceCheckoutItem
 } from "@/lib/marketplace-business-links";
-import { estimateMarketplaceCheckout, marketplacePickupAddress } from "@/lib/marketplace-pricing";
+import { configuredMarketplacePickupAddress, estimateMarketplaceCheckout, marketplacePickupAddress } from "@/lib/marketplace-pricing";
+import { campusFeeMetadata, loadCampusProgram, resolveLecturerBenefit } from "@/lib/campus-program";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending, type PaymentIntentPurpose } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, initiateSquadPayment } from "@/lib/payments/squad";
@@ -74,9 +75,11 @@ export async function POST(request: Request) {
     const linkedBusinessId = businessLinks.linkedBusinessIds[0] || null;
     const business = await loadActiveLinkedBusiness(admin, linkedBusinessId);
     const marketplaceKind = payload.kind === "shopping" ? "shopping" : "restaurant";
-    const quotePickupAddress = business ? businessPickupAddressFor(business, marketplacePickupAddress(resolvedItems, marketplaceKind)) : null;
-    const [fareConfig, deliveryPolicy] = await Promise.all([loadFareConfig(), loadDeliveryPolicy()]);
-    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: resolvedItems, address, pickupAddress: quotePickupAddress, fareConfig, deliveryPolicy });
+    const configuredPickup = configuredMarketplacePickupAddress(resolvedItems);
+    const quotePickupAddress = configuredPickup || (business ? businessPickupAddressFor(business, marketplacePickupAddress(resolvedItems, marketplaceKind)) : null);
+    const [fareConfig, deliveryPolicy, campusProgram] = await Promise.all([loadFareConfig(), loadDeliveryPolicy(), loadCampusProgram()]);
+    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: resolvedItems, address, pickupAddress: quotePickupAddress, fareConfig, deliveryPolicy, campusProgram });
+    const lecturerBenefit = await resolveLecturerBenefit({ program: campusProgram, userId: user.id, address, deliveryFee: estimate.deliveryFee, platformFee: estimate.platformFee });
     if (!estimate.allowed) {
       return NextResponse.json({ error: estimate.policyMessage || "This marketplace order cannot be delivered to that address." }, { status: 422 });
     }
@@ -90,9 +93,14 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-    const platformFee = estimate.platformFee;
-    const deliveryFee = estimate.deliveryFee;
-    const expectedAmount = estimate.total;
+    const platformFee = lecturerBenefit.applied ? 0 : estimate.platformFee;
+    const deliveryFee = lecturerBenefit.applied ? 0 : estimate.deliveryFee;
+    const expectedAmount = estimate.itemsTotal + deliveryFee + platformFee;
+    const operationalDeliveryFee = estimate.campusAdjustment.riderEarningNgn;
+    const campusMetadata = campusFeeMetadata({ program: campusProgram, adjustment: estimate.campusAdjustment, lecturerBenefit });
+    const campusRiderPriorityUntil = estimate.campusAdjustment.applied
+      ? new Date(Date.now() + campusProgram.riderPriorityMinutes * 60_000).toISOString()
+      : null;
     if (Number(payload.amount) !== expectedAmount) {
       return NextResponse.json({ error: "Checkout total changed. Refresh and try again." }, { status: 400 });
     }
@@ -126,7 +134,7 @@ export async function POST(request: Request) {
             vehicle_subtype: estimate.vehicleSubtype,
             status: "pending",
             amount: expectedAmount,
-            delivery_fee_ngn: deliveryFee,
+            delivery_fee_ngn: operationalDeliveryFee,
             platform_fee_ngn: platformFee,
             distance_km: estimate.distanceKm,
             eta_minutes: estimate.etaMinutes,
@@ -166,7 +174,7 @@ export async function POST(request: Request) {
           payment_method: "card",
           status: "pending_payment",
           price_ngn: expectedAmount,
-          delivery_fee_ngn: deliveryFee,
+          delivery_fee_ngn: operationalDeliveryFee,
           platform_fee_ngn: platformFee,
           distance_km: estimate.distanceKm,
           eta_minutes: estimate.etaMinutes,
@@ -184,8 +192,12 @@ export async function POST(request: Request) {
             pickup_longitude: pickupPoint?.longitude || null,
             dropoff_latitude: dropoffPoint?.latitude || null,
             dropoff_longitude: dropoffPoint?.longitude || null,
-            delivery_fee_ngn: deliveryFee,
+            delivery_fee_ngn: operationalDeliveryFee,
+            payable_delivery_fee_ngn: deliveryFee,
             platform_fee_ngn: platformFee,
+            original_platform_fee_ngn: estimate.platformFee,
+            ...campusMetadata,
+            campus_rider_priority_until: campusRiderPriorityUntil,
             delivery_distance_km: estimate.distanceKm,
             route_source: estimate.routeSource,
             route_type: estimate.routeType,

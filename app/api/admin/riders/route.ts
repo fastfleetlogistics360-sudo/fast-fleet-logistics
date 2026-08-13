@@ -47,7 +47,7 @@ export async function GET() {
   const { data: profileRows, error } = await supabase
     .from("rider_profiles")
     .select(
-      "id, user_id, application_status, rider_account_type, vehicle_type, plate_number, vehicle_color, operating_zone, bank_name, account_number, account_name, online, created_at, updated_at, users:users!rider_profiles_user_id_fkey(full_name, phone, email), rider_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)"
+      "id, user_id, application_status, rider_account_type, vehicle_type, plate_number, vehicle_color, operating_zone, campus_zone_id, bank_name, account_number, account_name, online, created_at, updated_at, users:users!rider_profiles_user_id_fkey(full_name, phone, email), rider_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)"
     )
     .order("created_at", { ascending: false })
     .limit(75);
@@ -106,6 +106,7 @@ export async function PATCH(request: Request) {
   const reason = String(body.reason || "").trim();
   const operatingZone = String(body.operatingZone || body.operating_zone || "").trim();
   const riderAccountType = normalizeRiderAccountType(body.riderAccountType || body.rider_account_type);
+  const campusZoneId = String(body.campusZoneId || body.campus_zone_id || "").trim();
 
   if (!id || !riderStatuses.has(status)) {
     return NextResponse.json({ error: "Choose a rider and a valid review status." }, { status: 400 });
@@ -125,6 +126,7 @@ export async function PATCH(request: Request) {
     suspension_reason: string | null;
     rider_account_type?: string;
     operating_zone?: string;
+    campus_zone_id?: string | null;
     online?: boolean;
   } = {
     application_status: status as RiderApplicationStatus,
@@ -132,6 +134,7 @@ export async function PATCH(request: Request) {
     suspension_reason: status === "rejected" || status === "more_info_required" ? reason : null
   };
   if (operatingZone) patch.operating_zone = operatingZone;
+  if (Object.prototype.hasOwnProperty.call(body, "campusZoneId") || Object.prototype.hasOwnProperty.call(body, "campus_zone_id")) patch.campus_zone_id = campusZoneId || null;
   if (status === "approved") {
     patch.rider_account_type = riderAccountType;
   }
@@ -140,7 +143,7 @@ export async function PATCH(request: Request) {
     .from("rider_profiles")
     .update(patch)
     .eq("id", id)
-    .select("id, user_id, application_status, rider_account_type, operating_zone, suspension_reason, reviewed_at")
+    .select("id, user_id, application_status, rider_account_type, operating_zone, campus_zone_id, suspension_reason, reviewed_at")
     .maybeSingle();
 
   if (error) {

@@ -11,6 +11,7 @@ import { launchPromoMetadata, quoteLaunchDeliveryPromo, redeemLaunchDeliveryProm
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { campusFeeMetadata, loadCampusProgram, resolveLecturerBenefit } from "@/lib/campus-program";
 import { accountTrackingHref } from "@/lib/tracking-links";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
     }
 
     const fareConfig = await loadFareConfig();
-    const quote = await createDeliveryQuote({
+    const [quote, campusProgram] = await Promise.all([createDeliveryQuote({
       pickup: {
         address: pickup,
         placeId: payload.pickupPlaceId,
@@ -100,16 +101,23 @@ export async function POST(request: Request) {
       speed,
       parcelType: parcel,
       fareConfig
-    });
+    }), loadCampusProgram()]);
     const estimate = quote.fare;
 
     const admin = createAdminClient();
     const db = admin || supabase;
     const promo = await quoteLaunchDeliveryPromo(db, user.id, quote);
-    const promoMetadata = launchPromoMetadata(promo);
-    const payableFare = promo.applied
+    const lecturerBenefit = await resolveLecturerBenefit({ program: campusProgram, userId: user.id, address: pickup, deliveryFee: estimate.deliveryFee, platformFee: estimate.platformFee });
+    const promoMetadata = lecturerBenefit.applied ? null : launchPromoMetadata(promo);
+    const promoFare = promo.applied
       ? { ...estimate, deliveryFee: promo.deliveryFee, platformFee: promo.platformFee, total: promo.total }
       : estimate;
+    const payableFare = lecturerBenefit.applied ? { ...estimate, deliveryFee: 0, platformFee: 0, total: 0 } : promoFare;
+    const campusMetadata = campusFeeMetadata({
+      program: campusProgram,
+      adjustment: { applied: false, campusZoneId: null, deliveryFee: estimate.deliveryFee, platformFee: estimate.platformFee, totalDiscount: 0, riderEarningNgn: estimate.deliveryFee, pricingBand: "normal" },
+      lecturerBenefit
+    });
 
     if (Number(payload.total || 0) !== payableFare.total) {
       return NextResponse.json({ error: "Delivery total changed. Review the estimate and try again." }, { status: 400 });
@@ -148,6 +156,7 @@ export async function POST(request: Request) {
       payable_total_ngn: payableFare.total,
       original_total_ngn: estimate.total,
       launch_promo: promoMetadata,
+      ...campusMetadata,
       payment_choice: paymentMethod,
       payment_provider: paymentMethod === "wallet" ? "wallet" : "squad",
       provider_reference: paymentMethod === "wallet" ? null : squadReference
@@ -193,6 +202,18 @@ export async function POST(request: Request) {
         await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, launch_promo_error: "reservation_failed" } }).eq("id", delivery.id);
         return NextResponse.json({ error: "Launch promo slots changed. Review the estimate and try again." }, { status: 400 });
       }
+    }
+
+    if (payableFare.total === 0) {
+      await db.from("deliveries").update({ status: "searching" }).eq("id", delivery.id);
+      await db.from("delivery_events").insert({
+        delivery_id: delivery.id,
+        actor_id: user.id,
+        status: "searching",
+        title: "KWASU lecturer benefit applied",
+        body: lecturerBenefit.message || "Fast Fleets 360 is covering your delivery and platform fees."
+      });
+      return NextResponse.json({ deliveryId: delivery.id, deliveryCode: delivery.delivery_code, status: "searching", paid: true, campusBenefit: { applied: true, message: lecturerBenefit.message } });
     }
 
     if (paymentMethod === "wallet") {

@@ -35,6 +35,12 @@ export type MarketplaceEstimate = {
   policyMessage: string | null;
   interstateDispatch: boolean;
   interstateDeliveryDays: number | null;
+  campus?: {
+    applied?: boolean;
+    pricingBand?: string;
+    lecturerBenefit?: boolean;
+    message?: string | null;
+  };
 };
 
 export function useMarketplaceEstimate({

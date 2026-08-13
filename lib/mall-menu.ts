@@ -19,6 +19,12 @@ export type MallStore = {
   image?: string;
   operatingStatus?: "open" | "closed";
   category: MallCategory;
+  pickupAddress?: string;
+  pickupPlaceId?: string;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
+  pickupNote?: string;
+  campusZoneId?: string;
   products: MallProduct[];
 };
 
@@ -339,6 +345,12 @@ function normalizeMallStore(value: unknown): MallStore | null {
     image: text(store.image) || undefined,
     operatingStatus: store.operatingStatus === "closed" ? "closed" : "open",
     category,
+    pickupAddress: text(store.pickupAddress) || undefined,
+    pickupPlaceId: text(store.pickupPlaceId) || undefined,
+    pickupLatitude: coordinate(store.pickupLatitude, 90),
+    pickupLongitude: coordinate(store.pickupLongitude, 180),
+    pickupNote: text(store.pickupNote) || undefined,
+    campusZoneId: text(store.campusZoneId) || undefined,
     products: products.length ? (products as MallProduct[]) : []
   };
 }
@@ -377,4 +389,9 @@ export function slug(value: string) {
 
 function text(value: unknown) {
   return String(value || "").trim();
+}
+
+function coordinate(value: unknown, max: number) {
+  const number = Number(value);
+  return Number.isFinite(number) && Math.abs(number) <= max ? number : undefined;
 }

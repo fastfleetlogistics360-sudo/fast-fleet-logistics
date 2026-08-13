@@ -7,6 +7,7 @@ import { quoteLaunchDeliveryPromo } from "@/lib/promos/launch-first-150";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { loadCampusProgram, resolveLecturerBenefit } from "@/lib/campus-program";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
 
 const vehicleTypes = new Set(["bike", "car", "van"]);
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
     }
 
     const fareConfig = await loadFareConfig();
-    const [quote, supabase] = await Promise.all([
+    const [quote, supabase, campusProgram] = await Promise.all([
       createDeliveryQuote({
         pickup: {
           address: pickup,
@@ -66,16 +67,26 @@ export async function POST(request: Request) {
         parcelType: payload.parcel,
         fareConfig
       } satisfies DeliveryQuoteInput),
-      createClient()
+      createClient(),
+      loadCampusProgram()
     ]);
     const {
       data: { user }
     } = await supabase.auth.getUser();
     const admin = createAdminClient();
     const promo = user ? await quoteLaunchDeliveryPromo(admin || supabase, user.id, quote) : null;
-    const fare = promo?.applied
+    const promoFare = promo?.applied
       ? { ...quote.fare, deliveryFee: promo.deliveryFee, platformFee: promo.platformFee, total: promo.total }
       : quote.fare;
+    const lecturerBenefit = await resolveLecturerBenefit({
+      program: campusProgram,
+      userId: user?.id,
+      // Dispatch privileges are anchored to where the lecturer is sending from.
+      address: pickup,
+      deliveryFee: quote.fare.deliveryFee,
+      platformFee: quote.fare.platformFee
+    });
+    const fare = lecturerBenefit.applied ? { ...quote.fare, deliveryFee: 0, platformFee: 0, total: 0 } : promoFare;
 
     return NextResponse.json({
       distanceKm: quote.distanceKm,
@@ -94,7 +105,8 @@ export async function POST(request: Request) {
       routeSource: quote.routeSource,
       bicycleEligible: quote.bicycleEligible,
       vehicleSubtype: quote.vehicleSubtype,
-      launchPromo: promo
+      launchPromo: lecturerBenefit.applied ? null : promo,
+      campusBenefit: lecturerBenefit.applied ? { applied: true, message: lecturerBenefit.message } : null
     });
   } catch {
     return NextResponse.json({ error: "Could not estimate delivery. Please try again." }, { status: 500 });
