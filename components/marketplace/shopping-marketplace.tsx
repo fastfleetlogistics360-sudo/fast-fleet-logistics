@@ -298,9 +298,9 @@ function ShoppingStorefront({
   const activeCategory = selectedVendor?.store.category || category || visibleGroups[0]?.category || "Grocery";
   const meta = shoppingCategoryMeta[activeCategory];
   const heroImage = selectedVendor ? getShoppingStoreImage(selectedVendor.store, selectedVendor.mall) : categoryGroup?.image || meta.image;
-  const pageTitle = missingVendor ? "Vendor not found" : selectedVendor ? `${selectedVendor.store.name} storefront` : `${meta.label} vendors`;
+  const pageTitle = missingVendor ? "Vendor not found" : selectedVendor ? selectedVendor.store.name : `${meta.label} vendors`;
   const pageBody = selectedVendor
-    ? `Order directly from ${selectedVendor.store.name}. This advert link opens the vendor storefront without changing the existing checkout flow.`
+    ? `Browse products from ${selectedVendor.store.name}, add what you need, and checkout when you are ready.`
     : missingVendor
       ? "This shopping vendor link is no longer active."
       : `Choose a ${meta.label.toLowerCase()} vendor, open their products, add items, and checkout with Squad.`;

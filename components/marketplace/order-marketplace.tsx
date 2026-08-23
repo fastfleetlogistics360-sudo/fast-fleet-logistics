@@ -56,7 +56,7 @@ export function RestaurantVendorSelection({ stores }: { stores: Store[] }) {
               <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Restaurants</span>
               <h1 className="mt-2 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Choose a restaurant.</h1>
               <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
-                Open a kitchen page, pick menu items, add your delivery address, and checkout with Squad.
+                Open a restaurant, pick menu items, add your delivery address, and checkout with Squad.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <StatusBadge tone={openVendorCount ? "green" : "amber"}>{openVendorCount} open</StatusBadge>

@@ -88,8 +88,8 @@ export function ReviewPrompt({ subject }: ReviewPromptProps) {
           metadata: subject.metadata || {}
         })
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) throw new Error(payload.error || "Could not save your review.");
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; code?: string; retry_after_seconds?: number };
+      if (!response.ok) throw new Error(reviewErrorMessage(payload, response.status));
       window.localStorage.setItem(key, "submitted");
       setVisible(false);
     } catch (nextError) {
@@ -155,4 +155,14 @@ export function ReviewPrompt({ subject }: ReviewPromptProps) {
       </div>
     </div>
   );
+}
+
+function reviewErrorMessage(payload: { error?: string; code?: string; retry_after_seconds?: number }, status: number) {
+  if (payload.code === "RATE_LIMITED") {
+    const minutes = Math.max(1, Math.ceil(Number(payload.retry_after_seconds || 60) / 60));
+    return `Too many review attempts. Please try again in about ${minutes} min.`;
+  }
+  if (payload.code === "REVIEW_NOT_ELIGIBLE") return "This order is still syncing as completed. Refresh the dashboard and try again shortly.";
+  if (status === 401) return "Please sign in again before submitting your review.";
+  return payload.error || "Could not save your review.";
 }

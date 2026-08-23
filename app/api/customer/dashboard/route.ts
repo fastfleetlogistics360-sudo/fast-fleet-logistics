@@ -12,6 +12,9 @@ const orderSelectWithoutRiderTag =
 const businessOrderSelect =
   "id, rider_id, order_code, delivery_id, marketplace_kind, items, pickup_address, dropoff_address, package_type, status, amount, created_at, updated_at, delivered_at, proof_of_delivery_url";
 
+const linkedMarketplaceDeliverySelect =
+  "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, metadata, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))";
+
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -85,24 +88,36 @@ async function loadOrders(db: SupabaseClient, userId: string) {
 
   if (businessOrders.error) return deliveries;
 
+  const linkedDeliveryIds = (businessOrders.data || [])
+    .map((order) => order.delivery_id)
+    .filter((deliveryId): deliveryId is string => typeof deliveryId === "string" && deliveryId.length > 0);
+  const linkedDeliveries = linkedDeliveryIds.length
+    ? await db.from("deliveries").select(linkedMarketplaceDeliverySelect).in("id", linkedDeliveryIds)
+    : { data: [], error: null };
+  const linkedDeliveryById = new Map((linkedDeliveries.data || []).map((delivery) => [delivery.id, delivery]));
+
   const mappedBusinessOrders = (businessOrders.data || [])
-    .map((order) => ({
-      id: order.id,
-      rider_id: order.rider_id,
-      delivery_id: order.delivery_id,
-      delivery_code: String(order.order_code || order.id).toUpperCase(),
-      pickup_address: order.pickup_address,
-      dropoff_address: order.dropoff_address,
-      status: order.status,
-      price_ngn: Number(order.amount || 0),
-      created_at: order.created_at,
-      delivered_at: order.delivered_at,
-      proof_url: order.proof_of_delivery_url,
-      metadata: null,
-      marketplace_kind: order.marketplace_kind,
-      items: order.items,
-      source: "business_marketplace_order"
-    }));
+    .map((order) => {
+      const linkedDelivery = order.delivery_id ? linkedDeliveryById.get(order.delivery_id) : null;
+      return {
+        id: order.id,
+        rider_id: linkedDelivery?.rider_id || order.rider_id,
+        delivery_id: order.delivery_id,
+        delivery_code: String(order.order_code || order.id).toUpperCase(),
+        pickup_address: linkedDelivery?.pickup_address || order.pickup_address,
+        dropoff_address: linkedDelivery?.dropoff_address || order.dropoff_address,
+        status: linkedDelivery?.status || order.status,
+        price_ngn: Number(order.amount || 0),
+        created_at: order.created_at,
+        delivered_at: linkedDelivery?.delivered_at || order.delivered_at,
+        proof_url: order.proof_of_delivery_url,
+        metadata: linkedDelivery?.metadata || null,
+        rider_profiles: linkedDelivery?.rider_profiles || null,
+        marketplace_kind: order.marketplace_kind,
+        items: order.items,
+        source: "business_marketplace_order"
+      };
+    });
   const businessOrderCodes = new Set(mappedBusinessOrders.map((order) => String(order.delivery_code || "").toUpperCase()));
   const visibleDeliveries = (deliveries.data || []).filter((delivery) => !businessOrderCodes.has(String(delivery.delivery_code || "").toUpperCase()));
 

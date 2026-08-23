@@ -803,7 +803,7 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
                 <div>
                   <strong className="block text-sm font-black text-fleet-night">{order.order_code || order.id}</strong>
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
-                    {businessOrderItemsLabel(order)} · {order.dropoff_address}
+                    {order.dropoff_address}
                   </span>
                   <span className="mt-1 block text-xs font-bold text-slate-500">
                     {formatMoney(Number(order.amount || 0))} · {businessOrderVehicleLabel(order)}
@@ -811,6 +811,7 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
                 </div>
                 <StatusBadge tone={businessOrderTone(order.status)}>{businessOrderLabel(order.status)}</StatusBadge>
               </div>
+              <BusinessOrderItems order={order} />
               <div className="mt-4 grid gap-2 sm:grid-cols-4">
                 {statuses.map(([status, label]) => (
                   <Button
@@ -1114,13 +1115,29 @@ function isBusinessOrderStatusLocked(current: string, target: string) {
   return order.indexOf(target) < order.indexOf(current);
 }
 
-function businessOrderItemsLabel(order: BusinessOrderRow) {
+function BusinessOrderItems({ order }: { order: BusinessOrderRow }) {
   const items = Array.isArray(order.items) ? order.items : [];
-  if (!items.length) return order.package_type;
-  return items
-    .slice(0, 2)
-    .map((item) => `${Number(item.quantity || 1)}x ${item.name || item.productName || "Item"}`)
-    .join(", ");
+  if (!items.length) return <p className="mt-3 text-xs font-bold text-slate-500">{order.package_type}</p>;
+  return (
+    <details className="group mt-3 rounded-[14px] bg-fleet-paper px-3 py-2.5">
+      <summary className="cursor-pointer list-none text-xs font-black text-fleet-night">
+        <span className="inline-flex items-center gap-2">
+          <span className="text-[0.62rem] uppercase tracking-[0.12em] text-fleet-ember">Order items</span>
+          <span className="rounded-full bg-white px-2 py-0.5 text-slate-600">{items.length}</span>
+        </span>
+        <span className="float-right text-slate-500 group-open:hidden">View all</span>
+        <span className="float-right hidden text-slate-500 group-open:inline">Hide</span>
+      </summary>
+      <ul className="mt-3 grid gap-2 border-t border-fleet-line pt-3">
+        {items.map((item, index) => (
+          <li key={`${item.name || item.productName || "item"}-${index}`} className="flex items-start justify-between gap-3 text-sm">
+            <span className="min-w-0 font-bold text-fleet-night">{item.name || item.productName || "Item"}</span>
+            <span className="shrink-0 font-black text-slate-500">×{Number(item.quantity || 1)}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 function businessOrderVehicleLabel(order: BusinessOrderRow) {

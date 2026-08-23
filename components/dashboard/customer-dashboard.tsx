@@ -171,8 +171,11 @@ function isBusinessMarketplaceOrder(order: OrderRow) {
 }
 
 function hasLiveDelivery(order: OrderRow) {
-  if (isBusinessMarketplaceOrder(order)) return false;
   return Boolean(order.delivery_id || ["rider_assigned", "picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered"].includes(String(order.status)));
+}
+
+function deliveryIdForCustomerAction(order: OrderRow) {
+  return order.delivery_id || order.id;
 }
 
 function customerOrderLabel(status: string) {
@@ -434,7 +437,7 @@ export function CustomerDashboard() {
     if (!delivery.id) return;
     setOrders((current) =>
       current.map((order) =>
-        order.id === delivery.id
+        order.id === delivery.id || order.delivery_id === delivery.id
           ? {
               ...order,
               rider_id: delivery.rider_id === undefined ? order.rider_id : delivery.rider_id,
@@ -455,7 +458,7 @@ export function CustomerDashboard() {
         pickup_proof: proof
       }
     });
-    setOrders((current) => current.map((order) => (order.id === deliveryId ? applyProof(order) : order)));
+    setOrders((current) => current.map((order) => (order.id === deliveryId || order.delivery_id === deliveryId ? applyProof(order) : order)));
   }, []);
 
   async function joinStateWaitlist() {
@@ -911,7 +914,7 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange, onPic
               </div>
             )}
           </Card>
-          {!vendorOrder ? <PackagePickupProof deliveryId={order.id} metadata={order.metadata} status={String(order.status)} onProofChange={(proof) => onPickupProofChange(order.id, proof)} /> : null}
+          {!vendorOrder ? <PackagePickupProof deliveryId={deliveryIdForCustomerAction(order)} metadata={order.metadata} status={String(order.status)} onProofChange={(proof) => onPickupProofChange(deliveryIdForCustomerAction(order), proof)} /> : null}
           <div className="grid gap-2 sm:grid-cols-2">
             <LinkButton href={messengerHref(order)} className="w-full bg-fleet-navy hover:bg-fleet-night">
               <MessageCircle className="h-4 w-4" />
@@ -1126,7 +1129,7 @@ function DeliveryRouteMap({
   onLiveDeliveryChange: (delivery: { id?: string; rider_id?: string | null; status?: string | null; metadata?: Record<string, unknown> | null }) => void;
 }) {
   const { delivery, riderLocation } = useLiveDeliveryTracking({
-    deliveryId: order?.id,
+    deliveryId: order ? deliveryIdForCustomerAction(order) : undefined,
     riderId: order?.rider_id,
     onDeliveryChange: onLiveDeliveryChange
   });

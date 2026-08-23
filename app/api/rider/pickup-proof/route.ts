@@ -14,6 +14,7 @@ import { persistReplacement, removeStoredObject, uploadValidatedObject } from "@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountMessengerHref } from "@/lib/tracking-links";
+import { deliveryConfirmationOwnerIds } from "@/lib/delivery-confirmation";
 import {
   buildStoragePath,
   logUploadRejection,
@@ -154,15 +155,15 @@ export async function POST(request: Request) {
         title: "Package photo uploaded",
         body: "Rider uploaded a package photo for customer confirmation."
       }),
-      delivery.customer_id
-        ? insertNotificationWithPush(admin, {
-            user_id: delivery.customer_id,
+      ...deliveryConfirmationOwnerIds(delivery).map((customerId) =>
+        insertNotificationWithPush(admin, {
+            user_id: customerId,
             title: "Confirm your package",
             body: `${delivery.delivery_code || "Your delivery"} has a package photo waiting for your confirmation.`,
             type: "package_confirmation",
             metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code || "", status: "pending", url: accountMessengerHref(delivery.delivery_code || delivery.id), tag: `ff-${delivery.delivery_code || delivery.id}` }
           })
-        : Promise.resolve()
+      )
     ]);
 
     return updateResponse(admin, delivery.id);

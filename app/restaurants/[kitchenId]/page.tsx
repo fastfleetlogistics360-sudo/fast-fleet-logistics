@@ -29,8 +29,8 @@ export default async function RestaurantKitchenPage({ params }: KitchenPageProps
 
   return (
     <OrderMarketplace
-      title={`${kitchen.name} kitchen`}
-      eyebrow="Restaurant kitchen"
+      title={kitchen.name}
+      eyebrow="Restaurant"
       stores={[kitchen]}
       kind="restaurant"
     />

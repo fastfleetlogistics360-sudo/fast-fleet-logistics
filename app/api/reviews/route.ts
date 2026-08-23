@@ -99,7 +99,12 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const db = admin || supabase;
   const allowed = orderId ? await userCanReviewOrder(db, user.id, orderId) : deliveryId ? await userCanReviewDelivery(db, user.id, deliveryId) : false;
-  if (!allowed) return NextResponse.json({ error: "You can only review your own completed order or delivery." }, { status: 403 });
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "This review is available after your completed order or delivery has synced.", code: "REVIEW_NOT_ELIGIBLE" },
+      { status: 403 }
+    );
+  }
 
   const uniqueReviewKey = makeReviewKey(user.id, subjectType, subjectId);
   const metadata = asObject(body.metadata);
@@ -120,7 +125,12 @@ export async function POST(request: Request) {
   };
 
   const { data, error } = await db.from("reviews").upsert(reviewPayload, { onConflict: "unique_review_key" }).select("id, rating").single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) {
+    return NextResponse.json(
+      { error: "Your review could not be saved. Please try again.", code: "REVIEW_SAVE_FAILED" },
+      { status: 400 }
+    );
+  }
 
   if (admin && reviewPayload.target_rider_profile_id) {
     const { data: ratings } = await admin

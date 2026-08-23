@@ -296,7 +296,9 @@ export function LiveOrderTracking({
   const riderTag = order.rider_id ? riderAccountTypeLabel(order.rider?.rider_account_type) : "Rider tag pending";
   const completed = isComplete(order.status);
   const marketplaceStatus = order.marketplace_order?.status || (marketplaceOnly ? order.status : null);
-  const showPickupProof = !marketplaceOnly && !order.marketplace_order;
+  // A marketplace order becomes a normal delivery after dispatch starts. Keep
+  // FastConfirm available to the buyer during that linked delivery.
+  const showPickupProof = !marketplaceOnly;
   const ongoingDelivery = !marketplaceOnly && isOngoingDelivery(order.status);
   const showMessengerRoom = !marketplaceOnly && (ongoingDelivery || (mode === "messenger" && !completed));
 
@@ -328,7 +330,7 @@ export function LiveOrderTracking({
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div>
               <Link href={backHref} className="text-sm font-black text-fleet-ember">Back to dashboard</Link>
-              <h1 className="mt-2 text-3xl font-black text-fleet-night sm:text-5xl">{order.delivery_code}</h1>
+              <h1 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">{order.delivery_code}</h1>
               <p className="mt-2 text-sm font-semibold text-slate-600">
                 {marketplaceOnly ? "Marketplace order status from business preparation to dispatch." : "Live delivery tracking from pickup to drop-off."}
               </p>
@@ -342,7 +344,7 @@ export function LiveOrderTracking({
             </Card>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <MetricCard icon={Clock3} label="ETA" value={marketplaceOnly ? "After pickup" : completed ? "Delivered" : etaMinutes ? `${etaMinutes} min` : "Calculating"} />
             <MetricCard icon={Route} label="Remaining" value={marketplaceOnly ? "Dispatch pending" : completed ? "0 km" : remainingKm ? `${remainingKm.toFixed(1)} km` : "Waiting"} />
             <MetricCard icon={Navigation2} label="Status" value={statusLabel(order.status)} />
@@ -351,12 +353,12 @@ export function LiveOrderTracking({
           {order.marketplace_order ? (
             <Card className="p-4 sm:p-5">
               <h2 className="text-xl font-black text-fleet-night">Marketplace progress</h2>
-              <div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="mt-4 flex flex-wrap gap-2">
                 {marketplaceStatusSteps.map((step) => {
                   const active = step.keys.includes(String(marketplaceStatus || order.status)) || isMarketplaceStepDone(step.label, String(marketplaceStatus || order.status));
                   return (
-                    <div key={step.label} className={cn("rounded-[14px] border px-2.5 py-2", active ? "border-fleet-leaf bg-emerald-50 text-emerald-800" : "border-fleet-line bg-white text-slate-500")}>
-                      <span className="block text-xs font-black uppercase leading-5">{step.label}</span>
+                    <div key={step.label} className={cn("inline-flex min-h-9 items-center rounded-full border px-3", active ? "border-fleet-leaf bg-emerald-50 text-emerald-800" : "border-fleet-line bg-white text-slate-500")}>
+                      <span className="text-xs font-black leading-5">{step.label}</span>
                     </div>
                   );
                 })}
@@ -366,12 +368,12 @@ export function LiveOrderTracking({
 
           {!marketplaceOnly ? <Card className="p-4 sm:p-5">
             <h2 className="text-xl font-black text-fleet-night">Delivery progress</h2>
-            <div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="mt-4 flex flex-wrap gap-2">
               {statusSteps.map((step) => {
                 const active = step.keys.includes(order.status) || isStepDone(step.label, order.status);
                 return (
-                  <div key={step.label} className={cn("rounded-[14px] border px-2.5 py-2", active ? "border-fleet-leaf bg-emerald-50 text-emerald-800" : "border-fleet-line bg-white text-slate-500")}>
-                    <span className="block text-xs font-black uppercase leading-5">{step.label}</span>
+                  <div key={step.label} className={cn("inline-flex min-h-9 items-center rounded-full border px-3", active ? "border-fleet-leaf bg-emerald-50 text-emerald-800" : "border-fleet-line bg-white text-slate-500")}>
+                    <span className="text-xs font-black leading-5">{step.label}</span>
                   </div>
                 );
               })}
@@ -791,10 +793,12 @@ function InfoRow({ icon: Icon, label, value }: { icon: LucideIcon; label: string
 
 function MetricCard({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
-    <Card className="p-4">
-      <Icon className="h-5 w-5 text-fleet-ember" />
-      <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <strong className="mt-1 block text-xl font-black text-fleet-night">{value}</strong>
+    <Card className="min-w-0 p-3 sm:p-4">
+      <div className="flex items-center gap-2 text-fleet-ember">
+        <Icon className="h-4 w-4 shrink-0" />
+        <p className="truncate text-[0.62rem] font-black uppercase tracking-[0.1em] text-slate-500">{label}</p>
+      </div>
+      <strong className="mt-1 block truncate text-base font-black text-fleet-night sm:text-lg">{value}</strong>
     </Card>
   );
 }
