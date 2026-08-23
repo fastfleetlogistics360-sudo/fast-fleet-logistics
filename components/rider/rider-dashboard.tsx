@@ -219,11 +219,12 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
   ]);
   const assigned = ((assignedResult.data || []) as JobRow[]).filter(Boolean);
   const riderLocation = (riderLocationResult.data || null) as { latitude?: number | string | null; longitude?: number | string | null; updated_at?: string | null } | null;
+  const hasQueuedDelivery = assigned.some((job) => job.status === "accepted_pending_delivery");
   const available = [
     ...((availableByAddressResult.data || []) as JobRow[]),
     ...((availableByMetadataResult.data || []) as JobRow[]),
     ...((availableNearbyResult.data || []) as JobRow[])
-  ].filter((job) => !isRejectedByRider(job, riderId) && jobMatchesFallbackEligibility(job, riderZone, riderLocation));
+  ].filter((job) => !hasQueuedDelivery && !isRejectedByRider(job, riderId) && jobMatchesFallbackEligibility(job, riderZone, riderLocation));
   return mergeJobs([...available, ...assigned]);
 }
 
@@ -425,6 +426,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 
   const incomingJob = jobs.find((job) => job.status === "searching") || null;
   const activeJob = jobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(job.status)) || null;
+  const queuedJob = jobs.find((job) => job.status === "accepted_pending_delivery") || null;
   const latestCompletedTrip = jobs.find((job) => job.status === "delivered") || null;
   const recentTrips = jobs.filter((job) => job.status === "delivered").slice(0, 5);
   const firstName = (profile.full_name || "Rider").split(/\s+/)[0] || "Rider";
@@ -954,6 +956,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
               pickupEtaMinutes={pickupEtaMinutes}
               pickupEtaLoading={pickupEtaLoading}
               activeJob={activeJob}
+              queuedJob={queuedJob}
               recentTrips={recentTrips}
               liveLocation={liveLocation}
               trackingActive={trackingActive}
@@ -1027,7 +1030,7 @@ function MobileTabs({ activeTab, onChange }: { activeTab: RiderTab; onChange: (t
   );
 }
 
-function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, recentTrips, liveLocation, trackingActive, trackingMessage, offerNotice, onOpenWithdrawal, onOpenActiveJob, onRespond }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; walletBalance: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; recentTrips: JobRow[]; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onOpenWithdrawal: () => void; onOpenActiveJob: () => void; onRespond: (job: JobRow, accepted: boolean) => void }) {
+function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, queuedJob, recentTrips, liveLocation, trackingActive, trackingMessage, offerNotice, onOpenWithdrawal, onOpenActiveJob, onRespond }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; walletBalance: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; queuedJob: JobRow | null; recentTrips: JobRow[]; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onOpenWithdrawal: () => void; onOpenActiveJob: () => void; onRespond: (job: JobRow, accepted: boolean) => void }) {
   if (loading) return <DashboardSkeleton />;
   return (
     <div className="grid gap-5">
@@ -1056,6 +1059,7 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, prof
       {offerNotice ? <div className="rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-800">{offerNotice}</div> : null}
       {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={onRespond} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
       {activeJob ? <ActiveJobLauncher job={activeJob} trackingActive={trackingActive} trackingMessage={trackingMessage} onOpen={onOpenActiveJob} /> : null}
+      {queuedJob ? <Card className="border-amber-200 bg-amber-50 p-4"><StatusBadge tone="amber">Next delivery</StatusBadge><h3 className="mt-2 text-lg font-black text-fleet-night">{queuedJob.delivery_code}</h3><p className="mt-1 text-sm font-semibold text-slate-600">{queuedJob.pickup_address} to {queuedJob.dropoff_address}</p><p className="mt-2 text-xs font-bold text-amber-800">Accepted and waiting. It will activate immediately after your current delivery is confirmed.</p></Card> : null}
       {!activeJob ? <Card className="overflow-hidden p-0">
         <RoutePreview
           compact
@@ -1115,6 +1119,7 @@ function IncomingJob({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLoc
   const customerName = job.users?.full_name || "Customer";
   const routeDistance = Number(job.distance_km || 0);
   const distanceLabel = routeDistance > 0 ? `${routeDistance.toFixed(1)} km` : "Route distance pending";
+  const marketplaceItems = marketplaceItemsForJob(job);
   return (
     <Card className="border-fleet-gold p-5">
       <div className="flex items-start justify-between gap-4">
@@ -1130,6 +1135,7 @@ function IncomingJob({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLoc
 	        </div>
 	        <span className="grid h-14 w-14 place-items-center rounded-full border-4 border-fleet-navy text-lg font-black text-fleet-navy">{expires}</span>
       </div>
+      {marketplaceItems.length ? <div className="mt-4 rounded-fleet bg-fleet-paper p-3"><span className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-fleet-ember">Ordered items</span><p className="mt-1 text-sm font-bold text-fleet-night">{marketplaceItems.map((item) => `${item.quantity} x ${item.name}`).join(" · ")}</p></div> : null}
       <div className="mt-5 grid grid-cols-2 gap-3">
         <Button type="button" onClick={() => onRespond(job, true)} className="bg-emerald-600 hover:bg-emerald-700">Accept</Button>
         <Button type="button" variant="secondary" onClick={() => onRespond(job, false)}>Decline</Button>
@@ -1256,6 +1262,7 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
   const navigationDestination = navigatingToDropoff ? job.dropoff_address : job.pickup_address;
   const navigationHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(navigationDestination)}`;
   const messages = activeJobMessages(job, customerName, trackingActive, proofRequired, proof?.status || null, needsUpload, pendingReview);
+  const marketplaceItems = marketplaceItemsForJob(job);
   return (
     <Card className="overflow-hidden p-0">
       <div className="border-b border-fleet-line bg-white p-4 sm:p-5">
@@ -1275,6 +1282,7 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
       </div>
 
       <div className="bg-fleet-paper/70 p-3 sm:p-4">
+        {marketplaceItems.length ? <div className="mb-3 rounded-[18px] border border-fleet-line bg-white p-4"><span className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-fleet-ember">Marketplace order contents</span><div className="mt-2 grid gap-2">{marketplaceItems.map((item, index) => <div key={`${item.name}-${index}`} className="flex items-center justify-between gap-3 text-sm"><strong className="text-fleet-night">{item.name}</strong><span className="font-black text-slate-500">x{item.quantity}</span></div>)}</div><p className="mt-3 text-xs font-bold text-slate-500">Confirm these items with the vendor before pickup.</p></div> : null}
         <RoutePreview
           compact
           className="min-h-[260px] rounded-[18px]"
@@ -1466,17 +1474,27 @@ function isActiveJobMessageVisible(key: string, status: string) {
   return statusIndex >= 0 && messageIndex <= statusIndex;
 }
 
+function marketplaceItemsForJob(job: JobRow) {
+  const raw = job.metadata?.items;
+  if (!Array.isArray(raw)) return [] as Array<{ name: string; quantity: number }>;
+  return raw.map((item) => {
+    const value = item && typeof item === "object" ? item as Record<string, unknown> : {};
+    return { name: String(value.name || value.productName || "Marketplace item"), quantity: Math.max(1, Number(value.quantity || 1)) };
+  });
+}
+
 function JobsTab({ loading, jobs, online, onToggleOnline }: { loading: boolean; jobs: JobRow[]; online: boolean; onToggleOnline: () => void }) {
-  const [filter, setFilter] = useState<"active" | "available" | "completed">("active");
+  const [filter, setFilter] = useState<"active" | "queued" | "available" | "completed">("active");
   if (loading) return <DashboardSkeleton />;
   const filteredJobs = jobs.filter((job) => {
     if (filter === "available") return job.status === "searching";
+    if (filter === "queued") return job.status === "accepted_pending_delivery";
     if (filter === "completed") return job.status === "delivered";
     return ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(job.status);
   });
   return (
     <div className="grid gap-4">
-      <div className="flex gap-2">{(["active", "available", "completed"] as const).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={cn("rounded-full px-4 py-2 text-sm font-black capitalize", filter === item ? "bg-fleet-navy text-white" : "bg-white text-slate-600")}>{item}</button>)}</div>
+      <div className="flex gap-2">{(["active", "queued", "available", "completed"] as const).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={cn("rounded-full px-4 py-2 text-sm font-black capitalize", filter === item ? "bg-fleet-navy text-white" : "bg-white text-slate-600")}>{item}</button>)}</div>
       {filteredJobs.length ? filteredJobs.map((job) => <TripCard key={job.id} job={job} />) : (
         <Card className="p-5 text-center">
           <h3 className="text-xl font-black text-fleet-night">No jobs in this view</h3>

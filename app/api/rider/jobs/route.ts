@@ -133,6 +133,8 @@ export async function GET(request: Request) {
     if ("error" in riderLocationResult && riderLocationResult.error) throw riderLocationResult.error;
 
     const assigned = ((assignedResult.data || []) as JobRow[]).filter(Boolean);
+    const hasActiveDelivery = assigned.some((job) => ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(String((job as { status?: string }).status || "")));
+    const hasQueuedDelivery = assigned.some((job) => String((job as { status?: string }).status || "") === "accepted_pending_delivery");
     const riderLocation = ((riderLocationResult as { data?: RiderLocationRow | null }).data || null) as RiderLocationRow | null;
     const available = [
       ...(((availableByAddressResult as { data?: JobRow[] }).data || []) as JobRow[]),
@@ -141,7 +143,7 @@ export async function GET(request: Request) {
     ].filter(
       (job) =>
         !isRejectedByRider(job, rider.id) &&
-        jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, riderLocation, deliveryPolicy.rider, rider.campus_zone_id)
+        !hasQueuedDelivery && jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, riderLocation, deliveryPolicy.rider, rider.campus_zone_id, hasActiveDelivery)
     );
     return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]) });
   } catch (error) {
@@ -173,9 +175,10 @@ export async function POST(request: Request) {
     if (action === "accept") {
       const stateCheck = await canRiderAcceptPickupState(db, user.id, id, (await loadDeliveryPolicy()).rider);
       if (!stateCheck.ok) return NextResponse.json({ error: stateCheck.error }, { status: 403 });
-      const { error } = await supabase.rpc("accept_delivery_offer", { target_delivery_id: id });
+      const { error } = await supabase.rpc("accept_or_queue_delivery_offer", { target_delivery_id: id });
       if (error) throw error;
-      await syncLinkedBusinessOrder(db, id, "rider_assigned");
+      const { data: accepted } = await db.from("deliveries").select("status").eq("id", id).maybeSingle<{ status?: string | null }>();
+      await syncLinkedBusinessOrder(db, id, accepted?.status === "accepted_pending_delivery" ? "accepted_pending_delivery" : "rider_assigned");
       return updateResponse(db, id);
     }
 
@@ -370,12 +373,15 @@ async function canRiderAcceptPickupState(
     riderLocation = data || null;
   }
   const asset = await loadAssignedBicycleAsset(db, rider?.id);
+  const { data: activeTrips } = rider?.id
+    ? await db.from("deliveries").select("id").eq("rider_id", rider.id).in("status", ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"]).limit(1)
+    : { data: [] as Array<{ id: string }> };
   if (!delivery || !riderCanReceiveDelivery({
     job: delivery,
     riderZone,
     riderCampusZone: rider?.campus_zone_id,
     riderLocation,
-    hasAvailableBicycle: Boolean(asset?.id && asset.status === "available"),
+    hasAvailableBicycle: Boolean(asset?.id && (asset.status === "available" || (Boolean(activeTrips?.length) && asset.status === "busy"))),
     policy
   })) {
     return { ok: false, error: `This pickup is outside your registered rider state or more than ${policy.crossBorderPickupRadiusKm}km from a recent live location. Bicycle jobs also require an available bicycle and a route of ${policy.bicycleMaxRouteKm}km or less.` };
@@ -383,9 +389,9 @@ async function canRiderAcceptPickupState(
   return { ok: true };
 }
 
-function jobMatchesRiderFleet(job: JobRow, bicycleAsset: RiderFleetAsset) {
+function jobMatchesRiderFleet(job: JobRow, bicycleAsset: RiderFleetAsset, allowBusyBicycle = false) {
   const bicycleJob = isBicycleDelivery(job.metadata, job.vehicle_subtype);
-  if (bicycleJob) return Boolean(bicycleAsset?.id && bicycleAsset.status === "available");
+  if (bicycleJob) return Boolean(bicycleAsset?.id && (bicycleAsset.status === "available" || (allowBusyBicycle && bicycleAsset.status === "busy")));
   return !bicycleAsset?.id;
 }
 
@@ -395,15 +401,16 @@ function jobMatchesRiderDispatch(
   bicycleAsset: RiderFleetAsset,
   riderLocation: RiderLocationRow | null,
   policy: DeliveryPolicy["rider"],
-  riderCampusZone?: string | null
+  riderCampusZone?: string | null,
+  allowBusyBicycle = false
 ) {
-  if (!jobMatchesRiderFleet(job, bicycleAsset)) return false;
+  if (!jobMatchesRiderFleet(job, bicycleAsset, allowBusyBicycle)) return false;
   return riderCanReceiveDelivery({
     job,
     riderZone,
     riderCampusZone,
     riderLocation,
-    hasAvailableBicycle: Boolean(bicycleAsset?.id && bicycleAsset.status === "available"),
+    hasAvailableBicycle: Boolean(bicycleAsset?.id && (bicycleAsset.status === "available" || (allowBusyBicycle && bicycleAsset.status === "busy"))),
     policy
   });
 }
@@ -424,6 +431,7 @@ function mergeJobs(jobs: JobRow[]) {
 
 function mapDeliveryStatusToBusinessOrder(status: string) {
   if (status === "accepted") return "rider_assigned";
+  if (status === "accepted_pending_delivery") return "accepted_pending_delivery";
   if (status === "picked_up") return "picked_up";
   if (status === "in_transit") return "in_transit";
   if (status === "awaiting_delivery_confirmation") return "awaiting_delivery_confirmation";
@@ -455,7 +463,7 @@ async function syncLinkedBusinessOrder(db: SupabaseClient, deliveryId: string, s
     business_id?: string | null;
   }>();
   if (status === "awaiting_delivery_confirmation") return;
-  const label = status === "rider_assigned" ? "Rider Assigned" : status === "picked_up" ? "Order Picked by Dispatch" : status === "in_transit" ? "On the Way" : status === "awaiting_delivery_confirmation" ? "Awaiting Delivery Confirmation" : status === "delivered" ? "Delivered" : status.replaceAll("_", " ");
+  const label = status === "rider_assigned" ? "Rider Assigned" : status === "accepted_pending_delivery" ? "Accepted - pending delivery" : status === "picked_up" ? "Order Picked by Dispatch" : status === "in_transit" ? "On the Way" : status === "awaiting_delivery_confirmation" ? "Awaiting Delivery Confirmation" : status === "delivered" ? "Delivered" : status.replaceAll("_", " ");
   type PushNotificationInput = Parameters<typeof insertNotificationWithPush>[1];
   const orderCode = String(order?.order_code || order?.id || deliveryId);
   const notifications: Array<PushNotificationInput | null> = [

@@ -11,6 +11,7 @@ import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountMessengerHref } from "@/lib/tracking-links";
+import { deliveryConfirmationOwnerIds } from "@/lib/delivery-confirmation";
 
 type ReviewPayload = {
   deliveryId?: string;
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
       .maybeSingle<DeliveryForReview>();
     if (deliveryError) throw deliveryError;
     if (!delivery?.id) return NextResponse.json({ error: "Delivery not found." }, { status: 404 });
-    if (delivery.customer_id !== user.id) return NextResponse.json({ error: "Only the customer who booked this delivery can confirm the package." }, { status: 403 });
+    if (delivery.customer_id !== user.id && !deliveryConfirmationOwnerIds(delivery).includes(user.id)) return NextResponse.json({ error: "Only the marketplace customer can confirm this package." }, { status: 403 });
 
     const metadata = metadataRecord(delivery.metadata);
     const proof = pickupProofFromMetadata(metadata);

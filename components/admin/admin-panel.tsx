@@ -400,6 +400,8 @@ type AdminDelivery = {
   price_ngn: number;
   eta_minutes: number;
   created_at: string;
+  accepted_at?: string | null;
+  metadata?: Record<string, unknown> | null;
   users?: { full_name?: string | null; phone?: string | null; email?: string | null } | null;
   rider_profiles?: { users?: { full_name?: string | null; phone?: string | null; email?: string | null } | null } | null;
 };
@@ -3384,6 +3386,9 @@ function RestaurantMenuSection({
   onSave: () => void;
 }) {
   const saving = busyAction === "restaurants:save";
+  const [query, setQuery] = useState("");
+  const [expandedKitchenId, setExpandedKitchenId] = useState<string | null>(restaurants[0]?.id || null);
+  const visibleRestaurants = restaurants.filter((kitchen) => `${kitchen.name} ${kitchen.area} ${kitchen.operatingStatus || ""}`.toLowerCase().includes(query.trim().toLowerCase()));
 
   return (
     <Card id="restaurant-menus" className="mt-6 scroll-mt-24 overflow-hidden">
@@ -3413,26 +3418,36 @@ function RestaurantMenuSection({
       </div>
 
       <div className="grid gap-5 p-4">
-        {restaurants.map((kitchen) => (
+        <div className="flex flex-col gap-3 rounded-fleet border border-fleet-line bg-fleet-paper p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><strong className="block text-sm font-black text-fleet-night">Restaurant directory</strong><span className="text-xs font-bold text-slate-500">{restaurants.length} restaurants · {restaurants.reduce((total, kitchen) => total + kitchen.items.length, 0)} menu items</span></div>
+          <input className="form-input w-full sm:max-w-xs" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search restaurant or area" />
+        </div>
+        {visibleRestaurants.map((kitchen) => (
           <article key={kitchen.id} className="rounded-fleet border border-fleet-line bg-white p-4 [contain-intrinsic-size:620px] [content-visibility:auto]">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">Restaurant vendor</span>
                 <strong className="block truncate text-lg font-black text-fleet-night">{kitchen.name}</strong>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                onClick={() => {
-                  if (window.confirm(`Remove ${kitchen.name} and all its menu items?`)) onRemoveKitchen(kitchen.id);
-                }}
-                disabled={restaurants.length <= 1}
-              >
-                <Trash2 className="h-4 w-4" />
-                Remove restaurant
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={() => setExpandedKitchenId((current) => current === kitchen.id ? null : kitchen.id)}>
+                  {expandedKitchenId === kitchen.id ? "Collapse editor" : "Open editor"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => {
+                    if (window.confirm(`Remove ${kitchen.name} and all its menu items?`)) onRemoveKitchen(kitchen.id);
+                  }}
+                  disabled={restaurants.length <= 1}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Remove restaurant
+                </Button>
+              </div>
             </div>
+            {expandedKitchenId === kitchen.id ? <>
             <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
               <img src={kitchen.imageUrl} alt={kitchen.name} loading="lazy" decoding="async" className="h-44 w-full rounded-fleet object-cover lg:h-full" />
               <div className="grid gap-3">
@@ -3552,8 +3567,16 @@ function RestaurantMenuSection({
                 </div>
               ))}
             </div>
+            </> : <div className="flex items-center gap-3 rounded-fleet border border-fleet-line bg-fleet-paper p-3">
+              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-fleet bg-fleet-night text-white"><StoreIcon className="h-6 w-6" /></span>
+              <div className="min-w-0 text-sm">
+                <strong className="block truncate text-fleet-night">{kitchen.area || "Area not set"}</strong>
+                <span className="block text-xs font-bold text-slate-500">{kitchen.items.length} menu items · {kitchen.operatingStatus === "closed" ? "Closed for orders" : "Open for orders"}</span>
+              </div>
+            </div>}
           </article>
         ))}
+        {!visibleRestaurants.length ? <div className="rounded-fleet bg-fleet-paper p-5 text-sm font-bold text-slate-500">No restaurants match this search.</div> : null}
       </div>
     </Card>
   );
@@ -3610,9 +3633,14 @@ function CampusProgramSection({
           <AdminNumberInput label="Bicycle cap (km)" value={program.bicycleCapKm} onChange={(bicycleCapKm) => onProgramChange({ bicycleCapKm })} />
           <AdminNumberInput label="Normal pricing after (km)" value={program.normalPricingAfterKm} onChange={(normalPricingAfterKm) => onProgramChange({ normalPricingAfterKm })} />
           <AdminNumberInput label="Campus delivery cap (NGN)" value={program.deliveryFeeCapNgn} onChange={(deliveryFeeCapNgn) => onProgramChange({ deliveryFeeCapNgn })} />
+          <AdminNumberInput label="Campus rider payout per trip (NGN)" value={program.campusRiderPayoutNgn} onChange={(campusRiderPayoutNgn) => onProgramChange({ campusRiderPayoutNgn })} />
           <AdminNumberInput label="Overage after 20 km (NGN/km)" value={program.overagePerKmNgn} onChange={(overagePerKmNgn) => onProgramChange({ overagePerKmNgn })} />
           <AdminNumberInput label="Campus bicycle speed (km/h)" value={program.bicycleSpeedKmh} onChange={(bicycleSpeedKmh) => onProgramChange({ bicycleSpeedKmh })} />
           <AdminNumberInput label="Campus rider priority (minutes)" value={program.riderPriorityMinutes} onChange={(riderPriorityMinutes) => onProgramChange({ riderPriorityMinutes })} />
+        </div>
+        <div className="rounded-fleet border border-emerald-200 bg-emerald-50 p-4">
+          <strong className="text-sm font-black text-emerald-900">Campus Duty bicycle payout</strong>
+          <p className="mt-1 text-xs font-bold leading-5 text-emerald-800">Qualifying campus-priced bicycle jobs credit exactly {formatMoney(program.campusRiderPayoutNgn)} to the assigned Fast Fleets 360 campus rider. The remaining delivery fee and platform fee are recorded as company income at completion.</p>
         </div>
         <div className="rounded-fleet border border-emerald-200 bg-emerald-50 p-4">
           <strong className="text-sm font-black text-emerald-900">No Delivery / Platform Fee — KWASU Lecturers</strong>
@@ -4138,7 +4166,7 @@ function DeliveryTimelineSection({
   busyAction: string | null;
   onUpdate: (id: string, status: string) => void;
 }) {
-  const statuses = ["searching", "accepted", "picked_up", "in_transit", "delivered"];
+  const statuses = ["searching", "accepted", "accepted_pending_delivery", "picked_up", "in_transit", "delivered"];
 
   return (
     <Card id="delivery-timelines" className="mt-6 scroll-mt-24 overflow-hidden">
@@ -4169,6 +4197,7 @@ function DeliveryTimelineSection({
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
                     {customer} · Driver: {rider} · {formatMoney(delivery.price_ngn)}
                   </span>
+                  {delivery.status === "accepted_pending_delivery" ? <span className="mt-2 inline-block rounded-full bg-amber-50 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-amber-800">Queued next delivery · accepted {delivery.accepted_at ? formatDateTime(delivery.accepted_at) : "now"}</span> : null}
                 </div>
                 <StatusBadge tone={delivery.status === "delivered" ? "green" : "amber"}>{delivery.status.replaceAll("_", " ")}</StatusBadge>
               </div>

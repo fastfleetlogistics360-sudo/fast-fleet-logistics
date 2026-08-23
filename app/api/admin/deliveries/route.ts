@@ -8,7 +8,7 @@ import { accountMessengerHref } from "@/lib/tracking-links";
 import { creditRiderDeliveryWallet } from "@/lib/wallet-ledger";
 import type { DeliveryStatus } from "@/types/domain";
 
-const deliveryStatuses = new Set(["pending_payment", "searching", "accepted", "rider_arrived", "picked_up", "in_transit", "delivered", "cancelled"]);
+const deliveryStatuses = new Set(["pending_payment", "searching", "accepted", "accepted_pending_delivery", "rider_arrived", "picked_up", "in_transit", "delivered", "cancelled"]);
 
 const demoDeliveries = [
   {
@@ -38,7 +38,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("deliveries")
-    .select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, eta_minutes, created_at, users:users!deliveries_customer_id_fkey(full_name, phone, email), rider_profiles:rider_profiles!deliveries_rider_id_fkey(users:users!rider_profiles_user_id_fkey(full_name, phone, email))")
+    .select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, eta_minutes, created_at, accepted_at, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email), rider_profiles:rider_profiles!deliveries_rider_id_fkey(users:users!rider_profiles_user_id_fkey(full_name, phone, email))")
     .order("created_at", { ascending: false })
     .limit(50);
 

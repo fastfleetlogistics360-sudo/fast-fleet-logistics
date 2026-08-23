@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DEFAULT_CAMPUS_PROGRAM } from "@/lib/campus-program";
 
 export const MIN_WITHDRAWAL_NGN = 2000;
 export const MAX_WITHDRAWAL_NGN = 200000;
@@ -215,7 +216,7 @@ export async function recordCustomerMarketplacePayment(db: SupabaseClient, input
 export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: string) {
   const { data: delivery, error: deliveryError } = await db
     .from("deliveries")
-    .select("id, delivery_code, rider_id, price_ngn, status, metadata")
+    .select("id, delivery_code, rider_id, price_ngn, status, vehicle_subtype, metadata")
     .eq("id", deliveryId)
     .maybeSingle<{
       id: string;
@@ -223,6 +224,7 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
       rider_id?: string | null;
       price_ngn?: number | string | null;
       status?: string | null;
+      vehicle_subtype?: string | null;
       metadata?: unknown;
     }>();
   if (deliveryError) throw deliveryError;
@@ -252,12 +254,15 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
 
   const { data: rider, error: riderError } = await db
     .from("rider_profiles")
-    .select("id, user_id")
+    .select("id, user_id, rider_account_type, campus_zone_id")
     .eq("id", delivery.rider_id)
-    .maybeSingle<{ id: string; user_id?: string | null }>();
+    .maybeSingle<{ id: string; user_id?: string | null; rider_account_type?: string | null; campus_zone_id?: string | null }>();
   if (riderError) throw riderError;
   if (!rider?.user_id) return { credited: false, amount: 0 };
 
+  const campusDuty = isCampusDutyPayout(metadata, rider, delivery);
+  const grossDeliveryFee = amount;
+  if (campusDuty) amount = Math.min(grossDeliveryFee, campusDuty.riderPayoutNgn);
   const wallet = await ensureWallet(db, rider.user_id, "rider");
   const { error: transactionError } = await db.from("transactions").insert({
     wallet_id: wallet.id,
@@ -273,7 +278,11 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
       rider_profile_id: rider.id,
       delivery_id: delivery.id,
       delivery_code: delivery.delivery_code,
-      delivery_fee_ngn: amount
+      delivery_fee_ngn: grossDeliveryFee,
+      rider_payout_ngn: amount,
+      campus_duty_payout: Boolean(campusDuty),
+      campus_company_delivery_margin_ngn: campusDuty ? Math.max(0, grossDeliveryFee - amount) : 0,
+      campus_platform_fee_ngn: campusDuty ? Math.max(0, money(metadata.platform_fee_ngn)) : 0
     }
   });
   if (transactionError) {
@@ -283,12 +292,19 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
   }
 
   const nextBalance = money(wallet.balance_ngn) + amount;
+  if (campusDuty) await recordCampusDutySettlementExpense(db, {
+    deliveryId: delivery.id,
+    deliveryCode: delivery.delivery_code || delivery.id,
+    riderPayoutNgn: amount,
+    deliveryMarginNgn: Math.max(0, grossDeliveryFee - amount),
+    platformFeeNgn: Math.max(0, money(metadata.platform_fee_ngn))
+  });
   await Promise.allSettled([
     db.from("wallets").update({ balance_ngn: nextBalance, updated_at: nowIso() }).eq("id", wallet.id),
     db.from("notifications").insert({
       user_id: rider.user_id,
       title: "Delivery earning credited",
-      body: `${delivery.delivery_code || "Delivery"} fee of NGN ${amount.toLocaleString("en-NG")} has been added to your rider wallet.`,
+      body: `${delivery.delivery_code || "Delivery"} earning of NGN ${amount.toLocaleString("en-NG")} has been added to your rider wallet.`,
       type: "rider_earning",
       channel: "in_app",
       metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code, amount_ngn: amount }
@@ -296,6 +312,30 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
   ]);
 
   return { credited: true, amount };
+}
+
+function isCampusDutyPayout(metadata: JsonRecord, rider: { rider_account_type?: string | null; campus_zone_id?: string | null }, delivery: { vehicle_subtype?: string | null; metadata?: unknown }) {
+  const campusZone = String(metadata.campus_zone_id || "").trim();
+  const bicycle = String(metadata.vehicle_subtype || metadata.vehicleSubtype || delivery.vehicle_subtype || "").toLowerCase() === "bicycle";
+  const applied = metadata.campus_pricing_applied === true;
+  if (!applied || !bicycle || !campusZone || campusZone !== rider.campus_zone_id || rider.rider_account_type !== "fastfleets360") return null;
+  const configured = Math.round(money(metadata.campus_rider_payout_ngn));
+  return { riderPayoutNgn: configured > 0 ? configured : DEFAULT_CAMPUS_PROGRAM.campusRiderPayoutNgn };
+}
+
+async function recordCampusDutySettlementExpense(db: SupabaseClient, input: { deliveryId: string; deliveryCode: string; riderPayoutNgn: number; deliveryMarginNgn: number; platformFeeNgn: number }) {
+  if (input.riderPayoutNgn <= 0) return;
+  const reference = `${input.deliveryCode}-campus-rider-payout`;
+  const { data: existing } = await db.from("company_transaction_logs").select("id").eq("reference", reference).maybeSingle<{ id: string }>();
+  if (existing?.id) return;
+  // Checkout already records the full customer collection as delivery income.
+  // Record only the rider's fixed payout here so the company ledger's net is
+  // the delivery margin plus the platform fee, without duplicate income.
+  await db.from("company_transaction_logs").insert({
+    entry_date: new Date().toISOString().slice(0, 10), category: "rider_payments", direction: "expense", amount_ngn: input.riderPayoutNgn,
+    title: `Campus rider payout ${input.deliveryCode}`, reference, payment_method: "wallet", status: "cleared",
+    notes: `Campus Duty settlement. Company retains NGN ${input.deliveryMarginNgn.toLocaleString("en-NG")} delivery margin plus NGN ${input.platformFeeNgn.toLocaleString("en-NG")} platform fee. Delivery ID: ${input.deliveryId}.`
+  });
 }
 
 export function riderCommissionRate(accountType: string | null | undefined) {

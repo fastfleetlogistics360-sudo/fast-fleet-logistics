@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Clock3, Home, LayoutDashboard, LockKeyhole, MapPin, MessageCircle, PackageCheck, Radar, Search, ShieldCheck, Sparkles, UserRound, Wallet } from "lucide-react";
+import { Bell, Clock3, Download, Home, LayoutDashboard, LockKeyhole, MapPin, MessageCircle, PackageCheck, Radar, Search, ShieldCheck, Sparkles, UserRound, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { clearServiceWorkerSession } from "@/lib/service-worker-session";
@@ -106,7 +106,7 @@ type LocalDelivery = Partial<OrderRow> & {
   source?: string;
 };
 
-const businessOrderStatuses = new Set(["received", "preparing", "packing", "ready_for_pickup", "rider_assigned", "picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered"]);
+const businessOrderStatuses = new Set(["received", "preparing", "packing", "ready_for_pickup", "rider_assigned", "accepted_pending_delivery", "picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered"]);
 
 type PromotionRow = {
   id: string;
@@ -873,6 +873,7 @@ function OrderRowCard({ order, compact }: { order: OrderRow; compact?: boolean }
             <MessageCircle className="h-3.5 w-3.5" />
             {businessOrder && !liveDelivery ? "Status updates" : "Messenger"}
           </LinkButton>
+          {order.status === "delivered" && (order.marketplace_kind || String(order.source || "").includes("marketplace") || String(order.metadata?.source || "").includes("marketplace")) ? <LinkButton href={`/api/customer/marketplace-receipt?${order.delivery_id ? `orderId=${encodeURIComponent(order.id)}` : `deliveryId=${encodeURIComponent(order.id)}`}`} size="sm" variant="secondary"><Download className="h-3.5 w-3.5" />Receipt</LinkButton> : null}
           <LinkButton href={`/book?reorder=${order.delivery_code}`} size="sm">Re-order</LinkButton>
         </div>
       </div>
@@ -960,6 +961,7 @@ function CustomerVendorProgress({ status, compact = false }: { status: string; c
     ["packing", "Packing Order"],
     ["ready_for_pickup", "Ready for Pickup"],
     ["rider_assigned", "Rider Assigned"],
+    ["accepted_pending_delivery", "Rider accepted - next in queue"],
     ["picked_up", "Order Picked by Dispatch"],
     ["in_transit", "On the Way"],
     ["awaiting_delivery_confirmation", "Confirming Delivery"],

@@ -23,6 +23,7 @@ export type CampusProgram = {
   bicycleCapKm: number;
   normalPricingAfterKm: number;
   deliveryFeeCapNgn: number;
+  campusRiderPayoutNgn: number;
   overagePerKmNgn: number;
   bicycleSpeedKmh: number;
   riderPriorityMinutes: number;
@@ -41,6 +42,7 @@ export const DEFAULT_CAMPUS_PROGRAM: CampusProgram = {
   bicycleCapKm: 20,
   normalPricingAfterKm: 30,
   deliveryFeeCapNgn: 1000,
+  campusRiderPayoutNgn: 300,
   overagePerKmNgn: 80,
   bicycleSpeedKmh: 15,
   riderPriorityMinutes: 4,
@@ -104,6 +106,7 @@ export function normalizeCampusProgram(value: unknown): CampusProgram {
     bicycleCapKm,
     normalPricingAfterKm,
     deliveryFeeCapNgn: clamp(input.deliveryFeeCapNgn, 0, 100000, DEFAULT_CAMPUS_PROGRAM.deliveryFeeCapNgn),
+    campusRiderPayoutNgn: clamp(input.campusRiderPayoutNgn, 0, 100000, DEFAULT_CAMPUS_PROGRAM.campusRiderPayoutNgn),
     overagePerKmNgn: clamp(input.overagePerKmNgn, 1, 10000, DEFAULT_CAMPUS_PROGRAM.overagePerKmNgn),
     bicycleSpeedKmh: clamp(input.bicycleSpeedKmh, 5, 40, DEFAULT_CAMPUS_PROGRAM.bicycleSpeedKmh, 1),
     riderPriorityMinutes: clamp(input.riderPriorityMinutes, 1, 30, DEFAULT_CAMPUS_PROGRAM.riderPriorityMinutes),
@@ -197,6 +200,7 @@ export function campusFeeMetadata(input: {
     campus_bicycle_cap_km: input.adjustment.applied ? input.program.normalPricingAfterKm : null,
     campus_delivery_fee_ngn: input.adjustment.deliveryFee,
     campus_rider_earning_ngn: input.adjustment.riderEarningNgn,
+    campus_rider_payout_ngn: input.adjustment.applied ? input.program.campusRiderPayoutNgn : null,
     campus_subsidy_ngn: input.adjustment.totalDiscount + (lecturer?.applied ? lecturer.waivedDeliveryFee + lecturer.waivedPlatformFee : 0),
     lecturer_benefit_applied: Boolean(lecturer?.applied),
     lecturer_benefit_distance_km: lecturer?.distanceFromUniversityKm ?? null,

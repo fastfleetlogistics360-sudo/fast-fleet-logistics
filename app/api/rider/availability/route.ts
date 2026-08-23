@@ -4,7 +4,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
-const activeDeliveryStatuses = ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"];
+// A rider who has accepted their next job is still committed to the platform,
+// even while finishing the current delivery. Do not allow an offline switch to
+// strand that queued assignment.
+const activeDeliveryStatuses = ["accepted", "accepted_pending_delivery", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"];
 const riderProfileSelect =
   "id, user_id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, operating_zone";
 

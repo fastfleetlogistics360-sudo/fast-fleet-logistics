@@ -292,7 +292,7 @@ async function newEarningsForDate(
     .filter((transaction) => {
       const metadata = metadataRecord(transaction.metadata);
       if (input.accountKind === "business") return metadata.account_kind === "business";
-      return metadata.account_kind === "rider" || transaction.transaction_type === "rider_earning";
+      return (metadata.account_kind === "rider" || transaction.transaction_type === "rider_earning") && metadata.campus_duty_payout !== true;
     })
     .reduce((sum, transaction) => sum + Math.max(0, Number(transaction.amount_ngn || 0)), 0);
 }

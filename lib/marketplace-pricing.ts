@@ -117,6 +117,7 @@ const DEFAULT_CAMPUS_PROGRAM_DISABLED: CampusProgram = {
   bicycleCapKm: 20,
   normalPricingAfterKm: 30,
   deliveryFeeCapNgn: 1000,
+  campusRiderPayoutNgn: 300,
   overagePerKmNgn: 80,
   bicycleSpeedKmh: 15,
   riderPriorityMinutes: 4,

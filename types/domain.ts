@@ -10,6 +10,7 @@ export type DeliveryStatus =
   | "pending_payment"
   | "searching"
   | "accepted"
+  | "accepted_pending_delivery"
   | "rider_arrived"
   | "picked_up"
   | "in_transit"

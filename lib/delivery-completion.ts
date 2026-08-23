@@ -86,7 +86,37 @@ export async function finalizeConfirmedDelivery(
   } catch {
     settlement = { credited: false, amount: 0, error: "Delivery was confirmed. Rider settlement will retry safely." };
   }
-  return { deliveredAt: completed?.delivered_at || timestamp, settlement };
+  const nextDeliveryId = delivery.rider_id ? await activateNextDelivery(db, delivery.rider_id) : null;
+  if (nextDeliveryId) await notifyQueuedDeliveryActivated(db, nextDeliveryId);
+  return { deliveredAt: completed?.delivered_at || timestamp, settlement, nextDeliveryId };
+}
+
+async function activateNextDelivery(db: SupabaseClient, riderProfileId: string) {
+  const { data, error } = await db.rpc("activate_next_rider_delivery", { target_rider_profile_id: riderProfileId });
+  if (error) return null;
+  return typeof data === "string" ? data : null;
+}
+
+async function notifyQueuedDeliveryActivated(db: SupabaseClient, deliveryId: string) {
+  const { data } = await db
+    .from("deliveries")
+    .select("id, delivery_code, customer_id, metadata, rider_profiles:rider_profiles!deliveries_rider_id_fkey(user_id)")
+    .eq("id", deliveryId)
+    .maybeSingle<{ id: string; delivery_code?: string | null; customer_id?: string | null; metadata?: Record<string, unknown> | null; rider_profiles?: { user_id?: string | null } | null }>();
+  if (!data) return;
+  const orderId = stringValue(metadataRecord(data.metadata).business_order_id);
+  const { data: order } = orderId
+    ? await db.from("orders").update({ status: "rider_assigned", updated_at: new Date().toISOString() }).eq("id", orderId).select("customer_id, business_id").maybeSingle<{ customer_id?: string | null; business_id?: string | null }>()
+    : { data: null };
+  const code = data.delivery_code || data.id;
+  const recipients = [data.customer_id, data.rider_profiles?.user_id, order?.customer_id, order?.business_id].filter((id, index, all): id is string => Boolean(id) && all.indexOf(id) === index);
+  await Promise.allSettled(recipients.map((userId) => insertNotificationWithPush(db, {
+    user_id: userId,
+    title: "Next delivery activated",
+    body: `${code} is now active and the rider is heading to pickup.`,
+    type: userId === data.rider_profiles?.user_id ? "delivery_update_rider" : "order_update",
+    metadata: { delivery_id: data.id, delivery_code: code, order_id: orderId, status: "accepted", url: userId === data.rider_profiles?.user_id ? "/rider/dashboard" : accountMessengerHref(code), tag: `ff-next-${code}` }
+  })));
 }
 
 async function loadRiderUserId(db: SupabaseClient, riderProfileId?: string | null) {

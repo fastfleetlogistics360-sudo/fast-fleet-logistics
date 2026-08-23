@@ -36,7 +36,10 @@ export function isCustomerPickupProofRequired(metadata: unknown) {
   if (record.pickup_proof_required === true) return true;
   if (record.pickup_proof_required === false) return false;
   const source = String(record.source || "").toLowerCase();
-  if (source.includes("business") || source.includes("marketplace")) return false;
+  // Marketplace buyers need the same photo confirmation before a rider starts
+  // the trip. Linked marketplace deliveries identify that buyer in metadata.
+  if (source.includes("marketplace")) return true;
+  if (source.includes("business")) return false;
   return source === "booking_checkout" || source === "customer_booking";
 }
 

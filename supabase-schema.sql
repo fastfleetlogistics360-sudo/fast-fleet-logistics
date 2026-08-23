@@ -31,6 +31,7 @@ do $$ begin
     'pending_payment',
     'searching',
     'accepted',
+    'accepted_pending_delivery',
     'rider_arrived',
     'picked_up',
     'in_transit',
@@ -42,6 +43,7 @@ exception when duplicate_object then null;
 end $$;
 
 alter type public.delivery_status add value if not exists 'awaiting_delivery_confirmation' before 'delivered';
+alter type public.delivery_status add value if not exists 'accepted_pending_delivery' after 'accepted';
 
 do $$ begin
   create type public.rider_application_status as enum (
@@ -932,7 +934,7 @@ end $$;
 
 alter table public.orders
   add constraint orders_status_check
-  check (status in ('pending', 'received', 'preparing', 'packing', 'ready_for_pickup', 'assigned', 'rider_assigned', 'picked_up', 'in_transit', 'awaiting_delivery_confirmation', 'delivered', 'cancelled'));
+  check (status in ('pending', 'received', 'preparing', 'packing', 'ready_for_pickup', 'assigned', 'rider_assigned', 'accepted_pending_delivery', 'picked_up', 'in_transit', 'awaiting_delivery_confirmation', 'delivered', 'cancelled'));
 
 drop trigger if exists orders_set_updated_at on public.orders;
 create trigger orders_set_updated_at
