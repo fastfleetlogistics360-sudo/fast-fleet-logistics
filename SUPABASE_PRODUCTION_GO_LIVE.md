@@ -75,6 +75,15 @@ Confirmation emails are triggered by Supabase Auth, not by this Next.js app.
 - Save, then create a new test account with a fresh email address.
 - If the email sends but the link fails, check the Auth URL Configuration and the confirmation email template contains Supabase's confirmation link variable.
 
+### WhatsApp Account Confirmation email
+
+The WhatsApp account-confirmation flow is deliberately separate from Supabase Auth sign-up and sign-in emails. It sends a six-digit code through the server-side Resend API and the customer replies with that code in WhatsApp.
+
+- Add `RESEND_API_KEY` and `FASTFLEET_EMAIL_FROM` to the app deployment environment. The `from` address must be verified in Resend.
+- Add a random `WHATSAPP_EMAIL_CONFIRMATION_SECRET` of at least 32 characters. It hashes confirmation codes; never expose it to the browser or Meta.
+- Apply [supabase-whatsapp-ordering-delta.sql](supabase-whatsapp-ordering-delta.sql) after [supabase-whatsapp-delta.sql](supabase-whatsapp-delta.sql).
+- Test with an existing customer account: send the account email in WhatsApp, reply with the emailed six-digit code, then place a Marketplace and Dispatch test order. Confirm each appears in the app history after payment settlement.
+
 ## 5. Configure frontend environment
 
 For the Next app, set these in your host environment:

@@ -289,7 +289,9 @@ Environment variables control backend behavior. Anything with `NEXT_PUBLIC_` is 
 | `GOOGLE_MAPS_API_KEY` | Yes for reverse geocoding | No | Server-only Google Maps key for reverse geocoding. Never expose it as `NEXT_PUBLIC_*`. |
 | `GOOGLE_PLACES_API_KEY` | Yes for server address search/place details | No | Server-only Places key for address autocomplete and place details. Never expose it as `NEXT_PUBLIC_*`. |
 | `GOOGLE_ROUTES_API_KEY` | Yes for route estimates | No | Server-only Routes API key for delivery pricing and route estimates. Never expose it as `NEXT_PUBLIC_*`. |
-| `RESEND_API_KEY` | Optional | No | Not used directly for Supabase Auth confirmation. Configure Resend SMTP in Supabase dashboard. |
+| `RESEND_API_KEY` | Required for WhatsApp Account Confirmation | No | Sends the branded six-digit WhatsApp confirmation email. Supabase Auth confirmation remains configured in the Supabase dashboard. |
+| `FASTFLEET_EMAIL_FROM` | Required for WhatsApp Account Confirmation | No | Verified Resend sender, e.g. `FastFleets 360 <no-reply@fastfleet.com.ng>`. |
+| `WHATSAPP_EMAIL_CONFIRMATION_SECRET` | Recommended | No | Separate secret of at least 32 characters used to HMAC WhatsApp confirmation codes. Falls back to the service-role key when omitted. |
 | `NEXT_PUBLIC_ALLOW_DEMO_DATA` | Local/staging only | Yes | Enables demo fallbacks when true. Keep false in production. |
 | `NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK` | Local/staging only | Yes | Allows fallback Supabase config. Keep false in production. |
 | `CRON_SECRET` | Yes | No | Secret of at least 32 characters used to protect `/api/wallet/daily-commission`. |

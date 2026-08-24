@@ -4,6 +4,7 @@ import { loadPaymentIntent, type PaymentIntent, type PaymentIntentPurpose } from
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { redeemLaunchDeliveryPromo } from "@/lib/promos/launch-first-150";
 import { accountMessengerHref } from "@/lib/tracking-links";
+import { sendWhatsAppText } from "@/lib/whatsapp/messages";
 
 export type PaymentSettlementActor =
   | { type: "customer"; userId: string }
@@ -171,35 +172,69 @@ async function runPostSettlementEffects(db: SupabaseClient, intent: PaymentInten
     // so a brief notification/promo outage never changes financial settlement.
     await redeemLaunchDeliveryPromo(db, intent.delivery_id);
   }
-  if (intent.purpose !== "marketplace_business_order" || !intent.order_id || !result.settledNow) return;
+  if (!result.settledNow) return;
+  if (intent.purpose === "marketplace_business_order" && intent.order_id) {
+    const { data: order } = await db
+      .from("orders")
+      .select("id, order_code, customer_id, business_id, business_profile_id")
+      .eq("id", intent.order_id)
+      .maybeSingle<{
+        id: string;
+        order_code: string | null;
+        customer_id: string | null;
+        business_id: string | null;
+        business_profile_id: string | null;
+      }>();
+    if (order?.business_id && order.customer_id) {
+      const code = order.order_code || intent.provider_transaction_reference;
+      await Promise.allSettled([
+        insertNotificationWithPush(db, {
+          user_id: order.business_id,
+          title: "New paid marketplace order",
+          body: `${code} is paid and waiting for your team to prepare.`,
+          type: "business_order_received",
+          metadata: { order_id: order.id, order_code: code, business_profile_id: order.business_profile_id, url: "/business/dashboard#marketplace-orders", tag: `ff-business-${code}` }
+        }),
+        insertNotificationWithPush(db, {
+          user_id: order.customer_id,
+          title: "Marketplace payment confirmed",
+          body: `${code} has been sent to the business.`,
+          type: "order_update",
+          metadata: { order_id: order.id, order_code: code, status: "received", url: accountMessengerHref(code), tag: `ff-${code}` }
+        })
+      ]);
+    }
+  }
+  await announceWhatsAppPayment(db, intent, intent.provider_transaction_reference);
+}
 
-  const { data: order } = await db
-    .from("orders")
-    .select("id, order_code, customer_id, business_id, business_profile_id")
-    .eq("id", intent.order_id)
-    .maybeSingle<{
-      id: string;
-      order_code: string | null;
-      customer_id: string | null;
-      business_id: string | null;
-      business_profile_id: string | null;
-    }>();
-  if (!order?.business_id || !order.customer_id) return;
-  const code = order.order_code || intent.provider_transaction_reference;
-  await Promise.allSettled([
-    insertNotificationWithPush(db, {
-      user_id: order.business_id,
-      title: "New paid marketplace order",
-      body: `${code} is paid and waiting for your team to prepare.`,
-      type: "business_order_received",
-      metadata: { order_id: order.id, order_code: code, business_profile_id: order.business_profile_id, url: "/business/dashboard#marketplace-orders", tag: `ff-business-${code}` }
-    }),
-    insertNotificationWithPush(db, {
-      user_id: order.customer_id,
-      title: "Marketplace payment confirmed",
-      body: `${code} has been sent to the business.`,
-      type: "order_update",
-      metadata: { order_id: order.id, order_code: code, status: "received", url: accountMessengerHref(code), tag: `ff-${code}` }
-    })
+async function announceWhatsAppPayment(db: SupabaseClient, intent: PaymentIntent, fallbackCode: string) {
+  if (!intent.owner_user_id) return;
+  const [{ data: link }, target] = await Promise.all([
+    db.from("whatsapp_account_links").select("whatsapp_phone").eq("user_id", intent.owner_user_id).maybeSingle<{ whatsapp_phone: string }>(),
+    paymentTarget(db, intent)
   ]);
+  if (!link?.whatsapp_phone || !target.whatsappSource) return;
+  await sendWhatsAppText({
+    to: link.whatsapp_phone,
+    body: `Payment confirmed for ${target.code || fallbackCode}. Your FastFleets order is now in your app Transaction History. We will send delivery updates here as it progresses.`
+  });
+}
+
+async function paymentTarget(db: SupabaseClient, intent: PaymentIntent) {
+  if (intent.delivery_id) {
+    const { data } = await db.from("deliveries").select("delivery_code, metadata").eq("id", intent.delivery_id).maybeSingle<{ delivery_code?: string | null; metadata?: unknown }>();
+    const metadata = record(data?.metadata);
+    return { code: data?.delivery_code || null, whatsappSource: metadata.source === "whatsapp_ordering" };
+  }
+  if (intent.order_id) {
+    const { data } = await db.from("orders").select("order_code, metadata").eq("id", intent.order_id).maybeSingle<{ order_code?: string | null; metadata?: unknown }>();
+    const metadata = record(data?.metadata);
+    return { code: data?.order_code || null, whatsappSource: metadata.source === "whatsapp_ordering" };
+  }
+  return { code: null, whatsappSource: false };
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }

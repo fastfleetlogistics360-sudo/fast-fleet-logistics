@@ -73,6 +73,13 @@ export interface Database {
           user_id: string;
           expires_at: string;
           consumed_at: string | null;
+          email?: string | null;
+          code_digest?: string | null;
+          attempts?: number;
+          max_attempts?: number;
+          send_count?: number;
+          last_sent_at?: string | null;
+          locked_at?: string | null;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["whatsapp_link_challenges"]["Row"]> & {
