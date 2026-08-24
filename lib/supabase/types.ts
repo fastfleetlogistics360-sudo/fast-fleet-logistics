@@ -49,6 +49,72 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
       };
+      whatsapp_account_links: {
+        Row: {
+          id: string;
+          whatsapp_phone: string;
+          user_id: string;
+          verified_at: string;
+          last_seen_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["whatsapp_account_links"]["Row"]> & {
+          whatsapp_phone: string;
+          user_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["whatsapp_account_links"]["Insert"]>;
+      };
+      whatsapp_link_challenges: {
+        Row: {
+          id: string;
+          token_hash: string;
+          whatsapp_phone: string;
+          user_id: string;
+          expires_at: string;
+          consumed_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["whatsapp_link_challenges"]["Row"]> & {
+          token_hash: string;
+          whatsapp_phone: string;
+          user_id: string;
+          expires_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["whatsapp_link_challenges"]["Insert"]>;
+      };
+      whatsapp_conversations: {
+        Row: {
+          whatsapp_phone: string;
+          user_id: string | null;
+          state: string;
+          state_data: Json;
+          last_message_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["whatsapp_conversations"]["Row"]> & {
+          whatsapp_phone: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["whatsapp_conversations"]["Insert"]>;
+      };
+      whatsapp_inbound_messages: {
+        Row: {
+          id: string;
+          message_id: string;
+          whatsapp_phone: string;
+          message_type: string;
+          body: string | null;
+          payload: Json;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["whatsapp_inbound_messages"]["Row"]> & {
+          message_id: string;
+          whatsapp_phone: string;
+          message_type: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["whatsapp_inbound_messages"]["Insert"]>;
+      };
       business_profiles: {
         Row: {
           id: string;
