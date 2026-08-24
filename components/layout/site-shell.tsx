@@ -345,8 +345,12 @@ export function SiteShell({ children }: { children: ReactNode }) {
               <strong className="text-lg font-black">Fast Fleets 360 Logistics</strong>
             </div>
             <p className="mt-4 max-w-sm text-sm font-medium text-white/70">
-              Premium dispatch operations for Lagos and Ogun, built for fast booking, trusted riders, and scalable fleet control.
+              Fast Fleets 360 Logistics operates fast, accountable dispatch, marketplace delivery, rider operations, and business logistics across Lagos and Ogun, Nigeria.
             </p>
+            <div className="mt-4 grid gap-1 text-xs font-bold leading-5 text-white/65">
+              <a href="https://fastfleet.com.ng" className="w-fit transition hover:text-white">fastfleet.com.ng</a>
+              <a href="mailto:support@fastfleet.com.ng" className="w-fit transition hover:text-white">support@fastfleet.com.ng</a>
+            </div>
             <div className="mt-5 flex gap-2">
               {socialItems.map((item) => {
                 const Icon = item.icon;

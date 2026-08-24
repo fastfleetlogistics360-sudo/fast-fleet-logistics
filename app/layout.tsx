@@ -41,6 +41,13 @@ const structuredData = {
   alternateName: ["FastFleets360", "FASTFLEETS360", "FAST FLEETS360", "FASTFLEETS 360", "Fast Fleets 360"],
   url: "https://fastfleet.com.ng",
   logo: "https://fastfleet.com.ng/brand/fastfleet-logo-2026.png?v=20260713",
+  email: "support@fastfleet.com.ng",
+  contactPoint: [{
+    "@type": "ContactPoint",
+    contactType: "customer support",
+    email: "support@fastfleet.com.ng",
+    availableLanguage: ["English"]
+  }],
   sameAs: ["https://www.instagram.com/fastfleets360", "https://x.com/fastfleets360", "https://www.tiktok.com/@fastfleets360"],
   areaServed: ["Lagos", "Ogun", "Nigeria"],
   serviceType: ["Courier service", "Same-day delivery", "Restaurant delivery", "Shopping delivery", "Business dispatch"]
