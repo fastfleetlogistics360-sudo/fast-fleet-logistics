@@ -9,6 +9,7 @@ export function whatsappConfig() {
     verifyToken: value("WHATSAPP_WEBHOOK_VERIFY_TOKEN"),
     accessToken: value("WHATSAPP_ACCESS_TOKEN"),
     phoneNumberId: value("WHATSAPP_PHONE_NUMBER_ID"),
+    businessAccountId: value("WHATSAPP_BUSINESS_ACCOUNT_ID"),
     appSecret: value("WHATSAPP_APP_SECRET"),
     graphApiVersion: value("WHATSAPP_GRAPH_API_VERSION") || graphApiVersion,
     siteUrl: value("NEXT_PUBLIC_SITE_URL").replace(/\/$/, "")
@@ -19,4 +20,3 @@ export function whatsappIsConfigured() {
   const config = whatsappConfig();
   return Boolean(config.verifyToken && config.accessToken && config.phoneNumberId && config.appSecret && config.siteUrl);
 }
-

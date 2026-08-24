@@ -38,8 +38,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const phoneResponse = await graphRequest<PhoneNumberLookup>(config, "phone", `/${config.phoneNumberId}?fields=whatsapp_business_account`);
-    const wabaId = String(phoneResponse.whatsapp_business_account?.id || "").trim();
+    const phoneResponse = config.businessAccountId
+      ? null
+      : await graphRequest<PhoneNumberLookup>(config, "phone", `/${config.phoneNumberId}?fields=whatsapp_business_account`);
+    const wabaId = config.businessAccountId || String(phoneResponse?.whatsapp_business_account?.id || "").trim();
     if (!wabaId) {
       console.error("[whatsapp-subscribe] Phone number has no accessible WhatsApp Business Account.");
       return reply({ error: "FastFleets could not access the WhatsApp business account for this phone number." }, 502);
