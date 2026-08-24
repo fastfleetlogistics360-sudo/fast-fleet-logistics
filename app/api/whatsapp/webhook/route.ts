@@ -17,6 +17,11 @@ type IncomingMessage = {
   interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } };
 };
 
+type IncomingMessageEnvelope = {
+  message: IncomingMessage;
+  recipientPhoneNumberId: string | null;
+};
+
 type Conversation = {
   whatsapp_phone: string;
   user_id?: string | null;
@@ -62,18 +67,28 @@ export async function POST(request: NextRequest) {
   }
 
   const messages = incomingMessages(payload);
-  await Promise.all(messages.map((message) => processIncomingMessage(admin, message)));
+  const expectedPhoneNumberId = config.phoneNumberId;
+  await Promise.all(messages.map(({ message, recipientPhoneNumberId }) => {
+    // Meta's dashboard samples contain a demonstration phone-number ID. Acknowledge
+    // them successfully without creating records or sending a response to that demo number.
+    if (recipientPhoneNumberId && recipientPhoneNumberId !== expectedPhoneNumberId) return Promise.resolve();
+    return processIncomingMessage(admin, message);
+  }));
   return NextResponse.json({ received: true });
 }
 
-function incomingMessages(payload: unknown): IncomingMessage[] {
+function incomingMessages(payload: unknown): IncomingMessageEnvelope[] {
   if (!isRecord(payload) || !Array.isArray(payload.entry)) return [];
   return payload.entry.flatMap((entry) => {
     if (!isRecord(entry) || !Array.isArray(entry.changes)) return [];
     return entry.changes.flatMap((change) => {
       const value = isRecord(change) && isRecord(change.value) ? change.value : null;
       const inbound = value?.messages;
-      return Array.isArray(inbound) ? inbound.filter(isRecord) as IncomingMessage[] : [];
+      const metadata = value && isRecord(value.metadata) ? value.metadata : null;
+      const recipientPhoneNumberId = typeof metadata?.phone_number_id === "string" ? metadata.phone_number_id : null;
+      return Array.isArray(inbound)
+        ? (inbound.filter(isRecord) as IncomingMessage[]).map((message) => ({ message, recipientPhoneNumberId }))
+        : [];
     });
   });
 }
