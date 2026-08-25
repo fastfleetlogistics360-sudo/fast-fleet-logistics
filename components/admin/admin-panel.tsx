@@ -3877,6 +3877,11 @@ function MallMenuSection({
       locations: []
     }
   );
+  const [expandedCategory, setExpandedCategory] = useState<MallCategory | null>(displayGroups[0]?.category || null);
+  const [expandedVendorId, setExpandedVendorId] = useState<string | null>(() => {
+    const firstVendor = displayGroups[0]?.vendors[0];
+    return firstVendor ? `${firstVendor.mall.id}:${firstVendor.store.id}` : null;
+  });
 
   return (
     <Card id="mall-menus" className="mt-6 scroll-mt-24 overflow-hidden">
@@ -3904,7 +3909,10 @@ function MallMenuSection({
           <div className="rounded-fleet border border-fleet-line bg-fleet-paper p-4 text-sm font-bold text-slate-500">No shopping categories found.</div>
         ) : null}
 
-        {displayGroups.map((group) => (
+        {displayGroups.map((group) => {
+          const categoryExpanded = expandedCategory === group.category;
+
+          return (
           <section key={group.category} className="overflow-hidden rounded-fleet border border-fleet-line bg-white">
             <div className="flex flex-col gap-3 border-b border-fleet-line bg-fleet-paper/75 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -3914,39 +3922,55 @@ function MallMenuSection({
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <StatusBadge tone={group.vendors.length ? "green" : "amber"}>{group.vendors.length ? group.category : "No vendors yet"}</StatusBadge>
-                <Button type="button" size="sm" variant="secondary" onClick={() => onAddStore(group.category)}>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setExpandedCategory((current) => current === group.category ? null : group.category)}>
+                  {categoryExpanded ? "Collapse category" : "Open category"}
+                </Button>
+                <Button type="button" size="sm" variant="secondary" onClick={() => {
+                  setExpandedCategory(group.category);
+                  onAddStore(group.category);
+                }}>
                   <Plus className="h-4 w-4" />
                   Add vendor
                 </Button>
               </div>
             </div>
 
-            <div className="grid gap-4 p-4">
+            {categoryExpanded ? <div className="grid gap-4 p-4">
               {group.vendors.length === 0 ? (
                 <div className="rounded-fleet border border-dashed border-fleet-line bg-fleet-paper p-4 text-sm font-bold text-slate-500">
                   Add the first {group.category} vendor, link its business account, upload its photo, and set products.
                 </div>
               ) : null}
-              {group.vendors.map(({ mall, store }) => (
+              {group.vendors.map(({ mall, store }) => {
+                const vendorId = `${mall.id}:${store.id}`;
+                const vendorExpanded = expandedVendorId === vendorId;
+
+                return (
                 <article key={`${mall.id}:${store.id}`} className="rounded-fleet border border-fleet-line bg-fleet-paper p-3 [contain-intrinsic-size:720px] [content-visibility:auto]">
                   <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">{store.category} vendor</span>
                       <strong className="block truncate text-lg font-black text-fleet-night">{store.name}</strong>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => {
-                        if (window.confirm(`Remove ${store.name} and all its products?`)) onRemoveStore(mall.id, store.id);
-                      }}
-                      disabled={totalStores <= 1}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Remove vendor
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="secondary" onClick={() => setExpandedVendorId((current) => current === vendorId ? null : vendorId)}>
+                        {vendorExpanded ? "Collapse editor" : "Open editor"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          if (window.confirm(`Remove ${store.name} and all its products?`)) onRemoveStore(mall.id, store.id);
+                        }}
+                        disabled={totalStores <= 1}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Remove vendor
+                      </Button>
+                    </div>
                   </div>
+                  {vendorExpanded ? <>
                   <div className="grid gap-4 lg:grid-cols-[140px_1fr]">
                     <img src={getShoppingStoreImage(store, mall)} alt={store.name} loading="lazy" decoding="async" className="h-36 w-full rounded-fleet object-cover lg:h-full" />
                     <div className="grid gap-3">
@@ -4072,11 +4096,26 @@ function MallMenuSection({
                       </div>
                     ))}
                   </div>
+                  </> : <div className="flex items-center gap-3 rounded-fleet border border-fleet-line bg-white p-3">
+                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-fleet bg-fleet-night text-white"><StoreIcon className="h-6 w-6" /></span>
+                    <div className="min-w-0 text-sm">
+                      <strong className="block truncate text-fleet-night">{store.pickupAddress || mall.location || "Pickup location not set"}</strong>
+                      <span className="block text-xs font-bold text-slate-500">{store.products.length} products · {store.operatingStatus === "closed" ? "Closed for orders" : "Open for orders"}</span>
+                    </div>
+                  </div>}
                 </article>
-              ))}
-            </div>
+                );
+              })}
+            </div> : <div className="flex items-center gap-3 bg-fleet-paper p-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-fleet bg-fleet-night text-white"><StoreIcon className="h-5 w-5" /></span>
+              <div className="min-w-0 text-sm">
+                <strong className="block text-fleet-night">{group.vendors.length ? `${group.vendors.length} vendors ready to manage` : "No vendors in this category"}</strong>
+                <span className="block text-xs font-bold text-slate-500">{group.productCount} products · Select Open category to manage vendors and products.</span>
+              </div>
+            </div>}
           </section>
-        ))}
+          );
+        })}
       </div>
     </Card>
   );
