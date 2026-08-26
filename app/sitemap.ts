@@ -15,6 +15,7 @@ const publicRoutes: SitemapEntry[] = [
   { path: "/track", changeFrequency: "daily", priority: 0.9 },
   { path: "/restaurants", changeFrequency: "daily", priority: 0.9 },
   { path: "/shopping", changeFrequency: "daily", priority: 0.9 },
+  { path: "/fast-errands", changeFrequency: "daily", priority: 0.86 },
   { path: "/services", changeFrequency: "weekly", priority: 0.85 },
   { path: "/how-it-works", changeFrequency: "weekly", priority: 0.85 },
   { path: "/rider/onboarding", changeFrequency: "weekly", priority: 0.82 },

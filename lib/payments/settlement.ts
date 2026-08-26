@@ -173,6 +173,12 @@ async function runPostSettlementEffects(db: SupabaseClient, intent: PaymentInten
     await redeemLaunchDeliveryPromo(db, intent.delivery_id);
   }
   if (!result.settledNow) return;
+  if (intent.purpose === "delivery_payment" && intent.delivery_id) {
+    await markFastErrandCustomerFundsConfirmed(db, intent.delivery_id);
+  }
+  if (intent.purpose === "wallet_funding" && intent.wallet_id) {
+    await applyFastErrandTopUp(db, intent);
+  }
   if (intent.purpose === "marketplace_business_order" && intent.order_id) {
     const { data: order } = await db
       .from("orders")
@@ -206,6 +212,61 @@ async function runPostSettlementEffects(db: SupabaseClient, intent: PaymentInten
     }
   }
   await announceWhatsAppPayment(db, intent, intent.provider_transaction_reference);
+}
+
+async function markFastErrandCustomerFundsConfirmed(db: SupabaseClient, deliveryId: string) {
+  const { data } = await db
+    .from("fast_errand_orders")
+    .update({ status: "funded_waiting_admin", funded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("delivery_id", deliveryId)
+    .eq("status", "awaiting_customer_payment")
+    .select("id, errand_code")
+    .maybeSingle<{ id: string; errand_code: string }>();
+  if (data?.id) {
+    await db.from("fast_errand_events").insert({ errand_id: data.id, event_type: "customer_payment_confirmed", body: "Customer purchase budget is protected and waiting for admin vendor funding." });
+  }
+}
+
+async function applyFastErrandTopUp(db: SupabaseClient, intent: PaymentIntent) {
+  const { data: funding } = await db
+    .from("transactions")
+    .select("id, metadata")
+    .eq("provider_reference", intent.provider_transaction_reference)
+    .eq("wallet_id", intent.wallet_id)
+    .maybeSingle<{ id: string; metadata?: unknown }>();
+  const metadata = record(funding?.metadata);
+  const errandId = typeof metadata.fast_errand_id === "string" ? metadata.fast_errand_id : "";
+  if (!errandId || metadata.fast_errand_top_up !== true) return;
+  const amount = intent.expected_amount_minor / 100;
+  const { data: errand } = await db
+    .from("fast_errand_orders")
+    .select("id, customer_id, delivery_id, purchase_budget_ngn, top_up_required_ngn, status")
+    .eq("id", errandId)
+    .eq("customer_id", intent.owner_user_id)
+    .eq("status", "top_up_required")
+    .maybeSingle<{ id: string; customer_id: string; delivery_id: string; purchase_budget_ngn: number; top_up_required_ngn: number; status: string }>();
+  if (!errand) return;
+  const holdReference = `${intent.provider_transaction_reference}:fast-errand-hold`;
+  const { data: hold } = await db.from("transactions").select("id").eq("provider_reference", holdReference).maybeSingle<{ id: string }>();
+  if (hold?.id) return;
+  const { data: wallet } = await db.from("wallets").select("balance_ngn").eq("id", intent.wallet_id).maybeSingle<{ balance_ngn?: number | null }>();
+  if (!wallet || Number(wallet.balance_ngn || 0) < amount) return;
+  await db.from("transactions").insert({
+    wallet_id: intent.wallet_id,
+    delivery_id: errand.delivery_id,
+    transaction_type: "delivery_payment",
+    amount_ngn: amount * -1,
+    status: "successful",
+    provider: "fast_errands",
+    provider_reference: holdReference,
+    description: `FastErrands top-up protected for ${errand.id}`,
+    metadata: { fast_errand_id: errand.id, title: "FastErrands purchase top-up hold" }
+  });
+  await Promise.all([
+    db.from("wallets").update({ balance_ngn: Number(wallet.balance_ngn || 0) - amount, updated_at: new Date().toISOString() }).eq("id", intent.wallet_id),
+    db.from("fast_errand_orders").update({ purchase_budget_ngn: Number(errand.purchase_budget_ngn) + amount, top_up_required_ngn: 0, status: "funded_waiting_admin", updated_at: new Date().toISOString() }).eq("id", errand.id),
+    db.from("fast_errand_events").insert({ errand_id: errand.id, event_type: "top_up_confirmed", body: "Customer top-up is protected and ready for admin vendor funding.", metadata: { amount_ngn: amount } })
+  ]);
 }
 
 async function announceWhatsAppPayment(db: SupabaseClient, intent: PaymentIntent, fallbackCode: string) {

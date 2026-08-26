@@ -33,6 +33,7 @@ export async function finalizeConfirmedDelivery(
 
   const metadata = metadataRecord(delivery.metadata);
   const businessOrderId = stringValue(metadata.business_order_id);
+  const fastErrandId = stringValue(metadata.fast_errand_id);
   const riderUserId = await loadRiderUserId(db, delivery.rider_id);
   let order: { id: string; customer_id?: string | null; business_id?: string | null } | null = null;
   if (businessOrderId) {
@@ -58,7 +59,13 @@ export async function finalizeConfirmedDelivery(
       body: method === "delivery_pin" ? "Recipient PIN verified. Delivery completed." : method === "customer_app" ? "Customer confirmed the handoff in the messenger." : "Delivery completed by an administrator."
     }),
     db.from("delivery_locations").update({ status: "delivered", updated_at: timestamp }).eq("order_id", delivery.id),
-    releaseBicycleAssetForDelivery(db, delivery.id)
+    releaseBicycleAssetForDelivery(db, delivery.id),
+    ...(fastErrandId
+      ? [
+          db.from("fast_errand_orders").update({ status: "delivered", updated_at: timestamp }).eq("id", fastErrandId).eq("delivery_id", delivery.id),
+          db.from("fast_errand_events").insert({ errand_id: fastErrandId, actor_id: actorUserId, event_type: "delivered", body: "Delivery was confirmed and the FastErrand is complete." })
+        ]
+      : [])
   ]);
 
   const deliveryCode = delivery.delivery_code || delivery.id;

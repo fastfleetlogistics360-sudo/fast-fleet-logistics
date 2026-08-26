@@ -73,10 +73,8 @@ export async function findClosedMarketplaceVendor(
     const { data } = await db.from("platform_settings").select("value").eq("key", mallMenuSettingsKey).maybeSingle<PlatformSettingRow>();
     const malls = normalizeShoppingMalls(data?.value || defaultShoppingMalls);
     for (const item of items) {
-      const vendorId = text(item.vendorId || item.storeId);
-      const vendorName = text(item.vendorName || item.store);
-      const store = malls.flatMap((mall) => mall.stores).find((entry) => sameId(entry.id, vendorId) || sameText(entry.name, vendorName));
-      if (store?.operatingStatus === "closed") return store.name;
+      const vendor = findShoppingStore(malls, item);
+      if (vendor?.store.operatingStatus === "closed") return vendor.store.name;
     }
     return null;
   }
@@ -158,32 +156,17 @@ async function resolveShoppingBusinessLinks(db: SupabaseClient, items: Marketpla
   const malls = normalizeShoppingMalls(data?.value || defaultShoppingMalls);
 
   return items.map((item) => {
-    const mallCandidates = malls.filter((mall) =>
-      sameId(mall.id, item.mallId)
-      || sameText(mall.name, item.mallName)
-      || includesText(item.store, mall.name)
-      || sameText(mall.location, item.mallLocation)
-    );
-    const searchMalls = mallCandidates.length ? mallCandidates : malls;
-    const vendorId = text(item.vendorId || item.storeId);
-    const vendorName = text(item.vendorName || item.store);
-    let resolvedBusinessId = "";
-    let resolvedStore: (typeof malls)[number]["stores"][number] | null = null;
-    let resolvedMall: (typeof malls)[number] | null = null;
-
-    for (const mall of searchMalls) {
-      const store = mall.stores.find((entry) => sameId(entry.id, vendorId))
-        || mall.stores.find((entry) => sameText(entry.name, vendorName) || includesText(item.store, entry.name));
-      if (!store) continue;
-
-      const productName = text(item.productName || item.name);
-      const product = store.products.find((entry) => sameId(entry.id, item.productId))
-        || store.products.find((entry) => sameText(entry.name, productName));
-      resolvedBusinessId = text(product?.businessId || store.businessId);
-      resolvedStore = store;
-      resolvedMall = mall;
-      break;
-    }
+    const vendor = findShoppingStore(malls, item);
+    const resolvedStore = vendor?.store || null;
+    const resolvedMall = vendor?.mall || null;
+    const productName = text(item.productName || item.name);
+    // A product ID is authoritative. Only use the legacy name fallback when
+    // there is exactly one matching product in this vendor's own catalogue.
+    const productMatches = resolvedStore
+      ? resolvedStore.products.filter((entry) => sameId(entry.id, item.productId) || (!text(item.productId) && sameText(entry.name, productName)))
+      : [];
+    const product = productMatches.length === 1 ? productMatches[0] : null;
+    const resolvedBusinessId = text(product?.businessId || resolvedStore?.businessId);
     const resolved = resolvedStore
       ? {
           ...item,
@@ -199,6 +182,25 @@ async function resolveShoppingBusinessLinks(db: SupabaseClient, items: Marketpla
 
     return resolvedBusinessId ? { ...resolved, businessId: resolvedBusinessId } : withoutBusinessId(resolved);
   });
+}
+
+function findShoppingStore(malls: ReturnType<typeof normalizeShoppingMalls>, item: MarketplaceCheckoutItem) {
+  const vendorId = text(item.vendorId || item.storeId);
+  const requestedMallId = text(item.mallId);
+  const mallsToSearch = requestedMallId ? malls.filter((mall) => sameId(mall.id, requestedMallId)) : malls;
+
+  // Never fall back to another vendor's name when the client sent an ID. A
+  // stale or malformed ID must result in no linked business, not the wrong one.
+  if (vendorId) {
+    const matches = mallsToSearch.flatMap((mall) => mall.stores.filter((store) => sameId(store.id, vendorId)).map((store) => ({ mall, store })));
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  const vendorName = text(item.vendorName || item.store);
+  const matches = mallsToSearch.flatMap((mall) =>
+    mall.stores.filter((store) => sameText(store.name, vendorName)).map((store) => ({ mall, store }))
+  );
+  return matches.length === 1 ? matches[0] : null;
 }
 
 function withoutBusinessId(item: MarketplaceCheckoutItem): MarketplaceCheckoutItem {
@@ -217,12 +219,6 @@ function sameText(first: unknown, second: unknown) {
   const left = comparable(first);
   const right = comparable(second);
   return Boolean(left && right && left === right);
-}
-
-function includesText(haystack: unknown, needle: unknown) {
-  const left = comparable(haystack);
-  const right = comparable(needle);
-  return Boolean(left && right && left.includes(right));
 }
 
 function comparable(value: unknown) {

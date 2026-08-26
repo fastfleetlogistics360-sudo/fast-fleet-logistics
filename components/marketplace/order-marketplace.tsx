@@ -310,36 +310,35 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
     <>
     <BackButton className="section-wrap pb-4 pt-4" />
     <section className="section-wrap pb-28 pt-2 sm:pb-12">
-      <div className="mb-5 overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-lift">
-        <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_240px]">
-          <div className="p-4 sm:p-5">
-            <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">{eyebrow}</span>
-            <h1 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">{title}</h1>
-            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">Choose items, add your address, and pay with Squad.</p>
+      <div className="mb-5 overflow-hidden rounded-[22px] border border-fleet-line bg-white shadow-lift">
+        <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
+          <div className="relative h-48 overflow-hidden bg-fleet-paper sm:h-56 md:h-full md:min-h-[205px]">
+            <img
+              src={liveStores[0]?.imageUrl || "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=900&q=72"}
+              alt={title}
+              loading="eager"
+              decoding="async"
+              className="h-full w-full object-cover"
+            />
+            <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-[0.62rem] font-black uppercase tracking-[0.13em] text-fleet-ember shadow-[0_8px_20px_rgba(8,17,31,0.14)]">{eyebrow}</span>
+          </div>
+          <div className="p-4 sm:p-5 md:flex md:flex-col md:justify-center">
+            <h1 className="break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">{title}</h1>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{liveStores[0]?.area || liveStores[0]?.address || "Verified Fast Fleets 360 vendor"} · {menuItems.length} items</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <StatusBadge tone={orderingOpen ? "green" : "red"}>{orderingOpen ? "Open for orders" : "Closed"}</StatusBadge>
               <StatusBadge tone="neutral">{selectedItems.length} selected</StatusBadge>
             </div>
           </div>
-          <img
-            src={liveStores[0]?.imageUrl || "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=900&q=72"}
-            alt={title}
-            loading="eager"
-            decoding="async"
-            className="hidden h-full min-h-[180px] w-full object-cover md:block"
-          />
         </div>
       </div>
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
         <div className="min-w-0">
           <div className="rounded-fleet border border-fleet-line bg-white p-4 shadow-[0_10px_24px_rgba(8,17,31,0.06)] sm:p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Menu</span>
-                <h2 className="mt-2 break-words text-xl font-black leading-tight text-fleet-night sm:text-2xl">Pick from the open menu.</h2>
-                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
-                  Fast Fleets 360 estimates delivery after your address and adds a {formatMoney(platformFee)} platform fee.
-                </p>
+                <h2 className="mt-1 break-words text-xl font-black leading-tight text-fleet-night sm:text-2xl">Choose your items</h2>
               </div>
               <StatusBadge tone="green">{menuItems.length} items</StatusBadge>
             </div>
@@ -460,9 +459,9 @@ function RestaurantMenuItemCard({
 }) {
   return (
     <article className="flex min-h-full flex-col overflow-hidden rounded-[16px] border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.06)] transition hover:border-fleet-ember">
-      <div className="relative h-24 overflow-hidden bg-fleet-paper sm:h-28">
+      <div className="relative h-28 overflow-hidden bg-fleet-paper sm:h-32">
         {item.imageUrl ? (
-          <Image src={item.imageUrl} alt={item.name} fill sizes="(min-width: 1280px) 18vw, (min-width: 768px) 30vw, 50vw" quality={62} loading="lazy" className="object-contain p-2" />
+          <Image src={item.imageUrl} alt={item.name} fill sizes="(min-width: 1280px) 18vw, (min-width: 768px) 30vw, 50vw" quality={62} loading="lazy" className="object-cover" />
         ) : (
           <div className="grid h-full w-full place-items-center text-fleet-ember">
             <Utensils className="h-7 w-7" />

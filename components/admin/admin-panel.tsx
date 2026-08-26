@@ -48,7 +48,7 @@ import type { LucideIcon } from "lucide-react";
 import { defaultBrandPartners, normalizeBrandPartners, type BrandPartner } from "@/lib/brand-partners";
 import { DEFAULT_DELIVERY_POLICY, normalizeDeliveryPolicy, type DeliveryPolicy } from "@/lib/delivery-policy";
 import { DEFAULT_FARE_CONFIG, fareSpeedTypes, fareVehicleTypes, normalizeFareConfig, speedLabel, vehicleLabel, type FareConfig } from "@/lib/fare";
-import { defaultLaunchStateRecords, launchStatusLabel, rememberLiveState } from "@/lib/launch-states";
+import { defaultLaunchStateRecords, launchStatusLabel, NIGERIAN_STATES, rememberLiveState } from "@/lib/launch-states";
 import type { LaunchStateRecord } from "@/lib/launch-states";
 import { marketplaceBusinessTypeLabel, marketplaceListingRetryDate, marketplaceListingStatusLabel } from "@/lib/marketplace-listing";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
@@ -1871,10 +1871,6 @@ export function AdminPanel() {
     setAdminMessage("Restaurant removed from the editor. Save restaurant menus to publish this change.");
   }
 
-  function updateMall(mallId: string, patch: Partial<ShoppingMall>) {
-    setMallMenus((malls) => malls.map((mall) => (mall.id === mallId ? { ...mall, ...patch } : mall)));
-  }
-
   function updateMallStore(mallId: string, storeId: string, patch: Partial<MallStore>) {
     setMallMenus((malls) =>
       malls.map((mall) =>
@@ -1939,14 +1935,14 @@ export function AdminPanel() {
       };
       const targetMallId = malls.find((mall) => mall.stores.some((store) => store.category === category))?.id || baseMall.id;
       const nextStore: MallStore = {
-        id: `new-${shoppingCategorySlug(category)}-${Date.now().toString(36)}`,
+        id: `new-${shoppingCategorySlug(category)}-${newMarketplaceId()}`,
         name: `New ${category} vendor`,
         operatingStatus: "open",
         category,
         image: shoppingCategoryMeta[category].image,
         products: [
           {
-            id: `new-${shoppingCategorySlug(category)}-product-${Date.now().toString(36)}`,
+            id: `new-${shoppingCategorySlug(category)}-product-${newMarketplaceId()}`,
             name: "New product",
             price: "ASK_PRICE",
             image: shoppingCategoryMeta[category].image,
@@ -2003,7 +1999,7 @@ export function AdminPanel() {
                       products: [
                         ...store.products,
                         {
-                          id: `new-product-${Date.now().toString(36)}`,
+                          id: `new-product-${newMarketplaceId()}`,
                           businessId: store.businessId,
                           name: "New product",
                           price: "ASK_PRICE",
@@ -2200,6 +2196,13 @@ export function AdminPanel() {
           onClick={() => window.location.assign("/admin/heavy-logistics")}
         />
         <ActionCard
+          icon={WalletCards}
+          title="FastErrands funding"
+          body="Record manual Squad vendor transfers before releasing a rider."
+          count="Queue"
+          onClick={() => window.location.assign("/admin/fast-errands")}
+        />
+        <ActionCard
           icon={CircleDollarSign}
           title="Withdrawal review"
           body="Approve, reject with reason, or mark rider payouts as credited."
@@ -2329,7 +2332,6 @@ export function AdminPanel() {
         malls={mallMenus}
         businesses={adminBusinesses.filter((business: AdminBusiness) => business.registration_status === "active")}
         busyAction={busyAction}
-        onMallChange={updateMall}
         onStoreChange={updateMallStore}
         onProductChange={updateMallProduct}
         onAddStore={addMallStore}
@@ -3846,7 +3848,6 @@ function MallMenuSection({
   malls,
   businesses,
   busyAction,
-  onMallChange,
   onStoreChange,
   onProductChange,
   onAddStore,
@@ -3857,7 +3858,6 @@ function MallMenuSection({
   malls: ShoppingMall[];
   businesses: AdminBusiness[];
   busyAction: string | null;
-  onMallChange: (mallId: string, patch: Partial<ShoppingMall>) => void;
   onStoreChange: (mallId: string, storeId: string, patch: Partial<MallStore>) => void;
   onProductChange: (mallId: string, storeId: string, productId: string, patch: Partial<MallProduct>) => void;
   onAddStore: (category: MallCategory) => void;
@@ -3882,6 +3882,13 @@ function MallMenuSection({
     const firstVendor = displayGroups[0]?.vendors[0];
     return firstVendor ? `${firstVendor.mall.id}:${firstVendor.store.id}` : null;
   });
+
+  function toggleVendorOperatingState(mallId: string, store: MallStore, state: string) {
+    const selected = new Set(store.operatingStates || []);
+    if (selected.has(state)) selected.delete(state);
+    else selected.add(state);
+    onStoreChange(mallId, store.id, { operatingStates: NIGERIAN_STATES.filter((item) => selected.has(item)) });
+  }
 
   return (
     <Card id="mall-menus" className="mt-6 scroll-mt-24 overflow-hidden">
@@ -4009,6 +4016,24 @@ function MallMenuSection({
                         <MarketplaceImageField label="Store photo URL" value={store.image || ""} inputClassName="bg-white" placeholder="Uses product or pickup photo if empty" onChange={(image) => onStoreChange(mall.id, store.id, { image: image || undefined })} />
                       </div>
 
+                      <fieldset className="rounded-fleet border border-fleet-line bg-white p-3">
+                        <legend className="px-1 text-sm font-black text-fleet-night">Operating states</legend>
+                        <p className="mt-1 text-xs font-bold leading-5 text-slate-500">Select every state where this vendor is available. This is saved only on this vendor&apos;s profile.</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {NIGERIAN_STATES.map((state) => (
+                            <label key={state} className="flex min-h-10 items-center gap-2 rounded-fleet bg-fleet-paper px-3 text-sm font-bold text-fleet-night">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 accent-fleet-navy"
+                                checked={(store.operatingStates || []).includes(state)}
+                                onChange={() => toggleVendorOperatingState(mall.id, store, state)}
+                              />
+                              {state}
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+
                       <AddressAutocompleteInput
                         label="Google pickup location for this vendor"
                         value={store.pickupAddress || mall.location}
@@ -4036,16 +4061,8 @@ function MallMenuSection({
                         <VendorLinkField label="Category vendor link" path={shoppingVendorCategoryPath(store)} />
                       </div>
 
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <label className="form-field">
-                          <span className="form-label">Pickup group</span>
-                          <input className="form-input bg-white" value={mall.name} onChange={(event) => onMallChange(mall.id, { name: event.target.value })} />
-                        </label>
-                        <label className="form-field">
-                          <span className="form-label">Pickup address</span>
-                          <input className="form-input bg-white" value={mall.location} onChange={(event) => onMallChange(mall.id, { location: event.target.value })} />
-                        </label>
-                        <MarketplaceImageField label="Fallback cover photo URL" value={mall.image} inputClassName="bg-white" onChange={(image) => onMallChange(mall.id, { image })} />
+                      <div className="rounded-fleet border border-blue-200 bg-blue-50 p-3 text-xs font-bold leading-5 text-blue-900">
+                        This vendor&apos;s pickup address and cover photo are independent. Shared pickup-group fields are no longer editable here, so changes made to this vendor cannot alter another vendor&apos;s profile.
                       </div>
                     </div>
                   </div>
@@ -5149,6 +5166,10 @@ function readDemoMallMenus() {
   } catch {
     return [];
   }
+}
+
+function newMarketplaceId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function writeDemoMallMenus(malls: ShoppingMall[]) {

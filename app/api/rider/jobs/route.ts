@@ -143,12 +143,17 @@ export async function GET(request: Request) {
     ].filter(
       (job) =>
         !isRejectedByRider(job, rider.id) &&
-        !hasQueuedDelivery && jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, riderLocation, deliveryPolicy.rider, rider.campus_zone_id, hasActiveDelivery)
+        !hasQueuedDelivery && fastErrandVendorIsFunded(job.metadata) && jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, riderLocation, deliveryPolicy.rider, rider.campus_zone_id, hasActiveDelivery)
     );
     return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load rider jobs." }, { status: 500 });
   }
+}
+
+function fastErrandVendorIsFunded(metadata: Record<string, unknown> | null | undefined) {
+  const source = String(metadata?.source || "");
+  return source !== "fast_errands" || metadata?.vendor_funding_status === "funded";
 }
 
 export async function POST(request: Request) {

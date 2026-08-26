@@ -1,3 +1,5 @@
+import { NIGERIAN_STATES, normalizeState } from "@/lib/launch-states";
+
 export const mallCategories = ["Grocery", "Pharmacy", "Fashion", "Electronics", "Gadgets"] as const;
 
 export type MallCategory = (typeof mallCategories)[number];
@@ -18,6 +20,8 @@ export type MallStore = {
   name: string;
   image?: string;
   operatingStatus?: "open" | "closed";
+  /** States where this verified vendor can receive Fast Fleets 360 marketplace orders. */
+  operatingStates?: string[];
   category: MallCategory;
   pickupAddress?: string;
   pickupPlaceId?: string;
@@ -233,22 +237,37 @@ export const defaultShoppingMalls: ShoppingMall[] = [
 export function normalizeShoppingMalls(value: unknown): ShoppingMall[] {
   if (!Array.isArray(value)) return defaultShoppingMalls;
 
+  const mallIds = new Set<string>();
+  const storeIds = new Set<string>();
   const malls = value
-    .map((entry, mallIndex) => {
+    .map((entry) => {
       const mall = entry as Partial<ShoppingMall>;
-      const fallback = defaultShoppingMalls[mallIndex] || defaultShoppingMalls[0];
-      const name = text(mall.name) || fallback.name;
-      const stores = Array.isArray(mall.stores) ? mall.stores.map(normalizeMallStore).filter(Boolean) : [];
+      const name = text(mall.name);
+      if (!name) return null;
+      const stores = Array.isArray(mall.stores)
+        ? mall.stores
+          .map(normalizeMallStore)
+          .filter((store): store is MallStore => Boolean(store))
+          .map((store) => normalizeStoreIdentity({
+            ...store,
+            // Older menus used the mall fields as a shared fallback. Copy those
+            // values into each vendor once so a later vendor edit is isolated.
+            image: store.image || text(mall.image) || defaultShoppingMalls[0].image,
+            pickupAddress: store.pickupAddress || text(mall.location) || undefined
+          }, storeIds))
+        : [];
 
       return {
-        id: text(mall.id) || slug(name),
+        id: uniqueId(text(mall.id) || slug(name), mallIds),
         name,
-        location: text(mall.location) || fallback.location,
-        image: text(mall.image) || fallback.image,
-        stores: stores.length ? (stores as MallStore[]) : fallback.stores
+        location: text(mall.location),
+        image: text(mall.image) || defaultShoppingMalls[0].image,
+        // Do not replace an empty saved roster with demo vendors. That can make
+        // one vendor appear to own another vendor's catalogue.
+        stores
       };
     })
-    .filter((mall) => mall.name && mall.stores.length);
+    .filter((mall): mall is ShoppingMall => Boolean(mall && mall.stores.length));
 
   return malls.length ? malls : defaultShoppingMalls;
 }
@@ -344,6 +363,7 @@ function normalizeMallStore(value: unknown): MallStore | null {
     name,
     image: text(store.image) || undefined,
     operatingStatus: store.operatingStatus === "closed" ? "closed" : "open",
+    operatingStates: normalizeOperatingStates(store.operatingStates),
     category,
     pickupAddress: text(store.pickupAddress) || undefined,
     pickupPlaceId: text(store.pickupPlaceId) || undefined,
@@ -353,6 +373,33 @@ function normalizeMallStore(value: unknown): MallStore | null {
     campusZoneId: text(store.campusZoneId) || undefined,
     products: products.length ? (products as MallProduct[]) : []
   };
+}
+
+function normalizeStoreIdentity(store: MallStore, usedIds: Set<string>): MallStore {
+  const productIds = new Set<string>();
+  return {
+    ...store,
+    id: uniqueId(store.id || slug(store.name), usedIds),
+    products: store.products.map((product) => ({ ...product, id: uniqueId(product.id || slug(product.name), productIds) }))
+  };
+}
+
+function uniqueId(candidate: string, usedIds: Set<string>) {
+  const base = slug(candidate);
+  let id = base;
+  let suffix = 2;
+  while (usedIds.has(id)) {
+    id = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  usedIds.add(id);
+  return id;
+}
+
+function normalizeOperatingStates(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const selected = new Set(value.map((state) => normalizeState(text(state))).filter(Boolean));
+  return NIGERIAN_STATES.filter((state) => selected.has(state));
 }
 
 function normalizeMallProduct(value: unknown): MallProduct | null {

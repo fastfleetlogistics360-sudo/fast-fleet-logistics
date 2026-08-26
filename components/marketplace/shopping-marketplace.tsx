@@ -299,11 +299,6 @@ function ShoppingStorefront({
   const meta = shoppingCategoryMeta[activeCategory];
   const heroImage = selectedVendor ? getShoppingStoreImage(selectedVendor.store, selectedVendor.mall) : categoryGroup?.image || meta.image;
   const pageTitle = missingVendor ? "Vendor not found" : selectedVendor ? selectedVendor.store.name : `${meta.label} vendors`;
-  const pageBody = selectedVendor
-    ? `Browse products from ${selectedVendor.store.name}, add what you need, and checkout when you are ready.`
-    : missingVendor
-      ? "This shopping vendor link is no longer active."
-      : `Choose a ${meta.label.toLowerCase()} vendor, open their products, add items, and checkout with Squad.`;
 
   useEffect(() => {
     setInterstateConfirmed(false);
@@ -450,36 +445,35 @@ function ShoppingStorefront({
     <>
       <BackButton className="section-wrap pb-4 pt-4" />
       <section className="section-wrap pb-28 pt-2 sm:pb-12">
-        <div className="mb-5 overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-lift">
-          <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_240px]">
-            <div className="p-4 sm:p-5">
-              <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">
-                {selectedVendor ? `${meta.label} vendor` : "Fast Fleets 360 Shopping"}
+        <div className="mb-5 overflow-hidden rounded-[22px] border border-fleet-line bg-white shadow-lift">
+          <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
+            <div className="relative h-48 overflow-hidden bg-fleet-paper sm:h-56 md:h-full md:min-h-[205px]">
+              <img src={heroImage} alt={pageTitle} loading="eager" decoding="async" className="h-full w-full object-cover" />
+              <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-[0.62rem] font-black uppercase tracking-[0.13em] text-fleet-ember shadow-[0_8px_20px_rgba(8,17,31,0.14)]">
+                {selectedVendor ? `${meta.label} vendor` : "Shopping"}
               </span>
-              <h1 className="mt-2 break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">{pageTitle}</h1>
-              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">{pageBody}</p>
+            </div>
+            <div className="p-4 sm:p-5 md:flex md:flex-col md:justify-center">
+              <h1 className="break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">{pageTitle}</h1>
+              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
+                {selectedVendor ? `${selectedVendor.mall.location || selectedVendor.mall.name} · ${displayedProductCount} products` : `${vendors.length} verified vendors · ${displayedProductCount} products`}
+              </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <StatusBadge tone="green">{vendors.length} vendors</StatusBadge>
                 <StatusBadge tone="neutral">{cartItems.length} selected</StatusBadge>
               </div>
             </div>
-            <img src={heroImage} alt={pageTitle} loading="eager" decoding="async" className="hidden h-full min-h-[180px] w-full object-cover md:block" />
           </div>
         </div>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
             <div className="rounded-fleet border border-fleet-line bg-white p-4 shadow-[0_10px_24px_rgba(8,17,31,0.06)] sm:p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <div>
                   <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">
-                    {selectedVendor ? "Direct vendor marketplace" : `${meta.label} category`}
+                    {selectedVendor ? "Products" : `${meta.label} vendors`}
                   </span>
-                  <h2 className="mt-2 break-words text-xl font-black leading-tight text-fleet-night sm:text-2xl">
-                    {selectedVendor ? "Add items from this vendor." : "Choose a vendor."}
-                  </h2>
-                  <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
-                    Fast Fleets 360 estimates delivery after your address and adds a {formatMoney(platformFee)} platform fee.
-                  </p>
+                  <h2 className="mt-1 break-words text-xl font-black leading-tight text-fleet-night sm:text-2xl">{selectedVendor ? "Choose your items" : "Choose a vendor"}</h2>
                 </div>
                 <StatusBadge tone="green">{displayedProductCount} products</StatusBadge>
               </div>
