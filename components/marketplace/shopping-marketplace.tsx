@@ -462,18 +462,18 @@ function ShoppingStorefront({
     <>
       <BackButton className="section-wrap pb-4 pt-4" />
       <section className="section-wrap pb-28 pt-2 sm:pb-12">
-        <div className="mb-5 overflow-hidden rounded-[22px] border border-fleet-line bg-white shadow-lift">
+        {!selectedVendor ? <div className="mb-5 overflow-hidden rounded-[22px] border border-fleet-line bg-white shadow-lift">
           <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
             <div className="relative h-48 overflow-hidden bg-fleet-paper sm:h-56 md:h-full md:min-h-[205px]">
               <img src={heroImage} alt={pageTitle} loading="eager" decoding="async" className="h-full w-full object-cover" />
               <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-[0.62rem] font-black uppercase tracking-[0.13em] text-fleet-ember shadow-[0_8px_20px_rgba(8,17,31,0.14)]">
-                {selectedVendor ? `${meta.label} vendor` : "Shopping"}
+                Shopping
               </span>
             </div>
             <div className="p-4 sm:p-5 md:flex md:flex-col md:justify-center">
               <h1 className="break-words text-2xl font-black leading-tight text-fleet-night sm:text-4xl">{pageTitle}</h1>
               <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
-                {selectedVendor ? `${selectedVendor.mall.location || selectedVendor.mall.name} · ${displayedProductCount} products` : `${vendors.length} verified vendors · ${displayedProductCount} products`}
+                {`${vendors.length} verified vendors · ${displayedProductCount} products`}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <StatusBadge tone="green">{vendors.length} vendors</StatusBadge>
@@ -481,7 +481,7 @@ function ShoppingStorefront({
               </div>
             </div>
           </div>
-        </div>
+        </div> : null}
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <div className="min-w-0">
             <div className="rounded-fleet border border-fleet-line bg-white p-4 shadow-[0_10px_24px_rgba(8,17,31,0.06)] sm:p-5">
