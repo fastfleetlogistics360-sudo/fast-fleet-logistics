@@ -2,18 +2,24 @@ import { NextResponse } from "next/server";
 import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
 import { ensureWallet } from "@/lib/wallet-ledger";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fastErrandsVendorSettingsKey, normalizeFastErrandsVendorIds } from "@/lib/fast-errands-vendors";
+import type { Json } from "@/lib/supabase/types";
 
 export async function GET() {
   if (!(await requireAdminSession())) return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to manage FastErrands." }, { status: 503 });
-  const { data, error } = await db
+  const [{ data, error }, { data: businesses }, { data: setting }] = await Promise.all([
+    db
     .from("fast_errand_orders")
     .select("id, errand_code, vendor_name, request_items, purchase_budget_ngn, actual_purchase_ngn, delivery_fee_ngn, service_fee_ngn, customer_total_ngn, vendor_transfer_reference, receipt_url, status, top_up_required_ngn, funded_at, vendor_funded_at, created_at, deliveries(id, delivery_code, status, pickup_address, dropoff_address), business_profiles(id, business_name, user_id), users:users!fast_errand_orders_customer_id_fkey(full_name, email, phone)")
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(100),
+    db.from("business_profiles").select("id, business_name, operating_state, pickup_address").eq("registration_status", "active").order("business_name").limit(200),
+    db.from("platform_settings").select("value").eq("key", fastErrandsVendorSettingsKey).maybeSingle()
+  ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ errands: data || [] });
+  return NextResponse.json({ errands: data || [], businesses: businesses || [], selectedBusinessIds: normalizeFastErrandsVendorIds(setting?.value) });
 }
 
 export async function PATCH(request: Request) {
@@ -21,14 +27,23 @@ export async function PATCH(request: Request) {
   if (!admin) return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   const limited = await enforceAdminMutationRateLimit(request);
   if (limited) return limited;
+  const db = createAdminClient();
+  if (!db) return NextResponse.json({ error: "FastErrands admin funding is not configured." }, { status: 503 });
   const body = await request.json().catch(() => ({}));
+  if (Array.isArray(body.vendorBusinessIds)) {
+    const requestedIds = normalizeFastErrandsVendorIds(body.vendorBusinessIds);
+    const { data: activeBusinesses, error } = await db.from("business_profiles").select("id").eq("registration_status", "active").in("id", requestedIds);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    const selectedBusinessIds = (activeBusinesses || []).map((business) => business.id);
+    if (selectedBusinessIds.length !== requestedIds.length) return NextResponse.json({ error: "Only active registered business accounts can be selected for FastErrands." }, { status: 400 });
+    const { error: saveError } = await db.from("platform_settings").upsert({ key: fastErrandsVendorSettingsKey, value: { businessIds: selectedBusinessIds } as unknown as Json, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    if (saveError) return NextResponse.json({ error: saveError.message }, { status: 400 });
+    return NextResponse.json({ selectedBusinessIds });
+  }
   const errandId = String(body.errandId || "").trim();
   const actualPurchaseNgn = Math.round(Number(body.actualPurchaseNgn || 0));
   const transferReference = String(body.transferReference || "").trim().slice(0, 160);
   if (!errandId || actualPurchaseNgn < 1 || !transferReference) return NextResponse.json({ error: "Enter the actual purchase amount and your Squad transfer reference." }, { status: 400 });
-  const db = createAdminClient();
-  if (!db) return NextResponse.json({ error: "FastErrands admin funding is not configured." }, { status: 503 });
-
   const { data: errand, error } = await db
     .from("fast_errand_orders")
     .select("id, errand_code, customer_id, business_profile_id, purchase_budget_ngn, status, delivery_id, deliveries(status, metadata), business_profiles(user_id)")

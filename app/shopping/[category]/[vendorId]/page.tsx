@@ -6,15 +6,17 @@ import { loadPublicShoppingMalls } from "@/lib/public-content";
 
 type ShoppingVendorPageProps = {
   params: Promise<{ category: string; vendorId: string }>;
+  searchParams: Promise<{ state?: string }>;
 };
 
 export const revalidate = 300;
 
-export async function generateMetadata({ params }: ShoppingVendorPageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: ShoppingVendorPageProps): Promise<Metadata> {
   const { category: categorySlug, vendorId } = await params;
+  const { state } = await searchParams;
   const category = categoryFromShoppingSlug(categorySlug);
   const malls = await loadPublicShoppingMalls();
-  const vendor = category ? findShoppingVendor(malls, vendorId, category) : null;
+  const vendor = category ? findShoppingVendor(malls, vendorId, category, state) : null;
   const label = vendor ? vendor.store.name : category ? shoppingCategoryLabel(category) : "Shopping vendor";
 
   return {
@@ -28,14 +30,15 @@ export async function generateMetadata({ params }: ShoppingVendorPageProps): Pro
   };
 }
 
-export default async function ShoppingVendorPage({ params }: ShoppingVendorPageProps) {
+export default async function ShoppingVendorPage({ params, searchParams }: ShoppingVendorPageProps) {
   const { category: categorySlug, vendorId } = await params;
+  const { state } = await searchParams;
   const category = categoryFromShoppingSlug(categorySlug);
   if (!category) notFound();
 
   const malls = await loadPublicShoppingMalls();
-  const vendor = findShoppingVendor(malls, vendorId, category);
+  const vendor = findShoppingVendor(malls, vendorId, category, state);
   if (!vendor) notFound();
 
-  return <ShoppingVendorMarketplace initialMalls={malls} category={category} vendorId={vendor.store.id} />;
+  return <ShoppingVendorMarketplace initialMalls={malls} category={category} vendorId={vendor.store.id} state={vendor.location.state} />;
 }

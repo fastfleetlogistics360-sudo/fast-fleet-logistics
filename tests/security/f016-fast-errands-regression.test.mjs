@@ -12,11 +12,11 @@ const settlement = read("lib/payments/settlement.ts");
 const completion = read("lib/delivery-completion.ts");
 const migration = read("supabase-fasterrands-delta.sql");
 
-test("F-016 keeps FastErrands limited to active verified stores and their selected states", () => {
-  assert.match(checkout, /vendor\?\.store\.businessId/);
+test("F-016 keeps FastErrands limited to admin-selected active businesses and their operating states", () => {
+  assert.match(checkout, /loadFastErrandsVendorIds/);
   assert.match(checkout, /loadActiveLinkedBusiness/);
-  assert.match(checkout, /vendor\.store\.operatingStatus === "closed"/);
-  assert.match(checkout, /vendor\.store\.operatingStates/);
+  assert.match(checkout, /allowedBusinessIds\.includes\(business\.id\)/);
+  assert.match(checkout, /business\.operating_state/);
   assert.match(checkout, /vendorStates\.includes\(dropoffState\)/);
   assert.match(checkout, /purpose: "delivery_payment"/);
 });

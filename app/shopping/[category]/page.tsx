@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ShoppingCategoryMarketplace } from "@/components/marketplace/shopping-marketplace";
 import { categoryFromShoppingSlug, findShoppingCategoryGroup, shoppingCategoryLabel } from "@/lib/mall-menu";
 import { loadPublicShoppingMalls } from "@/lib/public-content";
+import { loadMarketplaceCustomerState } from "@/lib/marketplace-customer-state";
 
 type ShoppingCategoryPageProps = {
   params: Promise<{ category: string }>;
@@ -29,9 +30,9 @@ export default async function ShoppingCategoryPage({ params }: ShoppingCategoryP
   const category = categoryFromShoppingSlug(categorySlug);
   if (!category) notFound();
 
-  const malls = await loadPublicShoppingMalls();
+  const [malls, customerState] = await Promise.all([loadPublicShoppingMalls(), loadMarketplaceCustomerState()]);
   const group = findShoppingCategoryGroup(malls, category);
   if (!group) notFound();
 
-  return <ShoppingCategoryMarketplace initialMalls={malls} category={category} />;
+  return <ShoppingCategoryMarketplace initialMalls={malls} category={category} customerState={customerState} />;
 }

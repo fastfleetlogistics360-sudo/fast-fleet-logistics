@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ShoppingCategorySelection } from "@/components/marketplace/shopping-marketplace";
 import { loadPublicShoppingMalls } from "@/lib/public-content";
+import { loadMarketplaceCustomerState } from "@/lib/marketplace-customer-state";
 
 export const revalidate = 300;
 
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ShoppingPage() {
-  const malls = await loadPublicShoppingMalls();
+  const [malls, customerState] = await Promise.all([loadPublicShoppingMalls(), loadMarketplaceCustomerState()]);
 
-  return <ShoppingCategorySelection initialMalls={malls} />;
+  return <ShoppingCategorySelection initialMalls={malls} customerState={customerState} />;
 }

@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, ShieldCheck, Store, WalletCards } from "lucide-react";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { getShoppingStoreImage, type ShoppingMall } from "@/lib/mall-menu";
+import type { FastErrandsVendor } from "@/lib/fast-errands-vendors";
 
-export function FastErrandCheckout({ malls }: { malls: ShoppingMall[] }) {
-  const vendors = useMemo(() => malls.flatMap((mall) => mall.stores.filter((store) => store.businessId && store.operatingStatus !== "closed").map((store) => ({ mall, store }))), [malls]);
-  const [vendorId, setVendorId] = useState(vendors[0]?.store.id || "");
+export function FastErrandCheckout({ vendors }: { vendors: FastErrandsVendor[] }) {
+  const [vendorId, setVendorId] = useState(vendors[0]?.id || "");
   const [items, setItems] = useState("");
   const [budget, setBudget] = useState("");
   const [address, setAddress] = useState("");
@@ -20,7 +19,7 @@ export function FastErrandCheckout({ malls }: { malls: ShoppingMall[] }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [activeErrands, setActiveErrands] = useState<Array<{ id: string; errand_code: string; vendor_name: string; status: string; top_up_required_ngn: number }>>([]);
-  const selected = vendors.find((vendor) => vendor.store.id === vendorId);
+  const selected = vendors.find((vendor) => vendor.id === vendorId);
 
   useEffect(() => {
     fetch("/api/fast-errands", { cache: "no-store" }).then((response) => response.ok ? response.json() : { errands: [] }).then((data) => setActiveErrands(Array.isArray(data.errands) ? data.errands : [])).catch(() => undefined);
@@ -57,7 +56,7 @@ export function FastErrandCheckout({ malls }: { malls: ShoppingMall[] }) {
       <div className="overflow-hidden rounded-[24px] border border-fleet-line bg-white shadow-lift">
         <div className="grid md:grid-cols-[300px_1fr]">
           <div className="relative h-52 bg-fleet-night md:h-full">
-            {selected ? <img src={getShoppingStoreImage(selected.store, selected.mall)} alt={selected.store.name} className="h-full w-full object-cover opacity-75" /> : null}
+            {selected ? <span className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(244,126,24,0.55),_transparent_45%)]" /> : null}
             <span className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-xs font-black uppercase tracking-[0.13em] text-fleet-ember"><WalletCards className="h-4 w-4" /> FastErrands</span>
           </div>
           <div className="p-5 sm:p-7">
@@ -69,9 +68,9 @@ export function FastErrandCheckout({ malls }: { malls: ShoppingMall[] }) {
       </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="p-5 sm:p-6">
-          <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-fleet bg-orange-50 text-fleet-ember"><Store className="h-5 w-5" /></span><div><h2 className="font-black text-fleet-night">Your purchase request</h2><p className="text-xs font-bold text-slate-500">Only active, linked shopping vendors appear here.</p></div></div>
+          <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-fleet bg-orange-50 text-fleet-ember"><Store className="h-5 w-5" /></span><div><h2 className="font-black text-fleet-night">Your purchase request</h2><p className="text-xs font-bold text-slate-500">Only vendors selected by FastErrands admin appear here.</p></div></div>
           <div className="mt-5 grid gap-4">
-            <label className="form-field"><span className="form-label">Verified vendor</span><select className="form-input" value={vendorId} onChange={(event) => setVendorId(event.target.value)}>{vendors.map((vendor) => <option key={vendor.store.id} value={vendor.store.id}>{vendor.store.name} · {vendor.mall.location}</option>)}</select></label>
+            <label className="form-field"><span className="form-label">Verified vendor</span><select className="form-input" value={vendorId} onChange={(event) => setVendorId(event.target.value)}>{vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.business_name} · {vendor.operating_state || vendor.pickup_address || "Location pending"}</option>)}</select></label>
             <label className="form-field"><span className="form-label">What should we buy?</span><textarea className="form-input min-h-28" value={items} onChange={(event) => setItems(event.target.value)} placeholder="Example: 2 bags of rice, 1 cooking oil, no substitutions without asking me." /></label>
             <label className="form-field"><span className="form-label">Purchase budget (₦)</span><input className="form-input" inputMode="numeric" value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} placeholder="10,000" /></label>
             <AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} placeholder="Enter recipient street address" />

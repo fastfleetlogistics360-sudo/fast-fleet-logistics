@@ -2,17 +2,16 @@ import { NextResponse } from "next/server";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { createDeliveryQuote } from "@/lib/delivery-quotes";
 import { businessPickupAddressFor, loadActiveLinkedBusiness } from "@/lib/marketplace-business-links";
-import { findShoppingVendor } from "@/lib/mall-menu";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, initiateSquadPayment } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { loadPublicShoppingMalls } from "@/lib/public-content";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { normalizeState } from "@/lib/launch-states";
+import { loadFastErrandsVendorIds } from "@/lib/fast-errands-vendors";
 
 const SERVICE_FEE_NGN = 500;
 
@@ -35,16 +34,14 @@ export async function POST(request: Request) {
     }
     const db = createAdminClient();
     if (!db) return NextResponse.json({ error: "FastErrands checkout is temporarily unavailable." }, { status: 503 });
-    const malls = await loadPublicShoppingMalls();
-    const vendor = findShoppingVendor(malls, vendorId);
-    if (!vendor?.store.businessId) return NextResponse.json({ error: "This vendor is not yet verified for FastErrands." }, { status: 409 });
-    if (vendor.store.operatingStatus === "closed") return NextResponse.json({ error: "This vendor is currently closed." }, { status: 409 });
-    const business = await loadActiveLinkedBusiness(db, vendor.store.businessId);
+    const business = await loadActiveLinkedBusiness(db, vendorId);
     if (!business) return NextResponse.json({ error: "This vendor is not active for FastErrands yet." }, { status: 409 });
-    const pickup = vendor.store.pickupAddress || businessPickupAddressFor(business, vendor.mall.location || vendor.mall.name);
+    const allowedBusinessIds = await loadFastErrandsVendorIds();
+    if (!allowedBusinessIds.includes(business.id)) return NextResponse.json({ error: "This vendor has not been selected for FastErrands by admin." }, { status: 409 });
+    const pickup = businessPickupAddressFor(business, "Verified FastErrands vendor pickup");
     const pickupState = extractNigerianState(pickup);
     const dropoffState = extractNigerianState(address);
-    const vendorStates = Array.from(new Set((vendor.store.operatingStates || []).map(normalizeState).filter(Boolean)));
+    const vendorStates = [normalizeState(business.operating_state)].filter(Boolean);
     if (vendorStates.length && (!dropoffState || !vendorStates.includes(dropoffState))) {
       return NextResponse.json({ error: `This vendor currently serves ${vendorStates.join(", ")}. Choose a delivery address in one of those states.` }, { status: 409 });
     }
@@ -58,7 +55,7 @@ export async function POST(request: Request) {
       customer_id: user.id,
       pickup_address: pickup,
       dropoff_address: address,
-      pickup_contact: vendor.store.name,
+      pickup_contact: business.business_name || "FastErrands vendor",
       dropoff_contact: phone || email,
       parcel_type: "FastErrands verified-store purchase",
       vehicle_type: quote.vehicle,
@@ -74,10 +71,10 @@ export async function POST(request: Request) {
       route_type: quote.routeType,
       route_duration_seconds: quote.durationSeconds,
       vehicle_subtype: quote.vehicleSubtype,
-      metadata: { source: "fast_errands", vendor_funding_status: "awaiting_customer_payment", vendor_id: vendor.store.id, business_profile_id: business.id, purchase_budget_ngn: budget, delivery_fee_ngn: deliveryFee, service_fee_ngn: SERVICE_FEE_NGN, errand_items: items, provider_reference: reference }
+      metadata: { source: "fast_errands", vendor_funding_status: "awaiting_customer_payment", vendor_id: business.id, business_profile_id: business.id, purchase_budget_ngn: budget, delivery_fee_ngn: deliveryFee, service_fee_ngn: SERVICE_FEE_NGN, errand_items: items, provider_reference: reference }
     }).select("id, delivery_code").single<{ id: string; delivery_code: string }>();
     if (deliveryError || !delivery) throw deliveryError || new Error("Could not create FastErrand delivery.");
-    const { data: errand, error: errandError } = await db.from("fast_errand_orders").insert({ errand_code: errandCode, customer_id: user.id, business_profile_id: business.id, delivery_id: delivery.id, vendor_name: vendor.store.name, request_items: [{ text: items }], purchase_budget_ngn: budget, delivery_fee_ngn: deliveryFee, service_fee_ngn: SERVICE_FEE_NGN, customer_total_ngn: total }).select("id").single<{ id: string }>();
+    const { data: errand, error: errandError } = await db.from("fast_errand_orders").insert({ errand_code: errandCode, customer_id: user.id, business_profile_id: business.id, delivery_id: delivery.id, vendor_name: business.business_name || "FastErrands vendor", request_items: [{ text: items }], purchase_budget_ngn: budget, delivery_fee_ngn: deliveryFee, service_fee_ngn: SERVICE_FEE_NGN, customer_total_ngn: total }).select("id").single<{ id: string }>();
     if (errandError || !errand) {
       await db.from("deliveries").update({ status: "cancelled" }).eq("id", delivery.id);
       throw errandError || new Error("Could not create FastErrand.");

@@ -78,6 +78,7 @@ import {
   type MallCategory,
   type MallProduct,
   type MallStore,
+  type MallStoreLocation,
   type ShoppingMall
 } from "@/lib/mall-menu";
 import {
@@ -938,7 +939,7 @@ export function AdminPanel() {
   const [hubPromotionSlides, setHubPromotionSlides] = useState<HubPromotionSlide[]>(defaultHubPromotionSlides);
   const [hubPromotionUploadProgress, setHubPromotionUploadProgress] = useState<Record<string, number>>({});
   const [restaurantMenus, setRestaurantMenus] = useState<RestaurantKitchen[]>(defaultRestaurantKitchens);
-  const [mallMenus, setMallMenus] = useState<ShoppingMall[]>(defaultShoppingMalls);
+  const [mallMenus, setMallMenus] = useState<ShoppingMall[]>(() => normalizeShoppingMalls(defaultShoppingMalls));
   const [campusProgram, setCampusProgram] = useState<CampusProgram>(DEFAULT_CAMPUS_PROGRAM);
   const [campusUserQuery, setCampusUserQuery] = useState("");
   const [campusUsers, setCampusUsers] = useState<Array<{ id: string; full_name?: string | null; email?: string | null; phone?: string | null; role?: string | null }>>([]);
@@ -1986,6 +1987,32 @@ export function AdminPanel() {
     );
   }
 
+  function updateMallProductStatePrice(mallId: string, storeId: string, productId: string, state: string, price: MallProduct["price"] | undefined) {
+    setMallMenus((malls) =>
+      malls.map((mall) =>
+        mall.id === mallId
+          ? {
+              ...mall,
+              stores: mall.stores.map((store) =>
+                store.id === storeId
+                  ? {
+                      ...store,
+                      products: store.products.map((product) => {
+                        if (product.id !== productId) return product;
+                        const statePrices = { ...(product.statePrices || {}) };
+                        if (price === undefined) delete statePrices[state];
+                        else statePrices[state] = price;
+                        return { ...product, statePrices: Object.keys(statePrices).length ? statePrices : undefined };
+                      })
+                    }
+                  : store
+              )
+            }
+          : mall
+      )
+    );
+  }
+
   function addMallProduct(mallId: string, storeId: string) {
     setMallMenus((malls) =>
       malls.map((mall) =>
@@ -2334,6 +2361,7 @@ export function AdminPanel() {
         busyAction={busyAction}
         onStoreChange={updateMallStore}
         onProductChange={updateMallProduct}
+        onProductStatePriceChange={updateMallProductStatePrice}
         onAddStore={addMallStore}
         onAddProduct={addMallProduct}
         onRemoveStore={removeMallStore}
@@ -3850,6 +3878,7 @@ function MallMenuSection({
   busyAction,
   onStoreChange,
   onProductChange,
+  onProductStatePriceChange,
   onAddStore,
   onAddProduct,
   onRemoveStore,
@@ -3860,6 +3889,7 @@ function MallMenuSection({
   busyAction: string | null;
   onStoreChange: (mallId: string, storeId: string, patch: Partial<MallStore>) => void;
   onProductChange: (mallId: string, storeId: string, productId: string, patch: Partial<MallProduct>) => void;
+  onProductStatePriceChange: (mallId: string, storeId: string, productId: string, state: string, price: MallProduct["price"] | undefined) => void;
   onAddStore: (category: MallCategory) => void;
   onAddProduct: (mallId: string, storeId: string) => void;
   onRemoveStore: (mallId: string, storeId: string) => void;
@@ -3884,10 +3914,16 @@ function MallMenuSection({
   });
 
   function toggleVendorOperatingState(mallId: string, store: MallStore, state: string) {
-    const selected = new Set(store.operatingStates || []);
-    if (selected.has(state)) selected.delete(state);
-    else selected.add(state);
-    onStoreChange(mallId, store.id, { operatingStates: NIGERIAN_STATES.filter((item) => selected.has(item)) });
+    const locations = [...(store.locations || [])];
+    const index = locations.findIndex((location) => location.state === state);
+    if (index >= 0) locations.splice(index, 1);
+    else locations.push({ state, priceMode: "consistent" });
+    onStoreChange(mallId, store.id, { locations, operatingStates: locations.map((location) => location.state) });
+  }
+
+  function updateVendorLocation(mallId: string, store: MallStore, state: string, patch: Partial<MallStoreLocation>) {
+    const locations = (store.locations || []).map((location) => location.state === state ? { ...location, ...patch } : location);
+    onStoreChange(mallId, store.id, { locations, operatingStates: locations.map((location) => location.state) });
   }
 
   return (
@@ -4018,14 +4054,14 @@ function MallMenuSection({
 
                       <fieldset className="rounded-fleet border border-fleet-line bg-white p-3">
                         <legend className="px-1 text-sm font-black text-fleet-night">Operating states</legend>
-                        <p className="mt-1 text-xs font-bold leading-5 text-slate-500">Select every state where this vendor is available. This is saved only on this vendor&apos;s profile.</p>
+                        <p className="mt-1 text-xs font-bold leading-5 text-slate-500">Each selected state becomes its own storefront branch with its own Google Maps pickup pin and optional price overrides.</p>
                         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                           {NIGERIAN_STATES.map((state) => (
                             <label key={state} className="flex min-h-10 items-center gap-2 rounded-fleet bg-fleet-paper px-3 text-sm font-bold text-fleet-night">
                               <input
                                 type="checkbox"
                                 className="h-4 w-4 accent-fleet-navy"
-                                checked={(store.operatingStates || []).includes(state)}
+                                checked={(store.locations || []).some((location) => location.state === state)}
                                 onChange={() => toggleVendorOperatingState(mall.id, store, state)}
                               />
                               {state}
@@ -4034,19 +4070,32 @@ function MallMenuSection({
                         </div>
                       </fieldset>
 
-                      <AddressAutocompleteInput
-                        label="Google pickup location for this vendor"
-                        value={store.pickupAddress || mall.location}
-                        onChange={(pickupAddress) => onStoreChange(mall.id, store.id, { pickupAddress })}
-                        onSelect={(selection) => onStoreChange(mall.id, store.id, { pickupAddress: selection.address, pickupPlaceId: selection.placeId, pickupLatitude: selection.latitude, pickupLongitude: selection.longitude })}
-                        placeholder="Search street, gate, landmark, or store"
-                        mode="place"
-                      />
+                      <div className="grid gap-3">
+                        {(store.locations || []).map((location) => (
+                          <div key={location.state} className="rounded-fleet border border-fleet-line bg-white p-3">
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                              <strong className="text-sm font-black text-fleet-night">{location.state} storefront branch</strong>
+                              <select className="form-input max-w-56 bg-fleet-paper text-sm" value={location.priceMode || "consistent"} onChange={(event) => updateVendorLocation(mall.id, store, location.state, { priceMode: event.target.value as MallStoreLocation["priceMode"] })}>
+                                <option value="consistent">Use shared prices</option>
+                                <option value="custom">Set {location.state} prices</option>
+                              </select>
+                            </div>
+                            <AddressAutocompleteInput
+                              label={`Pinned Google pickup location — ${location.state}`}
+                              value={location.pickupAddress || ""}
+                              onChange={(pickupAddress) => updateVendorLocation(mall.id, store, location.state, { pickupAddress })}
+                              onSelect={(selection) => updateVendorLocation(mall.id, store, location.state, { pickupAddress: selection.address, pickupPlaceId: selection.placeId, pickupLatitude: selection.latitude, pickupLongitude: selection.longitude })}
+                              placeholder={`Search the exact ${location.state} branch, gate, or landmark`}
+                              mode="place"
+                            />
+                            <label className="form-field mt-3">
+                              <span className="form-label">Rider pickup note</span>
+                              <input className="form-input bg-white" value={location.pickupNote || ""} onChange={(event) => updateVendorLocation(mall.id, store, location.state, { pickupNote: event.target.value || undefined })} placeholder="e.g. Shop 4, beside the ATM" />
+                            </label>
+                          </div>
+                        ))}
+                      </div>
                       <div className="grid gap-3 md:grid-cols-2">
-                        <label className="form-field">
-                          <span className="form-label">Rider pickup note</span>
-                          <input className="form-input bg-white" value={store.pickupNote || ""} onChange={(event) => onStoreChange(mall.id, store.id, { pickupNote: event.target.value || undefined })} placeholder="e.g. Faculty gate, opposite the ATM" />
-                        </label>
                         <label className="form-field">
                           <span className="form-label">Campus programme</span>
                           <select className="form-input bg-white" value={store.campusZoneId || ""} onChange={(event) => onStoreChange(mall.id, store.id, { campusZoneId: event.target.value || undefined })}>
@@ -4113,6 +4162,29 @@ function MallMenuSection({
                       </div>
                     ))}
                   </div>
+                  {(store.locations || []).filter((location) => location.priceMode === "custom").map((location) => (
+                    <div key={`prices-${location.state}`} className="mt-4 rounded-fleet border border-amber-200 bg-amber-50 p-3">
+                      <strong className="block text-sm font-black text-amber-950">{location.state} price overrides</strong>
+                      <p className="mt-1 text-xs font-bold leading-5 text-amber-800">Leave an item empty to keep the shared price. These prices apply only to this state&apos;s storefront branch.</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {store.products.map((product) => {
+                          const override = product.statePrices?.[location.state];
+                          return (
+                            <label key={`${location.state}:${product.id}`} className="form-field">
+                              <span className="form-label">{product.name}</span>
+                              <input
+                                className="form-input bg-white"
+                                value={typeof override === "number" ? String(override) : ""}
+                                onChange={(event) => onProductStatePriceChange(mall.id, store.id, product.id, location.state, event.target.value ? Number(event.target.value) : undefined)}
+                                placeholder={typeof product.price === "number" ? `Shared: ₦${product.price.toLocaleString("en-NG")}` : "Shared: Ask price"}
+                                inputMode="numeric"
+                              />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                   </> : <div className="flex items-center gap-3 rounded-fleet border border-fleet-line bg-white p-3">
                     <span className="grid h-14 w-14 shrink-0 place-items-center rounded-fleet bg-fleet-night text-white"><StoreIcon className="h-6 w-6" /></span>
                     <div className="min-w-0 text-sm">

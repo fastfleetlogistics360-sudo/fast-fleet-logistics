@@ -95,9 +95,6 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Business KYC must be approved before managing orders." }, { status: 403 });
     }
     const businessState = normalizeState(businessProfile.operating_state || businessProfile.users?.default_zone);
-    if (status === "ready_for_pickup" && !businessState) {
-      return NextResponse.json({ error: "Select and save your business state from Account before marking orders ready for pickup." }, { status: 400 });
-    }
 
     const { data: order, error: orderError } = await db
       .from("orders")
@@ -107,16 +104,25 @@ export async function PATCH(request: Request) {
       .single<Record<string, unknown>>();
     if (orderError) throw orderError;
 
+    const orderItems = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
+    const branchPickup = pinnedMarketplacePickup(orderItems);
+    const pickupState = normalizeState(branchPickup?.state || businessState);
+    if (status === "ready_for_pickup" && !pickupState) {
+      return NextResponse.json({ error: "This order needs a saved state branch before it can be released to riders." }, { status: 400 });
+    }
     const nextPatch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
     let deliveryId = typeof order.delivery_id === "string" ? order.delivery_id : null;
-    const businessPickupAddress = appendStateToAddress(String(order.pickup_address || businessProfile.pickup_address || "Business pickup"), businessState);
+    const businessPickupAddress = appendStateToAddress(String(order.pickup_address || businessProfile.pickup_address || "Business pickup"), pickupState);
     const customerDropoffAddress = String(order.dropoff_address || "");
     const businessPickupContact = businessProfile.business_name || "Business pickup";
     const marketplaceCustomerContact = String(order.customer_contact || "Marketplace customer");
+    const pickupPointPromise = branchPickup
+      ? Promise.resolve({ latitude: branchPickup.latitude, longitude: branchPickup.longitude })
+      : geocodeAddress(businessPickupAddress);
     const [deliveryPolicy, campusProgram, pickupPoint, dropoffPoint] = await Promise.all([
       loadDeliveryPolicy(),
       loadCampusProgram(),
-      geocodeAddress(businessPickupAddress),
+      pickupPointPromise,
       geocodeAddress(customerDropoffAddress)
     ]);
     const marketplaceEstimate = await estimateBusinessOrderDelivery(order, businessPickupAddress, deliveryPolicy, campusProgram);
@@ -160,7 +166,7 @@ export async function PATCH(request: Request) {
             business_name: businessProfile.business_name || null,
             marketplace_customer_id: order.customer_id || null,
             marketplace_kind: order.marketplace_kind || null,
-            items: Array.isArray(order.items) ? order.items : [],
+            items: orderItems,
             pickup_state: marketplaceEstimate.pickupState || null,
             dropoff_state: marketplaceEstimate.dropoffState || null,
             pickup_latitude: pickupPoint?.latitude || null,
@@ -279,6 +285,16 @@ function appendStateToAddress(address: string, state: string) {
   const normalizedState = normalizeState(state);
   if (!normalizedState) return address;
   return extractNigerianState(address) === normalizedState ? address : `${address}, ${normalizedState}`;
+}
+
+function pinnedMarketplacePickup(items: Array<Record<string, unknown>>) {
+  const item = items.find((entry) => Number.isFinite(entry.pickupLatitude) && Number.isFinite(entry.pickupLongitude));
+  if (!item) return null;
+  return {
+    state: String(item.vendorState || ""),
+    latitude: Number(item.pickupLatitude),
+    longitude: Number(item.pickupLongitude)
+  };
 }
 
 async function notifyApprovedRiders(

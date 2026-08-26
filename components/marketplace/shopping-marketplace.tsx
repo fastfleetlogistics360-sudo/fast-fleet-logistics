@@ -21,12 +21,13 @@ import {
   getShoppingStoreImage,
   mallMenuStorageKey,
   normalizeShoppingMalls,
+  shoppingProductPrice,
   shoppingCategoryLabel,
   shoppingCategoryMeta,
   shoppingCategoryPath,
   shoppingVendorCategoryPath
 } from "@/lib/mall-menu";
-import type { MallCategory, MallProduct, MallStore, ShoppingCategoryGroup, ShoppingCategoryVendor, ShoppingMall } from "@/lib/mall-menu";
+import type { MallCategory, MallProduct, MallStore, MallStoreLocation, ShoppingCategoryGroup, ShoppingCategoryVendor, ShoppingMall } from "@/lib/mall-menu";
 
 type CartItem = {
   productId: string;
@@ -37,13 +38,18 @@ type CartItem = {
   vendorName: string;
   businessId?: string;
   pickupAddress: string;
+  pickupPlaceId?: string;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
+  pickupNote?: string;
+  vendorState: string;
   category: MallCategory;
   price: number;
   quantity: number;
   subtotal: number;
 };
 
-export function ShoppingCategorySelection({ initialMalls = defaultShoppingMalls }: { initialMalls?: ShoppingMall[] } = {}) {
+export function ShoppingCategorySelection({ initialMalls = defaultShoppingMalls, customerState }: { initialMalls?: ShoppingMall[]; customerState?: string | null } = {}) {
   const malls = useLiveShoppingMalls(initialMalls);
   const categoryGroups = useMemo(() => buildShoppingCategoryGroups(malls), [malls]);
   const vendorCount = categoryGroups.reduce((count, group) => count + group.vendors.length, 0);
@@ -66,6 +72,7 @@ export function ShoppingCategorySelection({ initialMalls = defaultShoppingMalls 
               <div className="mt-4 flex flex-wrap gap-2">
                 <StatusBadge tone="green">{categoryGroups.length} categories</StatusBadge>
                 <StatusBadge tone="neutral">{vendorCount} vendors</StatusBadge>
+                {customerState ? <StatusBadge tone="blue">{customerState} vendors first</StatusBadge> : null}
               </div>
             </div>
             <img
@@ -114,30 +121,32 @@ export function ShoppingCategorySelection({ initialMalls = defaultShoppingMalls 
   );
 }
 
-export function ShoppingCategoryMarketplace({ initialMalls = defaultShoppingMalls, category }: { initialMalls?: ShoppingMall[]; category: MallCategory }) {
-  return <ShoppingCategoryVendorSelection initialMalls={initialMalls} category={category} />;
+export function ShoppingCategoryMarketplace({ initialMalls = defaultShoppingMalls, category, customerState }: { initialMalls?: ShoppingMall[]; category: MallCategory; customerState?: string | null }) {
+  return <ShoppingCategoryVendorSelection initialMalls={initialMalls} category={category} customerState={customerState} />;
 }
 
 export function ShoppingVendorMarketplace({
   initialMalls = defaultShoppingMalls,
   category,
-  vendorId
+  vendorId,
+  state
 }: {
   initialMalls?: ShoppingMall[];
   category?: MallCategory | null;
   vendorId: string;
+  state?: string | null;
 }) {
-  return <ShoppingStorefront initialMalls={initialMalls} category={category} vendorId={vendorId} />;
+  return <ShoppingStorefront initialMalls={initialMalls} category={category} vendorId={vendorId} state={state} />;
 }
 
 export function MallMarketplace({ initialMalls = defaultShoppingMalls }: { initialMalls?: ShoppingMall[] } = {}) {
   return <ShoppingCategorySelection initialMalls={initialMalls} />;
 }
 
-function ShoppingCategoryVendorSelection({ initialMalls, category }: { initialMalls: ShoppingMall[]; category: MallCategory }) {
+function ShoppingCategoryVendorSelection({ initialMalls, category, customerState }: { initialMalls: ShoppingMall[]; category: MallCategory; customerState?: string | null }) {
   const malls = useLiveShoppingMalls(initialMalls);
   const categoryGroup = useMemo(() => findShoppingCategoryGroup(malls, category), [category, malls]);
-  const vendors = categoryGroup?.vendors || [];
+  const vendors = useMemo(() => sortVendorsByState(categoryGroup?.vendors || [], customerState), [categoryGroup?.vendors, customerState]);
   const meta = shoppingCategoryMeta[category];
   const heroImage = categoryGroup?.image || meta.image;
   const productCount = categoryGroup?.productCount || 0;
@@ -188,7 +197,7 @@ function ShoppingCategoryVendorCard({ vendor }: { vendor: ShoppingCategoryVendor
   const productCount = store.products.length;
 
   return (
-    <Link href={shoppingVendorCategoryPath(store)} className="group block focus:outline-none focus:ring-2 focus:ring-fleet-ember">
+    <Link href={shoppingVendorCategoryPath(store, vendor.location)} className="group block focus:outline-none focus:ring-2 focus:ring-fleet-ember">
       <article className="overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.06)] transition hover:-translate-y-1 hover:border-fleet-ember">
         <div className="relative h-28 overflow-hidden bg-fleet-paper">
           <img src={vendorImage} alt={store.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
@@ -202,7 +211,7 @@ function ShoppingCategoryVendorCard({ vendor }: { vendor: ShoppingCategoryVendor
               <strong className="line-clamp-1 block text-base font-black leading-tight text-fleet-night">{store.name}</strong>
               <span className="mt-1 flex items-start gap-1.5 text-xs font-bold leading-5 text-slate-500">
                 <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
-                <span className="line-clamp-2">{mall.location || mall.name}</span>
+                <span className="line-clamp-2">{vendor.location.pickupAddress || `${vendor.location.state} · ${mall.location || mall.name}`}</span>
               </span>
             </span>
             <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-fleet-ember transition group-hover:translate-x-0.5" />
@@ -210,7 +219,7 @@ function ShoppingCategoryVendorCard({ vendor }: { vendor: ShoppingCategoryVendor
           <div className="mt-3 flex flex-wrap gap-1.5 text-[0.65rem] font-black text-slate-500">
             <StatusBadge tone={vendorIsOpen(store.operatingStatus) ? "green" : "red"}>{vendorStatusLabel(store.operatingStatus)}</StatusBadge>
             <span className="rounded-full bg-fleet-paper px-2 py-1">
-              {productCount} product{productCount === 1 ? "" : "s"}
+              {vendor.location.state} · {productCount} product{productCount === 1 ? "" : "s"}
             </span>
             <span className="rounded-full bg-fleet-paper px-2 py-1">Open menu</span>
           </div>
@@ -223,11 +232,13 @@ function ShoppingCategoryVendorCard({ vendor }: { vendor: ShoppingCategoryVendor
 function ShoppingStorefront({
   initialMalls,
   category,
-  vendorId
+  vendorId,
+  state
 }: {
   initialMalls: ShoppingMall[];
   category?: MallCategory | null;
   vendorId?: string;
+  state?: string | null;
 }) {
   const malls = useLiveShoppingMalls(initialMalls);
   const [cart, setCart] = useState<Record<string, CartItem>>({});
@@ -256,7 +267,7 @@ function ShoppingStorefront({
     return () => observer.disconnect();
   }, []);
 
-  const selectedVendor = useMemo(() => (vendorId ? findShoppingVendor(malls, vendorId, category) : null), [category, malls, vendorId]);
+  const selectedVendor = useMemo(() => (vendorId ? findShoppingVendor(malls, vendorId, category, state) : null), [category, malls, state, vendorId]);
   const missingVendor = Boolean(vendorId && !selectedVendor);
   const categoryGroup = useMemo(() => (category ? findShoppingCategoryGroup(malls, category) : null), [category, malls]);
   const visibleGroups = useMemo(() => {
@@ -312,15 +323,16 @@ function ShoppingStorefront({
     if (activeVendorFilter !== "all" && !vendorFilters.some((filter) => filter.id === activeVendorFilter)) setActiveVendorFilter("all");
   }, [activeVendorFilter, selectedVendor, vendorFilters]);
 
-  function changeQuantity(mall: ShoppingMall, vendor: MallStore, product: MallProduct, delta: number) {
+  function changeQuantity(mall: ShoppingMall, vendor: MallStore, location: MallStoreLocation, product: MallProduct, delta: number) {
     if (!vendorIsOpen(vendor.operatingStatus)) {
       setMessage(`${vendor.name} is currently closed and cannot accept orders.`);
       return;
     }
     if (typeof product.price !== "number") return;
-    const price = product.price;
+    const price = shoppingProductPrice(product, location.state);
+    if (typeof price !== "number") return;
     setCart((current) => {
-      const key = cartKey(mall.id, vendor.id, product.id);
+      const key = cartKey(mall.id, vendor.id, location.state, product.id);
       const quantity = Math.max(0, (current[key]?.quantity || 0) + delta);
       const next = { ...current };
       if (quantity === 0) {
@@ -335,7 +347,12 @@ function ShoppingStorefront({
         vendorId: vendor.id,
         vendorName: vendor.name,
         businessId: product.businessId || vendor.businessId,
-        pickupAddress: mall.location || mall.name,
+        pickupAddress: location.pickupAddress || mall.location || mall.name,
+        pickupPlaceId: location.pickupPlaceId,
+        pickupLatitude: location.pickupLatitude,
+        pickupLongitude: location.pickupLongitude,
+        pickupNote: location.pickupNote,
+        vendorState: location.state,
         category: vendor.category,
         price,
         quantity,
@@ -345,9 +362,9 @@ function ShoppingStorefront({
     });
   }
 
-  function askPrice(product: MallProduct, vendor: MallStore, mall: ShoppingMall) {
+  function askPrice(product: MallProduct, vendor: MallStore, mall: ShoppingMall, location: MallStoreLocation) {
     const text = encodeURIComponent(
-      `Hello Fast Fleets 360, I want to ask the price of this shopping item.\n\nProduct: ${product.name}\nCategory: ${shoppingCategoryLabel(vendor.category)}\nVendor/store: ${vendor.name}\nPickup area: ${mall.location || mall.name}`
+      `Hello Fast Fleets 360, I want to ask the price of this shopping item.\n\nProduct: ${product.name}\nCategory: ${shoppingCategoryLabel(vendor.category)}\nVendor/store: ${vendor.name}\nPickup state: ${location.state}\nPickup area: ${location.pickupAddress || mall.location || mall.name}`
     );
     window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   }
@@ -534,11 +551,11 @@ function ShoppingStorefront({
             <div className="mt-5 grid gap-3">
               {cartItems.length === 0 ? <div className="rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-500">No priced shopping products selected yet.</div> : null}
               {cartItems.map((item) => (
-                <div key={cartKey(item.mallId, item.vendorId, item.productId)} className="rounded-fleet bg-fleet-paper p-3">
+                <div key={cartKey(item.mallId, item.vendorId, item.vendorState, item.productId)} className="rounded-fleet bg-fleet-paper p-3">
                   <div className="flex items-start justify-between gap-3">
                     <span className="min-w-0">
                       <strong className="block truncate text-sm font-black text-fleet-night">{item.productName}</strong>
-                      <span className="text-xs font-bold text-slate-500">{item.quantity} item · {item.vendorName} · {shoppingCategoryLabel(item.category)}</span>
+                      <span className="text-xs font-bold text-slate-500">{item.quantity} item · {item.vendorName} · {item.vendorState}</span>
                     </span>
                     <strong className="text-sm font-black text-fleet-night">{formatMoney(item.subtotal)}</strong>
                   </div>
@@ -600,8 +617,8 @@ function ShoppingVendorMenuSection({
   vendor: ShoppingCategoryVendor;
   cart: Record<string, CartItem>;
   showVendorLink: boolean;
-  onQuantity: (mall: ShoppingMall, vendor: MallStore, product: MallProduct, delta: number) => void;
-  onAskPrice: (product: MallProduct, vendor: MallStore, mall: ShoppingMall) => void;
+  onQuantity: (mall: ShoppingMall, vendor: MallStore, location: MallStoreLocation, product: MallProduct, delta: number) => void;
+  onAskPrice: (product: MallProduct, vendor: MallStore, mall: ShoppingMall, location: MallStoreLocation) => void;
 }) {
   const { mall, store } = vendor;
   const vendorImage = getShoppingStoreImage(store, mall);
@@ -625,7 +642,7 @@ function ShoppingVendorMenuSection({
             </div>
             <StatusBadge tone={orderingOpen ? "green" : "red"}>{vendorStatusLabel(store.operatingStatus)}</StatusBadge>
             {showVendorLink ? (
-              <Link href={shoppingVendorCategoryPath(store)} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-fleet border border-fleet-line bg-white px-3 text-xs font-black text-fleet-night transition hover:border-fleet-ember">
+              <Link href={shoppingVendorCategoryPath(store, vendor.location)} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-fleet border border-fleet-line bg-white px-3 text-xs font-black text-fleet-night transition hover:border-fleet-ember">
                 Open vendor page
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
@@ -633,15 +650,16 @@ function ShoppingVendorMenuSection({
           </div>
           <span className="mt-3 flex items-start gap-1.5 text-xs font-bold leading-5 text-slate-500">
             <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fleet-ember" />
-            <span className="line-clamp-2">{mall.location || mall.name}</span>
+              <span className="line-clamp-2">{vendor.location.pickupAddress || `${vendor.location.state} · ${mall.location || mall.name}`}</span>
           </span>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2.5 border-t border-fleet-line bg-fleet-paper/55 p-2.5 sm:gap-3 sm:p-3 md:grid-cols-3 xl:grid-cols-4">
         {store.products.map((product) => {
-          const key = cartKey(mall.id, store.id, product.id);
+          const key = cartKey(mall.id, store.id, vendor.location.state, product.id);
           const quantity = cart[key]?.quantity || 0;
-          const price = typeof product.price === "number" ? product.price : null;
+          const resolvedPrice = shoppingProductPrice(product, vendor.location.state);
+          const price = typeof resolvedPrice === "number" ? resolvedPrice : null;
           const canBuy = orderingOpen && product.available && price !== null;
           return (
             <article key={key} className="flex min-h-full flex-col overflow-hidden rounded-[16px] border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.05)] transition hover:border-fleet-ember">
@@ -656,18 +674,18 @@ function ShoppingVendorMenuSection({
               {canBuy ? (
                 <div className="mt-auto flex items-center justify-between gap-2 pt-2">
                   <div className="inline-flex h-9 items-center rounded-[12px] bg-fleet-paper p-0.5">
-                    <button type="button" onClick={() => onQuantity(mall, store, product, -1)} className="grid h-8 w-8 place-items-center rounded-[10px] text-fleet-night" aria-label={`Remove ${product.name}`}>
+                    <button type="button" onClick={() => onQuantity(mall, store, vendor.location, product, -1)} className="grid h-8 w-8 place-items-center rounded-[10px] text-fleet-night" aria-label={`Remove ${product.name}`}>
                       <Minus className="h-3.5 w-3.5" />
                     </button>
                     <span className="min-w-7 text-center text-xs font-black text-fleet-night">{quantity}</span>
-                    <button type="button" onClick={() => onQuantity(mall, store, product, 1)} className="grid h-8 w-8 place-items-center rounded-[10px] bg-fleet-night text-white shadow-[0_8px_18px_rgba(8,17,31,0.16)]" aria-label={`Add ${product.name}`}>
+                    <button type="button" onClick={() => onQuantity(mall, store, vendor.location, product, 1)} className="grid h-8 w-8 place-items-center rounded-[10px] bg-fleet-night text-white shadow-[0_8px_18px_rgba(8,17,31,0.16)]" aria-label={`Add ${product.name}`}>
                       <Plus className="h-3.5 w-3.5" />
                     </button>
                   </div>
                   <span className="text-xs font-black text-fleet-night">{formatMoney(quantity * Number(price || 0))}</span>
                 </div>
               ) : orderingOpen ? (
-                <Button type="button" size="sm" variant="dark" onClick={() => onAskPrice(product, store, mall)} className="mt-auto w-full justify-center">
+                <Button type="button" size="sm" variant="dark" onClick={() => onAskPrice(product, store, mall, vendor.location)} className="mt-auto w-full justify-center">
                   <MessageCircle className="h-4 w-4" />
                   Ask Price
                 </Button>
@@ -735,7 +753,7 @@ function groupForVendor(vendor: ShoppingCategoryVendor): ShoppingCategoryGroup {
     vendors: [vendor],
     productCount: vendor.store.products.length,
     image: getShoppingStoreImage(vendor.store, vendor.mall),
-    locations: [vendor.mall.location || vendor.mall.name].filter(Boolean)
+    locations: [vendor.location.pickupAddress || vendor.location.state || vendor.mall.location || vendor.mall.name].filter(Boolean)
   };
 }
 
@@ -748,10 +766,19 @@ function Summary({ label, value, strong = false }: { label: string; value: strin
   );
 }
 
-function cartKey(mallId: string, vendorId: string, productId: string) {
-  return `${mallId}:${vendorId}:${productId}`;
+function cartKey(mallId: string, vendorId: string, state: string, productId: string) {
+  return `${mallId}:${vendorId}:${state}:${productId}`;
 }
 
 function vendorKey(vendor: ShoppingCategoryVendor) {
-  return `${vendor.mall.id}:${vendor.store.id}`;
+  return `${vendor.mall.id}:${vendor.store.id}:${vendor.location.state}`;
+}
+
+function sortVendorsByState(vendors: ShoppingCategoryVendor[], customerState?: string | null) {
+  const preferred = String(customerState || "").trim().toLowerCase();
+  return [...vendors].sort((left, right) => {
+    const leftPreferred = left.location.state.toLowerCase() === preferred ? 0 : 1;
+    const rightPreferred = right.location.state.toLowerCase() === preferred ? 0 : 1;
+    return leftPreferred - rightPreferred || left.location.state.localeCompare(right.location.state) || left.store.name.localeCompare(right.store.name);
+  });
 }

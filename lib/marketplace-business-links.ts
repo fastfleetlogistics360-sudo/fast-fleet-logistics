@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeState } from "@/lib/launch-states";
 import { extractNigerianState } from "@/lib/location/state-matching";
-import { defaultShoppingMalls, mallMenuSettingsKey, normalizeShoppingMalls } from "@/lib/mall-menu";
+import { defaultShoppingMalls, mallMenuSettingsKey, normalizeShoppingMalls, shoppingProductPrice, storeLocations } from "@/lib/mall-menu";
 import { defaultRestaurantKitchens, normalizeRestaurantKitchens, restaurantMenuSettingsKey } from "@/lib/restaurant-menu";
 
 export type MarketplaceCheckoutItem = {
@@ -27,6 +27,7 @@ export type MarketplaceCheckoutItem = {
   pickupLatitude?: number;
   pickupLongitude?: number;
   pickupNote?: string;
+  vendorState?: string;
 };
 
 export type LinkedBusinessRow = {
@@ -167,16 +168,25 @@ async function resolveShoppingBusinessLinks(db: SupabaseClient, items: Marketpla
       : [];
     const product = productMatches.length === 1 ? productMatches[0] : null;
     const resolvedBusinessId = text(product?.businessId || resolvedStore?.businessId);
+    const selectedState = normalizeState(item.vendorState);
+    const branch = resolvedStore
+      ? storeLocations(resolvedStore, resolvedMall?.location).find((location) => location.state === selectedState)
+        || storeLocations(resolvedStore, resolvedMall?.location)[0]
+      : null;
+    const branchPrice = product ? shoppingProductPrice(product, branch?.state) : null;
+    const quantity = Math.max(1, Math.round(Number(item.quantity || 1)));
     const resolved = resolvedStore
       ? {
           ...item,
-          storeAddress: resolvedStore.pickupAddress || resolvedMall?.location || item.storeAddress,
-          pickupAddress: resolvedStore.pickupAddress || resolvedMall?.location || item.pickupAddress,
-          pickupPlaceId: resolvedStore.pickupPlaceId,
-          pickupLatitude: resolvedStore.pickupLatitude,
-          pickupLongitude: resolvedStore.pickupLongitude,
-          pickupNote: resolvedStore.pickupNote,
-          campusZoneId: resolvedStore.campusZoneId
+          vendorState: branch?.state || selectedState || undefined,
+          storeAddress: branch?.pickupAddress || resolvedMall?.location || item.storeAddress,
+          pickupAddress: branch?.pickupAddress || resolvedMall?.location || item.pickupAddress,
+          pickupPlaceId: branch?.pickupPlaceId,
+          pickupLatitude: branch?.pickupLatitude,
+          pickupLongitude: branch?.pickupLongitude,
+          pickupNote: branch?.pickupNote,
+          campusZoneId: resolvedStore.campusZoneId,
+          ...(typeof branchPrice === "number" ? { price: branchPrice, subtotal: branchPrice * quantity, quantity } : {})
         }
       : item;
 

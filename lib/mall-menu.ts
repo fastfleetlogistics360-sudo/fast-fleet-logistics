@@ -12,6 +12,19 @@ export type MallProduct = {
   price: MallProductPrice;
   image: string;
   available: boolean;
+  /** Optional branch-specific prices. An omitted state uses the shared price. */
+  statePrices?: Record<string, MallProductPrice>;
+};
+
+export type MallStoreLocation = {
+  state: string;
+  pickupAddress?: string;
+  pickupPlaceId?: string;
+  pickupLatitude?: number;
+  pickupLongitude?: number;
+  pickupNote?: string;
+  /** Consistent branches inherit every product's shared price. */
+  priceMode?: "consistent" | "custom";
 };
 
 export type MallStore = {
@@ -22,6 +35,8 @@ export type MallStore = {
   operatingStatus?: "open" | "closed";
   /** States where this verified vendor can receive Fast Fleets 360 marketplace orders. */
   operatingStates?: string[];
+  /** A separate fulfilment branch for every state where this vendor trades. */
+  locations?: MallStoreLocation[];
   category: MallCategory;
   pickupAddress?: string;
   pickupPlaceId?: string;
@@ -43,6 +58,7 @@ export type ShoppingMall = {
 export type ShoppingCategoryVendor = {
   mall: ShoppingMall;
   store: MallStore;
+  location: MallStoreLocation;
 };
 
 export type ShoppingCategoryGroup = {
@@ -246,7 +262,7 @@ export function normalizeShoppingMalls(value: unknown): ShoppingMall[] {
       if (!name) return null;
       const stores = Array.isArray(mall.stores)
         ? mall.stores
-          .map(normalizeMallStore)
+          .map((store) => normalizeMallStore(store, text(mall.location)))
           .filter((store): store is MallStore => Boolean(store))
           .map((store) => normalizeStoreIdentity({
             ...store,
@@ -278,13 +294,15 @@ export function buildShoppingCategoryGroups(malls: ShoppingMall[]): ShoppingCate
   return mallCategories
     .map((category) => {
       const vendors = sourceMalls.flatMap((mall) =>
-        mall.stores
-          .filter((store) => store.category === category)
-          .map((store) => ({ mall, store }))
+        mall.stores.flatMap((store) =>
+          store.category === category
+            ? storeLocations(store, mall.location).map((location) => ({ mall, store, location }))
+            : []
+        )
       );
       const productCount = vendors.reduce((count, vendor) => count + vendor.store.products.length, 0);
       const firstVendor = vendors[0];
-      const locations = Array.from(new Set(vendors.map(({ mall }) => mall.location).filter(Boolean)));
+      const locations = Array.from(new Set(vendors.map(({ location, mall }) => location.pickupAddress || `${location.state}${mall.location ? ` · ${mall.location}` : ""}`).filter(Boolean)));
 
       return {
         category,
@@ -309,12 +327,14 @@ export function shoppingCategoryPath(category: MallCategory) {
   return `/shopping/${shoppingCategorySlug(category)}`;
 }
 
-export function shoppingVendorCategoryPath(store: Pick<MallStore, "id" | "category">) {
-  return `${shoppingCategoryPath(store.category)}/${store.id}`;
+export function shoppingVendorCategoryPath(store: Pick<MallStore, "id" | "category">, location?: Pick<MallStoreLocation, "state"> | null) {
+  const path = `${shoppingCategoryPath(store.category)}/${store.id}`;
+  return location?.state ? `${path}?state=${encodeURIComponent(location.state)}` : path;
 }
 
-export function shoppingVendorAdvertPath(store: Pick<MallStore, "id">) {
-  return `/shopping/store/${store.id}`;
+export function shoppingVendorAdvertPath(store: Pick<MallStore, "id">, location?: Pick<MallStoreLocation, "state"> | null) {
+  const path = `/shopping/store/${store.id}`;
+  return location?.state ? `${path}?state=${encodeURIComponent(location.state)}` : path;
 }
 
 export function categoryFromShoppingSlug(value: string | null | undefined): MallCategory | null {
@@ -330,18 +350,41 @@ export function findShoppingCategoryGroup(malls: ShoppingMall[], category: MallC
   return buildShoppingCategoryGroups(malls).find((group) => group.category === category) || null;
 }
 
-export function findShoppingVendor(malls: ShoppingMall[], vendorId: string, category?: MallCategory | null): ShoppingCategoryVendor | null {
+export function findShoppingVendor(malls: ShoppingMall[], vendorId: string, category?: MallCategory | null, state?: string | null): ShoppingCategoryVendor | null {
   const needle = text(vendorId).toLowerCase();
   if (!needle) return null;
 
   const groups = buildShoppingCategoryGroups(malls);
   for (const group of groups) {
     if (category && group.category !== category) continue;
-    const vendor = group.vendors.find(({ store }) => store.id.toLowerCase() === needle || slug(store.name) === needle);
+    const vendor = group.vendors.find(({ store, location }) =>
+      (store.id.toLowerCase() === needle || slug(store.name) === needle)
+      && (!state || normalizeState(location.state) === normalizeState(state))
+    );
     if (vendor) return vendor;
   }
 
   return null;
+}
+
+export function shoppingProductPrice(product: MallProduct, state?: string | null): MallProductPrice {
+  const selectedState = normalizeState(state);
+  if (selectedState && product.statePrices && Object.prototype.hasOwnProperty.call(product.statePrices, selectedState)) return product.statePrices[selectedState];
+  return product.price;
+}
+
+export function storeLocations(store: MallStore, mallLocation = ""): MallStoreLocation[] {
+  if (store.locations?.length) return store.locations;
+  const fallbackState = normalizeState(store.operatingStates?.[0]) || normalizeState(mallLocation) || "Lagos";
+  return [{
+    state: fallbackState,
+    pickupAddress: store.pickupAddress || mallLocation || undefined,
+    pickupPlaceId: store.pickupPlaceId,
+    pickupLatitude: store.pickupLatitude,
+    pickupLongitude: store.pickupLongitude,
+    pickupNote: store.pickupNote,
+    priceMode: "consistent"
+  }];
 }
 
 export function getShoppingStoreImage(store: MallStore, mall: ShoppingMall) {
@@ -351,19 +394,22 @@ export function getShoppingStoreImage(store: MallStore, mall: ShoppingMall) {
     || defaultShoppingMalls[0].image;
 }
 
-function normalizeMallStore(value: unknown): MallStore | null {
+function normalizeMallStore(value: unknown, legacyMallLocation = ""): MallStore | null {
   const store = value as Partial<MallStore>;
   const name = text(store.name);
   if (!name) return null;
   const category = normalizeCategory(store.category);
   const products = Array.isArray(store.products) ? store.products.map(normalizeMallProduct).filter(Boolean) : [];
+  const legacyStates = normalizeOperatingStates(store.operatingStates);
+  const locations = normalizeStoreLocations(store.locations, legacyStates, store, legacyMallLocation);
   return {
     id: text(store.id) || slug(name),
     businessId: text(store.businessId) || undefined,
     name,
     image: text(store.image) || undefined,
     operatingStatus: store.operatingStatus === "closed" ? "closed" : "open",
-    operatingStates: normalizeOperatingStates(store.operatingStates),
+    operatingStates: locations.map((location) => location.state),
+    locations,
     category,
     pickupAddress: text(store.pickupAddress) || undefined,
     pickupPlaceId: text(store.pickupPlaceId) || undefined,
@@ -402,6 +448,38 @@ function normalizeOperatingStates(value: unknown) {
   return NIGERIAN_STATES.filter((state) => selected.has(state));
 }
 
+function normalizeStoreLocations(value: unknown, legacyStates: string[], store: Partial<MallStore>, legacyMallLocation: string): MallStoreLocation[] {
+  const rawLocations = Array.isArray(value) ? value : [];
+  const normalized = rawLocations.reduce<MallStoreLocation[]>((result, entry) => {
+    const location = entry as Partial<MallStoreLocation>;
+    const state = normalizeState(text(location.state));
+    if (!state) return result;
+    result.push({
+      state,
+      pickupAddress: text(location.pickupAddress) || undefined,
+      pickupPlaceId: text(location.pickupPlaceId) || undefined,
+      pickupLatitude: coordinate(location.pickupLatitude, 90),
+      pickupLongitude: coordinate(location.pickupLongitude, 180),
+      pickupNote: text(location.pickupNote) || undefined,
+      priceMode: location.priceMode === "custom" ? "custom" : "consistent"
+    });
+    return result;
+  }, []);
+  const byState = new Map(normalized.map((location) => [location.state, location]));
+  const states = legacyStates.length ? legacyStates : Array.from(byState.keys());
+  const inferredState: string = normalizeState(legacyMallLocation) || "Lagos";
+  const resolvedStates = states.length ? states : [inferredState];
+  return resolvedStates.map<MallStoreLocation>((state, index) => byState.get(state) || ({
+    state,
+    pickupAddress: index === 0 ? text(store.pickupAddress) || legacyMallLocation || undefined : undefined,
+    pickupPlaceId: index === 0 ? text(store.pickupPlaceId) || undefined : undefined,
+    pickupLatitude: index === 0 ? coordinate(store.pickupLatitude, 90) : undefined,
+    pickupLongitude: index === 0 ? coordinate(store.pickupLongitude, 180) : undefined,
+    pickupNote: index === 0 ? text(store.pickupNote) || undefined : undefined,
+    priceMode: "consistent" as const
+  }));
+}
+
 function normalizeMallProduct(value: unknown): MallProduct | null {
   const product = value as Partial<MallProduct>;
   const name = text(product.name);
@@ -412,8 +490,19 @@ function normalizeMallProduct(value: unknown): MallProduct | null {
     name,
     price: normalizePrice(product.price),
     image: text(product.image) || defaultShoppingMalls[0].stores[0].products[0].image,
-    available: product.available !== false
+    available: product.available !== false,
+    statePrices: normalizeStatePrices(product.statePrices)
   };
+}
+
+function normalizeStatePrices(value: unknown): Record<string, MallProductPrice> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const prices = Object.entries(value as Record<string, unknown>).reduce<Record<string, MallProductPrice>>((result, [state, price]) => {
+    const normalizedState = normalizeState(state);
+    if (normalizedState) result[normalizedState] = normalizePrice(price);
+    return result;
+  }, {});
+  return Object.keys(prices).length ? prices : undefined;
 }
 
 function normalizeCategory(value: unknown): MallCategory {

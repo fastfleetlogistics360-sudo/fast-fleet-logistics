@@ -71,10 +71,14 @@ export async function POST(request: Request) {
     if (businessLinks.hasLinkedItems && businessLinks.hasUnlinkedItems) {
       return NextResponse.json({ error: "Checkout items must all belong to the same linked marketplace business." }, { status: 400 });
     }
+    const marketplaceKind = payload.kind === "shopping" ? "shopping" : "restaurant";
     const resolvedItems = businessLinks.items;
+    const shoppingBranchStates = Array.from(new Set(resolvedItems.map((item) => String(item.vendorState || "").trim()).filter(Boolean)));
+    if (marketplaceKind === "shopping" && shoppingBranchStates.length > 1) {
+      return NextResponse.json({ error: "Checkout items must come from one vendor state branch at a time." }, { status: 400 });
+    }
     const linkedBusinessId = businessLinks.linkedBusinessIds[0] || null;
     const business = await loadActiveLinkedBusiness(admin, linkedBusinessId);
-    const marketplaceKind = payload.kind === "shopping" ? "shopping" : "restaurant";
     const configuredPickup = configuredMarketplacePickupAddress(resolvedItems);
     const quotePickupAddress = configuredPickup || (business ? businessPickupAddressFor(business, marketplacePickupAddress(resolvedItems, marketplaceKind)) : null);
     const [fareConfig, deliveryPolicy, campusProgram] = await Promise.all([loadFareConfig(), loadDeliveryPolicy(), loadCampusProgram()]);
@@ -112,7 +116,13 @@ export async function POST(request: Request) {
     callbackUrl.searchParams.set("code", reference);
     callbackUrl.searchParams.set("returnTo", accountTrackingHref(reference));
     const pickupAddress = estimate.pickupAddress;
-    const [pickupPoint, dropoffPoint] = await Promise.all([geocodeAddress(pickupAddress), geocodeAddress(address)]);
+    const configuredPickupItem = resolvedItems.find((item) => Number.isFinite(item.pickupLatitude) && Number.isFinite(item.pickupLongitude));
+    const [pickupPoint, dropoffPoint] = await Promise.all([
+      configuredPickupItem
+        ? Promise.resolve({ latitude: Number(configuredPickupItem.pickupLatitude), longitude: Number(configuredPickupItem.pickupLongitude) })
+        : geocodeAddress(pickupAddress),
+      geocodeAddress(address)
+    ]);
     let paymentIntentTarget: { purpose: PaymentIntentPurpose; internalReference: string; deliveryId?: string; orderId?: string } | null = null;
 
     if (business) {

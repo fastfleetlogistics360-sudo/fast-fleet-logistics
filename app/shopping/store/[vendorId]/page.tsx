@@ -6,14 +6,16 @@ import { loadPublicShoppingMalls } from "@/lib/public-content";
 
 type ShoppingStorePageProps = {
   params: Promise<{ vendorId: string }>;
+  searchParams: Promise<{ state?: string }>;
 };
 
 export const revalidate = 300;
 
-export async function generateMetadata({ params }: ShoppingStorePageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: ShoppingStorePageProps): Promise<Metadata> {
   const { vendorId } = await params;
+  const { state } = await searchParams;
   const malls = await loadPublicShoppingMalls();
-  const vendor = findShoppingVendor(malls, vendorId);
+  const vendor = findShoppingVendor(malls, vendorId, undefined, state);
 
   return {
     title: `${vendor?.store.name || "Shopping Vendor"} | Fast Fleets 360`,
@@ -26,11 +28,12 @@ export async function generateMetadata({ params }: ShoppingStorePageProps): Prom
   };
 }
 
-export default async function ShoppingStorePage({ params }: ShoppingStorePageProps) {
+export default async function ShoppingStorePage({ params, searchParams }: ShoppingStorePageProps) {
   const { vendorId } = await params;
+  const { state } = await searchParams;
   const malls = await loadPublicShoppingMalls();
-  const vendor = findShoppingVendor(malls, vendorId);
+  const vendor = findShoppingVendor(malls, vendorId, undefined, state);
   if (!vendor) notFound();
 
-  return <ShoppingVendorMarketplace initialMalls={malls} category={vendor.store.category} vendorId={vendor.store.id} />;
+  return <ShoppingVendorMarketplace initialMalls={malls} category={vendor.store.category} vendorId={vendor.store.id} state={vendor.location.state} />;
 }
