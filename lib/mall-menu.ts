@@ -9,6 +9,8 @@ export type MallProduct = {
   id: string;
   businessId?: string;
   name: string;
+  /** A vendor-owned product type used to organize this vendor's storefront. */
+  type?: string;
   price: MallProductPrice;
   image: string;
   available: boolean;
@@ -44,6 +46,8 @@ export type MallStore = {
   pickupLongitude?: number;
   pickupNote?: string;
   campusZoneId?: string;
+  /** Types are configured independently by each shopping vendor. */
+  productTypes?: string[];
   products: MallProduct[];
 };
 
@@ -394,6 +398,13 @@ export function getShoppingStoreImage(store: MallStore, mall: ShoppingMall) {
     || defaultShoppingMalls[0].image;
 }
 
+export function shoppingProductTypes(store: Pick<MallStore, "productTypes" | "products">) {
+  return uniqueText([
+    ...(store.productTypes || []),
+    ...store.products.map((product) => product.type || "")
+  ]);
+}
+
 function normalizeMallStore(value: unknown, legacyMallLocation = ""): MallStore | null {
   const store = value as Partial<MallStore>;
   const name = text(store.name);
@@ -417,6 +428,7 @@ function normalizeMallStore(value: unknown, legacyMallLocation = ""): MallStore 
     pickupLongitude: coordinate(store.pickupLongitude, 180),
     pickupNote: text(store.pickupNote) || undefined,
     campusZoneId: text(store.campusZoneId) || undefined,
+    productTypes: normalizeProductTypes(store.productTypes),
     products: products.length ? (products as MallProduct[]) : []
   };
 }
@@ -488,11 +500,27 @@ function normalizeMallProduct(value: unknown): MallProduct | null {
     id: text(product.id) || slug(name),
     businessId: text(product.businessId) || undefined,
     name,
+    type: text(product.type) || undefined,
     price: normalizePrice(product.price),
     image: text(product.image) || defaultShoppingMalls[0].stores[0].products[0].image,
     available: product.available !== false,
     statePrices: normalizeStatePrices(product.statePrices)
   };
+}
+
+function normalizeProductTypes(value: unknown) {
+  return Array.isArray(value) ? uniqueText(value.map(text)) : [];
+}
+
+function uniqueText(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const cleaned = text(value);
+    const key = cleaned.toLowerCase();
+    if (!cleaned || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function normalizeStatePrices(value: unknown): Record<string, MallProductPrice> | undefined {

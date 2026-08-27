@@ -22,6 +22,7 @@ import {
   mallMenuStorageKey,
   normalizeShoppingMalls,
   shoppingProductPrice,
+  shoppingProductTypes,
   shoppingCategoryLabel,
   shoppingCategoryMeta,
   shoppingCategoryPath,
@@ -249,6 +250,7 @@ function ShoppingStorefront({
   const [loading, setLoading] = useState(false);
   const [interstateConfirmed, setInterstateConfirmed] = useState(false);
   const [activeVendorFilter, setActiveVendorFilter] = useState("all");
+  const [activeProductType, setActiveProductType] = useState("All Items");
   const [checkoutIsVisible, setCheckoutIsVisible] = useState(false);
   const checkoutRef = useRef<HTMLDivElement | null>(null);
 
@@ -288,7 +290,11 @@ function ShoppingStorefront({
     () => (activeVendorFilter === "all" || selectedVendor ? vendors : vendors.filter((vendor) => vendorKey(vendor) === activeVendorFilter)),
     [activeVendorFilter, selectedVendor, vendors]
   );
-  const displayedProductCount = displayedVendors.reduce((count, vendor) => count + vendor.store.products.length, 0);
+  const selectedVendorProductTypes = useMemo(() => selectedVendor ? shoppingProductTypes(selectedVendor.store) : [], [selectedVendor]);
+  const displayedProductCount = displayedVendors.reduce(
+    (count, vendor) => count + vendor.store.products.filter((product) => !selectedVendor || activeProductType === "All Items" || product.type === activeProductType).length,
+    0
+  );
 
   const cartItems = useMemo(() => Object.values(cart), [cart]);
   const checkoutItems = useMemo(
@@ -322,6 +328,11 @@ function ShoppingStorefront({
     }
     if (activeVendorFilter !== "all" && !vendorFilters.some((filter) => filter.id === activeVendorFilter)) setActiveVendorFilter("all");
   }, [activeVendorFilter, selectedVendor, vendorFilters]);
+
+  useEffect(() => {
+    if (!selectedVendor || activeProductType === "All Items" || selectedVendorProductTypes.includes(activeProductType)) return;
+    setActiveProductType("All Items");
+  }, [activeProductType, selectedVendor, selectedVendorProductTypes]);
 
   function changeQuantity(mall: ShoppingMall, vendor: MallStore, location: MallStoreLocation, product: MallProduct, delta: number) {
     if (!vendorIsOpen(vendor.operatingStatus)) {
@@ -511,6 +522,23 @@ function ShoppingStorefront({
                   ))}
                 </div>
               ) : null}
+              {selectedVendor && selectedVendorProductTypes.length ? (
+                <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto pb-1">
+                  {["All Items", ...selectedVendorProductTypes].map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setActiveProductType(type)}
+                      className={cn(
+                        "inline-flex min-h-10 shrink-0 items-center rounded-full px-4 text-sm font-black transition",
+                        activeProductType === type ? "bg-fleet-ember text-white shadow-[0_12px_26px_rgba(244,126,24,0.20)]" : "bg-fleet-paper text-fleet-night hover:bg-white hover:shadow-[0_10px_24px_rgba(8,17,31,0.08)]"
+                      )}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             {vendors.length === 0 ? (
@@ -530,6 +558,7 @@ function ShoppingStorefront({
                     vendor={vendor}
                     cart={cart}
                     showVendorLink={!selectedVendor}
+                    productType={selectedVendor ? activeProductType : undefined}
                     onQuantity={changeQuantity}
                     onAskPrice={askPrice}
                   />
@@ -611,12 +640,14 @@ function ShoppingVendorMenuSection({
   vendor,
   cart,
   showVendorLink,
+  productType,
   onQuantity,
   onAskPrice
 }: {
   vendor: ShoppingCategoryVendor;
   cart: Record<string, CartItem>;
   showVendorLink: boolean;
+  productType?: string;
   onQuantity: (mall: ShoppingMall, vendor: MallStore, location: MallStoreLocation, product: MallProduct, delta: number) => void;
   onAskPrice: (product: MallProduct, vendor: MallStore, mall: ShoppingMall, location: MallStoreLocation) => void;
 }) {
@@ -624,6 +655,7 @@ function ShoppingVendorMenuSection({
   const vendorImage = getShoppingStoreImage(store, mall);
   const categoryLabel = shoppingCategoryLabel(store.category);
   const orderingOpen = vendorIsOpen(store.operatingStatus);
+  const displayedProducts = store.products.filter((product) => !productType || productType === "All Items" || product.type === productType);
 
   return (
     <section className="overflow-hidden rounded-[20px] border border-fleet-line bg-white shadow-[0_12px_28px_rgba(8,17,31,0.07)]">
@@ -655,7 +687,7 @@ function ShoppingVendorMenuSection({
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2.5 border-t border-fleet-line bg-fleet-paper/55 p-2.5 sm:gap-3 sm:p-3 md:grid-cols-3 xl:grid-cols-4">
-        {store.products.map((product) => {
+        {displayedProducts.map((product) => {
           const key = cartKey(mall.id, store.id, vendor.location.state, product.id);
           const quantity = cart[key]?.quantity || 0;
           const resolvedPrice = shoppingProductPrice(product, vendor.location.state);
@@ -667,7 +699,7 @@ function ShoppingVendorMenuSection({
                 <img src={product.image || vendorImage} alt={product.name} loading="lazy" decoding="async" className="h-full w-full object-contain" />
               </div>
               <div className="flex flex-1 flex-col p-2.5">
-                <span className="w-fit rounded-full bg-fleet-paper px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-[0.1em] text-fleet-ember">{categoryLabel}</span>
+                <span className="w-fit rounded-full bg-fleet-paper px-2 py-0.5 text-[0.58rem] font-black uppercase tracking-[0.1em] text-fleet-ember">{product.type || categoryLabel}</span>
                 <h4 className="mt-1.5 line-clamp-2 min-h-[2.25rem] break-words text-sm font-black leading-tight text-fleet-night">{product.name}</h4>
                 <p className="mt-1 line-clamp-1 text-[0.7rem] font-bold leading-4 text-slate-500">{store.name}</p>
                 <strong className="mt-2 block text-base font-black text-fleet-ember">{price !== null ? formatMoney(price) : "Ask price"}</strong>
@@ -696,6 +728,7 @@ function ShoppingVendorMenuSection({
             </article>
           );
         })}
+        {!displayedProducts.length ? <div className="col-span-full rounded-fleet bg-white p-4 text-center text-sm font-bold text-slate-500">No products in this type yet.</div> : null}
       </div>
     </section>
   );

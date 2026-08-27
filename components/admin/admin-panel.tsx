@@ -73,6 +73,7 @@ import {
   normalizeShoppingMalls,
   shoppingCategoryMeta,
   shoppingCategorySlug,
+  shoppingProductTypes,
   shoppingVendorAdvertPath,
   shoppingVendorCategoryPath,
   type MallCategory,
@@ -1941,10 +1942,12 @@ export function AdminPanel() {
         operatingStatus: "open",
         category,
         image: shoppingCategoryMeta[category].image,
+        productTypes: ["Products"],
         products: [
           {
             id: `new-${shoppingCategorySlug(category)}-product-${newMarketplaceId()}`,
             name: "New product",
+            type: "Products",
             price: "ASK_PRICE",
             image: shoppingCategoryMeta[category].image,
             available: true
@@ -2029,6 +2032,7 @@ export function AdminPanel() {
                           id: `new-product-${newMarketplaceId()}`,
                           businessId: store.businessId,
                           name: "New product",
+                          type: store.productTypes?.[0],
                           price: "ASK_PRICE",
                           image: store.products[0]?.image || defaultShoppingMalls[0].stores[0].products[0].image,
                           available: true
@@ -4097,6 +4101,18 @@ function MallMenuSection({
                       </div>
                       <div className="grid gap-3 md:grid-cols-2">
                         <label className="form-field">
+                          <span className="form-label">Product types</span>
+                          <input
+                            className="form-input bg-white"
+                            value={(store.productTypes || []).join(", ")}
+                            onChange={(event) => onStoreChange(mall.id, store.id, {
+                              productTypes: event.target.value.split(",").map((item) => item.trim()).filter(Boolean)
+                            })}
+                            placeholder="e.g. Drinks, Snacks, Household"
+                          />
+                          <span className="mt-1 text-xs font-bold leading-5 text-slate-500">Separate this vendor&apos;s storefront tabs with commas.</span>
+                        </label>
+                        <label className="form-field">
                           <span className="form-label">Campus programme</span>
                           <select className="form-input bg-white" value={store.campusZoneId || ""} onChange={(event) => onStoreChange(mall.id, store.id, { campusZoneId: event.target.value || undefined })}>
                             <option value="">Normal app pricing</option>
@@ -4129,11 +4145,20 @@ function MallMenuSection({
 
                   <div className="mt-3 grid gap-3">
                     {store.products.map((product) => (
-                      <div key={product.id} className="grid gap-3 rounded-fleet border border-fleet-line bg-white p-3 xl:grid-cols-[64px_1fr_120px_1.1fr_1fr_120px] xl:items-end">
+                      <div key={product.id} className="grid gap-3 rounded-fleet border border-fleet-line bg-white p-3 xl:grid-cols-[64px_1fr_180px_120px_1.1fr_1fr_120px] xl:items-end">
                         <img src={product.image} alt={product.name} loading="lazy" decoding="async" className="h-16 w-16 rounded-fleet object-cover" />
                         <label className="form-field">
                           <span className="form-label">Product</span>
                           <input className="form-input" value={product.name} onChange={(event) => onProductChange(mall.id, store.id, product.id, { name: event.target.value })} />
+                        </label>
+                        <label className="form-field">
+                          <span className="form-label">Product type</span>
+                          <select className="form-input" value={product.type || ""} onChange={(event) => onProductChange(mall.id, store.id, product.id, { type: event.target.value || undefined })}>
+                            <option value="">Uncategorised</option>
+                            {shoppingProductTypes(store).map((type) => (
+                              <option key={type} value={type}>{type}</option>
+                            ))}
+                          </select>
                         </label>
                         <label className="form-field">
                           <span className="form-label">Price</span>
