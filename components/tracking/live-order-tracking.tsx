@@ -11,6 +11,7 @@ import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-accoun
 import { FastFleetMap } from "@/components/maps/fastfleet-map";
 import { PackagePickupProof } from "@/components/tracking/package-pickup-proof";
 import { CustomerDeliveryConfirmation } from "@/components/tracking/customer-delivery-confirmation";
+import { RiderMatchSearch } from "@/components/booking/rider-match-search";
 import { LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -343,6 +344,8 @@ export function LiveOrderTracking({
               <LiveTrackingMap order={order} pickup={pickup} dropoff={dropoff} location={location} />
             </Card>
           )}
+
+          {!marketplaceOnly && order.status === "searching" ? <RiderMatchSearch deliveryId={order.id} deliveryCode={order.delivery_code} compact /> : null}
 
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <MetricCard icon={Clock3} label="ETA" value={marketplaceOnly ? "After pickup" : completed ? "Delivered" : etaMinutes ? `${etaMinutes} min` : "Calculating"} />

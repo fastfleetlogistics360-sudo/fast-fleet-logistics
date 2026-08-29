@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, CreditCard, Loader2, MapPin, Package, Truck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bike, CalendarClock, CheckCircle2, CreditCard, Loader2, MapPin, Package } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { fareSpeedTypes, fareVehicleTypes, speedLabel, vehicleLabel } from "@/lib/fare";
+import { fareSpeedTypes, speedLabel } from "@/lib/fare";
 import { formatMoney } from "@/lib/format";
 import type { DeliverySpeed, FareEstimate, VehicleType } from "@/types/domain";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -15,25 +15,21 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { sanitizeAddressText, isUsableAddressText } from "@/lib/location/address-formatting";
 import { currentLocationUpdatedEvent, readStoredCurrentLocation, type StoredCurrentLocation } from "@/lib/location/current-location";
 import { extractNigerianState } from "@/lib/location/state-matching";
-import { accountTrackingHref } from "@/lib/tracking-links";
+import { RiderMatchSearch } from "@/components/booking/rider-match-search";
+import type { CustomerVehicleOptionId } from "@/lib/customer-vehicle-options";
 
 const steps = [
   "Pickup",
   "Drop-off",
   "Parcel",
-  "Vehicle",
   "Speed",
+  "Choose rider",
   "Estimate",
   "Payment",
   "Confirm"
 ];
 
 const parcels = ["Documents", "Retail parcel", "Food and grocery", "Fragile item", "Bulk goods", "Vendor dispatch"];
-const vehicles: Array<{ value: VehicleType; label: string; body: string }> = [
-  { value: "bike", label: "Bike", body: "Documents, food, light parcels" },
-  { value: "car", label: "Car", body: "Medium items, safer handling" },
-  { value: "van", label: "Van", body: "Bulk goods, vendor movement" }
-];
 const speeds: Array<{ value: DeliverySpeed; label: string; body: string }> = [
   { value: "standard", label: "Standard", body: "Best price for routine jobs" },
   { value: "same_day", label: "Same-day", body: "Complete before close of day" },
@@ -60,6 +56,7 @@ type BookingForm = {
   dropoffContact: string;
   parcel: string;
   vehicle: VehicleType | "";
+  vehicleOption: CustomerVehicleOptionId | "";
   speed: DeliverySpeed | "";
   scheduledAt: string;
   payment: BookingPayment | "";
@@ -67,6 +64,11 @@ type BookingForm = {
 };
 
 type BookingEstimate = FareEstimate & {
+  id?: CustomerVehicleOptionId;
+  label?: string;
+  description?: string;
+  vehicle?: VehicleType;
+  availability?: { status: "available" | "limited" | "unavailable"; label: string; riderEtaMinutes: number | null };
   routeType?: string;
   routeSource?: string;
   bicycleEligible?: boolean;
@@ -94,11 +96,14 @@ export function BookingFlow() {
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(false);
   const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
+  const [deliveryId, setDeliveryId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pickupAutofillEnabled, setPickupAutofillEnabled] = useState(() => !searchParams.get("pickup")?.trim());
   const [estimate, setEstimate] = useState<BookingEstimate | null>(null);
+  const [vehicleOptions, setVehicleOptions] = useState<BookingEstimate[]>([]);
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [estimateError, setEstimateError] = useState<string | null>(null);
+  const selectedVehicleOptionRef = useRef<CustomerVehicleOptionId | "">("");
   const initialPickup = sanitizeAddressText(searchParams.get("pickup") || "");
   const initialDropoff = sanitizeAddressText(searchParams.get("dropoff") || "");
   const [form, setForm] = useState<BookingForm>({
@@ -116,6 +121,7 @@ export function BookingFlow() {
     dropoffContact: "",
     parcel: "",
     vehicle: "",
+    vehicleOption: "",
     speed: "",
     scheduledAt: "",
     payment: "",
@@ -126,12 +132,16 @@ export function BookingFlow() {
   const selectedSpeed = isDeliverySpeed(form.speed) ? form.speed : null;
   const pickup = sanitizeAddressText(form.pickup);
   const dropoff = sanitizeAddressText(form.dropoff);
-  const estimateReady = Boolean(isUsableAddressText(pickup) && isUsableAddressText(dropoff) && form.parcel.trim() && selectedVehicle && selectedSpeed && (selectedSpeed !== "scheduled" || form.scheduledAt));
-  const quoteReady = estimateReady && Boolean(estimate) && !estimateLoading;
+  const vehicleOptionsReady = Boolean(isUsableAddressText(pickup) && isUsableAddressText(dropoff) && form.parcel.trim() && selectedSpeed && (selectedSpeed !== "scheduled" || form.scheduledAt));
+  const quoteReady = vehicleOptionsReady && Boolean(estimate) && estimate?.availability?.status !== "unavailable" && !estimateLoading;
 
   function update<K extends keyof BookingForm>(key: K, value: BookingForm[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
   }
+
+  useEffect(() => {
+    selectedVehicleOptionRef.current = form.vehicleOption;
+  }, [form.vehicleOption]);
 
   useEffect(() => {
     if (!pickupAutofillEnabled) return;
@@ -153,8 +163,9 @@ export function BookingFlow() {
   }, [pickupAutofillEnabled]);
 
   useEffect(() => {
-    if (!estimateReady || !selectedVehicle || !selectedSpeed) {
+    if (!vehicleOptionsReady || !selectedSpeed) {
       setEstimate(null);
+      setVehicleOptions([]);
       setEstimateLoading(false);
       setEstimateError(null);
       return;
@@ -165,7 +176,7 @@ export function BookingFlow() {
       setEstimateLoading(true);
       setEstimateError(null);
       try {
-        const response = await fetch("/api/deliveries/estimate", {
+        const response = await fetch("/api/deliveries/options", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -180,17 +191,19 @@ export function BookingFlow() {
             dropoffLatitude: form.dropoffLatitude,
             dropoffLongitude: form.dropoffLongitude,
             parcel: form.parcel,
-            vehicle: selectedVehicle,
             speed: selectedSpeed
           }),
           signal: controller.signal
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || "Could not calculate route estimate.");
-        setEstimate(payload as BookingEstimate);
+        const options = Array.isArray(payload.options) ? payload.options as BookingEstimate[] : [];
+        setVehicleOptions(options);
+        setEstimate(options.find((option) => option.id === selectedVehicleOptionRef.current) || null);
       } catch (error) {
         if (controller.signal.aborted) return;
         setEstimate(null);
+        setVehicleOptions([]);
         setEstimateError(error instanceof Error ? error.message : "Could not calculate route estimate.");
       } finally {
         if (!controller.signal.aborted) setEstimateLoading(false);
@@ -203,7 +216,7 @@ export function BookingFlow() {
     };
   }, [
     dropoff,
-    estimateReady,
+    vehicleOptionsReady,
     form.dropoffLatitude,
     form.dropoffLongitude,
     form.dropoffPlaceId,
@@ -214,9 +227,14 @@ export function BookingFlow() {
     form.pickupPlaceId,
     form.pickupState,
     pickup,
-    selectedSpeed,
-    selectedVehicle
+    selectedSpeed
   ]);
+
+  function selectVehicleOption(option: BookingEstimate) {
+    if (!option.id || !option.vehicle || option.availability?.status === "unavailable") return;
+    setForm((previous) => ({ ...previous, vehicleOption: option.id || "", vehicle: option.vehicle || "" }));
+    setEstimate(option);
+  }
 
   function next() {
     setCurrent((value) => Math.min(value + 1, steps.length - 1));
@@ -251,6 +269,7 @@ export function BookingFlow() {
           dropoffLatitude: form.dropoffLatitude,
           dropoffLongitude: form.dropoffLongitude,
           vehicle: selectedVehicle,
+          vehicleOption: form.vehicleOption,
           speed: selectedSpeed,
           total: estimate.total
         })
@@ -268,6 +287,7 @@ export function BookingFlow() {
       }
 
       setDeliveryCode(payload.deliveryCode);
+      setDeliveryId(payload.deliveryId);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Delivery checkout failed.");
     } finally {
@@ -278,33 +298,7 @@ export function BookingFlow() {
   const currentStepComplete = isBookingStepComplete(current, form, quoteReady);
   const currentStepPrompt = bookingStepPrompt(current);
 
-  if (deliveryCode) {
-    return (
-      <Card className="grid gap-6 p-6 text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-50 text-emerald-600">
-          <CheckCircle2 className="h-8 w-8" />
-        </div>
-        <div>
-          <StatusBadge tone="green">Order created</StatusBadge>
-          <h1 className="mt-3 text-3xl font-black text-fleet-night">Your delivery is ready for dispatch.</h1>
-          <p className="mt-2 text-sm font-semibold text-slate-600">
-            Tracking code <strong className="text-fleet-night">{deliveryCode}</strong> has been created.
-            {form.payment === "wallet"
-              ? " Wallet checkout payment was recorded successfully, and online drivers are being notified."
-              : " Realtime assignment will update after Squad confirms payment."}
-          </p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <LinkButton href={accountTrackingHref(deliveryCode)} className="w-full">
-            Track delivery
-          </LinkButton>
-          <LinkButton href="/dashboard" variant="secondary" className="w-full">
-            Open dashboard
-          </LinkButton>
-        </div>
-      </Card>
-    );
-  }
+  if (deliveryCode && deliveryId) return <RiderMatchSearch deliveryId={deliveryId} deliveryCode={deliveryCode} />;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
@@ -388,15 +382,6 @@ export function BookingFlow() {
             />
           ) : null}
           {current === 3 ? (
-            <ChoiceGrid
-              icon={Truck}
-              title="Vehicle selection"
-              value={form.vehicle}
-              options={vehicles}
-              onChange={(value) => update("vehicle", value as VehicleType)}
-            />
-          ) : null}
-          {current === 4 ? (
             <div className="grid gap-4">
               <ChoiceGrid
                 icon={CalendarClock}
@@ -413,7 +398,8 @@ export function BookingFlow() {
               ) : null}
             </div>
           ) : null}
-          {current === 5 ? estimate && selectedVehicle && selectedSpeed ? <EstimatePanel estimate={estimate} vehicle={selectedVehicle} speed={selectedSpeed} /> : <PendingEstimatePanel loading={estimateLoading} error={estimateError} /> : null}
+          {current === 4 ? <VehicleOptionsPanel options={vehicleOptions} selectedId={form.vehicleOption} loading={estimateLoading} error={estimateError} onSelect={selectVehicleOption} /> : null}
+          {current === 5 ? estimate && selectedVehicle && selectedSpeed ? <EstimatePanel estimate={estimate} vehicleLabel={estimate.label || "Courier"} speed={selectedSpeed} /> : <PendingEstimatePanel loading={estimateLoading} error={estimateError} /> : null}
           {current === 6 ? (
             <ChoiceGrid
               icon={CreditCard}
@@ -429,7 +415,7 @@ export function BookingFlow() {
           ) : null}
           {current === 7 ? (
             <div className="grid gap-4">
-              {estimate && selectedVehicle && selectedSpeed ? <EstimatePanel estimate={estimate} vehicle={selectedVehicle} speed={selectedSpeed} /> : <PendingEstimatePanel loading={estimateLoading} error={estimateError} />}
+              {estimate && selectedVehicle && selectedSpeed ? <EstimatePanel estimate={estimate} vehicleLabel={estimate.label || "Courier"} speed={selectedSpeed} /> : <PendingEstimatePanel loading={estimateLoading} error={estimateError} />}
               <label className="form-field">
                 <span className="form-label">Rider note optional</span>
                 <textarea className="form-textarea" value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Gate code, package instruction, preferred pickup contact" />
@@ -492,7 +478,7 @@ export function BookingFlow() {
             <div className="mt-5 grid gap-3">
               {estimate.launchPromo?.applied && estimate.originalTotal ? <SummaryRow label="Original total" value={formatMoney(estimate.originalTotal)} muted /> : null}
               <SummaryRow label="Distance" value={`${estimate.distanceKm.toFixed(1)} km`} />
-              <SummaryRow label="Vehicle" value={vehicleLabel(selectedVehicle)} />
+              <SummaryRow label="Rider option" value={estimate.label || "Courier"} />
               <SummaryRow label="Speed" value={speedLabel(selectedSpeed)} />
               <SummaryRow label="Delivery fee" value={formatMoney(estimate.deliveryFee)} />
               <SummaryRow label="Platform fee" value={formatMoney(estimate.platformFee)} />
@@ -582,19 +568,69 @@ function ChoiceGrid<T extends string>({
   );
 }
 
+function VehicleOptionsPanel({
+  options,
+  selectedId,
+  loading,
+  error,
+  onSelect
+}: {
+  options: BookingEstimate[];
+  selectedId: string;
+  loading: boolean;
+  error: string | null;
+  onSelect: (option: BookingEstimate) => void;
+}) {
+  if (loading || !options.length) return <PendingEstimatePanel loading={loading} error={error} />;
+  return (
+    <div>
+      <span className="grid h-12 w-12 place-items-center rounded-fleet bg-fleet-night text-white"><Bike className="h-5 w-5" /></span>
+      <h2 className="mt-4 text-xl font-black text-fleet-night">Choose your rider option</h2>
+      <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Prices and availability are calculated by Fast Fleets 360. Your rider is assigned only after payment and acceptance.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {options.map((option) => {
+          const unavailable = option.availability?.status === "unavailable";
+          const selected = selectedId === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => onSelect(option)}
+              disabled={unavailable}
+              className={`rounded-fleet border p-4 text-left transition ${selected ? "border-fleet-ember bg-orange-50 shadow-lift" : unavailable ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60" : "border-fleet-line bg-white hover:border-fleet-gold"}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <strong className="block text-sm font-black text-fleet-night">{option.label}</strong>
+                  <span className="mt-1 block text-xs font-semibold leading-5 text-slate-600">{option.description}</span>
+                </div>
+                <strong className="whitespace-nowrap text-base font-black text-fleet-night">{formatMoney(option.total)}</strong>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3 text-xs font-bold">
+                <span className={unavailable ? "text-rose-700" : option.availability?.status === "limited" ? "text-amber-700" : "text-emerald-700"}>{option.availability?.label || "Checking availability"}</span>
+                <span className="text-slate-500">{option.availability?.riderEtaMinutes ? `Rider ~${option.availability.riderEtaMinutes} min` : `${option.etaMinutes} min delivery ETA`}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PendingEstimatePanel({ loading = false, error }: { loading?: boolean; error?: string | null }) {
   return (
     <div className="rounded-fleet border border-dashed border-fleet-line bg-white p-5 shadow-[0_14px_36px_rgba(8,17,31,0.05)]">
       <StatusBadge tone={error ? "red" : loading ? "blue" : "neutral"}>{error ? "Route needed" : loading ? "Calculating route" : "Estimate pending"}</StatusBadge>
       <h2 className="mt-3 text-2xl font-black text-fleet-night">{error ? "Google could not quote this route yet." : loading ? "Checking the real route distance." : "Complete the booking details first."}</h2>
       <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-        {error || "Add pickup, drop-off, parcel type, vehicle, and speed to see a real Fast Fleets 360 estimate."}
+        {error || "Add pickup, drop-off, parcel type, and delivery speed to see live rider options."}
       </p>
     </div>
   );
 }
 
-function EstimatePanel({ estimate, vehicle, speed }: { estimate: BookingEstimate; vehicle: VehicleType; speed: DeliverySpeed }) {
+function EstimatePanel({ estimate, vehicleLabel, speed }: { estimate: BookingEstimate; vehicleLabel: string; speed: DeliverySpeed }) {
   return (
     <div className="rounded-fleet border border-fleet-line bg-white p-5 shadow-[0_14px_36px_rgba(8,17,31,0.07)]">
       <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Fare estimate</span>
@@ -613,7 +649,7 @@ function EstimatePanel({ estimate, vehicle, speed }: { estimate: BookingEstimate
         {estimate.launchPromo?.applied ? <SummaryRow label="Launch promo" value={`-${formatMoney(estimate.launchPromo.totalDiscount || 0)}`} highlight /> : null}
         <SummaryRow label="ETA" value={`${estimate.etaMinutes} minutes`} />
         <SummaryRow label="Route distance" value={`${estimate.distanceKm.toFixed(1)} km`} />
-        <SummaryRow label="Vehicle" value={vehicleLabel(vehicle)} />
+        <SummaryRow label="Rider option" value={vehicleLabel} />
         {estimate.vehicleSubtype === "bicycle" ? <SummaryRow label="Fleet match" value="Bicycle light-delivery discount" /> : null}
         <SummaryRow label="Speed" value={speedLabel(speed)} />
       </div>
@@ -625,9 +661,9 @@ function PendingSummaryCard() {
   return (
     <Card className="p-5">
       <StatusBadge tone="neutral">No estimate yet</StatusBadge>
-      <h2 className="mt-3 text-2xl font-black text-fleet-night">Complete pickup, drop-off, parcel, vehicle, and speed.</h2>
+      <h2 className="mt-3 text-2xl font-black text-fleet-night">Complete pickup, drop-off, parcel, and delivery speed.</h2>
       <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-        Your delivery fee will appear here only after the required choices are filled.
+        Your live rider options and delivery fee will appear after the required choices are filled.
       </p>
     </Card>
   );
@@ -643,7 +679,7 @@ function SummaryRow({ label, value, highlight = false, muted = false }: { label:
 }
 
 function isVehicleType(value: string): value is VehicleType {
-  return fareVehicleTypes.includes(value as VehicleType);
+  return value === "bike" || value === "car" || value === "van";
 }
 
 function isDeliverySpeed(value: string): value is DeliverySpeed {
@@ -654,8 +690,8 @@ function isBookingStepComplete(index: number, form: BookingForm, estimateReady: 
   if (index === 0) return isUsableAddressText(sanitizeAddressText(form.pickup));
   if (index === 1) return isUsableAddressText(sanitizeAddressText(form.dropoff));
   if (index === 2) return Boolean(form.parcel.trim());
-  if (index === 3) return isVehicleType(form.vehicle);
-  if (index === 4) return isDeliverySpeed(form.speed) && (form.speed !== "scheduled" || Boolean(form.scheduledAt));
+  if (index === 3) return isDeliverySpeed(form.speed) && (form.speed !== "scheduled" || Boolean(form.scheduledAt));
+  if (index === 4) return estimateReady;
   if (index === 5) return estimateReady;
   if (index === 6) return Boolean(form.payment);
   if (index === 7) return estimateReady && Boolean(form.payment);
@@ -666,9 +702,9 @@ function bookingStepPrompt(index: number) {
   if (index === 0) return "Add a pickup address to continue.";
   if (index === 1) return "Add a drop-off address to continue.";
   if (index === 2) return "Choose the parcel type to continue.";
-  if (index === 3) return "Choose the delivery vehicle to continue.";
-  if (index === 4) return "Choose delivery speed to continue.";
-  if (index === 5) return "Complete pickup, drop-off, parcel, vehicle, and speed to see the estimate.";
+  if (index === 3) return "Choose delivery speed to continue.";
+  if (index === 4) return "Choose an available rider option to continue.";
+  if (index === 5) return "Choose an available rider option to review the estimate.";
   if (index === 6) return "Choose a payment method to continue.";
   return "Complete the required booking details before confirming.";
 }

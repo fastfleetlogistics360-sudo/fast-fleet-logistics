@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/format";
 import { accountTrackingHref } from "@/lib/tracking-links";
 import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
+import { RiderMatchSearch } from "@/components/booking/rider-match-search";
 
 type VerificationState =
   | { status: "loading"; message: string }
@@ -68,9 +69,6 @@ function DeliveryCallbackContent() {
           amount: data.amount,
           deliveryCode: data.deliveryCode
         });
-        window.setTimeout(() => {
-          window.location.assign(returnTo);
-        }, 2200);
       } catch (error) {
         setState({ status: "error", message: error instanceof Error ? error.message : "Payment verification failed." });
       }
@@ -83,6 +81,14 @@ function DeliveryCallbackContent() {
   }, [code, deliveryId, reference, returnTo]);
 
   const Icon = state.status === "success" ? CheckCircle2 : state.status === "error" ? XCircle : Loader2;
+
+  if (state.status === "success" && deliveryId && state.deliveryCode) {
+    return (
+      <section className="section-wrap py-10">
+        <RiderMatchSearch deliveryId={deliveryId} deliveryCode={state.deliveryCode} />
+      </section>
+    );
+  }
 
   return (
     <section className="section-wrap grid min-h-[70vh] place-items-center py-10">

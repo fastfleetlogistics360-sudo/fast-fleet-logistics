@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordDeliveryIncome } from "@/lib/company-ledger";
-import { createDeliveryQuote } from "@/lib/delivery-quotes";
+import { createCustomerVehicleOptions, customerVehicleOptionForLegacyVehicle, customerVehicleSelection } from "@/lib/customer-vehicle-options";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
@@ -34,6 +34,7 @@ type CheckoutPayload = {
   dropoffContact?: string;
   parcel?: string;
   vehicle?: VehicleType | "";
+  vehicleOption?: string;
   speed?: DeliverySpeed | "";
   scheduledAt?: string;
   payment?: "card" | "wallet" | "transfer" | "";
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
 
     const payload = (await request.json().catch(() => ({}))) as CheckoutPayload;
     const paymentMethod = String(payload.payment || "") as "card" | "wallet" | "transfer";
-    const vehicle = String(payload.vehicle || "") as VehicleType;
+    const requestedVehicle = String(payload.vehicle || "") as VehicleType;
     const speed = String(payload.speed || "") as DeliverySpeed;
     const pickup = sanitizeAddressText(String(payload.pickup || ""));
     const dropoff = sanitizeAddressText(String(payload.dropoff || ""));
@@ -74,38 +75,38 @@ export async function POST(request: Request) {
     if (!paymentMethods.has(paymentMethod)) {
       return NextResponse.json({ error: "Choose card, transfer, or wallet balance." }, { status: 400 });
     }
-    if (!vehicleTypes.has(vehicle) || !deliverySpeeds.has(speed)) {
+    const selectedVehicleOption = customerVehicleSelection(payload.vehicleOption) || (vehicleTypes.has(requestedVehicle) ? customerVehicleOptionForLegacyVehicle(requestedVehicle) : null);
+    if (!selectedVehicleOption || !deliverySpeeds.has(speed)) {
       return NextResponse.json({ error: "Choose a valid vehicle and delivery speed." }, { status: 400 });
     }
     if (speed === "scheduled" && !payload.scheduledAt) {
       return NextResponse.json({ error: "Choose a scheduled pickup time." }, { status: 400 });
     }
 
+    const admin = createAdminClient();
+    if (!admin) return NextResponse.json({ error: "Live rider availability is temporarily unavailable. Please try again." }, { status: 503 });
     const fareConfig = await loadFareConfig();
-    const [quote, campusProgram] = await Promise.all([createDeliveryQuote({
-      pickup: {
-        address: pickup,
-        placeId: payload.pickupPlaceId,
-        latitude: payload.pickupLatitude,
-        longitude: payload.pickupLongitude
+    const [vehicleOptions, campusProgram] = await Promise.all([createCustomerVehicleOptions({
+      input: {
+        pickup: { address: pickup, placeId: payload.pickupPlaceId, latitude: payload.pickupLatitude, longitude: payload.pickupLongitude },
+        dropoff: { address: dropoff, placeId: payload.dropoffPlaceId, latitude: payload.dropoffLatitude, longitude: payload.dropoffLongitude },
+        pickupState,
+        dropoffState,
+        speed,
+        parcelType: parcel
       },
-      dropoff: {
-        address: dropoff,
-        placeId: payload.dropoffPlaceId,
-        latitude: payload.dropoffLatitude,
-        longitude: payload.dropoffLongitude
-      },
-      pickupState,
-      dropoffState,
-      vehicle,
-      speed,
-      parcelType: parcel,
-      fareConfig
+      fareConfig,
+      db: admin
     }), loadCampusProgram()]);
+    const selectedOption = vehicleOptions.find((option) => option.id === selectedVehicleOption.id);
+    if (!selectedOption || (selectedOption.availability.status === "unavailable" && speed !== "scheduled")) {
+      return NextResponse.json({ error: "That rider option is no longer available. Choose another available vehicle." }, { status: 409 });
+    }
+    const quote = selectedOption.quote;
+    const vehicle = selectedVehicleOption.vehicle;
     const estimate = quote.fare;
 
-    const admin = createAdminClient();
-    const db = admin || supabase;
+    const db = admin;
     const promo = await quoteLaunchDeliveryPromo(db, user.id, quote);
     const lecturerBenefit = await resolveLecturerBenefit({ program: campusProgram, userId: user.id, address: pickup, deliveryFee: estimate.deliveryFee, platformFee: estimate.platformFee });
     const promoMetadata = lecturerBenefit.applied ? null : launchPromoMetadata(promo);
@@ -149,6 +150,8 @@ export async function POST(request: Request) {
       route_duration_seconds: quote.durationSeconds,
       bicycle_eligible: quote.bicycleEligible,
       vehicle_subtype: quote.vehicleSubtype,
+      customer_vehicle_option: selectedVehicleOption.id,
+      match_started_at: new Date().toISOString(),
       delivery_fee_ngn: estimate.deliveryFee,
       platform_fee_ngn: estimate.platformFee,
       payable_delivery_fee_ngn: payableFare.deliveryFee,

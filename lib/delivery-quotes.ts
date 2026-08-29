@@ -14,6 +14,10 @@ export type DeliveryQuoteInput = {
   parcelType?: string | null;
   items?: DeliveryRuleItem[];
   fareConfig?: FareConfig;
+  // Customer-facing vehicle options may distinguish a Fast Fleets bicycle
+  // from a motorcycle even though both dispatch through the legacy `bike`
+  // vehicle type. `undefined` preserves the existing automatic behaviour.
+  vehicleSubtypeOverride?: VehicleSubtype | null;
 };
 
 export type DeliveryQuote = {
@@ -61,13 +65,18 @@ export function createDeliveryQuoteFromRoute(input: DeliveryQuoteInput, route: G
     },
     fareConfig
   );
+  const vehicleSubtype = input.vehicleSubtypeOverride === "bicycle" && !classification.bicycleEligible
+    ? null
+    : input.vehicleSubtypeOverride === undefined
+      ? classification.vehicleSubtype
+      : input.vehicleSubtypeOverride;
   const fare = estimateFareForDistance(
     {
       distanceKm: route.distanceKm,
       vehicle: input.vehicle,
       speed: input.speed,
       zone: `${pickupAddress} ${dropoffAddress}`,
-      vehicleSubtype: classification.vehicleSubtype
+      vehicleSubtype
     },
     fareConfig
   );
@@ -86,7 +95,7 @@ export function createDeliveryQuoteFromRoute(input: DeliveryQuoteInput, route: G
     routeType: classification.routeType,
     lightOrder: classification.lightOrder,
     bicycleEligible: classification.bicycleEligible,
-    vehicleSubtype: classification.vehicleSubtype,
+    vehicleSubtype,
     vehicle: input.vehicle,
     speed: input.speed,
     fare: {
