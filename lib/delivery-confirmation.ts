@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { accountMessengerHref } from "@/lib/tracking-links";
+import { sendWhatsAppText } from "@/lib/whatsapp/messages";
 
 export const DELIVERY_CONFIRMATION_STATUS = "awaiting_delivery_confirmation" as const;
 export const DELIVERY_CONFIRMATION_TTL_MS = 15 * 60 * 1000;
@@ -117,6 +118,9 @@ export async function announceDeliveryConfirmation(
   const deliveryCode = delivery.delivery_code || delivery.id;
   const owners = deliveryConfirmationOwnerIds(delivery);
   const recipientPhone = extractNigerianPhone(delivery.dropoff_contact);
+  const metadata = metadataRecord(delivery.metadata);
+  const whatsappPhone = stringValue(metadata.whatsapp_phone);
+  const isWhatsAppOrder = (metadata.source === "whatsapp_ordering" || metadata.whatsapp_order_source === true) && Boolean(whatsappPhone);
   const notifications = owners.map((userId) =>
     insertNotificationWithPush(db, {
       user_id: userId,
@@ -134,9 +138,15 @@ export async function announceDeliveryConfirmation(
   );
   const results = await Promise.allSettled([
     ...notifications,
-    recipientPhone ? sendDeliveryPinSms(recipientPhone, deliveryCode, issued.code) : Promise.resolve(false)
+    recipientPhone ? sendDeliveryPinSms(recipientPhone, deliveryCode, issued.code) : Promise.resolve(false),
+    isWhatsAppOrder
+      ? sendWhatsAppText({
+          to: whatsappPhone!,
+          body: `${deliveryCode} is at your delivery address.\n\nYour secure handover PIN is: ${issued.code}\n\nGive this PIN to the rider only after you have received your package. Then reply DELIVERED here to confirm the handover. Reply RESEND PIN if you need a new PIN.`
+        })
+      : Promise.resolve(false)
   ]);
-  const smsResult = results.at(-1);
+  const smsResult = results[notifications.length];
   return { smsSent: smsResult?.status === "fulfilled" && smsResult.value === true };
 }
 

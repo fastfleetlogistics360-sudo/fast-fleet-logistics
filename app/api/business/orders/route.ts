@@ -15,6 +15,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountMessengerHref } from "@/lib/tracking-links";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+import { sendWhatsAppText } from "@/lib/whatsapp/messages";
 
 const businessProgress = new Set(["received", "preparing", "packing", "ready_for_pickup"]);
 
@@ -263,7 +264,10 @@ export async function PATCH(request: Request) {
         body: `${String(order.order_code || "Order")} is ${status.replaceAll("_", " ")}.`,
         type: "business_order_update",
         metadata: { order_id: id, order_code: orderCode, delivery_id: deliveryId, status, url: businessUpdateUrl, tag: `ff-business-${orderCode}` }
-      })
+      }),
+      whatsappPhone && orderMetadata.source === "whatsapp_ordering" && String(order.status || "") !== status
+        ? sendWhatsAppText({ to: whatsappPhone, body: businessOrderWhatsAppUpdate(orderCode, status) })
+        : Promise.resolve()
     ]);
 
     return NextResponse.json({ order: updated });
@@ -311,6 +315,13 @@ function metadataRecord(value: unknown) {
 
 function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function businessOrderWhatsAppUpdate(orderCode: string, status: string) {
+  if (status === "received") return `${orderCode} update: the business has received your order and will begin preparing it shortly.`;
+  if (status === "preparing") return `${orderCode} update: your order is now being prepared.`;
+  if (status === "packing") return `${orderCode} update: your order is packed and being prepared for dispatch.`;
+  return `${orderCode} update: your order is ready for pickup. We are now finding a rider and will send the rider details here once one accepts.`;
 }
 
 async function notifyApprovedRiders(

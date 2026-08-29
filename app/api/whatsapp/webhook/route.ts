@@ -6,7 +6,9 @@ import { isPlausibleWhatsAppPhone, normalizeWhatsAppPhone } from "@/lib/whatsapp
 import { newChallengeToken, newWhatsAppEmailCode, sha256, verifyWhatsAppEmailCode, verifyWhatsAppSignature, whatsappEmailCodeDigest } from "@/lib/whatsapp/security";
 import { sendWhatsAppAccountConfirmationEmail } from "@/lib/whatsapp/account-confirmation-email";
 import { handleWhatsAppOrdering } from "@/lib/whatsapp/ordering";
-import { handleWhatsAppFastConfirmReply } from "@/lib/whatsapp/delivery-updates";
+import { handleWhatsAppDeliveryConfirmationReply, handleWhatsAppFastConfirmReply } from "@/lib/whatsapp/delivery-updates";
+import { announceDeliveryConfirmation, createDeliveryConfirmation } from "@/lib/delivery-confirmation";
+import { finalizeConfirmedDelivery, type DeliveryForCompletion } from "@/lib/delivery-completion";
 import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
@@ -130,6 +132,16 @@ async function processIncomingMessage(admin: NonNullable<ReturnType<typeof creat
     const fastConfirmReply = await handleWhatsAppFastConfirmReply(admin, phone, accountLink.user_id, text.trim().toUpperCase());
     if (fastConfirmReply) {
       await sendWhatsAppText({ to: phone, body: fastConfirmReply });
+      return;
+    }
+    const deliveryConfirmationReply = await handleWhatsAppDeliveryConfirmationReply(admin, phone, accountLink.user_id, text.trim().toUpperCase());
+    if (deliveryConfirmationReply?.action === "resend") {
+      const issued = await createDeliveryConfirmation(admin, deliveryConfirmationReply.delivery, { force: true });
+      await announceDeliveryConfirmation(admin, deliveryConfirmationReply.delivery, issued);
+      return;
+    }
+    if (deliveryConfirmationReply?.action === "confirm") {
+      await finalizeConfirmedDelivery(admin, deliveryConfirmationReply.delivery as DeliveryForCompletion, accountLink.user_id, "customer_whatsapp");
       return;
     }
     await handleWhatsAppOrdering({

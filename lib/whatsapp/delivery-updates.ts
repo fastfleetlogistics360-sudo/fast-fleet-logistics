@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendWhatsAppImage, sendWhatsAppText } from "@/lib/whatsapp/messages";
+import { sendWhatsAppImage, sendWhatsAppText, sendWhatsAppUploadedImage } from "@/lib/whatsapp/messages";
 import { metadataRecord, pickupProofFromMetadata } from "@/lib/pickup-proof";
 import { PICKUP_PROOF_MAX_REJECTIONS, pickupProofRejectionCount } from "@/lib/pickup-proof";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
+import { deliveryConfirmationOwnerIds, type DeliveryConfirmationTarget } from "@/lib/delivery-confirmation";
 
 type DeliveryRow = {
   id: string;
@@ -35,11 +36,21 @@ export async function notifyWhatsAppDeliveryUpdate(db: SupabaseClient, deliveryI
   if (event === "fastconfirm") {
     const path = text(proof?.path);
     if (path) {
-      const signed = await db.storage.from("delivery-proofs").createSignedUrl(path, 15 * 60);
-      if (!signed.error && signed.data?.signedUrl) {
-        await sendWhatsAppImage({ to: phone, imageUrl: signed.data.signedUrl, caption: body });
+      const downloaded = await db.storage.from("delivery-proofs").download(path);
+      if (!downloaded.error && downloaded.data) {
+        try {
+          await sendWhatsAppUploadedImage({
+            to: phone,
+            bytes: await downloaded.data.arrayBuffer(),
+            mimeType: downloaded.data.type || "image/jpeg",
+            fileName: `fastconfirm-${data.delivery_code || data.id}.jpg`,
+            caption: body
+          });
+        } catch {
+          await sendFastConfirmLinkFallback(db, phone, path, body);
+        }
       } else {
-        await sendWhatsAppText({ to: phone, body });
+        await sendFastConfirmLinkFallback(db, phone, path, body);
       }
     } else {
       await sendWhatsAppText({ to: phone, body });
@@ -66,6 +77,15 @@ export async function whatsappDeliveryForPhone(db: SupabaseClient, phone: string
   const { data, error } = await db.from("deliveries").select("id, delivery_code, customer_id, rider_id, dropoff_contact, status, metadata, rider_profiles:rider_profiles!deliveries_rider_id_fkey(user_id)").contains("metadata", { whatsapp_phone: phone }).in("status", statuses).order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw error;
   return data || null;
+}
+
+/** Identifies a secure delivery-handover instruction from the linked WhatsApp customer. */
+export async function handleWhatsAppDeliveryConfirmationReply(db: SupabaseClient, phone: string, userId: string, command: string) {
+  const action = command === "DELIVERED" || command === "CONFIRM DELIVERY" ? "confirm" : command === "RESEND PIN" ? "resend" : null;
+  if (!action) return null;
+  const delivery = await whatsappDeliveryForPhone(db, phone, ["awaiting_delivery_confirmation"]);
+  if (!delivery || !deliveryConfirmationOwnerIds(delivery as DeliveryConfirmationTarget).includes(userId)) return null;
+  return { action, delivery };
 }
 
 /** Handles a WhatsApp customer's YES/NO response to a pending FastConfirm image. */
@@ -116,3 +136,12 @@ function deliveryMessage(event: Parameters<typeof notifyWhatsAppDeliveryUpdate>[
 
 function vehicleLabel(value: unknown) { const vehicle = text(value).toLowerCase(); return vehicle === "van" ? "Van" : vehicle === "car" ? "Car" : "Bike"; }
 function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
+
+async function sendFastConfirmLinkFallback(db: SupabaseClient, phone: string, path: string, body: string) {
+  const signed = await db.storage.from("delivery-proofs").createSignedUrl(path, 15 * 60);
+  if (!signed.error && signed.data?.signedUrl) {
+    await sendWhatsAppImage({ to: phone, imageUrl: signed.data.signedUrl, caption: body });
+    return;
+  }
+  await sendWhatsAppText({ to: phone, body });
+}

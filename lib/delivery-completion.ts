@@ -14,7 +14,7 @@ export async function finalizeConfirmedDelivery(
   db: SupabaseClient,
   delivery: DeliveryForCompletion,
   actorUserId: string,
-  method: "delivery_pin" | "customer_app" | "admin_override"
+  method: "delivery_pin" | "customer_app" | "customer_whatsapp" | "admin_override"
 ) {
   const timestamp = new Date().toISOString();
   const { data: completed, error: completionError } = await db
@@ -57,7 +57,7 @@ export async function finalizeConfirmedDelivery(
       actor_id: actorUserId,
       status: "delivered",
       title: "Delivery confirmed",
-      body: method === "delivery_pin" ? "Recipient PIN verified. Delivery completed." : method === "customer_app" ? "Customer confirmed the handoff in the messenger." : "Delivery completed by an administrator."
+      body: method === "delivery_pin" ? "Recipient PIN verified. Delivery completed." : method === "customer_app" ? "Customer confirmed the handoff in the messenger." : method === "customer_whatsapp" ? "Customer confirmed the handoff in WhatsApp." : "Delivery completed by an administrator."
     }),
     db.from("delivery_locations").update({ status: "delivered", updated_at: timestamp }).eq("order_id", delivery.id),
     releaseBicycleAssetForDelivery(db, delivery.id),

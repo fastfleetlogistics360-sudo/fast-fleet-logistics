@@ -277,7 +277,7 @@ export async function POST(request: Request) {
           })
         : Promise.resolve(),
       syncLinkedBusinessOrder(db, id, mapDeliveryStatusToBusinessOrder(nextStatus)),
-      nextStatus === "rider_arrived" || nextStatus === "picked_up" || nextStatus === "in_transit" || nextStatus === "awaiting_delivery_confirmation"
+      nextStatus === "rider_arrived" || nextStatus === "picked_up" || nextStatus === "in_transit"
         ? notifyWhatsAppDeliveryUpdate(db, id, nextStatus)
         : Promise.resolve()
     ]);
