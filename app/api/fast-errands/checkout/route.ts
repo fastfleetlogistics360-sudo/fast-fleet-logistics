@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { loadFastErrandsFulfilmentBusinessId } from "@/lib/fast-errands-catalog";
-import { createDeliveryQuote } from "@/lib/delivery-quotes";
+import { createCustomerVehicleOptions, customerVehicleSelection } from "@/lib/customer-vehicle-options";
 import { businessPickupAddressFor, loadActiveLinkedBusiness } from "@/lib/marketplace-business-links";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending } from "@/lib/payments/payment-intents";
@@ -26,12 +26,13 @@ export async function POST(request: Request) {
     if (!user) return NextResponse.json({ error: "Please sign in before starting a FastErrand." }, { status: 401 });
     const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentCreate, name: "fast-errands:checkout" });
     if (limited) return limited;
-    const payload = await request.json().catch(() => ({})) as { items?: CheckoutItem[]; note?: unknown; address?: unknown; email?: unknown; phone?: unknown };
+    const payload = await request.json().catch(() => ({})) as { items?: CheckoutItem[]; note?: unknown; address?: unknown; email?: unknown; phone?: unknown; vehicleOption?: unknown };
     const requestedItems = Array.isArray(payload.items) ? payload.items : [];
     const address = sanitizeAddressText(String(payload.address || ""));
     const email = String(payload.email || user.email || "").trim();
     const phone = String(payload.phone || "").trim().slice(0, 40);
     const note = String(payload.note || "").trim().slice(0, 700);
+    const requestedVehicle = customerVehicleSelection(payload.vehicleOption);
     const quantities = new Map<string, number>();
     for (const item of requestedItems) {
       const id = String(item?.itemId || "").trim();
@@ -69,7 +70,14 @@ export async function POST(request: Request) {
     const dropoffState = extractNigerianState(address);
     const businessStates = [normalizeState(business.operating_state)].filter(Boolean);
     if (businessStates.length && (!dropoffState || !businessStates.includes(dropoffState))) return NextResponse.json({ error: `FastErrands currently serves ${businessStates.join(", ")}. Choose a delivery address in one of those states.` }, { status: 409 });
-    const quote = await createDeliveryQuote({ pickup: { address: pickup }, dropoff: { address }, pickupState, dropoffState, vehicle: "bike", speed: "standard", parcelType: "FastErrands catalogue order", fareConfig: await loadFareConfig() });
+    if (!requestedVehicle || (requestedVehicle.id !== "bicycle" && requestedVehicle.id !== "motorcycle")) return NextResponse.json({ error: "Choose an available Bicycle or Bike rider option." }, { status: 400 });
+    const vehicleOption = (await createCustomerVehicleOptions({
+      db,
+      fareConfig: await loadFareConfig(),
+      input: { pickup: { address: pickup }, dropoff: { address }, pickupState, dropoffState, speed: "standard", parcelType: "FastErrands catalogue order", items: lineItems }
+    })).find((option) => option.id === requestedVehicle.id);
+    if (!vehicleOption || vehicleOption.availability.status === "unavailable") return NextResponse.json({ error: "That rider option is no longer available. Choose another option and try again." }, { status: 409 });
+    const quote = vehicleOption.quote;
     const deliveryFee = Math.max(0, Math.round(quote.fare.deliveryFee));
     const orderItems = note ? [...lineItems, { item_id: null, category_id: null, category: "Request note", name: `Customer note: ${note}`, description: null, price: 0, quantity: 1, subtotal: 0 }] : lineItems;
     const total = goodsTotal + deliveryFee + FAST_ERRAND_FEE_NGN;

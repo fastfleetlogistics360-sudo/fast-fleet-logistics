@@ -207,7 +207,8 @@ export async function PATCH(request: Request) {
           pickup_address: businessPickupAddress,
           pickup_latitude: pickupPoint?.latitude || null,
           pickup_longitude: pickupPoint?.longitude || null,
-            distance_km: marketplaceEstimate.distanceKm,
+          distance_km: marketplaceEstimate.distanceKm,
+          vehicle_type: marketplaceEstimate.vehicle,
           vehicle_subtype: marketplaceEstimate.vehicleSubtype,
           metadata: {
             pickup_state: marketplaceEstimate.pickupState || null,
@@ -270,6 +271,9 @@ export async function PATCH(request: Request) {
 
 async function estimateBusinessOrderDelivery(order: Record<string, unknown>, pickupAddress: string, deliveryPolicy: DeliveryPolicy, campusProgram: Awaited<ReturnType<typeof loadCampusProgram>>) {
   const fareConfig = await loadFareConfig();
+  const selectedVehicleOption = order.vehicle_type === "bike"
+    ? order.vehicle_subtype === "bicycle" ? "bicycle" : "motorcycle"
+    : undefined;
   return estimateMarketplaceCheckout({
     kind: order.marketplace_kind === "shopping" ? "shopping" : "restaurant",
     items: Array.isArray(order.items) ? order.items as Parameters<typeof estimateMarketplaceCheckout>[0]["items"] : [],
@@ -277,7 +281,8 @@ async function estimateBusinessOrderDelivery(order: Record<string, unknown>, pic
     pickupAddress,
     fareConfig,
     deliveryPolicy,
-    campusProgram
+    campusProgram,
+    vehicleOption: selectedVehicleOption
   });
 }
 
@@ -306,6 +311,7 @@ async function notifyApprovedRiders(
     pickup_latitude?: number | null;
     pickup_longitude?: number | null;
     distance_km: number;
+    vehicle_type: string;
     vehicle_subtype?: string | null;
     metadata: Record<string, unknown>;
   },
@@ -313,7 +319,7 @@ async function notifyApprovedRiders(
 ) {
   const { data: riders } = await db
     .from("rider_profiles")
-    .select("id, user_id, operating_zone, address, campus_zone_id")
+    .select("id, user_id, vehicle_type, operating_zone, address, campus_zone_id")
     .eq("application_status", "approved")
     .eq("online", true)
     .limit(25);
@@ -321,6 +327,7 @@ async function notifyApprovedRiders(
   const bicycle = isBicycleDelivery(delivery.metadata, delivery.vehicle_subtype);
   const eligibleRiders = [];
   for (const rider of riders || []) {
+    if (rider.vehicle_type !== delivery.vehicle_type) continue;
     const [locationResult, asset] = await Promise.all([
       db
         .from("rider_locations")

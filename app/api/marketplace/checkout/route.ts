@@ -19,6 +19,7 @@ import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountTrackingHref } from "@/lib/tracking-links";
+import { createCustomerVehicleOptions, customerVehicleSelection } from "@/lib/customer-vehicle-options";
 
 export async function POST(request: Request) {
   try {
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
         deliveryFee?: number;
       };
       interstateConfirmed?: boolean;
+      vehicleOption?: unknown;
     };
 
     const items = Array.isArray(payload.items) ? payload.items : [];
@@ -72,6 +74,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Checkout items must all belong to the same linked marketplace business." }, { status: 400 });
     }
     const marketplaceKind = payload.kind === "shopping" ? "shopping" : "restaurant";
+    const selectedVehicle = customerVehicleSelection(payload.vehicleOption);
+    if (!selectedVehicle || (selectedVehicle.id !== "bicycle" && selectedVehicle.id !== "motorcycle")) {
+      return NextResponse.json({ error: "Choose an available Bicycle or Bike rider option." }, { status: 400 });
+    }
     const resolvedItems = businessLinks.items;
     const shoppingBranchStates = Array.from(new Set(resolvedItems.map((item) => String(item.vendorState || "").trim()).filter(Boolean)));
     if (marketplaceKind === "shopping" && shoppingBranchStates.length > 1) {
@@ -82,7 +88,15 @@ export async function POST(request: Request) {
     const configuredPickup = configuredMarketplacePickupAddress(resolvedItems);
     const quotePickupAddress = configuredPickup || (business ? businessPickupAddressFor(business, marketplacePickupAddress(resolvedItems, marketplaceKind)) : null);
     const [fareConfig, deliveryPolicy, campusProgram] = await Promise.all([loadFareConfig(), loadDeliveryPolicy(), loadCampusProgram()]);
-    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: resolvedItems, address, pickupAddress: quotePickupAddress, fareConfig, deliveryPolicy, campusProgram });
+    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: resolvedItems, address, pickupAddress: quotePickupAddress, fareConfig, deliveryPolicy, campusProgram, vehicleOption: selectedVehicle.id });
+    const liveVehicleOption = (await createCustomerVehicleOptions({
+      db: admin,
+      fareConfig,
+      input: { pickup: { address: quotePickupAddress || marketplacePickupAddress(resolvedItems, marketplaceKind) }, dropoff: { address }, speed: "same_day", marketplaceKind, items: resolvedItems }
+    })).find((option) => option.id === selectedVehicle.id);
+    if (!liveVehicleOption || liveVehicleOption.availability.status === "unavailable") {
+      return NextResponse.json({ error: "That rider option is no longer available. Choose another option and try again." }, { status: 409 });
+    }
     const lecturerBenefit = await resolveLecturerBenefit({ program: campusProgram, userId: user.id, address, deliveryFee: estimate.deliveryFee, platformFee: estimate.platformFee });
     if (!estimate.allowed) {
       return NextResponse.json({ error: estimate.policyMessage || "This marketplace order cannot be delivered to that address." }, { status: 422 });
@@ -214,6 +228,7 @@ export async function POST(request: Request) {
             route_duration_seconds: estimate.durationSeconds,
             bicycle_eligible: estimate.bicycleEligible,
             vehicle_subtype: estimate.vehicleSubtype,
+            customer_vehicle_option: selectedVehicle.id,
             marketplace_vehicle: estimate.vehicle,
             interstate_dispatch: estimate.interstateDispatch,
             interstate_delivery_days: estimate.interstateDeliveryDays,

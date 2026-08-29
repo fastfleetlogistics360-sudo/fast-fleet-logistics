@@ -29,7 +29,8 @@ export async function estimateMarketplaceCheckout({
   pickupAddress,
   fareConfig,
   deliveryPolicy,
-  campusProgram
+  campusProgram,
+  vehicleOption
 }: {
   kind?: MarketplaceKind;
   items: MarketplacePricingItem[];
@@ -38,6 +39,7 @@ export async function estimateMarketplaceCheckout({
   fareConfig?: FareConfig;
   deliveryPolicy: DeliveryPolicy;
   campusProgram?: CampusProgram;
+  vehicleOption?: "bicycle" | "motorcycle";
 }) {
   const marketplaceKind = kind === "shopping" ? "shopping" : "restaurant";
   const resolvedPickupAddress = sanitizeAddressText(pickupAddress || "") || marketplacePickupAddress(items, marketplaceKind);
@@ -52,7 +54,10 @@ export async function estimateMarketplaceCheckout({
     items,
     fareConfig
   });
-  const vehicle = recommendedMarketplaceVehicle({ kind: marketplaceKind, items });
+  // Marketplace orders intentionally use the same light-delivery choices as
+  // FastErrands. The default is retained for callers that only need a legacy
+  // estimate, while checkout supplies one of these explicit customer choices.
+  const vehicle = vehicleOption ? "bike" : recommendedMarketplaceVehicle({ kind: marketplaceKind, items });
   const marketplacePolicy = evaluateMarketplacePolicy({ kind: marketplaceKind, items, quote: initialQuote, deliveryPolicy });
   const speed = marketplacePolicy.interstateDispatch ? "interstate" : "same_day";
   const quote = quoteForMarketplaceVehicle({
@@ -63,7 +68,8 @@ export async function estimateMarketplaceCheckout({
     fareConfig,
     vehicle,
     speed,
-    initialQuote
+    initialQuote,
+    vehicleSubtypeOverride: vehicleOption === "bicycle" ? "bicycle" : vehicleOption === "motorcycle" ? null : undefined
   });
   const campusAdjustment = applyCampusPrice({
     program: campusProgram || { ...DEFAULT_CAMPUS_PROGRAM_DISABLED },
@@ -74,7 +80,7 @@ export async function estimateMarketplaceCheckout({
     bicycleEligible: quote.vehicle === "bike" && quote.lightOrder
   });
   const bicycleEligible = campusAdjustment.applied ? true : quote.bicycleEligible;
-  const vehicleSubtype = bicycleEligible ? "bicycle" : quote.vehicleSubtype;
+  const vehicleSubtype = vehicleOption === "motorcycle" ? null : vehicleOption === "bicycle" ? (bicycleEligible ? "bicycle" : null) : bicycleEligible ? "bicycle" : quote.vehicleSubtype;
   const campusEtaMinutes = campusAdjustment.applied
     ? Math.max(quote.etaMinutes, Math.round((quote.distanceKm / (campusProgram?.bicycleSpeedKmh || DEFAULT_CAMPUS_PROGRAM_DISABLED.bicycleSpeedKmh)) * 60 + 22))
     : quote.etaMinutes;
@@ -132,7 +138,8 @@ function quoteForMarketplaceVehicle({
   fareConfig,
   vehicle,
   speed,
-  initialQuote
+  initialQuote,
+  vehicleSubtypeOverride
 }: {
   pickupAddress: string;
   dropoffAddress: string;
@@ -142,8 +149,9 @@ function quoteForMarketplaceVehicle({
   vehicle: VehicleType;
   speed: "same_day" | "interstate";
   initialQuote: DeliveryQuote;
+  vehicleSubtypeOverride?: "bicycle" | null;
 }) {
-  if (vehicle === initialQuote.vehicle && speed === initialQuote.speed) return initialQuote;
+  if (vehicle === initialQuote.vehicle && speed === initialQuote.speed && vehicleSubtypeOverride === undefined) return initialQuote;
   return createDeliveryQuoteFromRoute(
     {
       pickup: { address: pickupAddress },
@@ -152,7 +160,8 @@ function quoteForMarketplaceVehicle({
       speed,
       marketplaceKind,
       items,
-      fareConfig
+      fareConfig,
+      vehicleSubtypeOverride
     },
     {
       distanceKm: initialQuote.distanceKm,

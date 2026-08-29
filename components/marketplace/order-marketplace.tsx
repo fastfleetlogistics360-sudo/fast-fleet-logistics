@@ -12,7 +12,8 @@ import { BackButton } from "@/components/ui/back-button";
 import { Card } from "@/components/ui/card";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { useMarketplaceEstimate } from "@/components/marketplace/use-marketplace-estimate";
+import { useMarketplaceVehicleOptions, type MarketplaceVehicleOption } from "@/components/marketplace/use-marketplace-vehicle-options";
+import { LightVehicleOptions } from "@/components/booking/light-vehicle-options";
 import { shortVendorDescription, vendorIsOpen, vendorStatusLabel } from "@/lib/vendor-presentation";
 
 type StoreItem = {
@@ -123,6 +124,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [interstateConfirmed, setInterstateConfirmed] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState<MarketplaceVehicleOption | null>(null);
   const [activeMenuType, setActiveMenuType] = useState("All Items");
   const [checkoutIsVisible, setCheckoutIsVisible] = useState(false);
   const checkoutRef = useRef<HTMLDivElement | null>(null);
@@ -183,11 +185,12 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       })),
     [selectedItems]
   );
-  const { estimate, loading: estimateLoading, error: estimateError } = useMarketplaceEstimate({ kind, address, items: checkoutItems });
+  const { options: vehicleOptions, loading: vehicleLoading, error: vehicleError } = useMarketplaceVehicleOptions({ kind, address, items: checkoutItems });
+  const checkoutEstimate = selectedVehicle;
   const itemsTotal = selectedItems.reduce((sum, item) => sum + item.subtotal, 0);
-  const platformFee = estimate?.platformFee ?? PLATFORM_CHECKOUT_FEE_NGN;
-  const deliveryFee = estimate?.deliveryFee ?? 0;
-  const total = estimate?.total ?? itemsTotal + platformFee;
+  const platformFee = checkoutEstimate?.platformFee ?? PLATFORM_CHECKOUT_FEE_NGN;
+  const deliveryFee = checkoutEstimate?.deliveryFee ?? 0;
+  const total = checkoutEstimate?.total ?? itemsTotal + platformFee;
   const menuTypes = useMemo(() => {
     const types = liveStores.flatMap((store) => store.items.map((item) => item.type).filter(Boolean));
     return ["All Items", ...Array.from(new Set(types))];
@@ -211,7 +214,11 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
 
   useEffect(() => {
     setInterstateConfirmed(false);
-  }, [estimate?.interstateDispatch, estimate?.distanceKm]);
+  }, [checkoutEstimate?.interstateDispatch, checkoutEstimate?.distanceKm]);
+
+  useEffect(() => {
+    setSelectedVehicle((current) => vehicleOptions.find((option) => option.id === current?.id && option.availability.status !== "unavailable") || null);
+  }, [vehicleOptions]);
 
   function changeQuantity(key: string, delta: number) {
     if (!orderingOpen) return;
@@ -236,16 +243,16 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       setMessage("Enter the delivery street address.");
       return;
     }
-    if (estimateLoading || !estimate) {
-      setMessage(estimateError || "Please wait for the delivery estimate to finish.");
+    if (vehicleLoading || !selectedVehicle) {
+      setMessage(vehicleError || "Choose an available Bicycle or Bike rider option before checkout.");
       return;
     }
-    if (!estimate.allowed) {
-      setMessage(estimate.policyMessage || "This order cannot be delivered to that address.");
+    if (!selectedVehicle.allowed) {
+      setMessage(selectedVehicle.policyMessage || "This order cannot be delivered to that address.");
       return;
     }
-    if (estimate.interstateDispatch && !interstateConfirmed) {
-      setMessage(estimate.policyMessage || "Confirm the interstate delivery timing before checkout.");
+    if (selectedVehicle.interstateDispatch && !interstateConfirmed) {
+      setMessage(selectedVehicle.policyMessage || "Confirm the interstate delivery timing before checkout.");
       return;
     }
 
@@ -261,11 +268,12 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           address,
           items: checkoutItems,
           fees: {
-            platformFee: estimate.platformFee,
-            deliveryFee: estimate.deliveryFee
+            platformFee: selectedVehicle.platformFee,
+            deliveryFee: selectedVehicle.deliveryFee
           },
-          amount: estimate.total,
-          interstateConfirmed
+          amount: selectedVehicle.total,
+          interstateConfirmed,
+          vehicleOption: selectedVehicle.id
         })
       });
       const payload = await response.json();
@@ -283,12 +291,12 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             pickup_address: selectedItems.map((item) => item.store).filter(Boolean).join(", ") || (kind === "restaurant" ? "Restaurant pickup" : "Shopping pickup"),
             dropoff_address: address,
             status: payload.status || (businessOrder ? "received" : "searching"),
-            vehicle_type: payload.vehicle || estimate.vehicle,
+            vehicle_type: payload.vehicle || selectedVehicle.vehicle,
             vehicle_subtype: payload.vehicleSubtype || null,
-            delivery_speed: estimate.deliverySpeed,
-            price_ngn: estimate.total,
-            distance_km: estimate.distanceKm,
-            eta_minutes: estimate.etaMinutes,
+            delivery_speed: selectedVehicle.deliverySpeed,
+            price_ngn: selectedVehicle.total,
+            distance_km: selectedVehicle.distanceKm,
+            eta_minutes: selectedVehicle.etaMinutes,
             metadata: { vehicle_subtype: payload.vehicleSubtype || null },
             source: businessOrder ? "business_marketplace_order" : `${kind}_checkout`,
             marketplace_kind: kind,
@@ -400,28 +408,29 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           <div className="mt-5 grid gap-2 text-sm font-bold">
             <Summary label="Items" value={formatMoney(itemsTotal)} />
               <Summary label="Platform fee" value={formatMoney(platformFee)} />
-              <Summary label="Delivery fee" value={estimateLoading ? "Estimating..." : estimate ? formatMoney(deliveryFee) : "Add address"} />
-              {estimate?.campus?.lecturerBenefit ? <div className="rounded-fleet bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">{estimate.campus.message}</div> : null}
-            {estimate ? <Summary label="Route distance" value={`${estimate.distanceKm.toFixed(1)} km`} /> : null}
+              <Summary label="Delivery fee" value={vehicleLoading ? "Estimating..." : checkoutEstimate ? formatMoney(deliveryFee) : "Choose a rider"} />
+              {checkoutEstimate?.campus?.lecturerBenefit ? <div className="rounded-fleet bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">{checkoutEstimate.campus.message}</div> : null}
+            {checkoutEstimate ? <Summary label="Route distance" value={`${checkoutEstimate.distanceKm.toFixed(1)} km`} /> : null}
           </div>
 
           <div className="mt-5 grid gap-3">
             <input className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email for receipt" type="email" />
             <input className="form-input" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" inputMode="tel" />
             <AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} placeholder="Enter recipient street address" />
-            {estimate?.policyMessage ? <div className={`rounded-fleet p-3 text-xs font-bold leading-5 ${estimate.allowed ? "bg-blue-50 text-blue-800" : "bg-rose-50 text-rose-800"}`}>{estimate.policyMessage}</div> : null}
-            {estimate?.interstateDispatch ? (
+            <LightVehicleOptions options={vehicleOptions} selectedId={selectedVehicle?.id || ""} loading={vehicleLoading} error={vehicleError} onSelect={(option) => setSelectedVehicle(option as MarketplaceVehicleOption)} />
+            {checkoutEstimate?.policyMessage ? <div className={`rounded-fleet p-3 text-xs font-bold leading-5 ${checkoutEstimate.allowed ? "bg-blue-50 text-blue-800" : "bg-rose-50 text-rose-800"}`}>{checkoutEstimate.policyMessage}</div> : null}
+            {checkoutEstimate?.interstateDispatch ? (
               <label className="flex items-start gap-2 rounded-fleet border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-900">
                 <input type="checkbox" className="mt-0.5" checked={interstateConfirmed} onChange={(event) => setInterstateConfirmed(event.target.checked)} />
                 I understand this is an interstate dispatch and delivery timing starts after the seller prepares my order.
               </label>
             ) : null}
-            <Button type="button" onClick={checkout} disabled={!orderingOpen || loading || estimateLoading || !estimate?.allowed || Boolean(estimate?.interstateDispatch && !interstateConfirmed)}>
+            <Button type="button" onClick={checkout} disabled={!orderingOpen || loading || vehicleLoading || !selectedVehicle?.allowed || Boolean(selectedVehicle?.interstateDispatch && !interstateConfirmed)}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
               Pay with Squad
             </Button>
           </div>
-          {message || estimateError ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{message || estimateError}</div> : null}
+          {message || vehicleError ? <div className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{message || vehicleError}</div> : null}
         </Card>
         </div>
       </div>

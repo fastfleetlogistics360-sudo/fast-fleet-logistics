@@ -18,6 +18,7 @@ type MarketplaceDeliveryRow = {
   dropoff_contact?: string | null;
   parcel_type?: string | null;
   vehicle_type?: string | null;
+  vehicle_subtype?: string | null;
   payment_method?: string | null;
   status?: string | null;
   price_ngn?: number | string | null;
@@ -82,6 +83,7 @@ export async function convertMarketplaceDeliveryToBusinessOrder(
     dropoff_address: delivery.dropoff_address || "Customer delivery address",
     package_type: kind === "shopping" ? "shopping items" : "food order",
     vehicle_type: normalizeVehicle(delivery.vehicle_type),
+    vehicle_subtype: delivery.vehicle_subtype === "bicycle" ? "bicycle" : null,
     status: "received",
     amount,
     payment_method: normalizePaymentMethod(delivery.payment_method),
@@ -165,7 +167,7 @@ export async function convertMarketplaceDeliveryToBusinessOrder(
 export async function repairMarketplaceDeliveriesForBusiness(db: SupabaseClient, businessProfileId: string) {
   const { data, error } = await db
     .from("deliveries")
-    .select("id, delivery_code, customer_id, pickup_address, dropoff_address, dropoff_contact, parcel_type, vehicle_type, payment_method, status, price_ngn, distance_km, eta_minutes, metadata, created_at")
+    .select("id, delivery_code, customer_id, pickup_address, dropoff_address, dropoff_contact, parcel_type, vehicle_type, vehicle_subtype, payment_method, status, price_ngn, distance_km, eta_minutes, metadata, created_at")
     .contains("metadata", { source: "fastfleet_marketplace" })
     .order("created_at", { ascending: false })
     .limit(80)
