@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "FastErrands verification is temporarily unavailable." }, { status: 503 });
   const intent = await loadPaymentIntent(db, reference);
-  if (!intent || intent.purpose !== "delivery_payment" || !intent.internal_reference.startsWith("fast-errand:")) return NextResponse.json({ error: "FastErrands payment was not found." }, { status: 404 });
+  if (!intent || intent.purpose !== "marketplace_business_order" || !intent.internal_reference.startsWith("fast-errand-order:")) return NextResponse.json({ error: "FastErrands payment was not found." }, { status: 404 });
   const result = await settleSquadPayment(db, { reference, actor: { type: "customer", userId: user.id } });
   if (result.status === "settled" || result.status === "already_settled") return NextResponse.json({ status: "successful", amount: result.amountNgn, errandCode: request.nextUrl.searchParams.get("code") || null });
   if (result.status === "pending" || result.status === "retryable") return NextResponse.json({ status: "pending", message: "Squad is still confirming your FastErrands payment." }, { status: result.status === "pending" ? 202 : 503 });

@@ -182,7 +182,7 @@ async function runPostSettlementEffects(db: SupabaseClient, intent: PaymentInten
   if (intent.purpose === "marketplace_business_order" && intent.order_id) {
     const { data: order } = await db
       .from("orders")
-      .select("id, order_code, customer_id, business_id, business_profile_id")
+      .select("id, order_code, customer_id, business_id, business_profile_id, marketplace_kind")
       .eq("id", intent.order_id)
       .maybeSingle<{
         id: string;
@@ -190,20 +190,22 @@ async function runPostSettlementEffects(db: SupabaseClient, intent: PaymentInten
         customer_id: string | null;
         business_id: string | null;
         business_profile_id: string | null;
+        marketplace_kind: string | null;
       }>();
     if (order?.business_id && order.customer_id) {
       const code = order.order_code || intent.provider_transaction_reference;
+      const isFastErrand = order.marketplace_kind === "fast_errands";
       await Promise.allSettled([
         insertNotificationWithPush(db, {
           user_id: order.business_id,
-          title: "New paid marketplace order",
+          title: isFastErrand ? "New paid FastErrand" : "New paid marketplace order",
           body: `${code} is paid and waiting for your team to prepare.`,
           type: "business_order_received",
           metadata: { order_id: order.id, order_code: code, business_profile_id: order.business_profile_id, url: "/business/dashboard#marketplace-orders", tag: `ff-business-${code}` }
         }),
         insertNotificationWithPush(db, {
           user_id: order.customer_id,
-          title: "Marketplace payment confirmed",
+          title: isFastErrand ? "FastErrand payment confirmed" : "Marketplace payment confirmed",
           body: `${code} has been sent to the business.`,
           type: "order_update",
           metadata: { order_id: order.id, order_code: code, status: "received", url: accountMessengerHref(code), tag: `ff-${code}` }

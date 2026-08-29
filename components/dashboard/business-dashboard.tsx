@@ -789,8 +789,8 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
     <Card id="marketplace-orders" className="p-5">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div>
-          <h2 className="text-xl font-black text-fleet-night">Marketplace orders</h2>
-          <p className="mt-1 text-sm font-semibold text-slate-500">Manage incoming customer orders and dispatch handoffs.</p>
+          <h2 className="text-xl font-black text-fleet-night">Customer orders</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-500">Manage Marketplace and FastErrand orders, then release them to dispatch.</p>
         </div>
         <StatusBadge tone={orders.length ? "amber" : "neutral"}>{orders.length} orders</StatusBadge>
       </div>
@@ -809,7 +809,7 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
                     {formatMoney(Number(order.amount || 0))} · {businessOrderVehicleLabel(order)}
                   </span>
                 </div>
-                <StatusBadge tone={businessOrderTone(order.status)}>{businessOrderLabel(order.status)}</StatusBadge>
+                <span className="flex flex-wrap justify-end gap-2"><StatusBadge tone={order.marketplace_kind === "fast_errands" ? "blue" : "neutral"}>{order.marketplace_kind === "fast_errands" ? "FastErrand" : "Marketplace"}</StatusBadge><StatusBadge tone={businessOrderTone(order.status)}>{businessOrderLabel(order.status)}</StatusBadge></span>
               </div>
               <BusinessOrderItems order={order} />
               <div className="mt-4 grid gap-2 sm:grid-cols-4">
@@ -830,7 +830,7 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
             </article>
           ))
         ) : (
-          <DashboardEmptyState title="No marketplace orders" body="New customer orders will appear here." ctaLabel="Manage listing" ctaHref="/marketplace/listing" />
+          <DashboardEmptyState title="No customer orders" body="New Marketplace and FastErrand orders will appear here." ctaLabel="Manage listing" ctaHref="/marketplace/listing" />
         )}
       </div>
     </Card>

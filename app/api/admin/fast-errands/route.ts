@@ -3,23 +3,28 @@ import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/ad
 import { ensureWallet } from "@/lib/wallet-ledger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fastErrandsVendorSettingsKey, normalizeFastErrandsVendorIds } from "@/lib/fast-errands-vendors";
+import { fastErrandsFulfilmentBusinessSettingsKey, loadFastErrandsCatalog } from "@/lib/fast-errands-catalog";
 import type { Json } from "@/lib/supabase/types";
 
 export async function GET() {
   if (!(await requireAdminSession())) return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to manage FastErrands." }, { status: 503 });
-  const [{ data, error }, { data: businesses }, { data: setting }] = await Promise.all([
+  const [{ data, error }, { data: businesses }, { data: legacySetting }, { data: fulfilmentSetting }, catalog] = await Promise.all([
     db
     .from("fast_errand_orders")
     .select("id, errand_code, vendor_name, request_items, purchase_budget_ngn, actual_purchase_ngn, delivery_fee_ngn, service_fee_ngn, customer_total_ngn, vendor_transfer_reference, receipt_url, status, top_up_required_ngn, funded_at, vendor_funded_at, created_at, deliveries(id, delivery_code, status, pickup_address, dropoff_address), business_profiles(id, business_name, user_id), users:users!fast_errand_orders_customer_id_fkey(full_name, email, phone)")
     .order("created_at", { ascending: false })
     .limit(100),
     db.from("business_profiles").select("id, business_name, operating_state, pickup_address").eq("registration_status", "active").order("business_name").limit(200),
-    db.from("platform_settings").select("value").eq("key", fastErrandsVendorSettingsKey).maybeSingle()
+    db.from("platform_settings").select("value").eq("key", fastErrandsVendorSettingsKey).maybeSingle(),
+    db.from("platform_settings").select("value").eq("key", fastErrandsFulfilmentBusinessSettingsKey).maybeSingle(),
+    loadFastErrandsCatalog(true)
   ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ errands: data || [], businesses: businesses || [], selectedBusinessIds: normalizeFastErrandsVendorIds(setting?.value) });
+  const fulfilmentValue = fulfilmentSetting?.value;
+  const fulfilmentBusinessId = typeof fulfilmentValue === "string" ? fulfilmentValue : fulfilmentValue && typeof fulfilmentValue === "object" && !Array.isArray(fulfilmentValue) && typeof (fulfilmentValue as { businessId?: unknown }).businessId === "string" ? (fulfilmentValue as { businessId: string }).businessId : null;
+  return NextResponse.json({ errands: data || [], businesses: businesses || [], selectedBusinessIds: normalizeFastErrandsVendorIds(legacySetting?.value), fulfilmentBusinessId, catalog });
 }
 
 export async function PATCH(request: Request) {
@@ -30,6 +35,42 @@ export async function PATCH(request: Request) {
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "FastErrands admin funding is not configured." }, { status: 503 });
   const body = await request.json().catch(() => ({}));
+  const action = String(body.action || "").trim();
+  if (action === "set-fulfilment-business") {
+    const businessProfileId = String(body.businessProfileId || "").trim();
+    const { data: business } = await db.from("business_profiles").select("id").eq("id", businessProfileId).eq("registration_status", "active").maybeSingle<{ id: string }>();
+    if (!business) return NextResponse.json({ error: "Choose an active registered business account." }, { status: 400 });
+    const { error } = await db.from("platform_settings").upsert({ key: fastErrandsFulfilmentBusinessSettingsKey, value: { businessId: business.id } as unknown as Json, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ fulfilmentBusinessId: business.id });
+  }
+  if (action === "save-category") {
+    const id = String(body.id || "").trim();
+    const name = String(body.name || "").trim().slice(0, 80);
+    const description = String(body.description || "").trim().slice(0, 300) || null;
+    const emoji = String(body.emoji || "").trim().slice(0, 16) || null;
+    const sortOrder = Math.max(0, Math.round(Number(body.sortOrder || 0)));
+    const isActive = body.isActive !== false;
+    if (name.length < 2) return NextResponse.json({ error: "Enter a category name." }, { status: 400 });
+    const mutation = id ? db.from("fast_errand_categories").update({ name, description, emoji, sort_order: sortOrder, is_active: isActive }).eq("id", id).select("id").maybeSingle() : db.from("fast_errand_categories").insert({ name, description, emoji, sort_order: sortOrder, is_active: isActive }).select("id").single();
+    const { error } = await mutation;
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ catalog: await loadFastErrandsCatalog(true) });
+  }
+  if (action === "save-item") {
+    const id = String(body.id || "").trim();
+    const categoryId = String(body.categoryId || "").trim();
+    const name = String(body.name || "").trim().slice(0, 120);
+    const description = String(body.description || "").trim().slice(0, 300) || null;
+    const priceNgn = Math.round(Number(body.priceNgn || 0));
+    const sortOrder = Math.max(0, Math.round(Number(body.sortOrder || 0)));
+    const isActive = body.isActive !== false;
+    if (!categoryId || name.length < 2 || priceNgn < 1) return NextResponse.json({ error: "Choose a category and enter an item name and price." }, { status: 400 });
+    const mutation = id ? db.from("fast_errand_catalog_items").update({ category_id: categoryId, name, description, price_ngn: priceNgn, sort_order: sortOrder, is_active: isActive }).eq("id", id).select("id").maybeSingle() : db.from("fast_errand_catalog_items").insert({ category_id: categoryId, name, description, price_ngn: priceNgn, sort_order: sortOrder, is_active: isActive }).select("id").single();
+    const { error } = await mutation;
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ catalog: await loadFastErrandsCatalog(true) });
+  }
   if (Array.isArray(body.vendorBusinessIds)) {
     const requestedIds = normalizeFastErrandsVendorIds(body.vendorBusinessIds);
     const { data: activeBusinesses, error } = await db.from("business_profiles").select("id").eq("registration_status", "active").in("id", requestedIds);
