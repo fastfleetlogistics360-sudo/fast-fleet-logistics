@@ -19,7 +19,7 @@ import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 const businessProgress = new Set(["received", "preparing", "packing", "ready_for_pickup"]);
 
 const orderSelect =
-  "id, order_code, customer_id, business_id, business_profile_id, delivery_id, marketplace_kind, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, vehicle_subtype, status, amount, payment_status, created_at, updated_at, delivered_at";
+  "id, order_code, customer_id, business_id, business_profile_id, delivery_id, marketplace_kind, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, vehicle_subtype, status, amount, payment_status, metadata, created_at, updated_at, delivered_at";
 
 export async function GET() {
   try {
@@ -104,6 +104,8 @@ export async function PATCH(request: Request) {
       .single<Record<string, unknown>>();
     if (orderError) throw orderError;
 
+    const orderMetadata = metadataRecord(order.metadata);
+    const whatsappPhone = stringValue(orderMetadata.whatsapp_phone);
     const orderItems = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
     const branchPickup = pinnedMarketplacePickup(orderItems);
     const pickupState = normalizeState(branchPickup?.state || businessState);
@@ -161,6 +163,7 @@ export async function PATCH(request: Request) {
           vehicle_subtype: marketplaceEstimate.vehicleSubtype,
           metadata: {
             source: "marketplace_business_order",
+            ...(whatsappPhone ? { whatsapp_phone: whatsappPhone, whatsapp_order_source: true } : {}),
             business_order_id: order.id,
             business_profile_id: businessProfile.id,
             business_name: businessProfile.business_name || null,
@@ -300,6 +303,14 @@ function pinnedMarketplacePickup(items: Array<Record<string, unknown>>) {
     latitude: Number(item.pickupLatitude),
     longitude: Number(item.pickupLongitude)
   };
+}
+
+function metadataRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 async function notifyApprovedRiders(

@@ -15,6 +15,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountMessengerHref } from "@/lib/tracking-links";
 import { deliveryConfirmationOwnerIds } from "@/lib/delivery-confirmation";
+import { notifyWhatsAppDeliveryUpdate } from "@/lib/whatsapp/delivery-updates";
 import {
   buildStoragePath,
   logUploadRejection,
@@ -163,7 +164,8 @@ export async function POST(request: Request) {
             type: "package_confirmation",
             metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code || "", status: "pending", url: accountMessengerHref(delivery.delivery_code || delivery.id), tag: `ff-${delivery.delivery_code || delivery.id}` }
           })
-      )
+      ),
+      notifyWhatsAppDeliveryUpdate(admin, delivery.id, "fastconfirm")
     ]);
 
     return updateResponse(admin, delivery.id);

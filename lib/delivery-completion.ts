@@ -4,6 +4,7 @@ import { releaseBicycleAssetForDelivery } from "@/lib/fleet-assets";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { accountMessengerHref } from "@/lib/tracking-links";
 import { creditRiderDeliveryWallet } from "@/lib/wallet-ledger";
+import { notifyWhatsAppDeliveryUpdate } from "@/lib/whatsapp/delivery-updates";
 
 export type DeliveryForCompletion = DeliveryConfirmationTarget & {
   rider_id?: string | null;
@@ -76,15 +77,18 @@ export async function finalizeConfirmedDelivery(
     ...(order?.business_id ? [{ userId: order.business_id, type: "business_order_update" }] : [])
   ].filter((item, index, values) => values.findIndex((other) => other.userId === item.userId) === index);
   await Promise.allSettled(
-    notificationTargets.map(({ userId, type }) =>
-      insertNotificationWithPush(db, {
-        user_id: userId,
-        title: "Delivery confirmed",
-        body: `${deliveryCode} was confirmed and completed successfully.`,
-        type,
-        metadata: { delivery_id: delivery.id, delivery_code: deliveryCode, order_id: businessOrderId, status: "delivered", url: accountMessengerHref(deliveryCode), tag: `ff-delivered-${deliveryCode}` }
-      })
-    )
+    [
+      ...notificationTargets.map(({ userId, type }) =>
+        insertNotificationWithPush(db, {
+          user_id: userId,
+          title: "Delivery confirmed",
+          body: `${deliveryCode} was confirmed and completed successfully.`,
+          type,
+          metadata: { delivery_id: delivery.id, delivery_code: deliveryCode, order_id: businessOrderId, status: "delivered", url: accountMessengerHref(deliveryCode), tag: `ff-delivered-${deliveryCode}` }
+        })
+      ),
+      notifyWhatsAppDeliveryUpdate(db, delivery.id, "delivered")
+    ]
   );
 
   let settlement: { credited: boolean; amount: number; error?: string } = { credited: false, amount: 0 };
@@ -117,13 +121,16 @@ async function notifyQueuedDeliveryActivated(db: SupabaseClient, deliveryId: str
     : { data: null };
   const code = data.delivery_code || data.id;
   const recipients = [data.customer_id, data.rider_profiles?.user_id, order?.customer_id, order?.business_id].filter((id, index, all): id is string => Boolean(id) && all.indexOf(id) === index);
-  await Promise.allSettled(recipients.map((userId) => insertNotificationWithPush(db, {
-    user_id: userId,
-    title: "Next delivery activated",
-    body: `${code} is now active and the rider is heading to pickup.`,
-    type: userId === data.rider_profiles?.user_id ? "delivery_update_rider" : "order_update",
-    metadata: { delivery_id: data.id, delivery_code: code, order_id: orderId, status: "accepted", url: userId === data.rider_profiles?.user_id ? "/rider/dashboard" : accountMessengerHref(code), tag: `ff-next-${code}` }
-  })));
+  await Promise.allSettled([
+    ...recipients.map((userId) => insertNotificationWithPush(db, {
+      user_id: userId,
+      title: "Next delivery activated",
+      body: `${code} is now active and the rider is heading to pickup.`,
+      type: userId === data.rider_profiles?.user_id ? "delivery_update_rider" : "order_update",
+      metadata: { delivery_id: data.id, delivery_code: code, order_id: orderId, status: "accepted", url: userId === data.rider_profiles?.user_id ? "/rider/dashboard" : accountMessengerHref(code), tag: `ff-next-${code}` }
+    })),
+    notifyWhatsAppDeliveryUpdate(db, deliveryId, "accepted")
+  ]);
 }
 
 async function loadRiderUserId(db: SupabaseClient, riderProfileId?: string | null) {

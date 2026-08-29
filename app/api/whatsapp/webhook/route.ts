@@ -6,6 +6,7 @@ import { isPlausibleWhatsAppPhone, normalizeWhatsAppPhone } from "@/lib/whatsapp
 import { newChallengeToken, newWhatsAppEmailCode, sha256, verifyWhatsAppEmailCode, verifyWhatsAppSignature, whatsappEmailCodeDigest } from "@/lib/whatsapp/security";
 import { sendWhatsAppAccountConfirmationEmail } from "@/lib/whatsapp/account-confirmation-email";
 import { handleWhatsAppOrdering } from "@/lib/whatsapp/ordering";
+import { handleWhatsAppFastConfirmReply } from "@/lib/whatsapp/delivery-updates";
 import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
@@ -126,6 +127,11 @@ async function processIncomingMessage(admin: NonNullable<ReturnType<typeof creat
 
   if (accountLink?.user_id) {
     await admin.from("whatsapp_account_links").update({ last_seen_at: new Date().toISOString() }).eq("whatsapp_phone", phone);
+    const fastConfirmReply = await handleWhatsAppFastConfirmReply(admin, phone, accountLink.user_id, text.trim().toUpperCase());
+    if (fastConfirmReply) {
+      await sendWhatsAppText({ to: phone, body: fastConfirmReply });
+      return;
+    }
     await handleWhatsAppOrdering({
       db: admin,
       phone,

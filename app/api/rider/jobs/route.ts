@@ -11,6 +11,7 @@ import { isCustomerPickupProofRequired, metadataRecord, pickupProofFromMetadata,
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { riderCanReceiveDelivery } from "@/lib/rider-eligibility";
 import { accountMessengerHref } from "@/lib/tracking-links";
+import { notifyWhatsAppDeliveryUpdate } from "@/lib/whatsapp/delivery-updates";
 import type { DeliveryStatus } from "@/types/domain";
 
 const statusFlow: Record<string, DeliveryStatus> = {
@@ -184,6 +185,11 @@ export async function POST(request: Request) {
       if (error) throw error;
       const { data: accepted } = await db.from("deliveries").select("status").eq("id", id).maybeSingle<{ status?: string | null }>();
       await syncLinkedBusinessOrder(db, id, accepted?.status === "accepted_pending_delivery" ? "accepted_pending_delivery" : "rider_assigned");
+      if (accepted?.status === "accepted") {
+        // Dispatch is already committed. A temporary provider failure must not
+        // make the rider believe the acceptance itself failed.
+        await Promise.allSettled([notifyWhatsAppDeliveryUpdate(db, id, "accepted")]);
+      }
       return updateResponse(db, id);
     }
 
@@ -270,7 +276,10 @@ export async function POST(request: Request) {
             metadata: { delivery_id: id, delivery_code: current.delivery_code || id, status: nextStatus, url: accountMessengerHref(current.delivery_code || id), tag: `ff-${current.delivery_code || id}` }
           })
         : Promise.resolve(),
-      syncLinkedBusinessOrder(db, id, mapDeliveryStatusToBusinessOrder(nextStatus))
+      syncLinkedBusinessOrder(db, id, mapDeliveryStatusToBusinessOrder(nextStatus)),
+      nextStatus === "rider_arrived" || nextStatus === "picked_up" || nextStatus === "in_transit" || nextStatus === "awaiting_delivery_confirmation"
+        ? notifyWhatsAppDeliveryUpdate(db, id, nextStatus)
+        : Promise.resolve()
     ]);
 
     return updateResponse(db, id);

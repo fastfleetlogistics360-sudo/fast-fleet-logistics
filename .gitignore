@@ -9,3 +9,4 @@ cloudflare-pages
 *.log
 .DS_Store
 tsconfig.tsbuildinfo
+.vercel

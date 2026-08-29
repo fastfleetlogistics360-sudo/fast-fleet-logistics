@@ -40,7 +40,9 @@ export function isCustomerPickupProofRequired(metadata: unknown) {
   // the trip. Linked marketplace deliveries identify that buyer in metadata.
   if (source.includes("marketplace")) return true;
   if (source.includes("business")) return false;
-  return source === "booking_checkout" || source === "customer_booking";
+  // WhatsApp-originated deliveries must receive the same FastConfirm photo
+  // and YES/NO review flow as their in-app equivalents.
+  return source === "booking_checkout" || source === "customer_booking" || source === "whatsapp_ordering";
 }
 
 export function pickupProofReviewExpired(proof: PickupProof | null | undefined, now = Date.now()) {
