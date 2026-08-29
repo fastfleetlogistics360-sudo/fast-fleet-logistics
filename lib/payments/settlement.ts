@@ -277,10 +277,11 @@ async function announceWhatsAppPayment(db: SupabaseClient, intent: PaymentIntent
     db.from("whatsapp_account_links").select("whatsapp_phone").eq("user_id", intent.owner_user_id).maybeSingle<{ whatsapp_phone: string }>(),
     paymentTarget(db, intent)
   ]);
-  if (!link?.whatsapp_phone || !target.whatsappSource) return;
+  const phone = target.whatsappPhone || link?.whatsapp_phone;
+  if (!phone || !target.whatsappSource) return;
   await sendWhatsAppText({
-    to: link.whatsapp_phone,
-    body: `Payment confirmed for ${target.code || fallbackCode}. Your FastFleets order is now in your app Transaction History. We will send delivery updates here as it progresses.`
+    to: phone,
+    body: `Payment confirmed for ${target.code || fallbackCode}. Your FastFleets order is confirmed. We will send delivery updates here in WhatsApp as it progresses.`
   });
 }
 
@@ -288,16 +289,21 @@ async function paymentTarget(db: SupabaseClient, intent: PaymentIntent) {
   if (intent.delivery_id) {
     const { data } = await db.from("deliveries").select("delivery_code, metadata").eq("id", intent.delivery_id).maybeSingle<{ delivery_code?: string | null; metadata?: unknown }>();
     const metadata = record(data?.metadata);
-    return { code: data?.delivery_code || null, whatsappSource: metadata.source === "whatsapp_ordering" };
+    return { code: data?.delivery_code || null, whatsappSource: metadata.source === "whatsapp_ordering", whatsappPhone: stringValue(metadata.whatsapp_phone) };
   }
   if (intent.order_id) {
     const { data } = await db.from("orders").select("order_code, metadata").eq("id", intent.order_id).maybeSingle<{ order_code?: string | null; metadata?: unknown }>();
     const metadata = record(data?.metadata);
-    return { code: data?.order_code || null, whatsappSource: metadata.source === "whatsapp_ordering" };
+    return { code: data?.order_code || null, whatsappSource: metadata.source === "whatsapp_ordering", whatsappPhone: stringValue(metadata.whatsapp_phone) };
   }
-  return { code: null, whatsappSource: false };
+  return { code: null, whatsappSource: false, whatsappPhone: null };
 }
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function stringValue(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text || null;
 }

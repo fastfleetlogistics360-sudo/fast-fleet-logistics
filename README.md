@@ -28,6 +28,7 @@ Create `.env.local` from `.env.example`:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+WHATSAPP_BUSINESS_PHONE=2348000000000
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=your-public-turnstile-site-key
 TURNSTILE_SECRET_KEY=your-server-only-turnstile-secret-key
 SUPPORT_TRUSTED_PROXY=vercel

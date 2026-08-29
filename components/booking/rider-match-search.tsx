@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bike, CarFront, CheckCircle2, CircleDotDashed, Loader2, Truck } from "lucide-react";
 import { accountTrackingHref } from "@/lib/tracking-links";
 import { Card } from "@/components/ui/card";
@@ -12,6 +13,7 @@ type MatchState = {
   status: string;
   riderAssigned: boolean;
   vehicleOption: string;
+  messengerHref?: string;
 };
 
 const vehicles = [
@@ -21,9 +23,11 @@ const vehicles = [
   { id: "van", label: "Van", Icon: Truck }
 ];
 
-export function RiderMatchSearch({ deliveryId, deliveryCode, compact = false }: { deliveryId: string; deliveryCode: string; compact?: boolean }) {
+export function RiderMatchSearch({ deliveryId, deliveryCode, matchToken = null, compact = false }: { deliveryId: string; deliveryCode: string; matchToken?: string | null; compact?: boolean }) {
+  const router = useRouter();
   const [match, setMatch] = useState<MatchState>({ deliveryCode, status: "searching", riderAssigned: false, vehicleOption: "" });
   const [error, setError] = useState<string | null>(null);
+  const redirectStarted = useRef(false);
   const activeVehicle = match.vehicleOption || "motorcycle";
   const assigned = match.riderAssigned || ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered"].includes(match.status);
   const queued = match.status === "accepted_pending_delivery";
@@ -34,7 +38,9 @@ export function RiderMatchSearch({ deliveryId, deliveryCode, compact = false }: 
     let timer: number | undefined;
     async function refresh() {
       try {
-        const response = await fetch(`/api/deliveries/match-status?deliveryId=${encodeURIComponent(deliveryId)}`, { cache: "no-store" });
+        const params = new URLSearchParams({ deliveryId });
+        if (matchToken) params.set("matchToken", matchToken);
+        const response = await fetch(`/api/deliveries/match-status?${params.toString()}`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || "Could not check rider matching status.");
         if (!cancelled) {
@@ -54,7 +60,14 @@ export function RiderMatchSearch({ deliveryId, deliveryCode, compact = false }: 
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [deliveryId]);
+  }, [deliveryId, matchToken]);
+
+  useEffect(() => {
+    if (!assigned || !match.messengerHref || redirectStarted.current) return;
+    redirectStarted.current = true;
+    const timer = window.setTimeout(() => router.replace(match.messengerHref || "/dashboard"), 1200);
+    return () => window.clearTimeout(timer);
+  }, [assigned, match.messengerHref, router]);
 
   const title = queued ? "Courier scheduled" : assigned ? "Courier found" : "Searching for a nearby courier";
   const message = assigned
@@ -78,7 +91,7 @@ export function RiderMatchSearch({ deliveryId, deliveryCode, compact = false }: 
 
       {!assigned ? <VehicleSearchRail activeVehicle={activeVehicle} /> : null}
       {error ? <p className="rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{error} We will keep checking automatically.</p> : null}
-      <p className="text-xs font-bold text-slate-500">Delivery code: {match.deliveryCode || deliveryCode}</p>
+      <p className="text-xs font-bold text-slate-500">{assigned ? "Opening your live delivery room…" : `Delivery code: ${match.deliveryCode || deliveryCode}`}</p>
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
         <LinkButton href={accountTrackingHref(match.deliveryCode || deliveryCode)}>Track delivery</LinkButton>
         <LinkButton href="/dashboard" variant="secondary">Customer dashboard</LinkButton>

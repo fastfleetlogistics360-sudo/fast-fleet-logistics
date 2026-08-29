@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { campusFeeMetadata, loadCampusProgram, resolveLecturerBenefit } from "@/lib/campus-program";
 import { accountTrackingHref } from "@/lib/tracking-links";
 import type { DeliverySpeed, VehicleType } from "@/types/domain";
+import { randomUUID } from "crypto";
 
 const paymentMethods = new Set(["card", "wallet", "transfer"]);
 const vehicleTypes = new Set(["bike", "car", "van"]);
@@ -135,6 +136,7 @@ export async function POST(request: Request) {
 
     const code = `FF-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
     const squadReference = generatePaymentReference("FFD");
+    const customerMatchToken = randomUUID();
     const metadata = {
       note: payload.note || "",
       scheduled_at: payload.scheduledAt || null,
@@ -151,6 +153,7 @@ export async function POST(request: Request) {
       bicycle_eligible: quote.bicycleEligible,
       vehicle_subtype: quote.vehicleSubtype,
       customer_vehicle_option: selectedVehicleOption.id,
+      customer_match_token: customerMatchToken,
       match_started_at: new Date().toISOString(),
       delivery_fee_ngn: estimate.deliveryFee,
       platform_fee_ngn: estimate.platformFee,
@@ -216,7 +219,7 @@ export async function POST(request: Request) {
         title: "KWASU lecturer benefit applied",
         body: lecturerBenefit.message || "Fast Fleets 360 is covering your delivery and platform fees."
       });
-      return NextResponse.json({ deliveryId: delivery.id, deliveryCode: delivery.delivery_code, status: "searching", paid: true, campusBenefit: { applied: true, message: lecturerBenefit.message } });
+      return NextResponse.json({ deliveryId: delivery.id, deliveryCode: delivery.delivery_code, matchToken: customerMatchToken, status: "searching", paid: true, campusBenefit: { applied: true, message: lecturerBenefit.message } });
     }
 
     if (paymentMethod === "wallet") {
@@ -257,6 +260,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         deliveryId: delivery.id,
         deliveryCode: delivery.delivery_code,
+        matchToken: customerMatchToken,
         status: "searching",
         paid: true
       });
@@ -283,6 +287,7 @@ export async function POST(request: Request) {
     callbackUrl.searchParams.set("reference", squadReference);
     callbackUrl.searchParams.set("code", delivery.delivery_code);
     callbackUrl.searchParams.set("deliveryId", delivery.id);
+    callbackUrl.searchParams.set("matchToken", customerMatchToken);
     callbackUrl.searchParams.set("returnTo", accountTrackingHref(delivery.delivery_code));
 
     let squadCheckout;

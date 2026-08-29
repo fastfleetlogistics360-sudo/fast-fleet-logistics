@@ -28,6 +28,7 @@ function DeliveryCallbackContent() {
   const reference = searchParams.get("reference") || searchParams.get("transaction_ref") || searchParams.get("TransactionRef") || searchParams.get("trxref");
   const code = searchParams.get("code") || "";
   const deliveryId = searchParams.get("deliveryId") || "";
+  const matchToken = searchParams.get("matchToken") || null;
   const returnTo = sanitizeReturnTo(searchParams.get("returnTo"), code ? accountTrackingHref(code) : "/dashboard");
   const [state, setState] = useState<VerificationState>({
     status: "loading",
@@ -85,7 +86,7 @@ function DeliveryCallbackContent() {
   if (state.status === "success" && deliveryId && state.deliveryCode) {
     return (
       <section className="section-wrap py-10">
-        <RiderMatchSearch deliveryId={deliveryId} deliveryCode={state.deliveryCode} />
+        <RiderMatchSearch deliveryId={deliveryId} deliveryCode={state.deliveryCode} matchToken={matchToken} />
       </section>
     );
   }

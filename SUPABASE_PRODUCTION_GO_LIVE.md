@@ -22,6 +22,8 @@ Do **not** rerun the complete `supabase-schema.sql` against an existing producti
 
 Before deploying live customer vehicle options, run `supabase-customer-vehicle-matching-delta.sql` once in the Supabase SQL Editor. It adds the database-side guard that keeps Fast Fleets bicycle riders exclusive to the Bicycle option, while the existing atomic rider-acceptance flow remains responsible for final assignment.
 
+For WhatsApp-first checkout returns, set `WHATSAPP_BUSINESS_PHONE` to the Fast Fleets WhatsApp business number in international digits only (for example `2348012345678`). It lets the confirmed Squad payment return the browser directly to that WhatsApp chat; payment confirmation and subsequent updates remain in WhatsApp.
+
 ### Existing production projects: apply the marketplace-image delta
 
 Before deploying device uploads for restaurant covers, food items, shopping vendors, or products, run `supabase-marketplace-images-delta.sql` once in the Supabase SQL Editor. It creates the public `marketplace-images` bucket while keeping all writes behind the authenticated admin upload route. Do not add browser upload, update, or delete policies to this bucket.

@@ -9,10 +9,10 @@ import { loadDeliveryPolicy } from "@/lib/delivery-policy";
 import { loadCampusProgram, resolveLecturerBenefit } from "@/lib/campus-program";
 import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending, type PaymentIntentPurpose } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, initiateSquadPayment, paymentChannelsFor } from "@/lib/payments/squad";
-import { accountTrackingHref } from "@/lib/tracking-links";
 import { defaultShoppingMalls, mallMenuSettingsKey, normalizeShoppingMalls, type ShoppingMall } from "@/lib/mall-menu";
 import { defaultRestaurantKitchens, normalizeRestaurantKitchens, restaurantMenuSettingsKey, type RestaurantKitchen } from "@/lib/restaurant-menu";
 import { whatsappConfig } from "@/lib/whatsapp/config";
+import { assertWhatsAppPaymentReturnConfigured, whatsappPaymentReturnToken } from "@/lib/whatsapp/payment-return";
 
 type JsonRecord = Record<string, unknown>;
 type MarketplaceKind = "restaurant" | "shopping";
@@ -143,7 +143,7 @@ async function handleMarketplace(
     try {
       const checkout = await createMarketplacePayment(input.db, input.customer, input.phone, kind, vendor, cart, address, paymentMethod);
       await save(input.db, input.phone, input.customer.id, "ready", {});
-      return [`Your order ${checkout.code} is ready for payment.\n\nPay securely here: ${checkout.authorizationUrl}\n\nAfter Squad confirms payment, your order will appear in the app’s Transaction History and we will update you here.`];
+      return [`Your order ${checkout.code} is ready for payment.\n\nPay securely here: ${checkout.authorizationUrl}\n\nAfter payment, you will return to this WhatsApp chat. We will confirm your order and send every update here.`];
     } catch {
       return ["We could not create the secure marketplace checkout. Your cart has not been charged. Please reply PAY to try again."];
     }
@@ -201,7 +201,7 @@ async function handleDispatch(
     try {
       const checkout = await createDispatchPayment(input.db, input.customer, input.phone, data, paymentMethod);
       await save(input.db, input.phone, input.customer.id, "ready", {});
-      return [`Your dispatch booking ${checkout.code} is ready for payment.\n\nPay securely here: ${checkout.authorizationUrl}\n\nAfter Squad confirms payment, the booking will appear in the app’s Transaction History and we will update you here.`];
+      return [`Your dispatch booking ${checkout.code} is ready for payment.\n\nPay securely here: ${checkout.authorizationUrl}\n\nAfter payment, you will return to this WhatsApp chat. We will confirm your booking and send every update here.`];
     } catch {
       return ["We could not create the secure dispatch checkout. You have not been charged. Reply PAY to try again."];
     }
@@ -288,6 +288,7 @@ function marketplaceReview(vendor: CatalogVendor, cart: CartItem[], address: str
 
 async function createMarketplacePayment(db: SupabaseClient, customer: Customer, phone: string, kind: MarketplaceKind, vendor: CatalogVendor, cart: CartItem[], address: string, paymentMethod: "card" | "transfer") {
   if (!customer.email?.includes("@")) throw new Error("Missing customer email");
+  assertWhatsAppPaymentReturnConfigured();
   const quote = await quoteMarketplace(db, customer.id, kind, vendor, cart, address);
   if (!quote.allowed || quote.links.linkedBusinessIds.length > 1 || (quote.links.hasLinkedItems && quote.links.hasUnlinkedItems)) throw new Error("Invalid marketplace quote");
   const reference = generatePaymentReference("FFM");
@@ -319,8 +320,8 @@ async function createMarketplacePayment(db: SupabaseClient, customer: Customer, 
   let intent;
   try {
     intent = await createPaymentIntent(db, { reference, internalReference: target.internalReference, purpose: target.purpose, ownerUserId: customer.id, amountNgn: quote.total, deliveryId: target.deliveryId || null, orderId: target.orderId || null });
-    const callback = new URL(target.orderId ? "/marketplace/callback" : "/marketplace/callback", siteUrl());
-    callback.searchParams.set("reference", reference); callback.searchParams.set("code", target.code); callback.searchParams.set("returnTo", accountTrackingHref(target.code));
+    const callback = new URL("/whatsapp/payment-return", siteUrl());
+    callback.searchParams.set("reference", reference); callback.searchParams.set("code", target.code); callback.searchParams.set("token", whatsappPaymentReturnToken(reference));
     const squad = await initiateSquadPayment({ amountNgn: quote.total, email: customer.email, reference, callbackUrl: callback.toString(), customerName: customer.full_name || null, channels: paymentChannelsFor(paymentMethod), metadata: { purpose: target.purpose, internal_reference: target.internalReference, source: "whatsapp_ordering" } });
     await markPaymentIntentPending(db, intent.id);
     return { code: target.code, authorizationUrl: squad.authorizationUrl };
@@ -343,6 +344,7 @@ async function quoteDispatch(db: SupabaseClient, userId: string, data: JsonRecor
 
 async function createDispatchPayment(db: SupabaseClient, customer: Customer, phone: string, data: JsonRecord, paymentMethod: "card" | "transfer") {
   if (!customer.email?.includes("@")) throw new Error("Missing customer email");
+  assertWhatsAppPaymentReturnConfigured();
   const quote = await quoteDispatch(db, customer.id, data);
   if (quote.total <= 0) throw new Error("Zero-value dispatch must be booked in app");
   const reference = generatePaymentReference("FFD");
@@ -361,8 +363,8 @@ async function createDispatchPayment(db: SupabaseClient, customer: Customer, pho
   let intent;
   try {
     intent = await createPaymentIntent(db, { reference, internalReference: `delivery:${delivery.id}`, purpose: "delivery_payment", ownerUserId: customer.id, amountNgn: quote.total, deliveryId: delivery.id });
-    const callback = new URL("/delivery/callback", siteUrl());
-    callback.searchParams.set("reference", reference); callback.searchParams.set("code", delivery.delivery_code); callback.searchParams.set("deliveryId", delivery.id); callback.searchParams.set("returnTo", accountTrackingHref(delivery.delivery_code));
+    const callback = new URL("/whatsapp/payment-return", siteUrl());
+    callback.searchParams.set("reference", reference); callback.searchParams.set("code", delivery.delivery_code); callback.searchParams.set("token", whatsappPaymentReturnToken(reference));
     const squad = await initiateSquadPayment({ amountNgn: quote.total, email: customer.email, reference, callbackUrl: callback.toString(), customerName: customer.full_name || null, channels: paymentChannelsFor(paymentMethod), metadata: { purpose: "delivery_payment", delivery_code: delivery.delivery_code, source: "whatsapp_ordering" } });
     await markPaymentIntentPending(db, intent.id);
     return { code: delivery.delivery_code, authorizationUrl: squad.authorizationUrl };

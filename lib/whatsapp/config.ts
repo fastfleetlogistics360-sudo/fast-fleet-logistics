@@ -10,6 +10,7 @@ export function whatsappConfig() {
     accessToken: value("WHATSAPP_ACCESS_TOKEN"),
     phoneNumberId: value("WHATSAPP_PHONE_NUMBER_ID"),
     businessAccountId: value("WHATSAPP_BUSINESS_ACCOUNT_ID"),
+    businessPhone: value("WHATSAPP_BUSINESS_PHONE"),
     appSecret: value("WHATSAPP_APP_SECRET"),
     graphApiVersion: value("WHATSAPP_GRAPH_API_VERSION") || graphApiVersion,
     siteUrl: value("NEXT_PUBLIC_SITE_URL").replace(/\/$/, "")

@@ -97,6 +97,7 @@ export function BookingFlow() {
   const [loading, setLoading] = useState(false);
   const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
   const [deliveryId, setDeliveryId] = useState<string | null>(null);
+  const [matchToken, setMatchToken] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pickupAutofillEnabled, setPickupAutofillEnabled] = useState(() => !searchParams.get("pickup")?.trim());
   const [estimate, setEstimate] = useState<BookingEstimate | null>(null);
@@ -288,6 +289,7 @@ export function BookingFlow() {
 
       setDeliveryCode(payload.deliveryCode);
       setDeliveryId(payload.deliveryId);
+      setMatchToken(typeof payload.matchToken === "string" ? payload.matchToken : null);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Delivery checkout failed.");
     } finally {
@@ -298,7 +300,7 @@ export function BookingFlow() {
   const currentStepComplete = isBookingStepComplete(current, form, quoteReady);
   const currentStepPrompt = bookingStepPrompt(current);
 
-  if (deliveryCode && deliveryId) return <RiderMatchSearch deliveryId={deliveryId} deliveryCode={deliveryCode} />;
+  if (deliveryCode && deliveryId) return <RiderMatchSearch deliveryId={deliveryId} deliveryCode={deliveryCode} matchToken={matchToken} />;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
