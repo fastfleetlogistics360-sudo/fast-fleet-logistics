@@ -20,6 +20,7 @@ export default function InvestorLoginPage() {
           intent="login"
           allowSignup={false}
           allowGoogle={false}
+          requiredRole="investor"
           className="w-full"
         />
       </Suspense>

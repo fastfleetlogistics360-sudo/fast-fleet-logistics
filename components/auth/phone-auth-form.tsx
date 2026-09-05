@@ -54,6 +54,7 @@ type PhoneAuthFormProps = {
   intent?: AuthMode;
   allowSignup?: boolean;
   allowGoogle?: boolean;
+  requiredRole?: "investor";
 };
 
 type ProfileRecord = {
@@ -79,7 +80,8 @@ export function PhoneAuthForm({
   returnToOverride,
   intent,
   allowSignup = true,
-  allowGoogle = true
+  allowGoogle = true,
+  requiredRole
 }: PhoneAuthFormProps = {}) {
   const searchParams = useSearchParams();
   const requestedRole = roleFromRequest(searchParams.get("account") || searchParams.get("role"));
@@ -174,6 +176,13 @@ export function PhoneAuthForm({
     return normalizeRole(user?.role || fallback);
   }
 
+  async function ensureRequiredRole() {
+    if (requiredRole !== "investor") return;
+    const response = await fetch("/api/investor/access", { cache: "no-store" });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "This account is not eligible for investor access.");
+  }
+
   async function createAccount() {
     setLoading(true);
     setMessage(null);
@@ -230,6 +239,11 @@ export function PhoneAuthForm({
       });
       if (result.error) throw result.error;
       if (!result.data.user) throw new Error("Login succeeded but no session was returned.");
+      if (requiredRole === "investor") {
+        await ensureRequiredRole();
+        redirectForRole("investor");
+        return;
+      }
       const fallbackRole = normalizeSelfServiceRole(result.data.user.user_metadata?.account_type || result.data.user.user_metadata?.role || role, role);
       const userRole = await getSavedRole(result.data.user.id, fallbackRole);
       if (userRole === "customer" || userRole === "rider" || userRole === "business") {
