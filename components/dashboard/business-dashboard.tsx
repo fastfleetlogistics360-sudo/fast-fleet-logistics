@@ -122,6 +122,11 @@ const tabs: Array<{ id: BusinessTab; label: string; icon: LucideIcon }> = [
   { id: "account", label: "Account", icon: UserRound }
 ];
 
+// Dispatch and analytics remain part of the business workspace. They are
+// deliberately absent from the compact mobile bar so the most-used actions
+// are easier to reach without removing either capability.
+const mobileTabs = tabs.filter((tab) => tab.id !== "dispatch" && tab.id !== "analytics");
+
 const defaultDispatch = {
   senderName: "",
   senderPhone: "",
@@ -622,7 +627,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
             <BusinessKycStatusView loading={loading} profile={profile} status={kycStatus} rejectionReason={kycRejectionReason} />
           ) : (
             <>
-              {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} withdrawals={withdrawals} stats={stats} orders={orders} businessOrders={businessOrders} businessOrderError={businessOrderError} businessOrderLoading={businessOrderLoading} onOpenWithdrawal={() => setWithdrawalOpen(true)} onBusinessOrderStatus={updateBusinessOrder} /> : null}
+              {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} withdrawals={withdrawals} stats={stats} orders={orders} businessOrders={businessOrders} businessOrderError={businessOrderError} businessOrderLoading={businessOrderLoading} onOpenWithdrawal={() => setWithdrawalOpen(true)} onOpenDispatch={() => setActiveTab("dispatch")} onBusinessOrderStatus={updateBusinessOrder} /> : null}
               {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsvFile={handleBulkCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={deleteAddress} /> : null}
               {activeTab === "history" ? <HistoryTab orders={filteredOrders} status={historyStatus} onStatus={setHistoryStatus} onExport={exportHistory} /> : null}
               {activeTab === "analytics" ? <AnalyticsTab orders={orders} addresses={addresses} team={team} /> : null}
@@ -663,17 +668,17 @@ function BusinessMobileTabs({ activeTab, onChange, disabled = false }: { activeT
   };
 
   return (
-    <nav className="fixed inset-x-2 bottom-2 z-50 mx-auto grid max-w-3xl grid-cols-7 gap-0.5 rounded-[20px] border border-fleet-line bg-white/95 p-1.5 shadow-glow backdrop-blur sm:inset-x-3 sm:bottom-3 sm:gap-1 sm:rounded-[24px] sm:p-2" aria-label="Business dashboard navigation">
+    <nav className="fixed inset-x-2 bottom-2 z-50 mx-auto grid max-w-3xl grid-cols-5 gap-0.5 rounded-[20px] border border-fleet-line bg-white/95 p-1.5 shadow-glow backdrop-blur sm:inset-x-3 sm:bottom-3 sm:gap-1 sm:rounded-[24px] sm:p-2" aria-label="Business dashboard navigation">
       <Link href="/hub" className="grid min-h-12 place-items-center rounded-[15px] px-0.5 py-1.5 text-[0.58rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper sm:min-h-14 sm:text-[0.62rem]">
         <LayoutDashboard className="mb-1 h-4 w-4" />
         <span className="max-w-full truncate">Hub</span>
       </Link>
-      {tabs.slice(0, 2).map(renderTab)}
+      {mobileTabs.slice(0, 1).map(renderTab)}
       <Link href="/marketplace/listing" className="grid min-h-12 place-items-center rounded-[15px] px-0.5 py-1.5 text-[0.58rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper sm:min-h-14 sm:text-[0.62rem]">
         <Store className="mb-1 h-4 w-4" />
         <span className="max-w-full truncate">Listing</span>
       </Link>
-      {tabs.slice(2).map(renderTab)}
+      {mobileTabs.slice(1).map(renderTab)}
     </nav>
   );
 }
@@ -728,12 +733,12 @@ function BusinessKycStatusView({ loading, profile, status, rejectionReason }: { 
   );
 }
 
-function OverviewTab({ loading, profile, walletBalance, withdrawals, stats, orders, businessOrders, businessOrderError, businessOrderLoading, onOpenWithdrawal, onBusinessOrderStatus }: { loading: boolean; profile: BusinessProfile; walletBalance: number; withdrawals: WithdrawalRow[]; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[]; businessOrders: BusinessOrderRow[]; businessOrderError: string | null; businessOrderLoading: string | null; onOpenWithdrawal: () => void; onBusinessOrderStatus: (id: string, status: string) => void }) {
+function OverviewTab({ loading, profile, walletBalance, withdrawals, stats, orders, businessOrders, businessOrderError, businessOrderLoading, onOpenWithdrawal, onOpenDispatch, onBusinessOrderStatus }: { loading: boolean; profile: BusinessProfile; walletBalance: number; withdrawals: WithdrawalRow[]; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[]; businessOrders: BusinessOrderRow[]; businessOrderError: string | null; businessOrderLoading: string | null; onOpenWithdrawal: () => void; onOpenDispatch: () => void; onBusinessOrderStatus: (id: string, status: string) => void }) {
   if (loading) return <DashboardSkeleton />;
   const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || orders[0] || null;
   return (
     <div className="grid gap-5">
-      <Card className="p-5"><div className="flex items-center gap-4"><ProfileImage src={profile.avatar_url} name={profile.business_name || "Business"} className="h-16 w-16 rounded-fleet text-lg" /><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">Business operations dashboard</p></div></div></Card>
+      <Card className="p-5"><div className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-4"><ProfileImage src={profile.avatar_url} name={profile.business_name || "Business"} className="h-16 w-16 rounded-fleet text-lg" /><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">Business operations dashboard</p></div></div><Button size="sm" onClick={onOpenDispatch}><Plus className="h-4 w-4" />New dispatch</Button></div></Card>
       <WalletDashboardCard
         userName={profile.business_name?.trim().split(/\s+/)[0] || "Business"}
         balance={walletBalance}

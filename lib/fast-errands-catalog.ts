@@ -1,6 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const fastErrandsFulfilmentBusinessSettingsKey = "fast_errands_fulfilment_business_id";
+export const fastErrandsControlsSettingsKey = "fast_errands_controls";
+
+export type FastErrandsControls = {
+  enabled: boolean;
+  customerNotice: string | null;
+};
 
 export type FastErrandsCategory = {
   id: string;
@@ -46,4 +52,17 @@ export async function loadFastErrandsFulfilmentBusinessId() {
   if (typeof value === "string") return value.trim() || null;
   if (value && typeof value === "object" && !Array.isArray(value) && typeof (value as { businessId?: unknown }).businessId === "string") return (value as { businessId: string }).businessId.trim() || null;
   return null;
+}
+
+export async function loadFastErrandsControls(): Promise<FastErrandsControls> {
+  const db = createAdminClient();
+  if (!db) return { enabled: true, customerNotice: null };
+  const { data } = await db.from("platform_settings").select("value").eq("key", fastErrandsControlsSettingsKey).maybeSingle();
+  const value = data?.value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { enabled: true, customerNotice: null };
+  const controls = value as { enabled?: unknown; customerNotice?: unknown };
+  return {
+    enabled: controls.enabled !== false,
+    customerNotice: typeof controls.customerNotice === "string" ? controls.customerNotice.trim().slice(0, 280) || null : null
+  };
 }

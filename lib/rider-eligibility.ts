@@ -8,6 +8,7 @@ export type RiderEligibilityJob = {
   pickup_latitude?: number | string | null;
   pickup_longitude?: number | string | null;
   distance_km?: number | string | null;
+  delivery_speed?: string | null;
   vehicle_subtype?: string | null;
   metadata?: Record<string, unknown> | null;
 };
@@ -44,6 +45,11 @@ export function riderCanReceiveDelivery({
     if (campusCapKm && routeKm > campusCapKm) return false;
   }
   if (pickupMatchesRiderState(job.pickup_address, riderZone, job.metadata)) return true;
+
+  // A motorcycle may cross a state boundary only when the booking was quoted
+  // and labelled as interstate. The rider who takes it must be registered in
+  // the pickup state; the nearby-border exception is for local pickups only.
+  if (isInterstateDispatch(job)) return false;
   if (!isFreshLocation(riderLocation?.updated_at, Date.now(), policy.locationFreshnessMinutes)) return false;
 
   const riderPoint = coordinatePoint(riderLocation?.latitude, riderLocation?.longitude);
@@ -51,6 +57,10 @@ export function riderCanReceiveDelivery({
   if (!riderPoint || !pickupPoint || haversineKm(riderPoint, pickupPoint) > policy.crossBorderPickupRadiusKm) return false;
 
   return true;
+}
+
+function isInterstateDispatch(job: RiderEligibilityJob) {
+  return job.delivery_speed === "interstate" || job.metadata?.interstate_dispatch === true;
 }
 
 export function campusRiderCanReceive(metadata: Record<string, unknown> | null | undefined, riderCampusZone?: string | null) {

@@ -54,8 +54,8 @@ export function ReviewPrompt({ subject }: ReviewPromptProps) {
         if (currentSubject.orderId) params.set("orderId", currentSubject.orderId);
         if (currentSubject.deliveryId) params.set("deliveryId", currentSubject.deliveryId);
         const response = await fetch(`/api/reviews?${params.toString()}`, { cache: "no-store" });
-        const payload = (await response.json().catch(() => ({}))) as { exists?: boolean };
-        if (!cancelled && response.ok && !payload.exists) setVisible(true);
+        const payload = (await response.json().catch(() => ({}))) as { exists?: boolean; eligible?: boolean };
+        if (!cancelled && response.ok && payload.eligible && !payload.exists) setVisible(true);
       } finally {
         if (!cancelled) setChecking(false);
       }

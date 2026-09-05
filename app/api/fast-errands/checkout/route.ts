@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { loadFareConfig } from "@/lib/fare-settings";
-import { loadFastErrandsFulfilmentBusinessId } from "@/lib/fast-errands-catalog";
+import { loadFastErrandsControls, loadFastErrandsFulfilmentBusinessId } from "@/lib/fast-errands-catalog";
 import { createCustomerVehicleOptions, customerVehicleSelection } from "@/lib/customer-vehicle-options";
 import { businessPickupAddressFor, loadActiveLinkedBusiness } from "@/lib/marketplace-business-links";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
@@ -45,7 +45,8 @@ export async function POST(request: Request) {
     }
     const db = createAdminClient();
     if (!db) return NextResponse.json({ error: "FastErrands checkout is temporarily unavailable." }, { status: 503 });
-    const fulfilmentBusinessId = await loadFastErrandsFulfilmentBusinessId();
+    const [controls, fulfilmentBusinessId] = await Promise.all([loadFastErrandsControls(), loadFastErrandsFulfilmentBusinessId()]);
+    if (!controls.enabled) return NextResponse.json({ error: controls.customerNotice || "FastErrands is temporarily unavailable. Please try again later." }, { status: 503 });
     if (!fulfilmentBusinessId) return NextResponse.json({ error: "FastErrands is not ready to accept orders yet." }, { status: 409 });
     const business = await loadActiveLinkedBusiness(db, fulfilmentBusinessId);
     if (!business) return NextResponse.json({ error: "The FastErrands fulfilment account is not active." }, { status: 409 });

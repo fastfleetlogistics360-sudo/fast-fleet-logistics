@@ -20,20 +20,28 @@ function asObject(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-async function userCanReviewDelivery(db: SupabaseLike, userId: string, deliveryId: string) {
-  const { data: deliveryRow, error } = await db.from("deliveries").select("id, customer_id, rider_id, status").eq("id", deliveryId).maybeSingle();
-  const delivery = deliveryRow as {
-    id: string;
-    customer_id: string;
-    rider_id: string | null;
-    status: string;
-  } | null;
-  if (error || !delivery || delivery.status !== "delivered") return false;
-  if (delivery.customer_id === userId) return true;
-  if (!delivery.rider_id) return false;
-  const { data: riderRow } = await db.from("rider_profiles").select("user_id").eq("id", delivery.rider_id).maybeSingle();
-  const rider = riderRow as { user_id: string } | null;
-  return rider?.user_id === userId;
+async function reviewEligibility(db: SupabaseLike, userId: string, subjectType: string, deliveryId: string | null, orderId: string | null) {
+  if (subjectType === "customer_delivery") {
+    if (!deliveryId) return false;
+    const { data } = await db.from("deliveries").select("customer_id, status").eq("id", deliveryId).maybeSingle();
+    return data?.status === "delivered" && data?.customer_id === userId;
+  }
+  if (subjectType === "rider_delivery") {
+    if (!deliveryId) return false;
+    const { data: delivery } = await db.from("deliveries").select("rider_id, status").eq("id", deliveryId).maybeSingle();
+    if (delivery?.status !== "delivered" || !delivery.rider_id) return false;
+    const { data: rider } = await db.from("rider_profiles").select("user_id").eq("id", delivery.rider_id).maybeSingle();
+    return rider?.user_id === userId;
+  }
+  // Marketplace reviews may be made by either completed-order party. A
+  // business dispatch uses the completed delivery as its subject instead.
+  if (orderId) return userCanReviewOrder(db, userId, orderId);
+  if (!deliveryId) return false;
+  const [{ data: delivery }, { data: business }] = await Promise.all([
+    db.from("deliveries").select("customer_id, status").eq("id", deliveryId).maybeSingle(),
+    db.from("business_profiles").select("id").eq("user_id", userId).maybeSingle()
+  ]);
+  return Boolean(business?.id && delivery?.status === "delivered" && delivery?.customer_id === userId);
 }
 
 async function userCanReviewOrder(db: SupabaseLike, userId: string, orderId: string) {
@@ -61,13 +69,18 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const url = new URL(request.url);
   const subjectType = url.searchParams.get("subjectType") || "";
-  const subjectId = url.searchParams.get("deliveryId") || url.searchParams.get("orderId") || "";
+  const deliveryId = url.searchParams.get("deliveryId");
+  const orderId = url.searchParams.get("orderId");
+  const subjectId = orderId || deliveryId || "";
   if (!subjectTypes.has(subjectType) || !subjectId) return NextResponse.json({ error: "Missing review subject." }, { status: 400 });
 
+  const db = createAdminClient() || supabase;
+  const eligible = await reviewEligibility(db, user.id, subjectType, deliveryId, orderId);
+  if (!eligible) return NextResponse.json({ exists: false, eligible: false });
   const uniqueReviewKey = makeReviewKey(user.id, subjectType, subjectId);
-  const { data, error } = await supabase.from("reviews").select("id").eq("unique_review_key", uniqueReviewKey).maybeSingle<{ id: string }>();
+  const { data, error } = await db.from("reviews").select("id").eq("unique_review_key", uniqueReviewKey).maybeSingle<{ id: string }>();
   if (error) return NextResponse.json({ exists: false, error: error.message }, { status: 400 });
-  return NextResponse.json({ exists: Boolean(data?.id) });
+  return NextResponse.json({ exists: Boolean(data?.id), eligible: true });
 }
 
 export async function POST(request: Request) {
@@ -98,7 +111,7 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const db = admin || supabase;
-  const allowed = orderId ? await userCanReviewOrder(db, user.id, orderId) : deliveryId ? await userCanReviewDelivery(db, user.id, deliveryId) : false;
+  const allowed = await reviewEligibility(db, user.id, subjectType, deliveryId, orderId);
   if (!allowed) {
     return NextResponse.json(
       { error: "This review is available after your completed order or delivery has synced.", code: "REVIEW_NOT_ELIGIBLE" },

@@ -45,8 +45,8 @@ export async function handleWhatsAppOrdering(input: {
 
   if (state === "ready") {
     if (command === "MENU") return [welcome(firstName(input.customer.full_name))];
-    if (["MARKETPLACE", "SHOP", "FOOD"].includes(command)) return beginMarketplace(input, command);
-    if (["DISPATCH", "DELIVERY"].includes(command)) return beginDispatch(input);
+    if (["1", "MARKETPLACE", "SHOP", "FOOD"].includes(command)) return beginMarketplace(input, command);
+    if (["2", "DISPATCH", "DELIVERY"].includes(command)) return beginDispatch(input);
     return [welcome(firstName(input.customer.full_name))];
   }
 
@@ -61,7 +61,7 @@ async function beginMarketplace(input: { db: SupabaseClient; phone: string; cust
   if (command === "FOOD") return chooseMarketplaceKind(input, "restaurant");
   if (command === "SHOP") return chooseMarketplaceKind(input, "shopping");
   await save(input.db, input.phone, input.customer.id, "marketplace_kind", { flow: "marketplace" });
-  return ["Marketplace ordering\n\nReply FOOD for restaurant meals or SHOP for shopping items.\n\nReply CANCEL at any time to return to the main menu."];
+  return ["Marketplace ordering\n\nReply 1 for restaurant meals or 2 for shopping items.\n\nReply CANCEL at any time to return to the main menu."];
 }
 
 async function chooseMarketplaceKind(input: { db: SupabaseClient; phone: string; customer: Customer }, kind: MarketplaceKind) {
@@ -88,7 +88,7 @@ async function handleMarketplace(
   if (state === "marketplace_kind") {
     if (["FOOD", "1"].includes(command)) return chooseMarketplaceKind(input, "restaurant");
     if (["SHOP", "SHOPPING", "2"].includes(command)) return chooseMarketplaceKind(input, "shopping");
-    return ["Reply FOOD for restaurant meals or SHOP for shopping items."];
+    return ["Reply 1 for restaurant meals or 2 for shopping items."];
   }
 
   const catalog = await loadCatalog(input.db, kind);
@@ -116,14 +116,14 @@ async function handleMarketplace(
       return ["Please reply with the full delivery address. You can also share a WhatsApp location and include a landmark in your next message."];
     }
     const change = parseCartChange(command);
-    if (!change || !vendor.products[change.index - 1]) return ["Reply with an item number to add one, ADD <item number> <quantity>, REMOVE <item number>, MENU, or CHECKOUT."];
-    const product = vendor.products[change.index - 1];
+    const product = change ? availableProducts(vendor)[change.index - 1] : null;
+    if (!change || !product) return ["Reply with an item number to add one. Reply MORE <number> to add another, REMOVE <number> to remove an item, MENU to see the list, or CHECKOUT when ready."];
     const current = cart.find((item) => item.productId === product.id)?.quantity || 0;
     const nextQuantity = change.action === "remove" ? 0 : Math.min(20, current + change.quantity);
     const nextCart = cart.filter((item) => item.productId !== product.id);
     if (nextQuantity > 0) nextCart.push({ productId: product.id, quantity: nextQuantity });
     await save(input.db, input.phone, input.customer.id, "marketplace_cart", { ...data, cart: nextCart });
-    return [cartSummary(vendor, nextCart)];
+    return [`${cartSummary(vendor, nextCart)}\n\nReply another item number to add one, MORE <number> to add another, REMOVE <number> to remove an item, or CHECKOUT when ready.`];
   }
 
   if (state === "marketplace_address") {
@@ -250,8 +250,12 @@ function cartFrom(value: unknown, vendor: CatalogVendor): CartItem[] {
 }
 
 function productMenu(vendor: CatalogVendor, kind: MarketplaceKind, cart: CartItem[] = []) {
-  const products = vendor.products.filter((product) => product.available).slice(0, 20);
-  return `${vendor.name}\n${kind === "shopping" ? vendor.area : vendor.address}\n\n${products.map((product, index) => `${index + 1}. ${product.name} — ₦${formatMoney(product.price)}`).join("\n")}\n\nReply with an item number to add one, or ADD <item number> <quantity>.\n${cart.length ? `${cartSummary(vendor, cart)}\n` : ""}Reply CHECKOUT when you are ready.`;
+  const products = availableProducts(vendor).slice(0, 20);
+  return `${vendor.name}\n${kind === "shopping" ? vendor.area : vendor.address}\n\n${products.map((product, index) => `${index + 1}. ${product.name} — ₦${formatMoney(product.price)}`).join("\n")}\n\nReply with an item number to add one. Reply MORE <number> to add another one, or REMOVE <number> to remove it.\n${cart.length ? `${cartSummary(vendor, cart)}\n` : ""}Reply CHECKOUT when you are ready.`;
+}
+
+function availableProducts(vendor: CatalogVendor) {
+  return vendor.products.filter((product) => product.available);
 }
 
 function cartSummary(vendor: CatalogVendor, cart: CartItem[]) {
@@ -264,6 +268,8 @@ function cartSummary(vendor: CatalogVendor, cart: CartItem[]) {
 }
 
 function parseCartChange(command: string) {
+  const more = command.match(/^MORE\s+(\d+)$/);
+  if (more) return { action: "add" as const, index: Number(more[1]), quantity: 1 };
   const add = command.match(/^ADD\s+(\d+)(?:\s+(\d+))?$/);
   if (add) return { action: "add" as const, index: Number(add[1]), quantity: Math.max(1, Number(add[2] || 1)) };
   const remove = command.match(/^REMOVE\s+(\d+)$/);
@@ -393,7 +399,7 @@ function marketplaceItems(kind: MarketplaceKind, vendor: CatalogVendor, cart: Ca
 }
 
 function welcome(name: string) {
-  return `Welcome, ${name}.\n\nReply MARKETPLACE to order food or shopping, or DISPATCH to book a delivery.\n\nReply CANCEL or MENU at any time to return here.`;
+  return `Welcome, ${name}.\n\nReply 1 to order food or shopping.\nReply 2 to send a delivery.\n\nReply CANCEL or MENU at any time to return here.`;
 }
 
 function formatMoney(value: number) { return Math.max(0, Math.round(value || 0)).toLocaleString("en-NG"); }

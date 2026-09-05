@@ -15,7 +15,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountMessengerHref } from "@/lib/tracking-links";
 import { deliveryConfirmationOwnerIds } from "@/lib/delivery-confirmation";
-import { notifyWhatsAppDeliveryUpdate } from "@/lib/whatsapp/delivery-updates";
 import {
   buildStoragePath,
   logUploadRejection,
@@ -105,7 +104,8 @@ export async function POST(request: Request) {
     const rejectionCount = pickupProofRejectionCount(previousProof);
     const timestamp = new Date();
     const uploadedAt = timestamp.toISOString();
-    const expiresAt = new Date(timestamp.getTime() + PICKUP_PROOF_REVIEW_WINDOW_MS).toISOString();
+    const whatsappOrder = isWhatsAppOrdering(metadata);
+    const expiresAt = whatsappOrder ? null : new Date(timestamp.getTime() + PICKUP_PROOF_REVIEW_WINDOW_MS).toISOString();
     const bytes = Buffer.from(await file.arrayBuffer());
     const validated = await validateUpload({ bytes, originalName: file.name, declaredMime: file.type, profile: "delivery-proof" });
     const path = buildStoragePath({ ownerId: user.id, profile: "delivery-proof", context: delivery.id, fileName: validated.fileName });
@@ -116,16 +116,16 @@ export async function POST(request: Request) {
       url: accessUrl,
       path,
       bucket: "delivery-proofs",
-      status: "pending",
+      status: whatsappOrder ? "auto_approved" : "pending",
       uploaded_at: uploadedAt,
       expires_at: expiresAt,
-      reviewed_at: null,
+      reviewed_at: whatsappOrder ? uploadedAt : null,
       approved_by: null,
       rejected_by: null,
       rejection_count: rejectionCount,
-      can_continue: false,
+      can_continue: whatsappOrder,
       attempt: Number(previousProof?.attempt || 0) + 1,
-      note: rejectionCount >= PICKUP_PROOF_MAX_REJECTIONS ? "Customer rejection limit already reached. Support review remains attached." : null,
+      note: whatsappOrder ? "Automatically accepted for a WhatsApp order." : rejectionCount >= PICKUP_PROOF_MAX_REJECTIONS ? "Customer rejection limit already reached. Support review remains attached." : null,
       history: nextHistory
     };
 
@@ -153,10 +153,10 @@ export async function POST(request: Request) {
         delivery_id: delivery.id,
         actor_id: user.id,
         status: "picked_up",
-        title: "Package photo uploaded",
-        body: "Rider uploaded a package photo for customer confirmation."
+        title: whatsappOrder ? "Package photo recorded" : "Package photo uploaded",
+        body: whatsappOrder ? "Rider package photo was automatically accepted for this WhatsApp order." : "Rider uploaded a package photo for customer confirmation."
       }),
-      ...deliveryConfirmationOwnerIds(delivery).map((customerId) =>
+      ...(whatsappOrder ? [] : deliveryConfirmationOwnerIds(delivery)).map((customerId) =>
         insertNotificationWithPush(admin, {
             user_id: customerId,
             title: "Confirm your package",
@@ -164,8 +164,7 @@ export async function POST(request: Request) {
             type: "package_confirmation",
             metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code || "", status: "pending", url: accountMessengerHref(delivery.delivery_code || delivery.id), tag: `ff-${delivery.delivery_code || delivery.id}` }
           })
-      ),
-      notifyWhatsAppDeliveryUpdate(admin, delivery.id, "fastconfirm")
+      )
     ]);
 
     return updateResponse(admin, delivery.id);
@@ -182,6 +181,10 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(result.body, { status: result.status });
   }
+}
+
+function isWhatsAppOrdering(metadata: Record<string, unknown>) {
+  return String(metadata.source || "").toLowerCase() === "whatsapp_ordering" || metadata.whatsapp_order_source === true;
 }
 
 async function updateResponse(db: SupabaseClient, id: string) {

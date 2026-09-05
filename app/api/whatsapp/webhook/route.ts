@@ -6,7 +6,7 @@ import { isPlausibleWhatsAppPhone, normalizeWhatsAppPhone } from "@/lib/whatsapp
 import { newChallengeToken, newWhatsAppEmailCode, sha256, verifyWhatsAppEmailCode, verifyWhatsAppSignature, whatsappEmailCodeDigest } from "@/lib/whatsapp/security";
 import { sendWhatsAppAccountConfirmationEmail } from "@/lib/whatsapp/account-confirmation-email";
 import { handleWhatsAppOrdering } from "@/lib/whatsapp/ordering";
-import { handleWhatsAppDeliveryConfirmationReply, handleWhatsAppFastConfirmReply } from "@/lib/whatsapp/delivery-updates";
+import { handleWhatsAppDeliveryConfirmationReply } from "@/lib/whatsapp/delivery-updates";
 import { announceDeliveryConfirmation, createDeliveryConfirmation } from "@/lib/delivery-confirmation";
 import { finalizeConfirmedDelivery, type DeliveryForCompletion } from "@/lib/delivery-completion";
 import { randomUUID } from "crypto";
@@ -129,11 +129,6 @@ async function processIncomingMessage(admin: NonNullable<ReturnType<typeof creat
 
   if (accountLink?.user_id) {
     await admin.from("whatsapp_account_links").update({ last_seen_at: new Date().toISOString() }).eq("whatsapp_phone", phone);
-    const fastConfirmReply = await handleWhatsAppFastConfirmReply(admin, phone, accountLink.user_id, text.trim().toUpperCase());
-    if (fastConfirmReply) {
-      await sendWhatsAppText({ to: phone, body: fastConfirmReply });
-      return;
-    }
     const deliveryConfirmationReply = await handleWhatsAppDeliveryConfirmationReply(admin, phone, accountLink.user_id, text.trim().toUpperCase());
     if (deliveryConfirmationReply?.action === "resend") {
       const issued = await createDeliveryConfirmation(admin, deliveryConfirmationReply.delivery, { force: true });

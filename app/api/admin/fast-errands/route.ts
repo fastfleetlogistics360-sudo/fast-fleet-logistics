@@ -3,14 +3,14 @@ import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/ad
 import { ensureWallet } from "@/lib/wallet-ledger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fastErrandsVendorSettingsKey, normalizeFastErrandsVendorIds } from "@/lib/fast-errands-vendors";
-import { fastErrandsFulfilmentBusinessSettingsKey, loadFastErrandsCatalog } from "@/lib/fast-errands-catalog";
+import { fastErrandsControlsSettingsKey, fastErrandsFulfilmentBusinessSettingsKey, loadFastErrandsCatalog, loadFastErrandsControls } from "@/lib/fast-errands-catalog";
 import type { Json } from "@/lib/supabase/types";
 
 export async function GET() {
   if (!(await requireAdminSession())) return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to manage FastErrands." }, { status: 503 });
-  const [{ data, error }, { data: businesses }, { data: legacySetting }, { data: fulfilmentSetting }, catalog] = await Promise.all([
+  const [{ data, error }, { data: businesses }, { data: legacySetting }, { data: fulfilmentSetting }, catalog, controls] = await Promise.all([
     db
     .from("fast_errand_orders")
     .select("id, errand_code, vendor_name, request_items, purchase_budget_ngn, actual_purchase_ngn, delivery_fee_ngn, service_fee_ngn, customer_total_ngn, vendor_transfer_reference, receipt_url, status, top_up_required_ngn, funded_at, vendor_funded_at, created_at, deliveries(id, delivery_code, status, pickup_address, dropoff_address), business_profiles(id, business_name, user_id), users:users!fast_errand_orders_customer_id_fkey(full_name, email, phone)")
@@ -19,12 +19,13 @@ export async function GET() {
     db.from("business_profiles").select("id, business_name, operating_state, pickup_address").eq("registration_status", "active").order("business_name").limit(200),
     db.from("platform_settings").select("value").eq("key", fastErrandsVendorSettingsKey).maybeSingle(),
     db.from("platform_settings").select("value").eq("key", fastErrandsFulfilmentBusinessSettingsKey).maybeSingle(),
-    loadFastErrandsCatalog(true)
+    loadFastErrandsCatalog(true),
+    loadFastErrandsControls()
   ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   const fulfilmentValue = fulfilmentSetting?.value;
   const fulfilmentBusinessId = typeof fulfilmentValue === "string" ? fulfilmentValue : fulfilmentValue && typeof fulfilmentValue === "object" && !Array.isArray(fulfilmentValue) && typeof (fulfilmentValue as { businessId?: unknown }).businessId === "string" ? (fulfilmentValue as { businessId: string }).businessId : null;
-  return NextResponse.json({ errands: data || [], businesses: businesses || [], selectedBusinessIds: normalizeFastErrandsVendorIds(legacySetting?.value), fulfilmentBusinessId, catalog });
+  return NextResponse.json({ errands: data || [], businesses: businesses || [], selectedBusinessIds: normalizeFastErrandsVendorIds(legacySetting?.value), fulfilmentBusinessId, catalog, controls });
 }
 
 export async function PATCH(request: Request) {
@@ -36,6 +37,23 @@ export async function PATCH(request: Request) {
   if (!db) return NextResponse.json({ error: "FastErrands admin funding is not configured." }, { status: 503 });
   const body = await request.json().catch(() => ({}));
   const action = String(body.action || "").trim();
+  if (action === "save-controls") {
+    const enabled = body.enabled !== false;
+    const customerNotice = String(body.customerNotice || "").trim().slice(0, 280) || null;
+    const { error } = await db.from("platform_settings").upsert({ key: fastErrandsControlsSettingsKey, value: { enabled, customerNotice } as unknown as Json, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ controls: { enabled, customerNotice } });
+  }
+  if (action === "add-note") {
+    const errandId = String(body.errandId || "").trim();
+    const note = String(body.note || "").trim().slice(0, 1000);
+    if (!errandId || !note) return NextResponse.json({ error: "Enter an internal FastErrands note." }, { status: 400 });
+    const { data: errand } = await db.from("fast_errand_orders").select("id").eq("id", errandId).maybeSingle<{ id: string }>();
+    if (!errand) return NextResponse.json({ error: "FastErrand not found." }, { status: 404 });
+    const { error } = await db.from("fast_errand_events").insert({ errand_id: errand.id, actor_id: admin.userId, event_type: "admin_note", body: note, metadata: { source: "fast_errands_admin" } });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  }
   if (action === "set-fulfilment-business") {
     const businessProfileId = String(body.businessProfileId || "").trim();
     const { data: business } = await db.from("business_profiles").select("id").eq("id", businessProfileId).eq("registration_status", "active").maybeSingle<{ id: string }>();

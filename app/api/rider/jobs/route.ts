@@ -22,7 +22,7 @@ const statusFlow: Record<string, DeliveryStatus> = {
 };
 
 const jobSelect =
-  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, vehicle_subtype, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
+  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, delivery_speed, created_at, proof_url, rider_id, vehicle_type, vehicle_subtype, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
 
 type JobRow = {
   id: string;
@@ -30,6 +30,7 @@ type JobRow = {
   pickup_latitude?: number | string | null;
   pickup_longitude?: number | string | null;
   distance_km?: number | string | null;
+  delivery_speed?: string | null;
   vehicle_subtype?: string | null;
   metadata?: Record<string, unknown> | null;
 };
@@ -367,7 +368,7 @@ async function canRiderAcceptPickupState(
       .maybeSingle<{ id: string; operating_zone?: string | null; address?: string | null; campus_zone_id?: string | null }>(),
     db
       .from("deliveries")
-      .select("id, pickup_address, pickup_latitude, pickup_longitude, distance_km, vehicle_subtype, metadata")
+      .select("id, pickup_address, pickup_latitude, pickup_longitude, distance_km, delivery_speed, vehicle_subtype, metadata")
       .eq("id", deliveryId)
       .maybeSingle<JobRow>()
   ]);
@@ -398,7 +399,7 @@ async function canRiderAcceptPickupState(
     hasAvailableBicycle: Boolean(asset?.id && (asset.status === "available" || (Boolean(activeTrips?.length) && asset.status === "busy"))),
     policy
   })) {
-    return { ok: false, error: `This pickup is outside your registered rider state or more than ${policy.crossBorderPickupRadiusKm}km from a recent live location. Bicycle jobs also require an available bicycle and a route of ${policy.bicycleMaxRouteKm}km or less.` };
+    return { ok: false, error: `This job is outside your registered rider state. Nearby cross-border pickups must be within ${policy.crossBorderPickupRadiusKm} km of your recent live location. Interstate motorcycle jobs must start in your registered pickup state. Bicycle jobs also require an available bicycle and a route of ${policy.bicycleMaxRouteKm} km or less.` };
   }
   return { ok: true };
 }

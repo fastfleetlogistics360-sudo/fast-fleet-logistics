@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createCustomerVehicleOptions } from "@/lib/customer-vehicle-options";
 import { loadFareConfig } from "@/lib/fare-settings";
-import { loadFastErrandsFulfilmentBusinessId } from "@/lib/fast-errands-catalog";
+import { loadFastErrandsControls, loadFastErrandsFulfilmentBusinessId } from "@/lib/fast-errands-catalog";
 import { businessPickupAddressFor, loadActiveLinkedBusiness } from "@/lib/marketplace-business-links";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
@@ -30,7 +30,8 @@ export async function POST(request: Request) {
     if (!quantities.size || quantities.size > 40 || address.length < 6) return NextResponse.json({ error: "Add FastErrand items and a delivery address first." }, { status: 400 });
     const db = createAdminClient();
     if (!db) return NextResponse.json({ error: "FastErrands is temporarily unavailable." }, { status: 503 });
-    const fulfilmentBusinessId = await loadFastErrandsFulfilmentBusinessId();
+    const [controls, fulfilmentBusinessId] = await Promise.all([loadFastErrandsControls(), loadFastErrandsFulfilmentBusinessId()]);
+    if (!controls.enabled) return NextResponse.json({ error: controls.customerNotice || "FastErrands is temporarily unavailable. Please try again later." }, { status: 503 });
     const business = fulfilmentBusinessId ? await loadActiveLinkedBusiness(db, fulfilmentBusinessId) : null;
     if (!business) return NextResponse.json({ error: "The FastErrands fulfilment account is not active." }, { status: 409 });
     const ids = [...quantities.keys()];
