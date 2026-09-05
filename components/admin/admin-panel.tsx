@@ -18,6 +18,7 @@ import {
   Globe2,
   ImagePlus,
   LockKeyhole,
+  Landmark,
   LogOut,
   Loader2,
   Map,
@@ -236,8 +237,8 @@ type AdminNavStats = {
 type AdminWithdrawal = {
   id: string;
   transaction_id?: string;
-  source?: "withdrawal_request" | "wallet_transaction";
-  account_kind?: "rider" | "business";
+  source?: "withdrawal_request" | "wallet_transaction" | "investor_withdrawal_request";
+  account_kind?: "rider" | "business" | "investor";
   amount_ngn: number;
   bank_name: string;
   account_number: string;
@@ -265,6 +266,10 @@ type AdminWithdrawal = {
       phone?: string | null;
       email?: string | null;
     } | null;
+  } | null;
+  investor_profiles?: {
+    investor_code?: string | null;
+    users?: { full_name?: string | null; email?: string | null } | null;
   } | null;
 };
 
@@ -345,7 +350,7 @@ type AdminInvestor = {
     fleet_asset_id: string;
     assigned_at: string;
     ended_at?: string | null;
-    fleet_assets?: { asset_code?: string | null; status?: string | null } | null;
+    fleet_assets?: { asset_code?: string | null; status?: string | null; investor_asset_financial_controls?: { maintenance_reserve_enabled?: boolean | null }[] | null } | null;
   }>;
 };
 
@@ -1333,7 +1338,7 @@ export function AdminPanel() {
 
   async function reviewWithdrawal(id: string, status: "approved" | "rejected" | "paid") {
     const current = adminWithdrawals.find((withdrawal) => withdrawal.id === id);
-    const accountLabel = current?.account_kind === "business" ? "business" : "driver";
+    const accountLabel = current?.account_kind === "business" ? "business" : current?.account_kind === "investor" ? "investor" : "driver";
     const reason =
       status === "rejected"
         ? window.prompt(`Reason to show the ${accountLabel} in red on their withdrawal status:`)?.trim()
@@ -1531,7 +1536,7 @@ export function AdminPanel() {
       if (!response.ok) throw new Error(result.error || "Could not create the investor account.");
       if (result.investor?.id) setInvestors((current) => [result.investor as AdminInvestor, ...current]);
       setInvestorForm(blankInvestorForm());
-      setAdminMessage("Investor invitation sent. The investor creates their own password from the secure email link.");
+      setAdminMessage(result.existingAccount ? "Investor access invitation sent. Their existing FastFleets role and password are unchanged." : "Investor activation invitation sent. The investor creates their own password from the secure email link.");
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "Could not create the investor account.");
     } finally {
@@ -1539,7 +1544,7 @@ export function AdminPanel() {
     }
   }
 
-  async function manageInvestor(investorId: string, action: "assign" | "transfer" | "suspend" | "reactivate" | "resend-invitation" | "reset-credentials", extras: Record<string, string | string[]> = {}) {
+  async function manageInvestor(investorId: string, action: "assign" | "transfer" | "maintenance-reserve" | "suspend" | "reactivate" | "resend-invitation" | "reset-credentials", extras: Record<string, string | string[] | boolean> = {}) {
     setBusyAction(`investor:${investorId}:${action}`);
     setAdminMessage(null);
     try {
@@ -1552,7 +1557,7 @@ export function AdminPanel() {
       if (!response.ok) throw new Error(result.error || "Could not update the investor.");
       const refreshed = await fetch("/api/admin/investors").then((next) => next.json()).catch(() => null);
       if (Array.isArray(refreshed?.investors)) setInvestors(refreshed.investors);
-      setAdminMessage(action === "transfer" ? "Bicycle ownership transferred and its history has been kept." : "Investor account updated.");
+      setAdminMessage(action === "transfer" ? "Bicycle ownership transferred and its history has been kept." : action === "maintenance-reserve" ? "Maintenance reserve rule updated for future completed deliveries." : "Investor account updated.");
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "Could not update the investor.");
     } finally {
@@ -2672,12 +2677,17 @@ export function AdminPanel() {
           onReview={reviewMarketplaceListing}
         />
         <DriverWithdrawalSection
-          withdrawals={adminWithdrawals.filter((withdrawal) => withdrawal.account_kind !== "business")}
+          withdrawals={adminWithdrawals.filter((withdrawal) => withdrawal.account_kind !== "business" && withdrawal.account_kind !== "investor")}
           busyAction={busyAction}
           onReview={reviewWithdrawal}
         />
         <BusinessWithdrawalSection
           withdrawals={adminWithdrawals.filter((withdrawal) => withdrawal.account_kind === "business")}
+          busyAction={busyAction}
+          onReview={reviewWithdrawal}
+        />
+        <InvestorWithdrawalSection
+          withdrawals={adminWithdrawals.filter((withdrawal) => withdrawal.account_kind === "investor")}
           busyAction={busyAction}
           onReview={reviewWithdrawal}
         />
@@ -3028,6 +3038,13 @@ function BusinessWithdrawalSection({
       </div>
     </Card>
   );
+}
+
+function InvestorWithdrawalSection({ withdrawals, busyAction, onReview }: { withdrawals: AdminWithdrawal[]; busyAction: string | null; onReview: (id: string, status: "approved" | "rejected" | "paid") => void }) {
+  return <Card id="investor-withdrawal-review" className="scroll-mt-24 overflow-hidden">
+    <div className="flex items-center justify-between gap-4 border-b border-fleet-line p-5"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-fleet bg-fleet-night text-white"><Landmark className="h-5 w-5" /></span><div><h2 className="text-xl font-black text-fleet-night">Investor payout review</h2><span className="text-sm font-bold text-slate-500">Approve or record payment for settled bicycle-owner funds.</span></div></div><StatusBadge tone="amber">{withdrawals.filter((withdrawal) => withdrawal.status === "pending").length} pending</StatusBadge></div>
+    <div className="grid gap-3 p-4">{withdrawals.map((withdrawal) => { const investor = withdrawal.investor_profiles; const canAct = withdrawal.status === "pending"; return <article key={withdrawal.id} className="rounded-fleet border border-fleet-line bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><strong className="block text-lg font-black text-fleet-night">{investor?.users?.full_name || investor?.investor_code || "Investor"}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{investor?.investor_code || "Investor account"} · {investor?.users?.email || "No email"}</span><span className="mt-1 block text-xs font-bold text-slate-500">{withdrawal.bank_name} · {withdrawal.account_number} · {withdrawal.account_name || "Verified account"}</span></div><div className="text-right"><strong className="block text-2xl font-black text-fleet-night">{formatMoney(Number(withdrawal.amount_ngn || 0))}</strong><StatusBadge tone={withdrawal.status === "paid" || withdrawal.status === "approved" ? "green" : withdrawal.status === "rejected" ? "red" : "amber"}>{withdrawal.status}</StatusBadge></div></div>{withdrawal.rejection_reason ? <p className="mt-3 rounded-fleet bg-rose-50 p-3 text-xs font-bold text-rose-700">{withdrawal.rejection_reason}</p> : null}<div className="mt-4 grid gap-2 sm:grid-cols-3"><Button type="button" size="sm" onClick={() => onReview(withdrawal.id, "approved")} disabled={!canAct || busyAction === `withdrawal:${withdrawal.id}:approved`}>Approve</Button><Button type="button" size="sm" variant="secondary" onClick={() => onReview(withdrawal.id, "rejected")} disabled={!canAct || busyAction === `withdrawal:${withdrawal.id}:rejected`}>Reject</Button><Button type="button" size="sm" variant="dark" onClick={() => onReview(withdrawal.id, "paid")} disabled={withdrawal.status !== "approved" || busyAction === `withdrawal:${withdrawal.id}:paid`}>Mark paid</Button></div></article>; })}{withdrawals.length === 0 ? <div className="rounded-fleet bg-fleet-paper p-5 text-sm font-bold text-slate-500">No investor payout requests yet.</div> : null}</div>
+  </Card>;
 }
 
 function CompanyTransactionSection({
@@ -4891,7 +4908,7 @@ function InvestorsSection({
   onAssetSelectionChange: (investorId: string, assetId: string) => void;
   onTransferChange: (patch: Partial<{ assetId: string; nextInvestorId: string; reason: string }>) => void;
   onCreate: () => void;
-  onManage: (investorId: string, action: "assign" | "transfer" | "suspend" | "reactivate" | "resend-invitation" | "reset-credentials", extras?: Record<string, string | string[]>) => void;
+  onManage: (investorId: string, action: "assign" | "transfer" | "maintenance-reserve" | "suspend" | "reactivate" | "resend-invitation" | "reset-credentials", extras?: Record<string, string | string[] | boolean>) => void;
 }) {
   const activelyOwnedAssetIds = new Set(investors.flatMap((investor) => investor.investor_asset_assignments?.filter((assignment) => !assignment.ended_at).map((assignment) => assignment.fleet_asset_id) || []));
   const availableAssets = assets.filter((asset) => !activelyOwnedAssetIds.has(asset.id));
@@ -4909,7 +4926,8 @@ function InvestorsSection({
       </div>
       <div className="mt-5 grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
         <div className="grid gap-3 rounded-fleet border border-fleet-line bg-fleet-paper p-4">
-          <strong className="text-sm font-black text-fleet-night">Invite a new investor</strong>
+          <strong className="text-sm font-black text-fleet-night">Invite or link an investor</strong>
+          <p className="text-xs font-semibold leading-5 text-slate-600">Use a new email or an existing FastFleets account. Existing account roles and passwords stay unchanged.</p>
           <label className="form-field"><span className="form-label">Full name</span><input className="form-input" value={form.fullName} onChange={(event) => onFormChange({ fullName: event.target.value })} placeholder="Investor name" /></label>
           <label className="form-field"><span className="form-label">Email address</span><input className="form-input" value={form.email} onChange={(event) => onFormChange({ email: event.target.value })} type="email" placeholder="investor@example.com" /></label>
           <label className="form-field"><span className="form-label">Bicycle assets</span><select className="form-input min-h-28" multiple value={form.assetIds} onChange={(event) => onFormChange({ assetIds: [...event.target.selectedOptions].map((option) => option.value) })}>{availableAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.asset_code} · {fleetAssetStatusLabel(normalizeFleetAssetStatus(asset.status))}</option>)}</select><span className="text-xs font-semibold text-slate-500">Hold Command or Control to select more than one bicycle.</span></label>
@@ -4920,7 +4938,7 @@ function InvestorsSection({
             const pendingAsset = assetSelection[investor.id] || "";
             const accountBusy = busyAction?.startsWith(`investor:${investor.id}:`);
             const currentAssignments = investor.investor_asset_assignments?.filter((assignment) => !assignment.ended_at) || [];
-            return <article key={investor.id} className="rounded-fleet border border-fleet-line bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><strong className="block text-sm font-black text-fleet-night">{investor.users?.full_name || "Investor"}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{investor.investor_code} · {investor.users?.email || "No email"}</span></div><StatusBadge tone={investorStatusTone(investor.status)}>{investorStatusLabel(investor.status)}</StatusBadge></div><div className="mt-3 flex flex-wrap gap-2">{currentAssignments.length ? currentAssignments.map((assignment) => <span key={assignment.id} className="rounded-full bg-fleet-paper px-3 py-1 text-xs font-black text-fleet-night">{assignment.fleet_assets?.asset_code || "Bicycle asset"}</span>) : <span className="text-xs font-semibold text-slate-500">No bicycle assigned yet.</span>}</div><div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]"><select className="form-input" value={pendingAsset} onChange={(event) => onAssetSelectionChange(investor.id, event.target.value)}><option value="">Assign another unowned bicycle</option>{availableAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.asset_code}</option>)}</select><Button type="button" size="sm" variant="secondary" disabled={!pendingAsset || accountBusy} onClick={() => onManage(investor.id, "assign", { assetIds: [pendingAsset] })}>Link bicycle</Button></div><div className="mt-3 flex flex-wrap gap-2"><Button type="button" size="sm" variant="secondary" disabled={accountBusy} onClick={() => onManage(investor.id, "resend-invitation")}>Resend invite</Button><Button type="button" size="sm" variant="secondary" disabled={accountBusy} onClick={() => onManage(investor.id, "reset-credentials")}>Reset login</Button>{investor.status === "suspended" ? <Button type="button" size="sm" variant="secondary" disabled={accountBusy} onClick={() => onManage(investor.id, "reactivate")}>Reactivate</Button> : <Button type="button" size="sm" variant="destructive" disabled={accountBusy} onClick={() => onManage(investor.id, "suspend", { reason: "Suspended by administrator" })}>Suspend</Button>}</div></article>;
+            return <article key={investor.id} className="rounded-fleet border border-fleet-line bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><strong className="block text-sm font-black text-fleet-night">{investor.users?.full_name || "Investor"}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{investor.investor_code} · {investor.users?.email || "No email"}</span></div><StatusBadge tone={investorStatusTone(investor.status)}>{investorStatusLabel(investor.status)}</StatusBadge></div><div className="mt-3 flex flex-wrap gap-2">{currentAssignments.length ? currentAssignments.map((assignment) => { const reserveOn = Boolean(assignment.fleet_assets?.investor_asset_financial_controls?.[0]?.maintenance_reserve_enabled); return <span key={assignment.id} className="inline-flex items-center gap-2 rounded-full bg-fleet-paper px-3 py-1 text-xs font-black text-fleet-night">{assignment.fleet_assets?.asset_code || "Bicycle asset"}<button type="button" className={reserveOn ? "text-amber-700" : "text-slate-500"} disabled={accountBusy} onClick={() => onManage(investor.id, "maintenance-reserve", { assetId: assignment.fleet_asset_id, enabled: !reserveOn, reason: reserveOn ? "Maintenance reserve disabled by administrator" : "Maintenance reserve enabled by administrator" })}>{reserveOn ? "5% reserve on" : "Enable 5% reserve"}</button></span>; }) : <span className="text-xs font-semibold text-slate-500">No bicycle assigned yet.</span>}</div><div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]"><select className="form-input" value={pendingAsset} onChange={(event) => onAssetSelectionChange(investor.id, event.target.value)}><option value="">Assign another unowned bicycle</option>{availableAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.asset_code}</option>)}</select><Button type="button" size="sm" variant="secondary" disabled={!pendingAsset || accountBusy} onClick={() => onManage(investor.id, "assign", { assetIds: [pendingAsset] })}>Link bicycle</Button></div><div className="mt-3 flex flex-wrap gap-2"><Button type="button" size="sm" variant="secondary" disabled={accountBusy} onClick={() => onManage(investor.id, "resend-invitation")}>Resend invite</Button><Button type="button" size="sm" variant="secondary" disabled={accountBusy} onClick={() => onManage(investor.id, "reset-credentials")}>Reset login</Button>{investor.status === "suspended" ? <Button type="button" size="sm" variant="secondary" disabled={accountBusy} onClick={() => onManage(investor.id, "reactivate")}>Reactivate</Button> : <Button type="button" size="sm" variant="destructive" disabled={accountBusy} onClick={() => onManage(investor.id, "suspend", { reason: "Suspended by administrator" })}>Suspend</Button>}</div></article>;
           }) : <p className="rounded-fleet bg-fleet-paper p-4 text-sm font-semibold text-slate-600">No investor accounts yet.</p>}
         </div>
       </div>

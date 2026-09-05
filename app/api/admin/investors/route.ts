@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
 import { createInvestorCode, safeText, uniqueIds } from "@/lib/investors";
+import { sendInvestorInvitationEmail } from "@/lib/investor-email";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type InvestorRow = {
@@ -22,7 +23,7 @@ type InvestorRow = {
   }>;
 };
 
-const investorSelect = "id, user_id, investor_code, status, onboarding_completed_at, suspended_at, suspension_reason, created_at, users:users!investor_profiles_user_id_fkey(full_name, email), investor_asset_assignments(id, fleet_asset_id, assigned_at, ended_at, fleet_assets(asset_code, status))";
+const investorSelect = "id, user_id, investor_code, status, onboarding_completed_at, suspended_at, suspension_reason, created_at, users:users!investor_profiles_user_id_fkey(full_name, email), investor_asset_assignments(id, fleet_asset_id, assigned_at, ended_at, fleet_assets(asset_code, status, investor_asset_financial_controls(maintenance_reserve_enabled)))";
 
 export async function GET() {
   if (!(await requireAdminSession())) return NextResponse.json({ error: "Admin session required." }, { status: 401 });
@@ -49,7 +50,10 @@ export async function POST(request: Request) {
   const database = createAdminClient();
   if (!database) return NextResponse.json({ error: "Investor management is unavailable until the server database key is configured." }, { status: 503 });
   const { data: existing } = await database.from("users").select("id, role").eq("email", email).limit(1).maybeSingle<{ id: string; role?: string | null }>();
-  if (existing?.id) return NextResponse.json({ error: existing.role === "investor" ? "This investor account already exists." : "This email already belongs to another Fast Fleets 360 account." }, { status: 409 });
+  const { data: existingInvestor } = existing?.id
+    ? await database.from("investor_profiles").select("id").eq("user_id", existing.id).maybeSingle<{ id: string }>()
+    : { data: null };
+  if (existingInvestor?.id) return NextResponse.json({ error: "This FastFleets account is already linked to an investor profile." }, { status: 409 });
 
   const validation = assetIds.length
     ? await database.from("fleet_assets").select("id, asset_type").in("id", assetIds)
@@ -58,15 +62,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Choose valid existing bicycle assets." }, { status: 400 });
   }
 
-  const redirectTo = new URL("/investor/activate", request.url).toString();
-  const invitation = await database.auth.admin.inviteUserByEmail(email, { redirectTo, data: { full_name: fullName, provisioned_account: "investor" } });
-  if (invitation.error || !invitation.data.user) return NextResponse.json({ error: invitation.error?.message || "Could not send the investor invitation." }, { status: 400 });
+  const existingAccount = Boolean(existing?.id);
+  const link = await database.auth.admin.generateLink(
+    existingAccount
+      ? { type: "magiclink", email }
+      : { type: "invite", email, options: { data: { full_name: fullName, provisioned_account: "investor" } } }
+  );
+  if (link.error || !link.data.user || !link.data.properties) return NextResponse.json({ error: link.error?.message || "Could not prepare the investor invitation." }, { status: 400 });
 
-  const userId = invitation.data.user.id;
+  const userId = existing?.id || link.data.user.id;
   const now = new Date().toISOString();
-  const profile = await createInvestorProfile(database, { userId, email, fullName, actorUserId: adminContext.userId, now });
+  const profile = await createInvestorProfile(database, { userId, email, fullName, actorUserId: adminContext.userId, now, preserveExistingAccount: existingAccount });
   if (!profile) {
-    await database.auth.admin.updateUserById(userId, { ban_duration: "876000h" }).catch(() => null);
+    if (!existingAccount) await database.auth.admin.updateUserById(userId, { ban_duration: "876000h" }).catch(() => null);
     return NextResponse.json({ error: "The invitation was created but the investor profile could not be secured. The account was suspended; contact support before retrying." }, { status: 500 });
   }
 
@@ -84,13 +92,17 @@ export async function POST(request: Request) {
       { investor_profile_id: profile.id, actor_user_id: adminContext.userId, event_type: "investor_created", metadata: { investor_code: profile.investor_code } },
       { investor_profile_id: profile.id, actor_user_id: adminContext.userId, event_type: "invitation_sent", metadata: {} }
     ]);
+    const activationUrl = new URL("/investor/activate", request.url);
+    activationUrl.searchParams.set("token_hash", link.data.properties.hashed_token);
+    activationUrl.searchParams.set("type", link.data.properties.verification_type);
+    await sendInvestorInvitationEmail({ to: email, fullName, investorCode: profile.investor_code, activationUrl: activationUrl.toString(), existingAccount });
   } catch (error) {
     await database.from("investor_profiles").update({ status: "suspended", suspended_at: now, suspension_reason: "Provisioning requires review" }).eq("id", profile.id);
     return NextResponse.json({ error: error instanceof Error ? error.message : "Investor creation needs review before activation." }, { status: 400 });
   }
 
   const { data } = await database.from("investor_profiles").select(investorSelect).eq("id", profile.id).single<InvestorRow>();
-  return NextResponse.json({ investor: data, invitationSent: true }, { status: 201 });
+  return NextResponse.json({ investor: data, invitationSent: true, existingAccount }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
@@ -122,6 +134,13 @@ export async function PATCH(request: Request) {
     if (!assetId || !nextInvestorId || reason.length < 4) return NextResponse.json({ error: "Choose a bicycle, new investor, and clear transfer reason." }, { status: 400 });
     const { error } = await database.rpc("transfer_investor_asset", { target_fleet_asset_id: assetId, next_investor_profile_id: nextInvestorId, actor_user_id: adminContext.userId, reason });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  } else if (action === "maintenance-reserve") {
+    const assetId = safeText(body.assetId, 80);
+    const enabled = body.enabled === true;
+    const reason = safeText(body.reason, 500) || (enabled ? "Maintenance reserve enabled by administrator" : "Maintenance reserve disabled by administrator");
+    if (!assetId) return NextResponse.json({ error: "Choose a bicycle asset." }, { status: 400 });
+    const { error } = await database.rpc("set_investor_asset_maintenance_reserve", { target_fleet_asset_id: assetId, enabled, actor_user_id: adminContext.userId, reason });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   } else if (action === "suspend" || action === "reactivate") {
     const suspended = action === "suspend";
     const reason = safeText(body.reason, 500);
@@ -131,12 +150,31 @@ export async function PATCH(request: Request) {
       .eq("id", investor.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     await database.from("investor_audit_events").insert({ investor_profile_id: investor.id, actor_user_id: adminContext.userId, event_type: suspended ? "investor_suspended" : "investor_reactivated", metadata: suspended ? { reason } : {} });
-  } else if (action === "resend-invitation" || action === "reset-credentials") {
+  } else if (action === "resend-invitation") {
     const { data: user } = await database.from("users").select("email").eq("id", investor.user_id).maybeSingle<{ email?: string | null }>();
     if (!user?.email) return NextResponse.json({ error: "This investor has no email address." }, { status: 400 });
-    const reset = await database.auth.resetPasswordForEmail(user.email, { redirectTo: new URL("/investor/activate", request.url).toString() });
-    if (reset.error) return NextResponse.json({ error: reset.error.message }, { status: 400 });
-    await database.from("investor_audit_events").insert({ investor_profile_id: investor.id, actor_user_id: adminContext.userId, event_type: action === "resend-invitation" ? "invitation_resent" : "credentials_reset_requested", metadata: {} });
+    const { data: profileState } = await database.from("investor_profiles").select("investor_code, requires_password_setup").eq("id", investor.id).single<{ investor_code: string; requires_password_setup?: boolean | null }>();
+    // A prior invite has already provisioned an Auth user. A magic link lets
+    // that user safely resume setup, while `requires_password_setup` still
+    // determines whether the onboarding screen asks them to set a password.
+    const link = await database.auth.admin.generateLink({ type: "magiclink", email: user.email });
+    if (link.error || !link.data.properties) return NextResponse.json({ error: link.error?.message || "Could not prepare a new invitation." }, { status: 400 });
+    const activationUrl = new URL("/investor/activate", request.url);
+    activationUrl.searchParams.set("token_hash", link.data.properties.hashed_token);
+    activationUrl.searchParams.set("type", link.data.properties.verification_type);
+    await sendInvestorInvitationEmail({ to: user.email, fullName: "Investor", investorCode: profileState?.investor_code || investor.investor_code, activationUrl: activationUrl.toString(), existingAccount: profileState?.requires_password_setup === false });
+    await database.from("investor_audit_events").insert({ investor_profile_id: investor.id, actor_user_id: adminContext.userId, event_type: "invitation_resent", metadata: {} });
+  } else if (action === "reset-credentials") {
+    const { data: user } = await database.from("users").select("email").eq("id", investor.user_id).maybeSingle<{ email?: string | null }>();
+    if (!user?.email) return NextResponse.json({ error: "This investor has no email address." }, { status: 400 });
+    const { data: profileState } = await database.from("investor_profiles").select("investor_code").eq("id", investor.id).single<{ investor_code: string }>();
+    const reset = await database.auth.admin.generateLink({ type: "recovery", email: user.email });
+    if (reset.error || !reset.data.properties) return NextResponse.json({ error: reset.error?.message || "Could not prepare a secure password reset." }, { status: 400 });
+    const activationUrl = new URL("/investor/activate", request.url);
+    activationUrl.searchParams.set("token_hash", reset.data.properties.hashed_token);
+    activationUrl.searchParams.set("type", reset.data.properties.verification_type);
+    await sendInvestorInvitationEmail({ to: user.email, fullName: "Investor", investorCode: profileState?.investor_code || investor.investor_code, activationUrl: activationUrl.toString(), existingAccount: false, purpose: "password_reset" });
+    await database.from("investor_audit_events").insert({ investor_profile_id: investor.id, actor_user_id: adminContext.userId, event_type: "credentials_reset_requested", metadata: {} });
   } else {
     return NextResponse.json({ error: "Choose a valid investor action." }, { status: 400 });
   }
@@ -145,18 +183,20 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ investor: data });
 }
 
-async function createInvestorProfile(database: NonNullable<ReturnType<typeof createAdminClient>>, input: { userId: string; email: string; fullName: string; actorUserId: string; now: string }) {
-  const writes = await Promise.all([
-    database.from("users").upsert({ id: input.userId, email: input.email, full_name: input.fullName, role: "investor", updated_at: input.now }),
-    database.from("profiles").upsert({ id: input.userId, user_id: input.userId, email: input.email, full_name: input.fullName, account_type: "investor", updated_at: input.now })
-  ]);
-  if (writes.some((result) => result.error)) return null;
+async function createInvestorProfile(database: NonNullable<ReturnType<typeof createAdminClient>>, input: { userId: string; email: string; fullName: string; actorUserId: string; now: string; preserveExistingAccount: boolean }) {
+  if (!input.preserveExistingAccount) {
+    const writes = await Promise.all([
+      database.from("users").upsert({ id: input.userId, email: input.email, full_name: input.fullName, role: "investor", updated_at: input.now }),
+      database.from("profiles").upsert({ id: input.userId, user_id: input.userId, email: input.email, full_name: input.fullName, account_type: "investor", updated_at: input.now })
+    ]);
+    if (writes.some((result) => result.error)) return null;
+  }
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const investorCode = createInvestorCode();
     const profile = await database
       .from("investor_profiles")
-      .insert({ user_id: input.userId, investor_code: investorCode, status: "invited", created_by: input.actorUserId })
+      .insert({ user_id: input.userId, investor_code: investorCode, status: "invited", created_by: input.actorUserId, requires_password_setup: !input.preserveExistingAccount })
       .select("id")
       .single<{ id: string }>();
     if (profile.data?.id && !profile.error) return { id: profile.data.id, investor_code: investorCode };

@@ -9,6 +9,16 @@ import {
   withdrawalStatusFromTransaction
 } from "@/lib/wallet-ledger";
 
+type InvestorAdminWithdrawalRow = {
+  id: string;
+  amount_ngn: number | string | null;
+  status: string;
+  rejection_reason: string | null;
+  created_at: string;
+  investor_profiles: { investor_code?: string | null; users?: { full_name?: string | null; email?: string | null } | null } | null;
+  investor_payout_accounts: { bank_name?: string | null; account_last4?: string | null; account_name?: string | null } | null;
+};
+
 export async function GET() {
   if (!(await requireAdminSession())) {
     return NextResponse.json({ error: "Admin session required." }, { status: 401 });
@@ -33,16 +43,19 @@ export async function GET() {
   }
 
   const walletWithdrawals = await loadWalletWithdrawals(supabase);
+  const investorWithdrawals = await loadInvestorWithdrawals(supabase);
   return NextResponse.json({
     withdrawals: [
       ...(data || []).map((withdrawal) => ({ ...withdrawal, account_kind: "rider", source: "withdrawal_request" })),
-      ...walletWithdrawals
+      ...walletWithdrawals,
+      ...investorWithdrawals
     ].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 100)
   });
 }
 
 export async function PATCH(request: Request) {
-  if (!(await requireAdminSession(request))) {
+  const admin = await requireAdminSession(request);
+  if (!admin) {
     return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   }
   const limited = await enforceAdminMutationRateLimit(request, "destructive");
@@ -72,6 +85,24 @@ export async function PATCH(request: Request) {
     .maybeSingle<{ id: string; amount_ngn?: number | null; rider_profiles?: { user_id?: string | null } | null }>();
 
   if (!existingRequest?.id) {
+    const { data: investorRequest } = await supabase
+      .from("investor_withdrawal_requests")
+      .select("id, investor_profile_id, amount_ngn")
+      .eq("id", id)
+      .maybeSingle<{ id: string; investor_profile_id: string; amount_ngn?: number | null }>();
+    if (investorRequest?.id) {
+      const { error } = await supabase.rpc("review_investor_withdrawal", { target_request_id: id, next_status: status, actor_user_id: admin.userId, note: status === "rejected" ? reason.trim() : null });
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      const { data: profile } = await supabase.from("investor_profiles").select("user_id").eq("id", investorRequest.investor_profile_id).maybeSingle<{ user_id?: string | null }>();
+      if (profile?.user_id) await insertNotificationWithPush(supabase, {
+        user_id: profile.user_id,
+        title: status === "approved" ? "Investor payout approved" : status === "paid" ? "Investor payout paid" : "Investor payout rejected",
+        body: status === "approved" ? `Your investor payout request for NGN ${Number(investorRequest.amount_ngn || 0).toLocaleString("en-NG")} was approved.` : status === "paid" ? `Your investor payout request for NGN ${Number(investorRequest.amount_ngn || 0).toLocaleString("en-NG")} has been marked as paid.` : `Your investor payout request was rejected: ${reason.trim()}`,
+        type: status === "rejected" ? "withdrawal_rejected" : "withdrawal_approved",
+        metadata: { investor_withdrawal_request_id: id, status, url: "/investor/dashboard", tag: `ff-investor-withdrawal-${id}` }
+      });
+      return NextResponse.json({ ok: true, id });
+    }
     return reviewWalletWithdrawal(supabase, id, status, reason.trim());
   }
 
@@ -102,6 +133,30 @@ export async function PATCH(request: Request) {
   }
 
   return NextResponse.json({ ok: true, id: data });
+}
+
+async function loadInvestorWithdrawals(supabase: NonNullable<ReturnType<typeof createAdminClient>>) {
+  const { data, error } = await supabase
+    .from("investor_withdrawal_requests")
+    .select("id, amount_ngn, status, rejection_reason, created_at, investor_profiles(investor_code, users:users!investor_profiles_user_id_fkey(full_name, email)), investor_payout_accounts(bank_name, account_last4, account_name)")
+    .order("created_at", { ascending: false })
+    .limit(100);
+  // The code can be released before the Phase 2 migration; leave the existing
+  // withdrawal screen usable until its isolated table is installed.
+  if (error) return [];
+  return ((data || []) as InvestorAdminWithdrawalRow[]).map((request) => ({
+    id: request.id,
+    source: "investor_withdrawal_request",
+    account_kind: "investor",
+    amount_ngn: Number(request.amount_ngn || 0),
+    bank_name: request.investor_payout_accounts?.bank_name || "Verified bank",
+    account_number: request.investor_payout_accounts?.account_last4 ? `•••• ${request.investor_payout_accounts.account_last4}` : "Protected",
+    account_name: request.investor_payout_accounts?.account_name || null,
+    status: request.status,
+    rejection_reason: request.rejection_reason,
+    created_at: request.created_at,
+    investor_profiles: request.investor_profiles || null
+  }));
 }
 
 async function loadWalletWithdrawals(supabase: NonNullable<ReturnType<typeof createAdminClient>>) {

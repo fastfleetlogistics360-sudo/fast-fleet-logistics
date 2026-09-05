@@ -59,6 +59,7 @@ export interface Database {
           onboarding_completed_at: string | null;
           suspended_at: string | null;
           suspension_reason: string | null;
+          requires_password_setup: boolean;
           created_by: string | null;
           created_at: string;
           updated_at: string;

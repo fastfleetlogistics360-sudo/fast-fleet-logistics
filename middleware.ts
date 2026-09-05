@@ -43,7 +43,8 @@ export async function middleware(request: NextRequest) {
     data: { user }
   } = await supabase.auth.getUser();
 
-  const protectedRoute = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  const investorActivation = pathname === "/investor/activate";
+  const protectedRoute = !investorActivation && PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   if (protectedRoute && !user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/auth";
@@ -54,10 +55,12 @@ export async function middleware(request: NextRequest) {
 
   const roleRule = ROLE_PREFIXES.find((rule) => pathname.startsWith(rule.prefix));
   if (roleRule && user) {
-    const [{ data: appUser }, { data: profile }] = await Promise.all([
+    const [{ data: appUser }, { data: profile }, { data: investorProfile }] = await Promise.all([
       supabase.from("users").select("role").eq("id", user.id).maybeSingle<{ role?: string | null }>(),
-      supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>()
+      supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>(),
+      pathname.startsWith("/investor") ? supabase.from("investor_profiles").select("id").eq("user_id", user.id).maybeSingle<{ id?: string | null }>() : Promise.resolve({ data: null })
     ]);
+    if (pathname.startsWith("/investor") && investorProfile?.id) return response;
     const role = roleRule.roles.includes("admin") ? parseUserRole(profile?.account_type || appUser?.role) : parseUserRole(profile?.account_type || appUser?.role);
     if (!role) {
       const redirectUrl = request.nextUrl.clone();

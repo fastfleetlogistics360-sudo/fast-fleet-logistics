@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 
 type OnboardingState = {
   investor: { code: string; status: string; onboardingCompleted: boolean };
-  profile: { fullName: string; email: string; emailVerified: boolean };
+  profile: { fullName: string; email: string; emailVerified: boolean; requiresPasswordSetup?: boolean };
   payout: { bankName?: string | null; accountName?: string | null; accountNumber?: string | null } | null;
 };
 
@@ -21,10 +21,37 @@ export function InvestorOnboarding() {
   const [accountNumber, setAccountNumber] = useState("");
   const [message, setMessage] = useState("Loading your secure activation…");
   const [saving, setSaving] = useState(false);
+  const [forcePasswordSetup, setForcePasswordSetup] = useState(false);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tokenHash = params.get("token_hash");
+    const type = params.get("type");
+    if (tokenHash && (type === "invite" || type === "magiclink" || type === "recovery")) {
+      void confirmInvitation(tokenHash, type);
+      return;
+    }
     void load();
+    // The signed invitation is intentionally evaluated once; a re-render must
+    // never attempt to consume the one-time token again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function confirmInvitation(tokenHash: string, type: "invite" | "magiclink" | "recovery") {
+    setSaving(true);
+    setMessage("Confirming your secure invitation…");
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+    if (error) {
+      setMessage("This invitation could not be confirmed. Ask FastFleets to resend it.");
+      setSaving(false);
+      return;
+    }
+    if (type === "recovery") setForcePasswordSetup(true);
+    window.history.replaceState({}, "", "/investor/activate");
+    await load();
+    setSaving(false);
+  }
 
   async function load() {
     const response = await fetch("/api/investor/onboarding");
@@ -44,10 +71,17 @@ export function InvestorOnboarding() {
     setMessage("");
     try {
       if (!data.profile.emailVerified) throw new Error("Please open the verification link sent to your email before continuing.");
-      if (password.length < 10) throw new Error("Create a password with at least 10 characters.");
-      const supabase = createClient();
-      const passwordResult = await supabase.auth.updateUser({ password });
-      if (passwordResult.error) throw passwordResult.error;
+      if (data.profile.requiresPasswordSetup || forcePasswordSetup) {
+        if (password.length < 10) throw new Error("Create a password with at least 10 characters.");
+        const supabase = createClient();
+        const passwordResult = await supabase.auth.updateUser({ password });
+        if (passwordResult.error) throw passwordResult.error;
+      }
+      if (forcePasswordSetup) {
+        setMessage("Your password has been updated. You can now sign in securely.");
+        setForcePasswordSetup(false);
+        return;
+      }
       const response = await fetch("/api/investor/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,13 +109,19 @@ export function InvestorOnboarding() {
           </div>
         </div>
 
-        {data?.investor.onboardingCompleted ? (
+        {data?.investor.onboardingCompleted && !forcePasswordSetup ? (
           <div className="mt-6 rounded-fleet bg-emerald-50 p-4 text-sm font-bold text-emerald-800"><CheckCircle2 className="mr-2 inline h-4 w-4" />Your investor account is ready.</div>
+        ) : forcePasswordSetup ? (
+          <div className="mt-6 grid gap-4">
+            <p className="rounded-fleet bg-fleet-paper p-4 text-sm font-semibold text-slate-600">Choose a new password for your FastFleets Investor Programme access. Your asset and payout details will stay unchanged.</p>
+            <label className="form-field"><span className="form-label">New password</span><input className="form-input" value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" placeholder="At least 10 characters" /></label>
+            <Button type="button" onClick={submit} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}Save new password</Button>
+          </div>
         ) : (
           <div className="mt-6 grid gap-4">
             <label className="form-field"><span className="form-label">Email</span><input className="form-input bg-slate-50" value={data?.profile.email || ""} readOnly /></label>
             <label className="form-field"><span className="form-label">Full name</span><input className="form-input" value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label>
-            <label className="form-field"><span className="form-label">Create password</span><input className="form-input" value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" placeholder="At least 10 characters" /></label>
+            {data?.profile.requiresPasswordSetup || forcePasswordSetup ? <label className="form-field"><span className="form-label">{forcePasswordSetup ? "New password" : "Create password"}</span><input className="form-input" value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" placeholder="At least 10 characters" /></label> : <div className="rounded-fleet bg-fleet-paper p-4 text-sm font-semibold text-slate-600">You are using your existing FastFleets sign-in. Your password will not be changed.</div>}
             <div className="rounded-fleet border border-fleet-line bg-fleet-paper p-4"><strong className="text-sm text-fleet-night">Payout account</strong><p className="mt-1 text-xs font-semibold text-slate-600">This is stored encrypted and used only for future approved investor payouts.</p></div>
             <label className="form-field"><span className="form-label">Bank name</span><input className="form-input" value={bankName} onChange={(event) => setBankName(event.target.value)} autoComplete="off" /></label>
             <label className="form-field"><span className="form-label">Bank code</span><input className="form-input" value={bankCode} onChange={(event) => setBankCode(event.target.value)} inputMode="numeric" /></label>

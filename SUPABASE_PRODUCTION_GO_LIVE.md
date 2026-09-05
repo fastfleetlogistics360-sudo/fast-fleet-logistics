@@ -22,6 +22,16 @@ Before deploying the investor dashboard code, take a backup or point-in-time-rec
 3. `security-remediation/migrations/202609050001_investor_dashboard_foundation.sql` — creates ownership history, protected assignment functions, audit trail, payout-account store, and RLS.
 4. `security-remediation/migrations/202609050002_investor_dashboard_delivery_asset_fk.sql` — only after the preflight report has zero orphan delivery asset references.
 5. `security-remediation/investor-dashboard-postflight.sql` — confirm policies and the foreign key.
+6. Before deploying Investor Programme Phase 2 code, run `security-remediation/migrations/202609050003_investor_programme_phase2.sql` as one transaction. It adds the isolated investor ledger and wallet, withdrawal workflow, exact 30% rider / 60% owner / 10% company split, and the administrator-controlled 5% maintenance reserve (which reduces the owner share to 55% only while enabled). Then run `security-remediation/investor-programme-phase2-postflight.sql`; it is read-only and the final duplicate-active-owner query must return zero rows.
+
+For the professional Investor Programme email and scanner-safe activation page, add these production-only server variables before sending or resending any invitation:
+
+```txt
+RESEND_API_KEY=your-resend-api-key
+FASTFLEET_EMAIL_FROM=FastFleets 360 Investor Programme <investors@fastfleet.com.ng>
+```
+
+The sender address must be verified in Resend. The release sequence is intentionally: configure Resend, run migration `202609050003`, deploy the application, then send a fresh invitation. The old Supabase invite link in a previously delivered email cannot be repaired; use **Resend invite** after this release instead.
 
 Set `INVESTOR_PAYOUT_ENCRYPTION_KEY` to a unique base64 encoding of exactly 32 random bytes before enabling investor onboarding. Do not reuse the Supabase service-role key, an admin secret, or a payment secret. The investor dashboard does not yet create investor earnings, payouts, or maintenance deductions.
 - Confirm these tables exist: `users`, `profiles`, `deliveries`, `delivery_events`, `delivery_locations`, `rider_profiles`, `rider_applications`, `rider_documents`, `wallets`, `wallet_transactions`, `withdrawal_requests`, `support_tickets`, `platform_launch_states`, `platform_settings`, `fraud_signals`, `company_transaction_logs`, `state_waitlist`, and `notifications`.
@@ -125,6 +135,9 @@ GOOGLE_ROUTES_API_KEY=your-server-routes-key
 NEXT_PUBLIC_SITE_URL=https://your-domain.com
 NEXT_PUBLIC_ALLOW_DEMO_DATA=false
 NEXT_PUBLIC_ALLOW_SUPABASE_FALLBACK=false
+INVESTOR_PAYOUT_ENCRYPTION_KEY=a-unique-base64-encoded-32-byte-key
+RESEND_API_KEY=your-resend-api-key
+FASTFLEET_EMAIL_FROM=FastFleets 360 Investor Programme <investors@fastfleet.com.ng>
 ```
 
 Do not put service role keys, Turnstile secret keys, admin passwords, or Squad secret keys in client-side code.

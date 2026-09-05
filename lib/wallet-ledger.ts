@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { settleInvestorDelivery, type InvestorDeliverySettlement } from "@/lib/investor-ledger";
 import { DEFAULT_CAMPUS_PROGRAM } from "@/lib/campus-program";
 
 export const MIN_WITHDRAWAL_NGN = 2000;
@@ -252,6 +253,20 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
   amount = Math.max(0, Math.round(amount));
   if (amount <= 0) return { credited: false, amount: 0 };
 
+  // Investor-owned bicycles follow the programme split. This is intentionally
+  // separate from every other rider wallet and leaves non-investor deliveries unchanged.
+  let investorSettlement: InvestorDeliverySettlement = { investor_owned: false };
+  try {
+    investorSettlement = await settleInvestorDelivery(db, delivery.id);
+  } catch (error) {
+    // Phase 2 can be deployed gradually. An absent settlement RPC must never
+    // interrupt an ordinary rider's delivery completion.
+    const code = String((error as { code?: string }).code || "");
+    if (code !== "PGRST202" && code !== "42883") throw error;
+  }
+  if (investorSettlement.investor_owned) amount = Math.max(0, Math.round(Number(investorSettlement.rider_share_ngn || 0)));
+  if (amount <= 0) return { credited: false, amount: 0 };
+
   const { data: rider, error: riderError } = await db
     .from("rider_profiles")
     .select("id, user_id, rider_account_type, campus_zone_id")
@@ -280,6 +295,7 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
       delivery_code: delivery.delivery_code,
       delivery_fee_ngn: grossDeliveryFee,
       rider_payout_ngn: amount,
+      investor_programme_settlement: investorSettlement.investor_owned,
       campus_duty_payout: Boolean(campusDuty),
       campus_company_delivery_margin_ngn: campusDuty ? Math.max(0, grossDeliveryFee - amount) : 0,
       campus_platform_fee_ngn: campusDuty ? Math.max(0, money(metadata.platform_fee_ngn)) : 0

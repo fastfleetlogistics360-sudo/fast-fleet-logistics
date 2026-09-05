@@ -15,6 +15,10 @@ export async function GET() {
     if (!database) return NextResponse.json({ error: "Investor onboarding is temporarily unavailable." }, { status: 503 });
     const investor = await loadInvestorProfileForUser(database, user.id);
     if (!investor) return NextResponse.json({ error: "Investor account not found." }, { status: 404 });
+    if (investor.status === "invited" && user.email_confirmed_at) {
+      await database.from("investor_profiles").update({ status: "onboarding" }).eq("id", investor.id);
+      investor.status = "onboarding";
+    }
     const { data: profile } = await database.from("profiles").select("full_name, email").eq("user_id", user.id).maybeSingle<{ full_name?: string | null; email?: string | null }>();
     const { data: payout } = await database
       .from("investor_payout_accounts")
@@ -24,7 +28,7 @@ export async function GET() {
       .maybeSingle<{ bank_name?: string | null; account_name?: string | null; account_last4?: string | null; verification_status?: string | null }>();
     return NextResponse.json({
       investor: { code: investor.investor_code, status: investor.status, onboardingCompleted: Boolean(investor.onboarding_completed_at) },
-      profile: { fullName: profile?.full_name || "", email: user.email || profile?.email || "", emailVerified: Boolean(user.email_confirmed_at) },
+      profile: { fullName: profile?.full_name || "", email: user.email || profile?.email || "", emailVerified: Boolean(user.email_confirmed_at), requiresPasswordSetup: investor.requires_password_setup !== false },
       payout: payout ? { bankName: payout.bank_name, accountName: payout.account_name, accountNumber: maskAccountNumber(payout.account_last4), verificationStatus: payout.verification_status } : null
     });
   } catch (error) {

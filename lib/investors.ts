@@ -10,6 +10,7 @@ export type InvestorProfile = {
   status: InvestorStatus;
   onboarding_completed_at?: string | null;
   suspended_at?: string | null;
+  requires_password_setup?: boolean | null;
 };
 
 export function createInvestorCode() {
@@ -26,7 +27,7 @@ export function investorStatusLabel(status: string | null | undefined) {
 export async function loadInvestorProfileForUser(database: SupabaseClient, userId: string) {
   const { data, error } = await database
     .from("investor_profiles")
-    .select("id, user_id, investor_code, status, onboarding_completed_at, suspended_at")
+    .select("id, user_id, investor_code, status, onboarding_completed_at, suspended_at, requires_password_setup")
     .eq("user_id", userId)
     .maybeSingle<InvestorProfile>();
   if (error) throw error;
