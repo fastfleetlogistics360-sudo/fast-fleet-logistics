@@ -43,8 +43,11 @@ export async function middleware(request: NextRequest) {
     data: { user }
   } = await supabase.auth.getUser();
 
-  const investorActivation = pathname === "/investor/activate";
-  const protectedRoute = !investorActivation && PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  // Investors need to reach these public entry points before they have an
+  // authenticated session. The dashboard and every other investor route stay
+  // protected below.
+  const investorPublicRoute = pathname === "/investor/activate" || pathname === "/investor/login";
+  const protectedRoute = !investorPublicRoute && PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   if (protectedRoute && !user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/auth";
