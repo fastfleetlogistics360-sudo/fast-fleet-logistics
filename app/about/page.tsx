@@ -62,6 +62,11 @@ export default function AboutPage() {
             <p>Our public website, official social accounts, support email, and WhatsApp ordering channel all operate under the Fast Fleets 360 Logistics name.</p>
           </div>
         </div>
+        <div className="mt-6 rounded-[24px] border border-fleet-line bg-fleet-paper p-5 sm:p-7">
+          <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Bicycle investment programme</span>
+          <h2 className="mt-2 text-2xl font-black text-fleet-night">Supporting productive bicycle assets.</h2>
+          <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-slate-600">Fast Fleets 360 works with approved bicycle investors to place and manage delivery assets within the network. Investors can view assigned bicycle activity, completed deliveries, and approved settlement information through a secure investor account, while Fast Fleets retains operational oversight of riders, safety, maintenance, and payouts.</p>
+        </div>
       </section>
     </>
   );

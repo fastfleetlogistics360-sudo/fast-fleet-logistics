@@ -61,7 +61,7 @@ const socialItems: Array<{ href: string; label: string; icon: (props: ComponentP
   { href: "https://www.tiktok.com/@fastfleets360", label: "TikTok", icon: TikTokIcon, hover: "hover:bg-black" }
 ];
 
-const siteChromeRoutes = new Set(["/main", "/how-it-works", "/privacy", "/terms", "/cookies", "/ndpr", "/support", "/offline", "/services", "/updates", "/about", "/founder"]);
+const siteChromeRoutes = new Set(["/main", "/how-it-works", "/privacy", "/terms", "/cookies", "/ndpr", "/support", "/offline", "/services", "/updates", "/about", "/founder", "/investor/login", "/fastconfirm", "/campus-coordinators"]);
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -372,7 +372,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </div>
           <FooterGroup title="Customers" links={[["Book delivery", "/book"], ["Track package", "/track"], ["Dashboard", "/dashboard"]]} />
           <FooterGroup title="Partners" links={[["Register driver", "/rider/onboarding"], ["Driver dashboard", "/rider/dashboard"], ["Register business", "/business/register"], ["Business dashboard", "/business/dashboard"]]} />
-          <FooterGroup title="Platform" links={[["Services", "/services"], ["Updates", "/updates"], ["About", "/about"], ["Founder", "/founder"], ["Privacy", "/privacy"], ["Terms", "/terms"], ["PWA ready", "/offline"]]} />
+          <FooterGroup title="Platform" links={[["Services", "/services"], ["FastConfirm", "/fastconfirm"], ["Campus Coordinators", "/campus-coordinators"], ["Updates", "/updates"], ["About", "/about"], ["Founder", "/founder"], ["Privacy", "/privacy"], ["Terms", "/terms"], ["PWA ready", "/offline"]]} />
         </div>
       </footer> : null}
 

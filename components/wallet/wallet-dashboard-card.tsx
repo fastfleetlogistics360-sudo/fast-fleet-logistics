@@ -13,7 +13,7 @@ type WalletDashboardCardProps = {
   balance: number;
   lockedBalance?: number;
   walletType: Extract<WalletType, "customer" | "rider">;
-  accountKind?: "customer" | "rider" | "business";
+  accountKind?: "customer" | "rider" | "business" | "investor";
   kycStatus?: WalletKycStatus;
   returnTo?: string;
   topUpAmount?: string;
@@ -25,6 +25,7 @@ type WalletDashboardCardProps = {
   transactionHref?: string;
   notice?: string | null;
   compact?: boolean;
+  statusLabel?: string;
 };
 
 export function WalletDashboardCard({
@@ -43,7 +44,8 @@ export function WalletDashboardCard({
   trackHref = "/track",
   transactionHref,
   notice,
-  compact = false
+  compact = false,
+  statusLabel = "KYC Status"
 }: WalletDashboardCardProps) {
   const [showBalance, setShowBalance] = useState(true);
   const [localAmount] = useState("10000");
@@ -56,7 +58,7 @@ export function WalletDashboardCard({
       : kycStatus === "more_info_needed"
         ? "border-amber-200/25 bg-amber-300/15 text-amber-200"
         : "border-white/10 bg-white/10 text-white/75";
-  const cardLabel = accountKind === "business" ? "Business wallet" : accountKind === "rider" ? "Rider wallet" : "Customer wallet";
+  const cardLabel = accountKind === "business" ? "Business wallet" : accountKind === "rider" ? "Rider wallet" : accountKind === "investor" ? "Investor wallet" : "Customer wallet";
 
   async function topUp() {
     const amountNgn = Number(amount);
@@ -83,9 +85,9 @@ export function WalletDashboardCard({
     }
   }
 
-  const canWithdraw = Boolean(onWithdraw) || accountKind === "rider" || accountKind === "business";
+  const canWithdraw = Boolean(onWithdraw) || accountKind === "rider" || accountKind === "business" || accountKind === "investor";
   const showTopUp = accountKind === "customer";
-  const historyHref = transactionHref || (accountKind === "rider" ? "/rider/dashboard/earnings" : accountKind === "business" ? "/business/dashboard#transactions" : "/dashboard#transactions");
+  const historyHref = transactionHref || (accountKind === "rider" ? "/rider/dashboard/earnings" : accountKind === "business" ? "/business/dashboard#transactions" : accountKind === "investor" ? "/investor/dashboard#investor-wallet-activity" : "/dashboard#transactions");
 
   function openHref(href: string) {
     window.location.assign(href);
@@ -100,7 +102,7 @@ export function WalletDashboardCard({
 
         <div className="relative z-10 min-w-0 pr-24 sm:pr-40">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-white/85">KYC Status</span>
+            <span className="text-sm font-semibold text-white/85">{statusLabel}</span>
             <span className={cn("inline-flex items-center gap-1.5 rounded-[10px] border px-3 py-1 text-sm font-black", kycTone)}>
               {walletKycLabel(kycStatus)}
               {kycStatus === "verified" ? <Check className="h-3.5 w-3.5" /> : null}

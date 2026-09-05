@@ -52,6 +52,8 @@ type PhoneAuthFormProps = {
   lockedRole?: SelfServiceRole;
   returnToOverride?: string;
   intent?: AuthMode;
+  allowSignup?: boolean;
+  allowGoogle?: boolean;
 };
 
 type ProfileRecord = {
@@ -75,14 +77,18 @@ export function PhoneAuthForm({
   defaultRole = "customer",
   lockedRole,
   returnToOverride,
-  intent
+  intent,
+  allowSignup = true,
+  allowGoogle = true
 }: PhoneAuthFormProps = {}) {
   const searchParams = useSearchParams();
   const requestedRole = roleFromRequest(searchParams.get("account") || searchParams.get("role"));
   const returnTo = searchParams.get("returnTo");
   const effectiveLockedRole = lockedRole || requestedRole;
   const requestedMode = searchParams.get("mode");
-  const initialMode = intent || (requestedMode === "signup" ? "signup" : requestedMode === "login" ? "login" : effectiveLockedRole ? "signup" : "login");
+  const initialMode = !allowSignup
+    ? "login"
+    : intent || (requestedMode === "signup" ? "signup" : requestedMode === "login" ? "login" : effectiveLockedRole ? "signup" : "login");
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [role, setRole] = useState<SelfServiceRole>(effectiveLockedRole || defaultRole);
   const [email, setEmail] = useState("");
@@ -393,7 +399,7 @@ export function PhoneAuthForm({
         </span>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-2 rounded-[14px] bg-fleet-paper p-1">
+      {allowSignup ? <div className="mt-5 grid grid-cols-2 gap-2 rounded-[14px] bg-fleet-paper p-1">
         {(["login", "signup"] as const).map((option) => (
           <button
             key={option}
@@ -408,6 +414,7 @@ export function PhoneAuthForm({
           </button>
         ))}
       </div>
+      : null}
 
       {mode === "signup" ? (
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
@@ -557,10 +564,10 @@ export function PhoneAuthForm({
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
           {mode === "signup" ? "Create account" : "Sign in"}
         </Button>
-        <Button type="button" variant="secondary" onClick={continueWithGoogle} disabled={loading || Boolean(oauthLoading)} className="w-full">
+        {allowGoogle ? <Button type="button" variant="secondary" onClick={continueWithGoogle} disabled={loading || Boolean(oauthLoading)} className="w-full">
           {oauthLoading === "google" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon className="h-4 w-4" />}
           Continue with Google
-        </Button>
+        </Button> : null}
         {mode === "login" ? (
           <button type="button" onClick={resetPassword} disabled={loading} className="inline-flex items-center justify-center gap-2 text-sm font-black text-fleet-navy hover:text-fleet-ember disabled:opacity-50">
             <RotateCcw className="h-4 w-4" />
