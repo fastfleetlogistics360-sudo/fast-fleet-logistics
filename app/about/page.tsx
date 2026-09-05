@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight, Bike, BriefcaseBusiness, CircleHelp, FileText, Globe2, Mail, MapPinned, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Bike, BriefcaseBusiness, CircleHelp, FileText, Globe2, Mail, MapPinned, ShieldCheck, UserRound } from "lucide-react";
 import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 
 export const metadata: Metadata = {
@@ -12,6 +12,7 @@ const links = [
   { title: "Become a Rider", href: "/rider/onboarding", icon: Bike },
   { title: "Register a Business", href: "/business/register", icon: BriefcaseBusiness },
   { title: "Frequently Asked Questions", href: "/support", icon: CircleHelp },
+  { title: "Meet our Founder", href: "/founder", icon: UserRound },
   { title: "Terms of Service", href: "/terms", icon: FileText },
   { title: "Privacy and Data Rights", href: "/privacy", icon: ShieldCheck }
 ];

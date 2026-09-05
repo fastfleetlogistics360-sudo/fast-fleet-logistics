@@ -17,7 +17,7 @@ export function InvestorOnboarding() {
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [bankName, setBankName] = useState("");
-  const [bankCode, setBankCode] = useState("");
+  const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [message, setMessage] = useState("Loading your secure activation…");
   const [saving, setSaving] = useState(false);
@@ -85,7 +85,7 @@ export function InvestorOnboarding() {
       const response = await fetch("/api/investor/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, bankName, bankCode, accountNumber })
+        body: JSON.stringify({ fullName, bankName, accountName, accountNumber })
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Could not finish onboarding.");
@@ -122,9 +122,9 @@ export function InvestorOnboarding() {
             <label className="form-field"><span className="form-label">Email</span><input className="form-input bg-slate-50" value={data?.profile.email || ""} readOnly /></label>
             <label className="form-field"><span className="form-label">Full name</span><input className="form-input" value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" /></label>
             {data?.profile.requiresPasswordSetup || forcePasswordSetup ? <label className="form-field"><span className="form-label">{forcePasswordSetup ? "New password" : "Create password"}</span><input className="form-input" value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" placeholder="At least 10 characters" /></label> : <div className="rounded-fleet bg-fleet-paper p-4 text-sm font-semibold text-slate-600">You are using your existing FastFleets sign-in. Your password will not be changed.</div>}
-            <div className="rounded-fleet border border-fleet-line bg-fleet-paper p-4"><strong className="text-sm text-fleet-night">Payout account</strong><p className="mt-1 text-xs font-semibold text-slate-600">This is stored encrypted and used only for future approved investor payouts.</p></div>
+            <div className="rounded-fleet border border-fleet-line bg-fleet-paper p-4"><strong className="text-sm text-fleet-night">Payout account</strong><p className="mt-1 text-xs font-semibold text-slate-600">Your details are stored securely for FastFleets admin to review before any future payout.</p></div>
             <label className="form-field"><span className="form-label">Bank name</span><input className="form-input" value={bankName} onChange={(event) => setBankName(event.target.value)} autoComplete="off" /></label>
-            <label className="form-field"><span className="form-label">Bank code</span><input className="form-input" value={bankCode} onChange={(event) => setBankCode(event.target.value)} inputMode="numeric" /></label>
+            <label className="form-field"><span className="form-label">Account owner name</span><input className="form-input" value={accountName} onChange={(event) => setAccountName(event.target.value)} autoComplete="name" /></label>
             <label className="form-field"><span className="form-label">10-digit account number</span><input className="form-input" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value.replace(/\D/g, "").slice(0, 10))} inputMode="numeric" autoComplete="off" /></label>
             <Button type="button" onClick={submit} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}Finish secure setup</Button>
           </div>

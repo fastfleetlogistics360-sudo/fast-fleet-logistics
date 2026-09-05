@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { loadInvestorProfileForUser, safeText } from "@/lib/investors";
 import { encryptInvestorAccountNumber, maskAccountNumber } from "@/lib/investor-payout-accounts";
-import { resolveSquadAccount } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -47,10 +46,10 @@ export async function POST(request: Request) {
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const fullName = safeText(body.fullName, 120);
     const bankName = safeText(body.bankName, 120);
-    const bankCode = safeText(body.bankCode, 30);
+    const accountName = safeText(body.accountName, 120);
     const accountNumber = safeText(body.accountNumber, 20);
-    if (fullName.length < 2 || !bankName || !bankCode || !/^\d{10}$/.test(accountNumber)) {
-      return NextResponse.json({ error: "Enter your name, bank, bank code, and valid 10-digit account number." }, { status: 400 });
+    if (fullName.length < 2 || !bankName || accountName.length < 2 || !/^\d{10}$/.test(accountNumber)) {
+      return NextResponse.json({ error: "Enter your name, bank, account owner name, and valid 10-digit account number." }, { status: 400 });
     }
     const database = createAdminClient();
     if (!database) return NextResponse.json({ error: "Investor onboarding is temporarily unavailable." }, { status: 503 });
@@ -58,8 +57,6 @@ export async function POST(request: Request) {
     if (!investor) return NextResponse.json({ error: "Investor account not found." }, { status: 404 });
     if (investor.status === "suspended") return NextResponse.json({ error: "This investor account is suspended. Contact Fast Fleets 360 support." }, { status: 403 });
 
-    const account = await resolveSquadAccount(bankCode, accountNumber);
-    if (!account.accountName) return NextResponse.json({ error: "We could not verify this bank account. Check the bank and account number." }, { status: 400 });
     const now = new Date().toISOString();
     const active = await database
       .from("investor_payout_accounts")
@@ -75,10 +72,12 @@ export async function POST(request: Request) {
     const payout = await database.from("investor_payout_accounts").insert({
       investor_profile_id: investor.id,
       bank_name: bankName,
-      bank_code: bankCode,
+      // Retained for compatibility with the existing database schema. Investor
+      // payouts are reviewed manually; no payment-provider bank code is used.
+      bank_code: "manual",
       account_number_ciphertext: encryptInvestorAccountNumber(accountNumber),
       account_last4: accountNumber.slice(-4),
-      account_name: account.accountName,
+      account_name: accountName,
       verification_status: "verified",
       verified_at: now,
       is_active: true
@@ -94,7 +93,7 @@ export async function POST(request: Request) {
       database.from("investor_audit_events").insert({ investor_profile_id: investor.id, actor_user_id: user.id, event_type: "onboarding_completed", metadata: {} })
     ]);
     if (updates.some((result) => result.error)) throw new Error("Could not complete investor onboarding.");
-    return NextResponse.json({ ok: true, accountName: account.accountName });
+    return NextResponse.json({ ok: true, accountName });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not complete investor onboarding." }, { status: 500 });
   }

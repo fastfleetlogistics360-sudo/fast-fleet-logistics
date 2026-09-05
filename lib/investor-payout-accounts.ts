@@ -1,4 +1,4 @@
-import { createCipheriv, randomBytes } from "crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 
 const VERSION = "v1";
 
@@ -13,6 +13,14 @@ export function encryptInvestorAccountNumber(accountNumber: string) {
 
 export function maskAccountNumber(last4: string | null | undefined) {
   return last4 ? `••••••${last4}` : "Not added";
+}
+
+export function decryptInvestorAccountNumber(ciphertext: string) {
+  const [version, iv, tag, encrypted] = ciphertext.split(".");
+  if (version !== VERSION || !iv || !tag || !encrypted) throw new Error("Invalid protected payout account.");
+  const decipher = createDecipheriv("aes-256-gcm", payoutEncryptionKey(), Buffer.from(iv, "base64url"));
+  decipher.setAuthTag(Buffer.from(tag, "base64url"));
+  return Buffer.concat([decipher.update(Buffer.from(encrypted, "base64url")), decipher.final()]).toString("utf8");
 }
 
 function payoutEncryptionKey() {

@@ -24,6 +24,7 @@ const publicRoutes: SitemapEntry[] = [
   { path: "/support", changeFrequency: "weekly", priority: 0.72 },
   { path: "/updates", changeFrequency: "weekly", priority: 0.7 },
   { path: "/about", changeFrequency: "monthly", priority: 0.68 },
+  { path: "/founder", changeFrequency: "monthly", priority: 0.67 },
   { path: "/privacy", changeFrequency: "monthly", priority: 0.5 },
   { path: "/terms", changeFrequency: "monthly", priority: 0.5 },
   { path: "/cookies", changeFrequency: "yearly", priority: 0.35 },

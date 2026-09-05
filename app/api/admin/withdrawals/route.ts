@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
+import { decryptInvestorAccountNumber } from "@/lib/investor-payout-accounts";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
@@ -16,7 +17,7 @@ type InvestorAdminWithdrawalRow = {
   rejection_reason: string | null;
   created_at: string;
   investor_profiles: { investor_code?: string | null; users?: { full_name?: string | null; email?: string | null } | null } | null;
-  investor_payout_accounts: { bank_name?: string | null; account_last4?: string | null; account_name?: string | null } | null;
+  investor_payout_accounts: { bank_name?: string | null; account_number_ciphertext?: string | null; account_last4?: string | null; account_name?: string | null } | null;
 };
 
 export async function GET() {
@@ -138,7 +139,7 @@ export async function PATCH(request: Request) {
 async function loadInvestorWithdrawals(supabase: NonNullable<ReturnType<typeof createAdminClient>>) {
   const { data, error } = await supabase
     .from("investor_withdrawal_requests")
-    .select("id, amount_ngn, status, rejection_reason, created_at, investor_profiles(investor_code, users:users!investor_profiles_user_id_fkey(full_name, email)), investor_payout_accounts(bank_name, account_last4, account_name)")
+    .select("id, amount_ngn, status, rejection_reason, created_at, investor_profiles(investor_code, users:users!investor_profiles_user_id_fkey(full_name, email)), investor_payout_accounts(bank_name, account_number_ciphertext, account_last4, account_name)")
     .order("created_at", { ascending: false })
     .limit(100);
   // The code can be released before the Phase 2 migration; leave the existing
@@ -149,14 +150,23 @@ async function loadInvestorWithdrawals(supabase: NonNullable<ReturnType<typeof c
     source: "investor_withdrawal_request",
     account_kind: "investor",
     amount_ngn: Number(request.amount_ngn || 0),
-    bank_name: request.investor_payout_accounts?.bank_name || "Verified bank",
-    account_number: request.investor_payout_accounts?.account_last4 ? `•••• ${request.investor_payout_accounts.account_last4}` : "Protected",
+    bank_name: request.investor_payout_accounts?.bank_name || "Payout bank",
+    account_number: readableInvestorAccountNumber(request.investor_payout_accounts),
     account_name: request.investor_payout_accounts?.account_name || null,
     status: request.status,
     rejection_reason: request.rejection_reason,
     created_at: request.created_at,
     investor_profiles: request.investor_profiles || null
   }));
+}
+
+function readableInvestorAccountNumber(account: InvestorAdminWithdrawalRow["investor_payout_accounts"]) {
+  if (!account?.account_number_ciphertext) return account?.account_last4 ? `•••• ${account.account_last4}` : "Protected";
+  try {
+    return decryptInvestorAccountNumber(account.account_number_ciphertext);
+  } catch {
+    return account.account_last4 ? `•••• ${account.account_last4}` : "Protected";
+  }
 }
 
 async function loadWalletWithdrawals(supabase: NonNullable<ReturnType<typeof createAdminClient>>) {

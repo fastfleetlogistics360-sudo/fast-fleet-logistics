@@ -49,6 +49,13 @@ const structuredData = {
     availableLanguage: ["English"]
   }],
   sameAs: ["https://www.instagram.com/fastfleets360", "https://x.com/fastfleets360", "https://www.tiktok.com/@fastfleets360"],
+  founder: {
+    "@type": "Person",
+    "@id": "https://fastfleet.com.ng/founder#person",
+    name: "Abegunde Olasunkanmi Joshua",
+    url: "https://fastfleet.com.ng/founder",
+    sameAs: ["https://www.instagram.com/a.o.josh01"]
+  },
   areaServed: ["Lagos", "Ogun", "Nigeria"],
   serviceType: ["Courier service", "Same-day delivery", "Restaurant delivery", "Shopping delivery", "Business dispatch"]
 };
