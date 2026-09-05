@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
     return redirectWithCookies(chooseUrl, cookiesToSet);
   }
 
-  if (accountRole !== "admin") {
+  if (accountRole === "customer" || accountRole === "rider" || accountRole === "business") {
     await upsertRoleProfile(supabase, user, accountRole);
   }
   return redirectWithCookies(new URL(safeDashboardRedirectForRole(requestedReturnTo || "/hub", accountRole), request.url), cookiesToSet);

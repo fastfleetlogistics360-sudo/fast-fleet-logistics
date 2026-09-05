@@ -139,6 +139,7 @@ type AdminSectionId =
   | "mall-menus"
   | "campus-program"
   | "fleet-assets"
+  | "investors"
   | "ops-control"
   | "field-insights"
   | "reviews"
@@ -159,6 +160,7 @@ const adminSectionIds = new Set<string>([
   "mall-menus",
   "campus-program",
   "fleet-assets",
+  "investors",
   "ops-control",
   "field-insights",
   "reviews",
@@ -206,6 +208,7 @@ const adminNavGroups: Array<{
     title: "Controls",
     items: [
       { id: "fleet-assets", label: "Fleet assets", icon: Bike, count: (stats) => String(stats.fleetAssets) },
+      { id: "investors", label: "Investors", icon: UsersRound, count: (stats) => String(stats.investors) },
       { id: "ops-control", label: "Launch & pricing", icon: SlidersHorizontal },
       { id: "field-insights", label: "Field insights", icon: Map },
       { id: "reviews", label: "Reviews", icon: Star, count: (stats) => String(stats.reviews) },
@@ -224,6 +227,7 @@ type AdminNavStats = {
   heroSlides: number;
   hubPromotions: number;
   fleetAssets: number;
+  investors: number;
   reviews: number;
   openRisk: number;
   openSupport: number;
@@ -326,6 +330,34 @@ type FleetAssetForm = {
   assigned_rider_profile_id: string;
   notes: string;
 };
+
+type AdminInvestor = {
+  id: string;
+  user_id: string;
+  investor_code: string;
+  status: "invited" | "onboarding" | "active" | "suspended";
+  onboarding_completed_at?: string | null;
+  suspended_at?: string | null;
+  suspension_reason?: string | null;
+  users?: { full_name?: string | null; email?: string | null } | null;
+  investor_asset_assignments?: Array<{
+    id: string;
+    fleet_asset_id: string;
+    assigned_at: string;
+    ended_at?: string | null;
+    fleet_assets?: { asset_code?: string | null; status?: string | null } | null;
+  }>;
+};
+
+type InvestorForm = {
+  fullName: string;
+  email: string;
+  assetIds: string[];
+};
+
+function blankInvestorForm(): InvestorForm {
+  return { fullName: "", email: "", assetIds: [] };
+}
 
 type AdminBusiness = {
   id: string;
@@ -929,6 +961,10 @@ export function AdminPanel() {
   const [adminRiders, setAdminRiders] = useState<AdminRider[]>(demoRiders);
   const [fleetAssets, setFleetAssets] = useState<AdminFleetAsset[]>(demoFleetAssets);
   const [fleetAssetForm, setFleetAssetForm] = useState<FleetAssetForm>(blankFleetAssetForm);
+  const [investors, setInvestors] = useState<AdminInvestor[]>([]);
+  const [investorForm, setInvestorForm] = useState<InvestorForm>(blankInvestorForm);
+  const [investorAssetSelection, setInvestorAssetSelection] = useState<Record<string, string>>({});
+  const [transferForm, setTransferForm] = useState({ assetId: "", nextInvestorId: "", reason: "" });
   const [adminBusinesses, setAdminBusinesses] = useState<AdminBusiness[]>(demoBusinesses);
   const [adminMarketplaceListings, setAdminMarketplaceListings] = useState<AdminMarketplaceListing[]>(demoMarketplaceListings);
   const [adminDeliveries, setAdminDeliveries] = useState<AdminDelivery[]>(demoDeliveries);
@@ -978,11 +1014,12 @@ export function AdminPanel() {
       heroSlides: heroSlides.filter((slide) => slide.enabled).length,
       hubPromotions: hubPromotionSlides.filter((slide) => slide.enabled).length,
       fleetAssets: fleetAssets.length,
+      investors: investors.length,
       reviews: reviewCount,
       openRisk: openRiskCount,
       openSupport: openSupportCount
     }),
-    [activeDeliveryCount, fleetAssets.length, heroSlides, hubPromotionSlides, openRiskCount, openSupportCount, pendingBusinessCount, pendingMarketplaceListingCount, pendingRiderCount, pendingWithdrawalCount, promoRedemptionCount, reviewCount]
+    [activeDeliveryCount, fleetAssets.length, heroSlides, hubPromotionSlides, investors.length, openRiskCount, openSupportCount, pendingBusinessCount, pendingMarketplaceListingCount, pendingRiderCount, pendingWithdrawalCount, promoRedemptionCount, reviewCount]
   );
   const companyLogSummary = useMemo(() => summarizeCompanyLogs(companyLogs), [companyLogs]);
   const filteredCompanyLogs = useMemo(() => {
@@ -1023,7 +1060,8 @@ export function AdminPanel() {
         riskSignalsResponse,
         restaurantsResponse,
         mallsResponse,
-        campusProgramResponse
+        campusProgramResponse,
+        investorsResponse
       ] = await Promise.all([
         fetch("/api/admin/states"),
         fetch("/api/admin/riders"),
@@ -1041,7 +1079,8 @@ export function AdminPanel() {
         fetch("/api/admin/risk-signals"),
         fetch("/api/admin/restaurants"),
         fetch("/api/admin/malls"),
-        fetch("/api/admin/campus-program")
+        fetch("/api/admin/campus-program"),
+        fetch("/api/admin/investors")
       ]);
       const statesResult = await statesResponse.json().catch(() => ({}));
       const ridersResult = await ridersResponse.json().catch(() => ({}));
@@ -1060,6 +1099,7 @@ export function AdminPanel() {
       const restaurantsResult = await restaurantsResponse.json().catch(() => ({}));
       const mallsResult = await mallsResponse.json().catch(() => ({}));
       const campusProgramResult = await campusProgramResponse.json().catch(() => ({}));
+      const investorsResult = await investorsResponse.json().catch(() => ({}));
       const failedSections = [
         ["states", statesResponse, statesResult],
         ["riders", ridersResponse, ridersResult],
@@ -1078,6 +1118,7 @@ export function AdminPanel() {
         ["restaurants", restaurantsResponse, restaurantsResult],
         ["malls", mallsResponse, mallsResult],
         ["KWASU campus", campusProgramResponse, campusProgramResult]
+        ,["investors", investorsResponse, investorsResult]
       ]
         .filter(([, response]) => !(response as Response).ok)
         .map(([label, , result]) => `${label}: ${String((result as { error?: string }).error || "request failed")}`);
@@ -1125,6 +1166,7 @@ export function AdminPanel() {
         setMallMenus(mallsResult.demo && savedMalls.length > 0 ? savedMalls : normalizeShoppingMalls(mallsResult.malls));
       }
       if (campusProgramResult.program) setCampusProgram(normalizeCampusProgram(campusProgramResult.program));
+      if (Array.isArray(investorsResult.investors)) setInvestors(investorsResult.investors);
       if (statesResult.demo || ridersResult.demo || fleetAssetsResult.demo || businessesResult.demo || marketplaceListingsResult.demo || deliveriesResult.demo || withdrawalsResult.demo || companyLogsResult.demo || promoReportResult.demo || siteControlsResult.demo || heroSlidesResult.demo || hubPromotionSlidesResult.demo || reviewsResult.demo || riskSignalsResult.demo || restaurantsResult.demo || mallsResult.demo) {
         setAdminMessage("Admin is using local operational fallback data. Add SUPABASE_SERVICE_ROLE_KEY in Vercel and run the Supabase schema to make launches, rider approvals, bicycle fleet assets, business KYC, marketplace listings, delivery timelines, withdrawals, site controls, main hero slides, Hub promotions, reviews, risk signals, company logs, restaurant menus, and shopping menus write to Supabase.");
       } else if (failedSections.length > 0) {
@@ -1471,6 +1513,48 @@ export function AdminPanel() {
       setAdminMessage("Bicycle fleet asset saved. Assigned operators will use their normal rider dashboard, but only matching bicycle jobs will reach them.");
     } catch (error) {
       setAdminMessage(error instanceof Error ? error.message : "Could not save bicycle fleet asset.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function createInvestor() {
+    setBusyAction("investors:create");
+    setAdminMessage(null);
+    try {
+      const response = await fetch("/api/admin/investors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(investorForm)
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not create the investor account.");
+      if (result.investor?.id) setInvestors((current) => [result.investor as AdminInvestor, ...current]);
+      setInvestorForm(blankInvestorForm());
+      setAdminMessage("Investor invitation sent. The investor creates their own password from the secure email link.");
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "Could not create the investor account.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function manageInvestor(investorId: string, action: "assign" | "transfer" | "suspend" | "reactivate" | "resend-invitation" | "reset-credentials", extras: Record<string, string | string[]> = {}) {
+    setBusyAction(`investor:${investorId}:${action}`);
+    setAdminMessage(null);
+    try {
+      const response = await fetch("/api/admin/investors", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ investorId, action, ...extras })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not update the investor.");
+      const refreshed = await fetch("/api/admin/investors").then((next) => next.json()).catch(() => null);
+      if (Array.isArray(refreshed?.investors)) setInvestors(refreshed.investors);
+      setAdminMessage(action === "transfer" ? "Bicycle ownership transferred and its history has been kept." : "Investor account updated.");
+    } catch (error) {
+      setAdminMessage(error instanceof Error ? error.message : "Could not update the investor.");
     } finally {
       setBusyAction(null);
     }
@@ -2394,6 +2478,20 @@ export function AdminPanel() {
         onSave={saveFleetAsset}
         onEdit={editFleetAsset}
         onReset={() => setFleetAssetForm(blankFleetAssetForm())}
+      />
+
+      <InvestorsSection
+        investors={investors}
+        assets={fleetAssets}
+        form={investorForm}
+        assetSelection={investorAssetSelection}
+        transferForm={transferForm}
+        busyAction={busyAction}
+        onFormChange={(patch) => setInvestorForm((current) => ({ ...current, ...patch }))}
+        onAssetSelectionChange={(investorId, assetId) => setInvestorAssetSelection((current) => ({ ...current, [investorId]: assetId }))}
+        onTransferChange={(patch) => setTransferForm((current) => ({ ...current, ...patch }))}
+        onCreate={createInvestor}
+        onManage={manageInvestor}
       />
 
       <div id="ops-control" className="mt-6 grid scroll-mt-24 gap-4 xl:grid-cols-3">
@@ -4770,6 +4868,67 @@ function FleetAssetsSection({
   );
 }
 
+function InvestorsSection({
+  investors,
+  assets,
+  form,
+  assetSelection,
+  transferForm,
+  busyAction,
+  onFormChange,
+  onAssetSelectionChange,
+  onTransferChange,
+  onCreate,
+  onManage
+}: {
+  investors: AdminInvestor[];
+  assets: AdminFleetAsset[];
+  form: InvestorForm;
+  assetSelection: Record<string, string>;
+  transferForm: { assetId: string; nextInvestorId: string; reason: string };
+  busyAction: string | null;
+  onFormChange: (patch: Partial<InvestorForm>) => void;
+  onAssetSelectionChange: (investorId: string, assetId: string) => void;
+  onTransferChange: (patch: Partial<{ assetId: string; nextInvestorId: string; reason: string }>) => void;
+  onCreate: () => void;
+  onManage: (investorId: string, action: "assign" | "transfer" | "suspend" | "reactivate" | "resend-invitation" | "reset-credentials", extras?: Record<string, string | string[]>) => void;
+}) {
+  const activelyOwnedAssetIds = new Set(investors.flatMap((investor) => investor.investor_asset_assignments?.filter((assignment) => !assignment.ended_at).map((assignment) => assignment.fleet_asset_id) || []));
+  const availableAssets = assets.filter((asset) => !activelyOwnedAssetIds.has(asset.id));
+  const transferableAssets = investors.flatMap((investor) => investor.investor_asset_assignments?.filter((assignment) => !assignment.ended_at).map((assignment) => ({ id: assignment.fleet_asset_id, investorId: investor.id, label: `${assignment.fleet_assets?.asset_code || "Bicycle asset"} · ${investor.investor_code}` })) || []);
+  const creating = busyAction === "investors:create";
+  return (
+    <Card id="investors" className="mt-6 scroll-mt-24 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Bicycle ownership</span>
+          <h2 className="mt-1 text-2xl font-black text-fleet-night">Investor accounts and bicycle owners</h2>
+          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-600">Create a secure investor account, link existing bicycles, and keep every ownership transfer in history. Operators and dispatch rules are unchanged.</p>
+        </div>
+        <UsersRound className="h-5 w-5 text-fleet-ember" />
+      </div>
+      <div className="mt-5 grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+        <div className="grid gap-3 rounded-fleet border border-fleet-line bg-fleet-paper p-4">
+          <strong className="text-sm font-black text-fleet-night">Invite a new investor</strong>
+          <label className="form-field"><span className="form-label">Full name</span><input className="form-input" value={form.fullName} onChange={(event) => onFormChange({ fullName: event.target.value })} placeholder="Investor name" /></label>
+          <label className="form-field"><span className="form-label">Email address</span><input className="form-input" value={form.email} onChange={(event) => onFormChange({ email: event.target.value })} type="email" placeholder="investor@example.com" /></label>
+          <label className="form-field"><span className="form-label">Bicycle assets</span><select className="form-input min-h-28" multiple value={form.assetIds} onChange={(event) => onFormChange({ assetIds: [...event.target.selectedOptions].map((option) => option.value) })}>{availableAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.asset_code} · {fleetAssetStatusLabel(normalizeFleetAssetStatus(asset.status))}</option>)}</select><span className="text-xs font-semibold text-slate-500">Hold Command or Control to select more than one bicycle.</span></label>
+          <Button type="button" onClick={onCreate} disabled={creating || !form.fullName.trim() || !form.email.trim()}>{creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}Create and send invitation</Button>
+        </div>
+        <div className="grid gap-3">
+          {investors.length ? investors.map((investor) => {
+            const pendingAsset = assetSelection[investor.id] || "";
+            const accountBusy = busyAction?.startsWith(`investor:${investor.id}:`);
+            const currentAssignments = investor.investor_asset_assignments?.filter((assignment) => !assignment.ended_at) || [];
+            return <article key={investor.id} className="rounded-fleet border border-fleet-line bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><strong className="block text-sm font-black text-fleet-night">{investor.users?.full_name || "Investor"}</strong><span className="mt-1 block text-xs font-bold text-slate-500">{investor.investor_code} · {investor.users?.email || "No email"}</span></div><StatusBadge tone={investorStatusTone(investor.status)}>{investorStatusLabel(investor.status)}</StatusBadge></div><div className="mt-3 flex flex-wrap gap-2">{currentAssignments.length ? currentAssignments.map((assignment) => <span key={assignment.id} className="rounded-full bg-fleet-paper px-3 py-1 text-xs font-black text-fleet-night">{assignment.fleet_assets?.asset_code || "Bicycle asset"}</span>) : <span className="text-xs font-semibold text-slate-500">No bicycle assigned yet.</span>}</div><div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]"><select className="form-input" value={pendingAsset} onChange={(event) => onAssetSelectionChange(investor.id, event.target.value)}><option value="">Assign another unowned bicycle</option>{availableAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.asset_code}</option>)}</select><Button type="button" size="sm" variant="secondary" disabled={!pendingAsset || accountBusy} onClick={() => onManage(investor.id, "assign", { assetIds: [pendingAsset] })}>Link bicycle</Button></div><div className="mt-3 flex flex-wrap gap-2"><Button type="button" size="sm" variant="secondary" disabled={accountBusy} onClick={() => onManage(investor.id, "resend-invitation")}>Resend invite</Button><Button type="button" size="sm" variant="secondary" disabled={accountBusy} onClick={() => onManage(investor.id, "reset-credentials")}>Reset login</Button>{investor.status === "suspended" ? <Button type="button" size="sm" variant="secondary" disabled={accountBusy} onClick={() => onManage(investor.id, "reactivate")}>Reactivate</Button> : <Button type="button" size="sm" variant="destructive" disabled={accountBusy} onClick={() => onManage(investor.id, "suspend", { reason: "Suspended by administrator" })}>Suspend</Button>}</div></article>;
+          }) : <p className="rounded-fleet bg-fleet-paper p-4 text-sm font-semibold text-slate-600">No investor accounts yet.</p>}
+        </div>
+      </div>
+      <div className="mt-5 grid gap-3 rounded-fleet border border-fleet-line bg-fleet-paper p-4 md:grid-cols-4"><strong className="md:col-span-4 text-sm font-black text-fleet-night">Protected bicycle ownership transfer</strong><select className="form-input" value={transferForm.assetId} onChange={(event) => onTransferChange({ assetId: event.target.value })}><option value="">Choose currently owned bicycle</option>{transferableAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.label}</option>)}</select><select className="form-input" value={transferForm.nextInvestorId} onChange={(event) => onTransferChange({ nextInvestorId: event.target.value })}><option value="">Choose new investor</option>{investors.filter((investor) => investor.status !== "suspended").map((investor) => <option key={investor.id} value={investor.id}>{investor.users?.full_name || investor.investor_code} · {investor.investor_code}</option>)}</select><input className="form-input" value={transferForm.reason} onChange={(event) => onTransferChange({ reason: event.target.value })} placeholder="Reason for transfer" /><Button type="button" variant="dark" disabled={!transferForm.assetId || !transferForm.nextInvestorId || transferForm.reason.trim().length < 4 || Boolean(busyAction)} onClick={() => { const source = transferableAssets.find((asset) => asset.id === transferForm.assetId); if (source) onManage(source.investorId, "transfer", { assetId: transferForm.assetId, nextInvestorId: transferForm.nextInvestorId, reason: transferForm.reason }); }}>Transfer ownership</Button></div>
+    </Card>
+  );
+}
+
 function SiteControlsSection({
   controls,
   busyAction,
@@ -5154,6 +5313,20 @@ function fleetAssetStatusTone(status: FleetAssetStatus): "green" | "amber" | "re
   if (status === "available") return "green";
   if (status === "busy") return "amber";
   if (status === "maintenance") return "red";
+  return "neutral";
+}
+
+function investorStatusLabel(status: AdminInvestor["status"]) {
+  if (status === "active") return "Active";
+  if (status === "onboarding") return "Finish setup";
+  if (status === "suspended") return "Suspended";
+  return "Invite pending";
+}
+
+function investorStatusTone(status: AdminInvestor["status"]): "green" | "amber" | "red" | "neutral" {
+  if (status === "active") return "green";
+  if (status === "suspended") return "red";
+  if (status === "onboarding") return "amber";
   return "neutral";
 }
 

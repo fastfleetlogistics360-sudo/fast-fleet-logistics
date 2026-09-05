@@ -591,6 +591,10 @@ Admin routes should always call `requireAdminSession()`.
 
 The main schema lives in `supabase-schema.sql`.
 
+### Bicycle Asset Dashboard foundation
+
+Investor ownership is separate from bicycle operations: `fleet_assets` retains its assigned rider/operator and dispatch state, while `investor_profiles` and `investor_asset_assignments` record the current owner and immutable ownership history. The investor dashboard uses only server-side read models and never returns customer addresses, rider contact details, live locations, internal notes, rider-wallet data, or investor earnings. Apply the focused investor migrations listed in `SUPABASE_PRODUCTION_GO_LIVE.md` to existing projects; do not rerun the full schema.
+
 ### Core identity tables
 
 | Table | Purpose |

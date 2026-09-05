@@ -12,6 +12,18 @@ Use this before switching the public site from preview/demo storage to live Supa
 
 - Open Supabase SQL Editor.
 - Run `supabase-schema.sql`.
+
+### Existing production projects: apply the Bicycle Asset Dashboard foundation
+
+Before deploying the investor dashboard code, take a backup or point-in-time-recovery marker and run these files in the Supabase SQL Editor in order:
+
+1. `security-remediation/investor-dashboard-preflight.sql` — review every result. Do not continue if it reports an orphaned `deliveries.fleet_asset_id` value.
+2. `security-remediation/migrations/202609050000_investor_role_enum.sql` — run by itself so the new `investor` role is committed.
+3. `security-remediation/migrations/202609050001_investor_dashboard_foundation.sql` — creates ownership history, protected assignment functions, audit trail, payout-account store, and RLS.
+4. `security-remediation/migrations/202609050002_investor_dashboard_delivery_asset_fk.sql` — only after the preflight report has zero orphan delivery asset references.
+5. `security-remediation/investor-dashboard-postflight.sql` — confirm policies and the foreign key.
+
+Set `INVESTOR_PAYOUT_ENCRYPTION_KEY` to a unique base64 encoding of exactly 32 random bytes before enabling investor onboarding. Do not reuse the Supabase service-role key, an admin secret, or a payment secret. The investor dashboard does not yet create investor earnings, payouts, or maintenance deductions.
 - Confirm these tables exist: `users`, `profiles`, `deliveries`, `delivery_events`, `delivery_locations`, `rider_profiles`, `rider_applications`, `rider_documents`, `wallets`, `wallet_transactions`, `withdrawal_requests`, `support_tickets`, `platform_launch_states`, `platform_settings`, `fraud_signals`, `company_transaction_logs`, `state_waitlist`, and `notifications`.
 - Confirm the private `rider-documents` storage bucket exists.
 - Confirm Realtime is enabled for delivery/tracking tables used by the app.

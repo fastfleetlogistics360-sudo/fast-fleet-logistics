@@ -49,6 +49,69 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
       };
+      investor_profiles: {
+        Row: {
+          id: string;
+          user_id: string;
+          investor_code: string;
+          status: "invited" | "onboarding" | "active" | "suspended";
+          invited_at: string;
+          onboarding_completed_at: string | null;
+          suspended_at: string | null;
+          suspension_reason: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["investor_profiles"]["Row"]> & { user_id: string; investor_code: string };
+        Update: Partial<Database["public"]["Tables"]["investor_profiles"]["Row"]>;
+      };
+      investor_asset_assignments: {
+        Row: {
+          id: string;
+          investor_profile_id: string;
+          fleet_asset_id: string;
+          assigned_at: string;
+          assigned_by: string | null;
+          ended_at: string | null;
+          ended_by: string | null;
+          change_reason: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["investor_asset_assignments"]["Row"]> & { investor_profile_id: string; fleet_asset_id: string };
+        Update: Partial<Database["public"]["Tables"]["investor_asset_assignments"]["Row"]>;
+      };
+      investor_payout_accounts: {
+        Row: {
+          id: string;
+          investor_profile_id: string;
+          bank_name: string;
+          bank_code: string;
+          account_number_ciphertext: string;
+          account_last4: string;
+          account_name: string;
+          verification_status: "verified" | "verification_unavailable" | "replaced";
+          verified_at: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["investor_payout_accounts"]["Row"]> & { investor_profile_id: string; bank_name: string; bank_code: string; account_number_ciphertext: string; account_last4: string; account_name: string };
+        Update: Partial<Database["public"]["Tables"]["investor_payout_accounts"]["Row"]>;
+      };
+      investor_audit_events: {
+        Row: {
+          id: string;
+          investor_profile_id: string | null;
+          fleet_asset_id: string | null;
+          actor_user_id: string | null;
+          event_type: string;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["investor_audit_events"]["Row"]> & { event_type: string };
+        Update: Partial<Database["public"]["Tables"]["investor_audit_events"]["Row"]>;
+      };
       whatsapp_account_links: {
         Row: {
           id: string;

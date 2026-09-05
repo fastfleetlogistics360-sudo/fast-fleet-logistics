@@ -1,4 +1,4 @@
-export type UserRole = "customer" | "rider" | "business" | "admin";
+export type UserRole = "customer" | "rider" | "business" | "investor" | "admin";
 
 export type VehicleType = "bike" | "car" | "van";
 

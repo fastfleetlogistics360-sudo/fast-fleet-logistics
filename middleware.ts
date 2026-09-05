@@ -3,13 +3,14 @@ import { createServerClient } from "@supabase/ssr";
 import type { UserRole } from "@/types/domain";
 import { legacyRoleHome, parseUserRole, roleHome } from "@/lib/auth/roles";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/customer/dashboard", "/book", "/account/orders", "/choose-account-type", "/rider/dashboard", "/business/dashboard", "/admin/dashboard"];
+const PROTECTED_PREFIXES = ["/dashboard", "/customer/dashboard", "/book", "/account/orders", "/choose-account-type", "/rider/dashboard", "/business/dashboard", "/investor", "/admin/dashboard"];
 
 const ROLE_PREFIXES: Array<{ prefix: string; roles: UserRole[] }> = [
   { prefix: "/customer/dashboard", roles: ["customer"] },
   { prefix: "/dashboard", roles: ["customer"] },
   { prefix: "/rider/dashboard", roles: ["rider"] },
   { prefix: "/business/dashboard", roles: ["business"] },
+  { prefix: "/investor", roles: ["investor"] },
   { prefix: "/admin/dashboard", roles: ["admin"] }
 ];
 
@@ -57,7 +58,7 @@ export async function middleware(request: NextRequest) {
       supabase.from("users").select("role").eq("id", user.id).maybeSingle<{ role?: string | null }>(),
       supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>()
     ]);
-    const role = roleRule.roles.includes("admin") ? parseUserRole(profile?.account_type || appUser?.role) : parseUserRole(profile?.account_type);
+    const role = roleRule.roles.includes("admin") ? parseUserRole(profile?.account_type || appUser?.role) : parseUserRole(profile?.account_type || appUser?.role);
     if (!role) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/choose-account-type";

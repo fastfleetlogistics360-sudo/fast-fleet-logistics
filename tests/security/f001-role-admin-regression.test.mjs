@@ -53,10 +53,12 @@ test("F-001 role helper behavior rejects user-controlled admin", () => {
   assert.equal(roles.parseSelfServiceRole("driver"), "rider");
   assert.equal(roles.parseSelfServiceRole("business"), "business");
   assert.equal(roles.parseSelfServiceRole("admin"), null);
+  assert.equal(roles.parseSelfServiceRole("investor"), null);
   assert.equal(roles.parseSelfServiceRole("super_admin"), null);
   assert.equal(roles.normalizeSelfServiceRole("admin", "business"), "business");
   assert.equal(roles.normalizeSelfServiceRole("staff", "customer"), "customer");
   assert.equal(roles.parseUserRole("admin"), "admin");
+  assert.equal(roles.parseUserRole("investor"), "investor");
   assert.equal(roles.safeDashboardRedirectForRole("/admin/dashboard", "customer"), "/customer/dashboard");
 });
 
@@ -64,11 +66,12 @@ test("F-001 auth helpers separate trusted roles from self-service roles", () => 
   const roles = read("lib/auth/roles.ts");
   const selfServiceFunction = roles.match(/export function parseSelfServiceRole[\s\S]*?^}/m)?.[0] || "";
 
-  assert.match(roles, /export type SelfServiceRole = Exclude<UserRole, "admin">;/);
+  assert.match(roles, /export type SelfServiceRole = Exclude<UserRole, "admin" \| "investor">;/);
   assert.match(selfServiceFunction, /value === "customer"/);
   assert.match(selfServiceFunction, /value === "rider"/);
   assert.match(selfServiceFunction, /value === "business"/);
   assert.doesNotMatch(selfServiceFunction, /"admin"/);
+  assert.doesNotMatch(selfServiceFunction, /"investor"/);
   assert.match(roles, /export function parseUserRole/);
 });
 
@@ -79,10 +82,10 @@ test("F-001 public auth routes use self-service parsing before profile writes", 
 
   assert.match(callback, /parseSelfServiceRole\(requestUrl\.searchParams\.get\("role"\)\)/);
   assert.match(callback, /parseSelfServiceRole\(user\.user_metadata\?\.account_type \|\| user\.user_metadata\?\.role\)/);
-  assert.match(callback, /if \(accountRole !== "admin"\) \{/);
+  assert.match(callback, /accountRole === "customer" \|\| accountRole === "rider" \|\| accountRole === "business"/);
   assert.match(confirm, /parseSelfServiceRole\(user\.user_metadata\?\.account_type \|\| user\.user_metadata\?\.role\)/);
   assert.match(confirm, /parseSelfServiceRole\(requestUrl\.searchParams\.get\("role"\) \|\| requestUrl\.searchParams\.get\("account"\)\)/);
-  assert.match(confirm, /if \(accountRole !== "admin"\) \{/);
+  assert.match(confirm, /accountRole === "customer" \|\| accountRole === "rider" \|\| accountRole === "business"/);
   assert.match(completion, /role: SelfServiceRole/);
 });
 
@@ -94,7 +97,7 @@ test("F-001 client signup/login cannot self-write admin roles", () => {
   assert.match(phoneAuth, /lockedRole\?: SelfServiceRole/);
   assert.match(phoneAuth, /parseSelfServiceRole\(value\)/);
   assert.match(phoneAuth, /normalizeSelfServiceRole/);
-  assert.match(phoneAuth, /if \(userRole !== "admin"\) \{/);
+  assert.match(phoneAuth, /userRole === "customer" \|\| userRole === "rider" \|\| userRole === "business"/);
   assert.match(chooseAccount, /useState<SelfServiceRole>\("customer"\)/);
 });
 

@@ -226,7 +226,7 @@ export function PhoneAuthForm({
       if (!result.data.user) throw new Error("Login succeeded but no session was returned.");
       const fallbackRole = normalizeSelfServiceRole(result.data.user.user_metadata?.account_type || result.data.user.user_metadata?.role || role, role);
       const userRole = await getSavedRole(result.data.user.id, fallbackRole);
-      if (userRole !== "admin") {
+      if (userRole === "customer" || userRole === "rider" || userRole === "business") {
         await saveProfiles(
           userRole,
           result.data.user.email,
