@@ -12,6 +12,7 @@ type WalletDashboardCardProps = {
   userName: string;
   balance: number;
   lockedBalance?: number;
+  loyaltyCredit?: number;
   walletType: Extract<WalletType, "customer" | "rider">;
   accountKind?: "customer" | "rider" | "business" | "investor";
   kycStatus?: WalletKycStatus;
@@ -32,6 +33,7 @@ export function WalletDashboardCard({
   userName,
   balance,
   lockedBalance = 0,
+  loyaltyCredit = 0,
   walletType,
   accountKind = walletType === "rider" ? "rider" : "customer",
   kycStatus = "pending",
@@ -122,6 +124,7 @@ export function WalletDashboardCard({
                 {showBalance ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
               </button>
             </div>
+            {loyaltyCredit > 0 ? <p className="mt-3 text-xs font-bold text-amber-200">Loyalty credit: {showBalance ? formatMoney(loyaltyCredit) : "NGN •••••"} · platform fees only</p> : null}
             {lockedBalance > 0 ? <p className="mt-2 text-xs font-bold text-white/75">{showBalance ? formatMoney(lockedBalance) : "NGN •••"} locked</p> : null}
           </div>
 

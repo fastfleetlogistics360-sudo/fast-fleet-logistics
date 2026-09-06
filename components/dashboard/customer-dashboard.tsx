@@ -50,6 +50,9 @@ type WalletRow = {
   balance_ngn?: number | null;
   locked_balance_ngn?: number | null;
   balance?: number | null;
+  loyalty_credit_ngn?: number | null;
+  loyalty_credit_initial_ngn?: number | null;
+  loyalty_credit_exhausted_at?: string | null;
 };
 
 type RiderInfo = {
@@ -492,7 +495,7 @@ export function CustomerDashboard() {
             <RolloutStateDashboard profile={profile} state={customerState} status={launchStatus} balance={balance} addresses={addresses} message={waitlistMessage} onNotify={joinStateWaitlist} />
           ) : null}
           {activeTab === "home" && stateIsOperational ? (
-            <HomeTab loading={loading} profile={profile} balance={balance} lockedBalance={Number(wallet.locked_balance_ngn || 0)} orders={orders} addresses={addresses} promotions={promotions} loadError={loadError} />
+            <HomeTab loading={loading} profile={profile} balance={balance} lockedBalance={Number(wallet.locked_balance_ngn || 0)} loyaltyCredit={Number(wallet.loyalty_credit_ngn || 0)} orders={orders} addresses={addresses} promotions={promotions} loadError={loadError} />
           ) : null}
           {activeTab === "orders" && !stateIsOperational ? <RestrictedOperationsPreview state={customerState} status={launchStatus} /> : null}
           {activeTab === "orders" && stateIsOperational ? (
@@ -721,6 +724,7 @@ function HomeTab({
   profile,
   balance,
   lockedBalance,
+  loyaltyCredit,
   orders,
   addresses,
   promotions,
@@ -730,6 +734,7 @@ function HomeTab({
   profile: ProfileRow;
   balance: number;
   lockedBalance: number;
+  loyaltyCredit: number;
   orders: OrderRow[];
   addresses: SavedAddress[];
   promotions: PromotionRow[];
@@ -754,6 +759,7 @@ function HomeTab({
           userName={profile.full_name?.trim().split(/\s+/)[0] || "there"}
           balance={balance}
           lockedBalance={lockedBalance}
+          loyaltyCredit={loyaltyCredit}
           walletType="customer"
           accountKind="customer"
           kycStatus={profile.kyc_status === "approved" ? "verified" : profile.kyc_status === "rejected" ? "more_info_needed" : "pending"}

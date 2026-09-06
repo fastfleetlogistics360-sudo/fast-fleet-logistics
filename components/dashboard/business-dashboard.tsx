@@ -195,6 +195,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
   const [kycStatus, setKycStatus] = useState<BusinessKycStatus>(initialKycStatus);
   const [kycRejectionReason, setKycRejectionReason] = useState<string | null>(initialKycRejectionReason);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [loyaltyCredit, setLoyaltyCredit] = useState(0);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
   const [orders, setOrders] = useState<DeliveryRow[]>([]);
   const [businessOrders, setBusinessOrders] = useState<BusinessOrderRow[]>([]);
@@ -273,7 +274,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
           businessQuery,
           supabase.from("profiles").select("avatar_url").eq("user_id", user.id).maybeSingle(),
           supabase.from("users").select("default_zone").eq("id", user.id).maybeSingle<{ default_zone?: string | null }>(),
-          supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).eq("wallet_type", "customer").maybeSingle(),
+          supabase.from("wallets").select("balance_ngn, loyalty_credit_ngn").eq("user_id", user.id).eq("wallet_type", "customer").maybeSingle(),
           supabase.from("deliveries").select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, proof_url").eq("customer_id", user.id).order("created_at", { ascending: false }).limit(50),
           supabase.from("saved_addresses").select("id, label, address").eq("user_id", user.id).order("created_at", { ascending: false }),
           fetch("/api/business/team").then((response) => response.json()).catch(() => ({ members: [] })),
@@ -292,6 +293,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
         setKycRejectionReason(nextProfile.rejection_reason || initialKycRejectionReason);
         if (!silent && nextKycStatus === "active" && !nextState) setActiveTab("account");
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
+        setLoyaltyCredit(Number((walletResult.data as { loyalty_credit_ngn?: number } | null)?.loyalty_credit_ngn || 0));
         setWithdrawals(Array.isArray(withdrawalsResult.withdrawals) ? withdrawalsResult.withdrawals : []);
         setOrders(ordersResult.error ? [] : ((ordersResult.data || []) as DeliveryRow[]));
         const businessOrdersResult = await loadBusinessOrdersForProfile(supabase, nextProfile.id, user.id);
@@ -627,7 +629,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
             <BusinessKycStatusView loading={loading} profile={profile} status={kycStatus} rejectionReason={kycRejectionReason} />
           ) : (
             <>
-              {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} withdrawals={withdrawals} stats={stats} orders={orders} businessOrders={businessOrders} businessOrderError={businessOrderError} businessOrderLoading={businessOrderLoading} onOpenWithdrawal={() => setWithdrawalOpen(true)} onOpenDispatch={() => setActiveTab("dispatch")} onBusinessOrderStatus={updateBusinessOrder} /> : null}
+              {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} loyaltyCredit={loyaltyCredit} withdrawals={withdrawals} stats={stats} orders={orders} businessOrders={businessOrders} businessOrderError={businessOrderError} businessOrderLoading={businessOrderLoading} onOpenWithdrawal={() => setWithdrawalOpen(true)} onOpenDispatch={() => setActiveTab("dispatch")} onBusinessOrderStatus={updateBusinessOrder} /> : null}
               {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsvFile={handleBulkCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={deleteAddress} /> : null}
               {activeTab === "history" ? <HistoryTab orders={filteredOrders} status={historyStatus} onStatus={setHistoryStatus} onExport={exportHistory} /> : null}
               {activeTab === "analytics" ? <AnalyticsTab orders={orders} addresses={addresses} team={team} /> : null}
@@ -733,7 +735,7 @@ function BusinessKycStatusView({ loading, profile, status, rejectionReason }: { 
   );
 }
 
-function OverviewTab({ loading, profile, walletBalance, withdrawals, stats, orders, businessOrders, businessOrderError, businessOrderLoading, onOpenWithdrawal, onOpenDispatch, onBusinessOrderStatus }: { loading: boolean; profile: BusinessProfile; walletBalance: number; withdrawals: WithdrawalRow[]; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[]; businessOrders: BusinessOrderRow[]; businessOrderError: string | null; businessOrderLoading: string | null; onOpenWithdrawal: () => void; onOpenDispatch: () => void; onBusinessOrderStatus: (id: string, status: string) => void }) {
+function OverviewTab({ loading, profile, walletBalance, loyaltyCredit, withdrawals, stats, orders, businessOrders, businessOrderError, businessOrderLoading, onOpenWithdrawal, onOpenDispatch, onBusinessOrderStatus }: { loading: boolean; profile: BusinessProfile; walletBalance: number; loyaltyCredit: number; withdrawals: WithdrawalRow[]; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[]; businessOrders: BusinessOrderRow[]; businessOrderError: string | null; businessOrderLoading: string | null; onOpenWithdrawal: () => void; onOpenDispatch: () => void; onBusinessOrderStatus: (id: string, status: string) => void }) {
   if (loading) return <DashboardSkeleton />;
   const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || orders[0] || null;
   return (
@@ -742,6 +744,7 @@ function OverviewTab({ loading, profile, walletBalance, withdrawals, stats, orde
       <WalletDashboardCard
         userName={profile.business_name?.trim().split(/\s+/)[0] || "Business"}
         balance={walletBalance}
+        loyaltyCredit={loyaltyCredit}
         walletType="customer"
         accountKind="business"
         kycStatus={profile.registration_status === "active" ? "verified" : profile.registration_status === "rejected" ? "more_info_needed" : "pending"}

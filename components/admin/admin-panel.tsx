@@ -134,6 +134,7 @@ type AdminSectionId =
   | "withdrawal-review"
   | "company-transaction-logs"
   | "promo-report"
+  | "live-cutover"
   | "main-hero"
   | "hub-promotions"
   | "restaurant-menus"
@@ -155,6 +156,7 @@ const adminSectionIds = new Set<string>([
   "withdrawal-review",
   "company-transaction-logs",
   "promo-report",
+  "live-cutover",
   "main-hero",
   "hub-promotions",
   "restaurant-menus",
@@ -192,7 +194,8 @@ const adminNavGroups: Array<{
     items: [
       { id: "withdrawal-review", label: "Withdrawals", icon: CircleDollarSign, count: (stats) => String(stats.pendingWithdrawals) },
       { id: "company-transaction-logs", label: "Company books", icon: ReceiptText },
-      { id: "promo-report", label: "Promo report", icon: TicketCheck, count: (stats) => String(stats.promoRedemptions) }
+      { id: "promo-report", label: "Promo report", icon: TicketCheck, count: (stats) => String(stats.promoRedemptions) },
+      { id: "live-cutover", label: "LIVE cutover", icon: ShieldAlert }
     ]
   },
   {
@@ -2748,6 +2751,8 @@ export function AdminPanel() {
         <OpsPanel icon={AlertTriangle} title="Risk signals" value={`${openRiskCount} flags`} helper="Fraud, payment mismatch, and location exception queue." />
       </div>
 
+      <LiveCutoverSection />
+
       <ReviewsSection reviews={adminReviews} />
 
       <RiskSignalsSection
@@ -2762,6 +2767,99 @@ export function AdminPanel() {
       />
     </section>
   );
+}
+
+function LiveCutoverSection() {
+  const [preview, setPreview] = useState<{
+    scope?: { activeDeliveries?: number; customerOrBusinessWalletsToConvert?: number; sandboxSourceBalanceNgn?: number; projectedLoyaltyCreditNgn?: number; pendingSquadTransactions?: number; pendingPaymentIntents?: number; lockedWallets?: number; lockedBalanceNgn?: number };
+    warnings?: string[];
+    execute?: { confirmationText?: string };
+    error?: string;
+  } | null>(null);
+  const [reference, setReference] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function loadPreview() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/admin/live-cutover", { cache: "no-store" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not preview the cleanup.");
+      setPreview(result);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not preview the cleanup.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runCleanup() {
+    if (!preview?.execute?.confirmationText) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/admin/live-cutover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reference, confirmation })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "The cleanup could not run.");
+      setMessage("Cleanup finished. You may now add the LIVE Squad key and LIVE Squad URL, then redeploy.");
+      await loadPreview();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The cleanup could not run.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const scope = preview?.scope;
+  return (
+    <Card id="live-cutover" className="mt-6 scroll-mt-24 border-amber-200 bg-amber-50/50 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <span className="text-xs font-black uppercase tracking-[0.15em] text-amber-700">One-time launch step</span>
+          <h2 className="mt-1 text-2xl font-black text-fleet-night">Clean test data for LIVE payments</h2>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">First preview the list. Then run the cleanup once. It turns sandbox wallet balances into platform-fee loyalty credit, closes test deliveries, and leaves investor balances alone.</p>
+        </div>
+        <Button type="button" variant="secondary" onClick={loadPreview} disabled={busy}>
+          <RefreshCw className={cn("h-4 w-4", busy ? "animate-spin" : "")} />Preview cleanup
+        </Button>
+      </div>
+
+      {message ? <p className="mt-4 rounded-fleet bg-white p-3 text-sm font-bold text-slate-700">{message}</p> : null}
+      {scope ? <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <CutoverMetric label="Test deliveries to close" value={String(scope.activeDeliveries || 0)} />
+        <CutoverMetric label="Wallets to convert" value={String(scope.customerOrBusinessWalletsToConvert || 0)} />
+        <CutoverMetric label="Sandbox value" value={formatMoney(scope.sandboxSourceBalanceNgn || 0)} />
+        <CutoverMetric label="New loyalty credit" value={formatMoney(scope.projectedLoyaltyCreditNgn || 0)} />
+        <CutoverMetric label="Pending Squad payments" value={String(scope.pendingSquadTransactions || 0)} />
+        <CutoverMetric label="Pending payment records" value={String(scope.pendingPaymentIntents || 0)} />
+        <CutoverMetric label="Locked wallets" value={String(scope.lockedWallets || 0)} />
+        <CutoverMetric label="Locked amount" value={formatMoney(scope.lockedBalanceNgn || 0)} />
+      </div> : <p className="mt-5 text-sm font-bold text-slate-500">Click “Preview cleanup” first. Nothing changes when you preview.</p>}
+
+      {preview?.warnings?.map((warning) => <p key={warning} className="mt-3 rounded-fleet border border-amber-200 bg-amber-100/60 p-3 text-sm font-bold text-amber-900">{warning}</p>)}
+      {scope ? <div className="mt-5 border-t border-amber-200 pt-5">
+        <p className="text-sm font-black text-fleet-night">If the numbers look right, enter the two fields below and press the final button.</p>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <label className="form-field"><span className="form-label">Your unique cleanup name</span><input className="form-input" value={reference} onChange={(event) => setReference(event.target.value)} placeholder="LIVE-CUTOVER-2026-09-06" /></label>
+          <label className="form-field"><span className="form-label">Type exactly: {preview.execute?.confirmationText}</span><input className="form-input" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={preview.execute?.confirmationText} /></label>
+        </div>
+        <Button type="button" className="mt-4" variant="dark" onClick={runCleanup} disabled={busy || !reference || confirmation !== preview.execute?.confirmationText}>
+          <ShieldAlert className="h-4 w-4" />Run one-time cleanup
+        </Button>
+      </div> : null}
+    </Card>
+  );
+}
+
+function CutoverMetric({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-fleet border border-amber-100 bg-white p-3"><span className="block text-xs font-bold text-slate-500">{label}</span><strong className="mt-1 block text-lg font-black text-fleet-night">{value}</strong></div>;
 }
 
 function AdminCommandMenu({

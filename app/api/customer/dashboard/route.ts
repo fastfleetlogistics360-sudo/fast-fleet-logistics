@@ -32,7 +32,7 @@ export async function GET() {
     const [profileResult, appUserResult, walletResult, orderResult, promotionResult, addressResult] = await Promise.all([
       db.from("profiles").select("id, full_name, email, phone, avatar_url, lga, kyc_status").eq("user_id", user.id).maybeSingle(),
       db.from("users").select("default_zone").eq("id", user.id).maybeSingle(),
-      db.from("wallets").select("balance_ngn, locked_balance_ngn, balance").eq("user_id", user.id).eq("wallet_type", "customer").maybeSingle(),
+      loadCustomerWallet(db, user.id),
       loadOrders(db, user.id),
       db.from("promotions").select("id, title, image_url, cta_label, cta_url, active").eq("active", true).order("created_at", { ascending: false }).limit(8),
       db.from("saved_addresses").select("id, label, address").eq("user_id", user.id).order("created_at", { ascending: false })
@@ -58,6 +58,17 @@ export async function GET() {
   } catch (error) {
     return NextResponse.json({ error: readableError(error, "Could not load your dashboard data.") }, { status: 500 });
   }
+}
+
+async function loadCustomerWallet(db: SupabaseClient, userId: string) {
+  const result = await db
+    .from("wallets")
+    .select("balance_ngn, locked_balance_ngn, balance, loyalty_credit_ngn, loyalty_credit_initial_ngn, loyalty_credit_exhausted_at")
+    .eq("user_id", userId)
+    .eq("wallet_type", "customer")
+    .maybeSingle();
+  if (!result.error || !/loyalty_credit|schema cache|column/i.test(result.error.message)) return result;
+  return db.from("wallets").select("balance_ngn, locked_balance_ngn, balance").eq("user_id", userId).eq("wallet_type", "customer").maybeSingle();
 }
 
 async function loadOrders(db: SupabaseClient, userId: string) {
