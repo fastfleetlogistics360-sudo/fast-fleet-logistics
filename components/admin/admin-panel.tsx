@@ -698,6 +698,13 @@ const companyTransactionCategories: Array<{ value: CompanyTransactionCategory; l
 ];
 
 const companyLogStorageKey = "fastfleet_company_transaction_logs";
+const adminFallbackStorageKeys = [
+  companyLogStorageKey,
+  mainHeroSlidesStorageKey,
+  hubPromotionSlidesStorageKey,
+  restaurantMenuStorageKey,
+  mallMenuStorageKey
+] as const;
 
 const blankCompanyTransactionForm = (): CompanyTransactionForm => ({
   entry_date: new Date().toISOString().slice(0, 10),
@@ -2223,7 +2230,8 @@ export function AdminPanel() {
   }
 
   async function logout() {
-    await fetch("/api/admin/logout", { method: "POST" });
+    const response = await fetch("/api/admin/logout", { method: "POST" });
+    if (response.ok) clearAdminFallbackStorage();
     await clearServiceWorkerSession().catch(() => undefined);
     window.location.reload();
   }
@@ -5561,6 +5569,11 @@ function newMarketplaceId() {
 function writeDemoMallMenus(malls: ShoppingMall[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(mallMenuStorageKey, JSON.stringify(malls));
+}
+
+function clearAdminFallbackStorage() {
+  if (typeof window === "undefined") return;
+  adminFallbackStorageKeys.forEach((key) => window.localStorage.removeItem(key));
 }
 
 function businessReviewLabel(status: AdminBusiness["registration_status"]) {

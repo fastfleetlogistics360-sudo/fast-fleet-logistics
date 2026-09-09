@@ -53,6 +53,13 @@ const nextConfig: NextConfig = {
         headers: securityHeaders
       },
       {
+        // Administrative responses can contain operational and financial data.
+        // Apply this at the route boundary so success and error responses receive
+        // the same conservative policy without changing each handler.
+        source: "/api/admin/:path*",
+        headers: [{ key: "Cache-Control", value: "private, no-store" }]
+      },
+      {
         source: "/sw.js",
         headers: [
           {
