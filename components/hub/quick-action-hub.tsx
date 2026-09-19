@@ -12,18 +12,27 @@ import type { LaunchPromoAnnouncement } from "@/lib/promos/launch-first-150";
 import { roleHome } from "@/lib/auth/roles";
 import { saveReturningProfile } from "@/lib/auth/returning-profile";
 import { HubPromotionCarousel } from "@/components/hub/hub-promotion-carousel";
+import { HubGuidedTour, type HubTourStep } from "@/components/hub/hub-guided-tour";
 
 type HubAction = {
+  id: string;
   title: string;
   href: string;
   icon: LucideIcon;
   tone: "navy" | "green" | "orange" | "blue" | "pink";
+  description: string;
 };
 
 type HubGlance = {
   title: string;
   href: string;
   items: Array<{ label: string; value: string; helper: string }>;
+};
+
+type HubOverview = {
+  promotionSlides: HubPromotionSlide[];
+  glance: HubGlance;
+  launchPromo: LaunchPromoAnnouncement | null;
 };
 
 function firstName(fullName: string | null, email: string | null) {
@@ -33,204 +42,96 @@ function firstName(fullName: string | null, email: string | null) {
 
 function avatarInitials(fullName: string | null, email: string | null) {
   const source = fullName || email?.split("@")[0] || "FF";
-  return source
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
+  return source.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
 }
 
-export function QuickActionHub({
-  role,
-  fullName,
-  email,
-  avatarUrl,
-  promotionSlides,
-  glance,
-  launchPromo
-}: {
-  role: UserRole;
-  fullName: string | null;
-  email: string | null;
-  avatarUrl: string | null;
-  promotionSlides: HubPromotionSlide[];
-  glance: HubGlance;
-  launchPromo: LaunchPromoAnnouncement | null;
-}) {
+export function QuickActionHub({ role, fullName, email, avatarUrl, shouldShowTour }: { role: UserRole; fullName: string | null; email: string | null; avatarUrl: string | null; shouldShowTour: boolean }) {
   const reduceMotion = useReducedMotion();
   const name = firstName(fullName, email);
-  const [promoOpen, setPromoOpen] = useState(Boolean(launchPromo));
+  const [overview, setOverview] = useState<HubOverview | null>(null);
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(shouldShowTour);
 
   useEffect(() => {
     saveReturningProfile({ fullName: fullName || name, email });
   }, [email, fullName, name]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/hub/overview", { cache: "no-store" })
+      .then(async (response) => response.ok ? response.json() as Promise<HubOverview> : null)
+      .then((data) => {
+        if (cancelled || !data) return;
+        setOverview(data);
+        setPromoOpen(Boolean(data.launchPromo));
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
 
   function markPromoSeen() {
     setPromoOpen(false);
     fetch("/api/promos/launch-first-150/seen", { method: "POST" }).catch(() => null);
   }
 
-  const marketplaceActions: HubAction[] = role === "business"
-    ? [{ title: "Marketplace Listing", href: "/marketplace/listing", icon: Store, tone: "navy" }]
-    : [];
+  const marketplaceActions: HubAction[] = role === "business" ? [
+    { id: "marketplace-listing", title: "Marketplace Listing", href: "/marketplace/listing", icon: Store, tone: "navy", description: "Publish and manage the products or services your business sells through Fast Fleets." }
+  ] : [];
   const actions: HubAction[] = [
-    { title: "Dashboard", href: roleHome[role], icon: LayoutDashboard, tone: "navy" },
-    { title: "Dispatch", href: "/book", icon: Truck, tone: "orange" },
-    { title: "FastErrands", href: "/fast-errands", icon: WalletCards, tone: "orange" },
-    { title: "Restaurants", href: "/restaurants", icon: Utensils, tone: "orange" },
-    { title: "Shopping", href: "/shopping", icon: ShoppingBag, tone: "green" },
+    { id: "dashboard", title: "Dashboard", href: roleHome[role], icon: LayoutDashboard, tone: "navy", description: "See your account activity, wallet, deliveries, and the tools that matter to your role." },
+    { id: "dispatch", title: "Dispatch", href: "/book", icon: Truck, tone: "orange", description: "Book a rider for parcels, documents, and everyday deliveries." },
+    { id: "fast-errands", title: "FastErrands", href: "/fast-errands", icon: WalletCards, tone: "orange", description: "Ask a verified runner to help with quick local errands." },
+    { id: "restaurants", title: "Restaurants", href: "/restaurants", icon: Utensils, tone: "orange", description: "Order from restaurant partners and follow delivery from checkout." },
+    { id: "shopping", title: "Shopping", href: "/shopping", icon: ShoppingBag, tone: "green", description: "Browse local stores and have selected items delivered to you." },
     ...marketplaceActions,
-    { title: "Heavy Logistics", href: "/heavy-logistics", icon: Warehouse, tone: "navy" },
-    { title: "Track a Delivery", href: "/track", icon: MapPinned, tone: "blue" },
-    { title: "Explore Services", href: "/services", icon: Compass, tone: "blue" },
-    { title: "Promotions & Updates", href: "/updates", icon: BellRing, tone: "pink" },
-    { title: "About Fast Fleets 360", href: "/about", icon: BookOpenText, tone: "blue" },
-    { title: "Contact Support", href: "/support", icon: Headphones, tone: "orange" }
+    { id: "heavy-logistics", title: "Heavy Logistics", href: "/heavy-logistics", icon: Warehouse, tone: "navy", description: "Request transport for bulky, high-volume, or commercial goods." },
+    { id: "track", title: "Track a Delivery", href: "/track", icon: MapPinned, tone: "blue", description: "Check a delivery status or follow a shared tracking link." },
+    { id: "services", title: "Explore Services", href: "/services", icon: Compass, tone: "blue", description: "Understand every Fast Fleets service and choose the one that fits your task." },
+    { id: "updates", title: "Promotions & Updates", href: "/updates", icon: BellRing, tone: "pink", description: "See new features, service announcements, and current offers." },
+    { id: "about", title: "About Fast Fleets 360", href: "/about", icon: BookOpenText, tone: "blue", description: "Learn about the company, rider network, and how the platform works." },
+    { id: "support", title: "Contact Support", href: "/support", icon: Headphones, tone: "orange", description: "Get help with an account, delivery, payment, or service question." }
   ];
-
-  const toneClasses = {
-    navy: "bg-[#eef3ff] text-[#0b1d3a]",
-    green: "bg-[#eefaf4] text-[#15a36b]",
-    orange: "bg-[#fff3ea] text-[#ff8a00]",
-    blue: "bg-[#edf5ff] text-[#1677df]",
-    pink: "bg-[#fff1f7] text-[#ca4eb8]"
-  };
+  const tourSteps: HubTourStep[] = actions.map(({ id, title, description }) => ({ id, title, description }));
+  const toneClasses = { navy: "bg-[#eef3ff] text-[#0b1d3a]", green: "bg-[#eefaf4] text-[#15a36b]", orange: "bg-[#fff3ea] text-[#ff8a00]", blue: "bg-[#edf5ff] text-[#1677df]", pink: "bg-[#fff1f7] text-[#ca4eb8]" };
+  const glance = overview?.glance || placeholderGlance(role);
 
   return (
     <main className="min-h-[calc(100vh-4.5rem)] bg-[radial-gradient(circle_at_top_left,rgba(244,126,24,0.08),transparent_28%),linear-gradient(180deg,#f8fafc,#eef3f8)] pb-24 text-fleet-night lg:pb-10">
       <div className="section-wrap max-w-5xl px-4 py-4 sm:px-6 sm:py-5">
-        <motion.section
-          initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-          animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-          transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-          className="flex min-h-[74px] items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/[0.90] px-3 py-3 text-fleet-night shadow-[0_18px_48px_rgba(8,17,31,0.08)] ring-1 ring-fleet-line/35 backdrop-blur-2xl sm:px-4"
-        >
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }} className="flex min-h-[74px] items-center justify-between gap-3 rounded-[22px] border border-white/80 bg-white/[0.90] px-3 py-3 text-fleet-night shadow-[0_18px_48px_rgba(8,17,31,0.08)] ring-1 ring-fleet-line/35 backdrop-blur-2xl sm:px-4">
           <div className="flex min-w-0 items-center gap-3">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-white/80 bg-white object-cover shadow-[0_10px_22px_rgba(8,17,31,0.08)]" />
-            ) : (
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-fleet-navy text-sm font-black text-white">{avatarInitials(fullName, email)}</span>
-            )}
-            <div className="min-w-0">
-              <span className="block text-xs font-semibold text-slate-500">Good to see you,</span>
-              <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-2">
-                <h1 className="truncate text-[0.95rem] font-black leading-tight text-fleet-night sm:text-base">{name}</h1>
-                <span className="rounded-full border border-fleet-line bg-fleet-paper px-2 py-0.5 text-[0.6rem] font-black uppercase tracking-[0.12em] text-fleet-ember">{role}</span>
-              </div>
-            </div>
+            {avatarUrl ? <img src={avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-white/80 bg-white object-cover shadow-[0_10px_22px_rgba(8,17,31,0.08)]" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-fleet-navy text-sm font-black text-white">{avatarInitials(fullName, email)}</span>}
+            <div className="min-w-0"><span className="block text-xs font-semibold text-slate-500">Good to see you,</span><div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-2"><h1 className="truncate text-[0.95rem] font-black leading-tight text-fleet-night sm:text-base">{name}</h1><span className="rounded-full border border-fleet-line bg-fleet-paper px-2 py-0.5 text-[0.6rem] font-black uppercase tracking-[0.12em] text-fleet-ember">{role}</span></div></div>
           </div>
-          <Link href="/" className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[14px] border border-fleet-line bg-white px-3 text-xs font-black text-fleet-night shadow-[0_10px_24px_rgba(8,17,31,0.06)] transition hover:border-fleet-gold focus:outline-none focus:ring-4 focus:ring-fleet-gold/20">
-            <Store className="h-4 w-4 text-fleet-ember" />
-            <span>Website</span>
-          </Link>
+          <Link href="/" className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[14px] border border-fleet-line bg-white px-3 text-xs font-black text-fleet-night shadow-[0_10px_24px_rgba(8,17,31,0.06)] transition hover:border-fleet-gold focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"><Store className="h-4 w-4 text-fleet-ember" /><span>Website</span></Link>
         </motion.section>
 
-        <HubPromotionCarousel slides={promotionSlides} />
-        {launchPromo && promoOpen ? (
-          <motion.section
-            initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
-            animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-4 overflow-hidden rounded-[24px] border border-[#ffd69b] bg-[linear-gradient(135deg,#fffaf2,#ffffff_46%,#fff3e2)] p-4 shadow-[0_18px_52px_rgba(244,126,24,0.18)] ring-1 ring-fleet-gold/25 sm:p-5"
-            aria-label="Launch promo"
-          >
-            <div className="flex items-start gap-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[16px] bg-fleet-night text-white shadow-[0_12px_26px_rgba(8,17,31,0.18)]">
-                <Gift className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <span className="text-[0.68rem] font-black uppercase tracking-[0.18em] text-fleet-ember">Launch benefit unlocked</span>
-                <h2 className="mt-1 text-xl font-black leading-tight text-fleet-night sm:text-2xl">Hooray, you’re one of our first 150 FastFleets 360 users.</h2>
-                <div className="mt-4 grid gap-2 text-sm font-bold leading-6 text-slate-700">
-                  <BenefitLine>Zero platform fee on eligible launch deliveries</BenefitLine>
-                  <BenefitLine>50% off your first two bike-size deliveries</BenefitLine>
-                  <BenefitLine>Discount capped at ₦{launchPromo.discountCapNgn.toLocaleString("en-NG")} per delivery</BenefitLine>
-                  <BenefitLine>Applied automatically at checkout</BenefitLine>
-                </div>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Link
-                    href="/book"
-                    onClick={markPromoSeen}
-                    className="inline-flex h-11 items-center justify-center rounded-[15px] bg-fleet-night px-4 text-sm font-black text-white shadow-[0_12px_26px_rgba(8,17,31,0.16)] transition hover:-translate-y-0.5"
-                  >
-                    Start a delivery
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={markPromoSeen}
-                    className="inline-flex h-11 items-center justify-center rounded-[15px] border border-fleet-line bg-white px-4 text-sm font-black text-fleet-night transition hover:border-fleet-gold"
-                  >
-                    Got it
-                  </button>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={markPromoSeen}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-fleet-line bg-white text-slate-500 transition hover:border-fleet-gold hover:text-fleet-night"
-                aria-label="Dismiss launch promo"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </motion.section>
-        ) : null}
+        <HubPromotionCarousel slides={overview?.promotionSlides} />
+        {overview?.launchPromo && promoOpen ? <motion.section initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }} className="mt-4 overflow-hidden rounded-[24px] border border-[#ffd69b] bg-[linear-gradient(135deg,#fffaf2,#ffffff_46%,#fff3e2)] p-4 shadow-[0_18px_52px_rgba(244,126,24,0.18)] ring-1 ring-fleet-gold/25 sm:p-5" aria-label="Launch promo">
+          <div className="flex items-start gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-[16px] bg-fleet-night text-white shadow-[0_12px_26px_rgba(8,17,31,0.18)]"><Gift className="h-5 w-5" /></span><div className="min-w-0 flex-1"><span className="text-[0.68rem] font-black uppercase tracking-[0.18em] text-fleet-ember">Launch benefit unlocked</span><h2 className="mt-1 text-xl font-black leading-tight text-fleet-night sm:text-2xl">Hooray, you’re one of our first 150 FastFleets 360 users.</h2><div className="mt-4 grid gap-2 text-sm font-bold leading-6 text-slate-700"><BenefitLine>Zero platform fee on eligible launch deliveries</BenefitLine><BenefitLine>50% off your first two bike-size deliveries</BenefitLine><BenefitLine>Discount capped at ₦{overview.launchPromo.discountCapNgn.toLocaleString("en-NG")} per delivery</BenefitLine><BenefitLine>Applied automatically at checkout</BenefitLine></div><div className="mt-5 flex flex-wrap gap-2"><Link href="/book" onClick={markPromoSeen} className="inline-flex h-11 items-center justify-center rounded-[15px] bg-fleet-night px-4 text-sm font-black text-white shadow-[0_12px_26px_rgba(8,17,31,0.16)] transition hover:-translate-y-0.5">Start a delivery</Link><button type="button" onClick={markPromoSeen} className="inline-flex h-11 items-center justify-center rounded-[15px] border border-fleet-line bg-white px-4 text-sm font-black text-fleet-night transition hover:border-fleet-gold">Got it</button></div></div><button type="button" onClick={markPromoSeen} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-fleet-line bg-white text-slate-500 transition hover:border-fleet-gold hover:text-fleet-night" aria-label="Dismiss launch promo"><X className="h-4 w-4" /></button></div>
+        </motion.section> : null}
 
         <section className="mt-5 rounded-[22px] border border-white/80 bg-white/[0.90] p-3 shadow-[0_18px_48px_rgba(8,17,31,0.08)] ring-1 ring-fleet-line/35 backdrop-blur-2xl sm:p-4" aria-labelledby="quick-actions-title">
-          <div className="flex items-center justify-between gap-3 px-1 pb-3">
-            <h2 id="quick-actions-title" className="text-base font-black text-fleet-night">Quick Actions</h2>
-            <Link href="/services" className="inline-flex items-center gap-1 text-sm font-black text-[#1677df] transition hover:text-fleet-ember">All Services <ArrowRight className="h-4 w-4" /></Link>
-          </div>
+          <div className="flex items-center justify-between gap-3 px-1 pb-3"><h2 id="quick-actions-title" className="text-base font-black text-fleet-night">Quick Actions</h2><Link href="/services" className="inline-flex items-center gap-1 text-sm font-black text-[#1677df] transition hover:text-fleet-ember">All Services <ArrowRight className="h-4 w-4" /></Link></div>
           <div className="grid grid-cols-4 gap-x-1 gap-y-4 sm:gap-x-3 sm:gap-y-5">
-            {actions.map((action, index) => {
-              const Icon = action.icon;
-              return (
-                <motion.div
-                  key={action.title}
-                  initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-                  animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                  transition={{ duration: 0.22, delay: index * 0.03, ease: [0.22, 1, 0.36, 1] }}
-                  whileHover={reduceMotion ? undefined : { y: -2 }}
-                  whileTap={reduceMotion ? undefined : { scale: 0.96 }}
-                >
-                  <Link href={action.href} className="group grid min-h-[92px] place-items-center gap-2 rounded-[16px] px-1 py-1.5 text-center transition hover:bg-[#f6f8fa] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20">
-                    <span className={`grid h-12 w-12 place-items-center rounded-[15px] transition duration-200 group-hover:scale-105 ${toneClasses[action.tone]}`}>
-                      <Icon className="h-5 w-5" strokeWidth={2.2} />
-                    </span>
-                    <span className="flex min-h-8 items-center justify-center text-[0.7rem] font-black leading-4 text-fleet-night">{action.title}</span>
-                  </Link>
-                </motion.div>
-              );
-            })}
+            {actions.map((action, index) => { const Icon = action.icon; return <motion.div key={action.id} initial={reduceMotion ? false : { opacity: 0, y: 8 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} transition={{ duration: 0.22, delay: index * 0.03, ease: [0.22, 1, 0.36, 1] }} whileHover={reduceMotion ? undefined : { y: -2 }} whileTap={reduceMotion ? undefined : { scale: 0.96 }}><Link href={action.href} data-hub-tour-id={action.id} className="group grid min-h-[92px] place-items-center gap-2 rounded-[16px] px-1 py-1.5 text-center transition hover:bg-[#f6f8fa] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"><span className={`grid h-12 w-12 place-items-center rounded-[15px] transition duration-200 group-hover:scale-105 ${toneClasses[action.tone]}`}><Icon className="h-5 w-5" strokeWidth={2.2} /></span><span className="flex min-h-8 items-center justify-center text-[0.7rem] font-black leading-4 text-fleet-night">{action.title}</span></Link></motion.div>; })}
           </div>
         </section>
 
         <section className="mt-6 overflow-hidden rounded-[22px] bg-fleet-night p-4 text-white shadow-[0_16px_42px_rgba(8,17,31,0.16)] sm:p-5" aria-labelledby="glance-title">
-          <div className="flex items-center justify-between gap-4">
-            <h2 id="glance-title" className="text-lg font-black">{glance.title}</h2>
-            <Link href={glance.href} className="inline-flex items-center gap-1 text-sm font-black text-[#53a4ff] transition hover:text-white">View all <ArrowRight className="h-4 w-4" /></Link>
-          </div>
-          <div className="mt-5 grid grid-cols-3 gap-3">
-            {glance.items.map((item) => (
-              <div key={item.label} className="min-w-0">
-                <span className="block text-xs font-bold text-white/65">{item.label}</span>
-                <strong className="mt-2 block truncate text-lg font-black sm:text-xl">{item.value}</strong>
-                <span className="mt-1 block text-xs font-semibold text-white/65">{item.helper}</span>
-              </div>
-            ))}
-          </div>
+          <div className="flex items-center justify-between gap-4"><h2 id="glance-title" className="text-lg font-black">{glance.title}</h2><Link href={glance.href} className="inline-flex items-center gap-1 text-sm font-black text-[#53a4ff] transition hover:text-white">View all <ArrowRight className="h-4 w-4" /></Link></div>
+          <div className="mt-5 grid grid-cols-3 gap-3">{glance.items.map((item) => <div key={item.label} className="min-w-0"><span className="block text-xs font-bold text-white/65">{item.label}</span><strong className="mt-2 block truncate text-lg font-black sm:text-xl">{item.value}</strong><span className="mt-1 block text-xs font-semibold text-white/65">{item.helper}</span></div>)}</div>
         </section>
       </div>
+      {tourOpen ? <HubGuidedTour steps={tourSteps} onFinish={() => setTourOpen(false)} /> : null}
     </main>
   );
 }
 
+function placeholderGlance(role: UserRole): HubGlance {
+  return { title: "Today at a glance", href: roleHome[role], items: [{ label: role === "business" ? "Dispatches" : "Deliveries", value: "—", helper: "Loading" }, { label: role === "rider" ? "Earnings" : "Wallet", value: "—", helper: "Loading" }, { label: role === "rider" ? "Rating" : "Completed", value: "—", helper: "Loading" }] };
+}
+
 function BenefitLine({ children }: { children: ReactNode }) {
-  return (
-    <span className="flex gap-2 rounded-[14px] bg-white/70 px-3 py-2 ring-1 ring-fleet-line/50">
-      <PackageCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-      <span>{children}</span>
-    </span>
-  );
+  return <span className="flex gap-2 rounded-[14px] bg-white/70 px-3 py-2 ring-1 ring-fleet-line/50"><PackageCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /><span>{children}</span></span>;
 }

@@ -89,6 +89,7 @@ create table if not exists public.profiles (
   email text,
   account_type public.user_role not null default 'customer',
   avatar_url text,
+  hub_tour_version integer not null default 0,
   lga text,
   is_admin boolean not null default false,
   kyc_status text not null default 'pending_review' check (kyc_status in ('pending_review', 'approved', 'rejected')),
@@ -100,6 +101,7 @@ create table if not exists public.profiles (
 
 alter table if exists public.profiles
   add column if not exists lga text,
+  add column if not exists hub_tour_version integer not null default 0,
   add column if not exists is_admin boolean not null default false,
   add column if not exists kyc_status text not null default 'pending_review',
   add column if not exists deleted_at timestamptz;

@@ -169,11 +169,12 @@ export function PhoneAuthForm({
 
   async function getSavedRole(userId: string, fallback: SelfServiceRole): Promise<UserRole> {
     const supabase = createClient();
-    const { data: profile } = await supabase.from("profiles").select("account_type").eq("user_id", userId).maybeSingle<ProfileRecord>();
+    const [{ data: profile }, { data: appUser }] = await Promise.all([
+      supabase.from("profiles").select("account_type").eq("user_id", userId).maybeSingle<ProfileRecord>(),
+      supabase.from("users").select("role").eq("id", userId).maybeSingle<ProfileRecord>()
+    ]);
     if (profile?.account_type) return normalizeRole(profile.account_type);
-
-    const { data: user } = await supabase.from("users").select("role").eq("id", userId).maybeSingle<ProfileRecord>();
-    return normalizeRole(user?.role || fallback);
+    return normalizeRole(appUser?.role || fallback);
   }
 
   async function ensureRequiredRole() {
@@ -246,14 +247,9 @@ export function PhoneAuthForm({
       }
       const fallbackRole = normalizeSelfServiceRole(result.data.user.user_metadata?.account_type || result.data.user.user_metadata?.role || role, role);
       const userRole = await getSavedRole(result.data.user.id, fallbackRole);
-      if (userRole === "customer" || userRole === "rider" || userRole === "business") {
-        await saveProfiles(
-          userRole,
-          result.data.user.email,
-          null,
-          result.data.user.user_metadata?.full_name || result.data.user.user_metadata?.name || null
-        );
-      }
+      // Returning accounts are already bootstrapped. Repeating the bootstrap
+      // writes and launch-promo enrollment here delayed every login by two
+      // network round trips before the Hub could open.
       redirectForRole(userRole);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login failed. Check your email and password.");

@@ -40,6 +40,7 @@ export interface Database {
           email: string | null;
           account_type: UserRole;
           avatar_url: string | null;
+          hub_tour_version: number;
           created_at: string;
           updated_at: string;
         };
