@@ -6,6 +6,7 @@ import { DEFAULT_FARE_CONFIG, normalizeFareConfig } from "@/lib/fare";
 import { siteControlsSettingsKey } from "@/lib/fare-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
+import { normalizeWalletTopUpPolicy } from "@/lib/wallet-topup-policy";
 import type { Json } from "@/lib/supabase/types";
 
 const defaultControls = {
@@ -18,7 +19,8 @@ const defaultControls = {
   launch_message: "Customers and riders in new states can join the waitlist while operations expand.",
   brand_partners: defaultBrandPartners,
   wallet_policy: {
-    min_topup_ngn: 500,
+    min_topup_ngn: 1000,
+    max_topup_ngn: 50000,
     min_withdrawal_ngn: 2000,
     max_withdrawal_ngn: 200000,
     payout_sla_hours: 10
@@ -45,7 +47,9 @@ export async function GET() {
 
   const value = (data?.value || {}) as Record<string, unknown>;
   const fareConfig = normalizeFareConfig(value.fare_config);
-  return NextResponse.json({ controls: { ...defaultControls, ...value, fare_config: fareConfig, delivery_policy: normalizeDeliveryPolicy(value.delivery_policy, fareConfig) } });
+  const configuredWalletPolicy = (value.wallet_policy || {}) as Record<string, unknown>;
+  const topUpPolicy = normalizeWalletTopUpPolicy(configuredWalletPolicy);
+  return NextResponse.json({ controls: { ...defaultControls, ...value, wallet_policy: { ...defaultControls.wallet_policy, ...configuredWalletPolicy, min_topup_ngn: topUpPolicy.minTopUpNgn, max_topup_ngn: topUpPolicy.maxTopUpNgn }, fare_config: fareConfig, delivery_policy: normalizeDeliveryPolicy(value.delivery_policy, fareConfig) } });
 }
 
 export async function PUT(request: Request) {
@@ -94,6 +98,7 @@ function parseControls(body: Record<string, unknown>): { controls: Record<string
     brand_partners: normalizeBrandPartners(body.brand_partners),
     wallet_policy: {
       min_topup_ngn: clampMoney(walletPolicy.min_topup_ngn, 100, 1000000, defaultControls.wallet_policy.min_topup_ngn),
+      max_topup_ngn: clampMoney(walletPolicy.max_topup_ngn, 100, 1000000, defaultControls.wallet_policy.max_topup_ngn),
       min_withdrawal_ngn: clampMoney(walletPolicy.min_withdrawal_ngn, 1000, 1000000, defaultControls.wallet_policy.min_withdrawal_ngn),
       max_withdrawal_ngn: clampMoney(walletPolicy.max_withdrawal_ngn, 1000, 5000000, defaultControls.wallet_policy.max_withdrawal_ngn),
       payout_sla_hours: clampMoney(walletPolicy.payout_sla_hours, 1, 168, defaultControls.wallet_policy.payout_sla_hours)
@@ -104,6 +109,9 @@ function parseControls(body: Record<string, unknown>): { controls: Record<string
 
   if (controls.wallet_policy.max_withdrawal_ngn < controls.wallet_policy.min_withdrawal_ngn) {
     return { error: "Maximum withdrawal must be higher than minimum withdrawal." };
+  }
+  if (controls.wallet_policy.max_topup_ngn < controls.wallet_policy.min_topup_ngn) {
+    return { error: "Maximum top-up must be higher than minimum top-up." };
   }
 
   return { controls };

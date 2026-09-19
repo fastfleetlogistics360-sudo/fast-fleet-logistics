@@ -56,7 +56,7 @@ export function TransactionHistory({ accountKind, title = "Transaction history",
   const rows = useMemo(() => transactions.slice(0, compact ? 5 : 12), [compact, transactions]);
 
   return (
-    <Card id="transactions" className="p-5">
+    <Card id="transactions" className="mx-auto w-full max-w-4xl p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-black text-fleet-night">{title}</h2>
@@ -83,7 +83,7 @@ function TransactionItem({ transaction }: { transaction: TransactionRow }) {
   const Icon = credit ? ArrowDownLeft : ArrowUpRight;
   const label = transactionLabel(transaction);
   return (
-    <article className="flex items-start justify-between gap-3 rounded-fleet border border-fleet-line bg-white p-3">
+    <article className="flex flex-col gap-3 rounded-fleet border border-fleet-line bg-white p-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 gap-3">
         <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-fleet", credit ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>
           <Icon className="h-4 w-4" />
@@ -93,15 +93,15 @@ function TransactionItem({ transaction }: { transaction: TransactionRow }) {
           <span className="mt-1 block text-xs font-bold text-slate-500">{formatDateTime(transaction.created_at)}</span>
           <span className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-slate-500">
             <ReceiptText className="h-3.5 w-3.5" />
-            {transaction.provider_reference || transaction.provider || transaction.id}
+            <span className="min-w-0 break-all">{transaction.provider_reference || transaction.provider || transaction.id}</span>
           </span>
         </div>
       </div>
-      <div className="shrink-0 text-right">
+      <div className="flex shrink-0 items-center justify-between gap-3 text-left sm:block sm:text-right">
         <strong className={cn("block text-sm font-black", credit ? "text-emerald-700" : "text-fleet-night")}>
           {credit ? "+" : "-"}{formatMoney(Math.abs(Number(transaction.amount_ngn || 0)))}
         </strong>
-        <StatusBadge tone={transaction.status === "successful" ? "green" : transaction.status === "failed" ? "red" : "amber"} className="mt-2">
+        <StatusBadge tone={transaction.status === "successful" ? "green" : transaction.status === "failed" ? "red" : "amber"} className="sm:mt-2">
           {transaction.status}
         </StatusBadge>
       </div>

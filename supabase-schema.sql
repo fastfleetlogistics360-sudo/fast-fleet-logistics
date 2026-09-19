@@ -1297,9 +1297,17 @@ as $$
 declare
   next_wallet_id uuid;
   next_transaction_id uuid;
+  site_controls jsonb := '{}'::jsonb;
+  min_topup_ngn numeric;
+  max_topup_ngn numeric;
 begin
-  if next_amount_ngn < 500 then
-    raise exception 'Wallet funding amount is too low';
+  execute 'select value from public.platform_settings where key = ''admin_site_controls''' into site_controls;
+  site_controls := coalesce(site_controls, '{}'::jsonb);
+  min_topup_ngn := least(1000000, greatest(1000, coalesce(nullif(site_controls #>> '{wallet_policy,min_topup_ngn}', '')::numeric, 1000)));
+  max_topup_ngn := least(1000000, greatest(min_topup_ngn, coalesce(nullif(site_controls #>> '{wallet_policy,max_topup_ngn}', '')::numeric, 50000)));
+
+  if next_amount_ngn < min_topup_ngn or next_amount_ngn > max_topup_ngn or next_amount_ngn <> trunc(next_amount_ngn) then
+    raise exception 'Wallet funding amount must be a whole number within the configured top-up range';
   end if;
 
   next_wallet_id := public.ensure_wallet(next_user_id, next_wallet_type);
@@ -3571,7 +3579,8 @@ values (
       }
     ],
     "wallet_policy": {
-      "min_topup_ngn": 500,
+      "min_topup_ngn": 1000,
+      "max_topup_ngn": 50000,
       "min_withdrawal_ngn": 2000,
       "max_withdrawal_ngn": 200000,
       "payout_sla_hours": 10

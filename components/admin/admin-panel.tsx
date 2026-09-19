@@ -459,6 +459,7 @@ type SiteControls = {
   brand_partners: BrandPartner[];
   wallet_policy: {
     min_topup_ngn: number;
+    max_topup_ngn: number;
     min_withdrawal_ngn: number;
     max_withdrawal_ngn: number;
     payout_sla_hours: number;
@@ -861,7 +862,8 @@ const defaultSiteControls: SiteControls = {
   launch_message: "Customers and riders in new states can join the waitlist while operations expand.",
   brand_partners: defaultBrandPartners,
   wallet_policy: {
-    min_topup_ngn: 500,
+    min_topup_ngn: 1000,
+    max_topup_ngn: 50000,
     min_withdrawal_ngn: 2000,
     max_withdrawal_ngn: 200000,
     payout_sla_hours: 10
@@ -5187,6 +5189,7 @@ function SiteControlsSection({
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <AdminNumberInput label="Min top-up" value={controls.wallet_policy.min_topup_ngn} onChange={(value) => onWalletPolicyChange({ min_topup_ngn: value })} />
+          <AdminNumberInput label="Max top-up" value={controls.wallet_policy.max_topup_ngn} onChange={(value) => onWalletPolicyChange({ max_topup_ngn: value })} />
           <AdminNumberInput label="Min withdrawal" value={controls.wallet_policy.min_withdrawal_ngn} onChange={(value) => onWalletPolicyChange({ min_withdrawal_ngn: value })} />
           <AdminNumberInput label="Max withdrawal" value={controls.wallet_policy.max_withdrawal_ngn} onChange={(value) => onWalletPolicyChange({ max_withdrawal_ngn: value })} />
           <AdminNumberInput label="Payout SLA hours" value={controls.wallet_policy.payout_sla_hours} onChange={(value) => onWalletPolicyChange({ payout_sla_hours: value })} />

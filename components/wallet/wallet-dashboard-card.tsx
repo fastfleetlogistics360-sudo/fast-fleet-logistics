@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { walletKycLabel, type WalletKycStatus } from "@/lib/kyc";
 import type { WalletType } from "@/types/domain";
 import { Button } from "@/components/ui/button";
+import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
 
 type WalletDashboardCardProps = {
   userName: string;
@@ -17,7 +18,6 @@ type WalletDashboardCardProps = {
   accountKind?: "customer" | "rider" | "business" | "investor";
   kycStatus?: WalletKycStatus;
   returnTo?: string;
-  topUpAmount?: string;
   onWithdraw?: () => void;
   withdrawLoading?: boolean;
   withdrawDisabled?: boolean;
@@ -38,7 +38,6 @@ export function WalletDashboardCard({
   accountKind = walletType === "rider" ? "rider" : "customer",
   kycStatus = "pending",
   returnTo,
-  topUpAmount,
   onWithdraw,
   withdrawLoading = false,
   withdrawDisabled = false,
@@ -50,10 +49,6 @@ export function WalletDashboardCard({
   statusLabel = "KYC Status"
 }: WalletDashboardCardProps) {
   const [showBalance, setShowBalance] = useState(true);
-  const [localAmount] = useState("10000");
-  const [topUpLoading, setTopUpLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const amount = topUpAmount ?? localAmount;
   const kycTone =
     kycStatus === "verified"
       ? "border-emerald-300/25 bg-emerald-400/15 text-emerald-300"
@@ -61,31 +56,6 @@ export function WalletDashboardCard({
         ? "border-amber-200/25 bg-amber-300/15 text-amber-200"
         : "border-white/10 bg-white/10 text-white/75";
   const cardLabel = accountKind === "business" ? "Business wallet" : accountKind === "rider" ? "Rider wallet" : accountKind === "investor" ? "Investor wallet" : "Customer wallet";
-
-  async function topUp() {
-    const amountNgn = Number(amount);
-    setMessage(null);
-    if (!Number.isFinite(amountNgn) || amountNgn < 500) {
-      setMessage("Enter at least NGN 500.");
-      return;
-    }
-
-    setTopUpLoading(true);
-    try {
-      const response = await fetch("/api/wallet/topup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: amountNgn, walletType, returnTo: returnTo || (walletType === "rider" ? "/rider/dashboard" : "/dashboard") })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Could not start Squad top-up.");
-      window.location.assign(data.authorizationUrl);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not start Squad top-up.");
-    } finally {
-      setTopUpLoading(false);
-    }
-  }
 
   const canWithdraw = Boolean(onWithdraw) || accountKind === "rider" || accountKind === "business" || accountKind === "investor";
   const showTopUp = accountKind === "customer";
@@ -160,10 +130,15 @@ export function WalletDashboardCard({
           <span className="min-w-0 text-center">{canWithdraw ? withdrawLabel : "Track my order"}</span>
         </Button>
         {showTopUp ? (
-          <Button type="button" variant="secondary" className="min-h-12 rounded-[16px] px-2 text-xs leading-tight sm:min-h-14 sm:text-base" onClick={topUp} disabled={topUpLoading || Number(amount) < 500}>
-            {topUpLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 sm:h-5 sm:w-5" />}
-            <span className="min-w-0 text-center">Top Up</span>
-          </Button>
+          <SmartWalletTopUp
+            returnTo={returnTo || (walletType === "rider" ? "/rider/dashboard" : "/dashboard")}
+            renderTrigger={({ onClick, disabled }) => (
+              <Button type="button" variant="secondary" className="min-h-12 rounded-[16px] px-2 text-xs leading-tight sm:min-h-14 sm:text-base" onClick={onClick} disabled={disabled}>
+                <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="min-w-0 text-center">Top Up</span>
+              </Button>
+            )}
+          />
         ) : null}
         <Button type="button" variant="secondary" className="min-h-12 rounded-[16px] px-2 text-xs leading-tight sm:min-h-14 sm:text-base" onClick={() => openHref(historyHref)}>
           <RefreshCw className="h-4 w-4" />
@@ -171,9 +146,9 @@ export function WalletDashboardCard({
         </Button>
       </div>
 
-      {message || notice ? (
+      {notice ? (
         <div className="mt-4 rounded-fleet bg-fleet-gold/15 p-3 text-xs font-bold leading-5 text-amber-800">
-          {message || notice}
+          {notice}
         </div>
       ) : null}
     </section>

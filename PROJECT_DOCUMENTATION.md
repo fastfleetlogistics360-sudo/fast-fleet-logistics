@@ -1027,9 +1027,9 @@ Flow:
 10. Route calls SQL RPC `complete_wallet_funding()`.
 11. SQL function credits wallet only once.
 
-Where to change minimum top-up:
+Where to change wallet top-up range:
 
-- Update `app/api/wallet/topup/route.ts`.
+- Update `lib/wallet-topup-policy.ts` and `app/api/wallet/topup/route.ts`.
 - Update `supabase-schema.sql` function `create_wallet_funding()`.
 - Update `app/api/admin/site-controls/route.ts` default `wallet_policy`.
 - Update UI text if any component shows the minimum.

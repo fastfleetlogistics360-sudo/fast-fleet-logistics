@@ -3,10 +3,12 @@ import { defaultBrandPartners, normalizeBrandPartners } from "@/lib/brand-partne
 import { DEFAULT_FARE_CONFIG, normalizeFareConfig } from "@/lib/fare";
 import { siteControlsSettingsKey } from "@/lib/fare-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DEFAULT_WALLET_TOP_UP_POLICY, normalizeWalletTopUpPolicy } from "@/lib/wallet-topup-policy";
 
 const publicDefaults = {
   brand_partners: defaultBrandPartners,
-  fare_config: DEFAULT_FARE_CONFIG
+  fare_config: DEFAULT_FARE_CONFIG,
+  wallet_policy: { min_topup_ngn: DEFAULT_WALLET_TOP_UP_POLICY.minTopUpNgn, max_topup_ngn: DEFAULT_WALLET_TOP_UP_POLICY.maxTopUpNgn }
 };
 
 export async function GET() {
@@ -20,6 +22,12 @@ export async function GET() {
 
   return NextResponse.json({
     brand_partners: normalizeBrandPartners(value.brand_partners),
-    fare_config: normalizeFareConfig(value.fare_config)
+    fare_config: normalizeFareConfig(value.fare_config),
+    wallet_policy: toPublicWalletPolicy(value.wallet_policy)
   });
+}
+
+function toPublicWalletPolicy(value: unknown) {
+  const policy = normalizeWalletTopUpPolicy(value);
+  return { min_topup_ngn: policy.minTopUpNgn, max_topup_ngn: policy.maxTopUpNgn };
 }

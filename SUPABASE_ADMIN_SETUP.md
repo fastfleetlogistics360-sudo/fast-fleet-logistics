@@ -64,7 +64,8 @@ values (
     "launch_headline": "FastFleet is live in Lagos and Ogun.",
     "launch_message": "Customers and riders in new states can join the waitlist while operations expand.",
     "wallet_policy": {
-      "min_topup_ngn": 500,
+      "min_topup_ngn": 1000,
+      "max_topup_ngn": 50000,
       "min_withdrawal_ngn": 3000,
       "max_withdrawal_ngn": 200000,
       "payout_sla_hours": 24

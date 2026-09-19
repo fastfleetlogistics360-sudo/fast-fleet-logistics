@@ -3,7 +3,9 @@ import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, getSquadPaymentEnvironment, initiateSquadPayment } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+import { siteControlsSettingsKey } from "@/lib/fare-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isWalletTopUpAmountAllowed, normalizeWalletTopUpPolicy, walletTopUpRangeLabel } from "@/lib/wallet-topup-policy";
 import { createClient } from "@/lib/supabase/server";
 import type { WalletType } from "@/types/domain";
 
@@ -17,8 +19,8 @@ export async function POST(request: Request) {
     const amountNgn = Number(amount);
     const safeReturnTo = sanitizeReturnTo(returnTo, walletType === "rider" ? "/rider/dashboard" : "/dashboard");
 
-    if (!Number.isFinite(amountNgn) || amountNgn < 500) {
-      return NextResponse.json({ error: "Enter a wallet top-up amount of at least NGN 500." }, { status: 400 });
+    if (!Number.isInteger(amountNgn) || amountNgn <= 0) {
+      return NextResponse.json({ error: "Enter a whole-number wallet top-up amount." }, { status: 400 });
     }
 
     if (walletType !== "customer" && walletType !== "rider") {
@@ -40,6 +42,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Secure wallet funding is temporarily unavailable. Please try again." }, { status: 503 });
     }
     const paymentDb = admin;
+    const { data: siteControls } = await paymentDb.from("platform_settings").select("value").eq("key", siteControlsSettingsKey).maybeSingle<{ value?: unknown }>();
+    const topUpPolicy = normalizeWalletTopUpPolicy((siteControls?.value as { wallet_policy?: unknown } | undefined)?.wallet_policy);
+    if (!isWalletTopUpAmountAllowed(amountNgn, topUpPolicy)) {
+      return NextResponse.json({ error: `Enter a whole-number wallet top-up between ${walletTopUpRangeLabel(topUpPolicy)}.` }, { status: 400 });
+    }
 
     const { data: profile } = await supabase.from("users").select("email, phone, full_name").eq("id", user.id).maybeSingle();
     const email = user.email || profile?.email;
