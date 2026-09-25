@@ -1,0 +1,1 @@
+import { requireAdminSession } from "@/app/api/admin/_auth"; import { AdminLogin } from "@/components/admin/admin-login"; import { StorageFacilityAdmin } from "@/components/admin/storage-facility-admin"; export default async function StorageFacilityAdminPage(){return(await requireAdminSession())?<StorageFacilityAdmin/>:<AdminLogin/>}

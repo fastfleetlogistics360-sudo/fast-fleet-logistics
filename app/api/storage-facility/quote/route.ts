@@ -1,0 +1,6 @@
+import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveStorageQuote, StorageQuoteError } from "@/lib/storage-facility";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+
+export async function POST(request: Request) { try { const limited = await enforceRateLimit(request, { ...rateLimitPolicies.estimate, name: "storage-facility:quote" }); if (limited) return limited; const body = await request.json().catch(() => ({})); const db = createAdminClient(); if (!db) return NextResponse.json({ error: "Storage quotes are temporarily unavailable." }, { status: 503 }); const quote = await resolveStorageQuote({ db, items: body.items, duration: body.duration, pickupSelected: body.pickupSelected === true, pickupAddress: body.pickupAddress, pickupVehicle: body.pickupVehicle }); return NextResponse.json({ quote: { facilityName: quote.facility.name, duration: quote.duration, items: quote.items, storageSubtotalNgn: quote.storageSubtotalNgn, pickup: quote.pickup, totalNgn: quote.totalNgn, fingerprint: quote.fingerprint } }); } catch (error) { return NextResponse.json({ error: error instanceof StorageQuoteError ? error.message : "Could not calculate storage booking." }, { status: error instanceof StorageQuoteError ? error.status : 500 }); } }

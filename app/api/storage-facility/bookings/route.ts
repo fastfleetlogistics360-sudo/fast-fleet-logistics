@@ -1,0 +1,4 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+export async function GET() { const client = await createClient(); const { data: { user } } = await client.auth.getUser(); if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 }); const db = createAdminClient() || client; const { data, error } = await db.from("storage_bookings").select("id, booking_reference, status, payment_status, pickup_selected, storage_start_at, storage_end_at, snapshot, created_at, storage_facilities(name, address)").eq("customer_id", user.id).order("created_at", { ascending: false }).limit(50); if (error) return NextResponse.json({ error: "Could not load storage bookings." }, { status: 500 }); return NextResponse.json({ bookings: data || [] }); }

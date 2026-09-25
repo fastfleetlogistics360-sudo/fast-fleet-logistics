@@ -1,0 +1,2 @@
+import { NextResponse } from "next/server"; import { createAdminClient } from "@/lib/supabase/admin";
+export async function GET(){const db=createAdminClient();if(!db)return NextResponse.json({items:[]});const {data,error}=await db.from("storage_catalog_items").select("id,name,storage_band,description,is_other,sort_order").eq("is_active",true).order("sort_order");return error?NextResponse.json({error:"Could not load storage catalogue."},{status:500}):NextResponse.json({items:data||[]});}

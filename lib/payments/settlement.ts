@@ -180,6 +180,7 @@ async function runPostSettlementEffects(db: SupabaseClient, intent: PaymentInten
     await applyFastErrandTopUp(db, intent);
   }
   if (intent.purpose === "marketplace_business_order" && intent.order_id) {
+    await confirmStorageBookingAfterPayment(db, intent.order_id);
     const { data: order } = await db
       .from("orders")
       .select("id, order_code, customer_id, business_id, business_profile_id, marketplace_kind")
@@ -214,6 +215,13 @@ async function runPostSettlementEffects(db: SupabaseClient, intent: PaymentInten
     }
   }
   await announceWhatsAppPayment(db, intent, intent.provider_transaction_reference);
+}
+
+async function confirmStorageBookingAfterPayment(db: SupabaseClient, orderId: string) {
+  const { data: booking } = await db.from("storage_bookings").select("id, pickup_selected, snapshot").eq("order_id", orderId).maybeSingle<{ id: string; pickup_selected: boolean; snapshot?: { duration?: { days?: number } } | null }>();
+  if (!booking) return;
+  const days = Math.max(1, Number(booking.snapshot?.duration?.days || 0)); const start = new Date(); const end = new Date(start.getTime() + days * 86_400_000);
+  await db.from("storage_bookings").update({ payment_status: "paid", status: booking.pickup_selected ? "awaiting_pickup" : "awaiting_drop_off", storage_start_at: start.toISOString(), storage_end_at: end.toISOString(), updated_at: new Date().toISOString() }).eq("id", booking.id).eq("payment_status", "pending");
 }
 
 async function markFastErrandCustomerFundsConfirmed(db: SupabaseClient, deliveryId: string) {

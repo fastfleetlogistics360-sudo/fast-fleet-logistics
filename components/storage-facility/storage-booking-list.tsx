@@ -1,0 +1,6 @@
+"use client";
+import { useEffect, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { formatMoney } from "@/lib/format";
+type Booking = { id: string; booking_reference: string; status: string; payment_status: string; pickup_selected: boolean; storage_start_at: string | null; storage_end_at: string | null; snapshot?: { storageSubtotalNgn?: number; totalNgn?: number; items?: Array<{ name: string; quantity: number }> } };
+export function StorageBookingList(){const [bookings,setBookings]=useState<Booking[]>([]);useEffect(()=>{fetch("/api/storage-facility/bookings").then(r=>r.ok?r.json():{bookings:[]}).then(d=>setBookings(d.bookings||[])).catch(()=>undefined)},[]);if(!bookings.length)return null;return <Card className="section-wrap mt-6 p-5"><h2 className="text-xl font-black">Your storage bookings</h2>{bookings.map(booking=><div className="mt-3 rounded-fleet bg-fleet-paper p-3" key={booking.id}><b>{booking.booking_reference}</b><span className="block text-xs font-bold">{booking.status.replaceAll("_"," ")} · {booking.pickup_selected?"Pickup by Fast Fleets":"Bring items yourself"}</span><span className="block text-xs">{booking.snapshot?.items?.map(item=>`${item.quantity} × ${item.name}`).join(", ")}</span><span className="block text-xs">Total paid: {formatMoney(booking.snapshot?.totalNgn||0)}</span></div>)}</Card>}
