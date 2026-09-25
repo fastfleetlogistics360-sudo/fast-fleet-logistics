@@ -406,6 +406,7 @@ export function BusinessRegistrationFlow() {
                 camera={requirement.camera}
                 doc={docs[requirement.key]}
                 error={errors[requirement.key]}
+                disabled={Boolean(docs[requirement.key] && docs[requirement.key]!.progress < 100)}
                 onFile={handleFile}
               />
             ))}
@@ -463,6 +464,7 @@ function BusinessDocumentDropzone({
   camera,
   doc,
   error,
+  disabled = false,
   onFile
 }: {
   type: BusinessDocumentKey;
@@ -471,6 +473,7 @@ function BusinessDocumentDropzone({
   camera?: boolean;
   doc?: UploadedBusinessDoc;
   error?: string;
+  disabled?: boolean;
   onFile: (type: BusinessDocumentKey, label: string, file: File) => void;
 }) {
   function handleFiles(files: FileList | null) {
@@ -495,7 +498,7 @@ function BusinessDocumentDropzone({
         onDragOver={(event) => event.preventDefault()}
         onDrop={handleDrop}
       >
-        <input className="sr-only" type="file" accept={accept} onChange={handleChange} />
+        <input className="sr-only" type="file" accept={accept} disabled={disabled} onChange={handleChange} />
         <span className="grid h-11 w-11 place-items-center rounded-full bg-white text-fleet-ember shadow-lift">
           <FileUp className="h-5 w-5" />
         </span>
@@ -522,8 +525,8 @@ function BusinessDocumentDropzone({
       onDragOver={(event) => event.preventDefault()}
       onDrop={handleDrop}
     >
-      <input id={`${type}-camera`} className="sr-only" type="file" accept={accept} capture="environment" onChange={handleChange} />
-      <input id={`${type}-upload`} className="sr-only" type="file" accept={accept} onChange={handleChange} />
+      <input id={`${type}-camera`} className="sr-only" type="file" accept={accept} capture="environment" disabled={disabled} onChange={handleChange} />
+      <input id={`${type}-upload`} className="sr-only" type="file" accept={accept} disabled={disabled} onChange={handleChange} />
       <span className="grid h-11 w-11 place-items-center rounded-full bg-white text-fleet-ember shadow-lift">
         <Camera className="h-5 w-5" />
       </span>

@@ -15,7 +15,7 @@ import { bicycleCrossStateRouteMaxKm, coordinatePoint, crossStatePickupRadiusKm,
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import { isCustomerPickupProofRequired, pickupProofFromMetadata, pickupProofNeedsUpload, pickupProofReviewExpired, pickupProofReviewSecondsRemaining, pickupProofStatusMessage } from "@/lib/pickup-proof";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
-import { IMAGE_UPLOAD_ACCEPT, compressImage, uploadProfilePhoto, validateClientFile } from "@/lib/storage";
+import { IMAGE_UPLOAD_ACCEPT, friendlyUploadError, uploadProfilePhoto, validateClientUpload } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -282,17 +282,17 @@ async function publishRiderLocation(input: {
 }
 
 async function uploadPickupProof(deliveryId: string, file: File) {
-  validateClientFile(file);
+  validateClientUpload(file, "delivery-proof");
   const body = new FormData();
   body.set("deliveryId", deliveryId);
-  body.set("file", await compressImage(file, 1280, 0.78));
+  // Do not decode camera photos in a browser canvas; the server optimizes them.
+  body.set("file", file);
 
-  const response = await fetch("/api/rider/pickup-proof", {
-    method: "POST",
-    body
-  });
+  let response: Response;
+  try { response = await fetch("/api/rider/pickup-proof", { method: "POST", body }); }
+  catch { throw new Error("We couldn't upload your package photo. Check your connection and try again."); }
   const payload = (await response.json().catch(() => ({}))) as { job?: JobRow; error?: string };
-  if (!response.ok || !payload.job) throw new Error(payload.error || "Could not upload package photo.");
+  if (!response.ok || !payload.job) throw new Error(friendlyUploadError(payload.error));
   return payload.job;
 }
 
@@ -1544,7 +1544,7 @@ function AccountTab({ profile, onProfile, kycStatus, prefs, onPrefs }: { profile
   const [photoLoading, setPhotoLoading] = useState(false);
 
   async function handlePhoto(file: File | null) {
-    if (!file) return;
+    if (!file || photoLoading) return;
     setPhotoLoading(true);
     setPhotoMessage("Uploading profile picture...");
     try {
@@ -1573,7 +1573,7 @@ function AccountTab({ profile, onProfile, kycStatus, prefs, onPrefs }: { profile
             <p className="text-sm font-semibold text-slate-500">{profile.phone || "No phone"} · {profile.lga || "Lagos"}</p>
             <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">
               {photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}
-              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => { void handlePhoto(event.target.files?.[0] || null); event.currentTarget.value = ""; }} />
+              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} disabled={photoLoading} onChange={(event) => { void handlePhoto(event.target.files?.[0] || null); event.currentTarget.value = ""; }} />
             </label>
           </div>
         </div>

@@ -455,6 +455,7 @@ export function RiderOnboardingFlow() {
                   camera
                   doc={docs.profile_photo}
                   error={errors.profilePhoto}
+                  disabled={Boolean(docs.profile_photo && docs.profile_photo.progress < 100)}
                   onFile={handleFile}
                 />
               </div>
@@ -499,6 +500,7 @@ export function RiderOnboardingFlow() {
                     camera={requirement.camera}
                     doc={docs[requirement.key]}
                     error={errors[requirement.key]}
+                    disabled={Boolean(docs[requirement.key] && docs[requirement.key]!.progress < 100)}
                     onFile={handleFile}
                   />
                 ))}
@@ -681,6 +683,7 @@ function DocumentDropzone({
   camera,
   doc,
   error,
+  disabled = false,
   onFile
 }: {
   type: DocumentKey;
@@ -689,6 +692,7 @@ function DocumentDropzone({
   camera?: boolean;
   doc?: UploadedDoc;
   error?: string;
+  disabled?: boolean;
   onFile: (type: DocumentKey, label: string, file: File) => void;
 }) {
   function handleFiles(files: FileList | null) {
@@ -712,7 +716,7 @@ function DocumentDropzone({
       onDragOver={(event) => event.preventDefault()}
       onDrop={handleDrop}
     >
-      <input className="sr-only" type="file" accept={accept} capture={camera ? "user" : undefined} onChange={handleChange} />
+      <input className="sr-only" type="file" accept={accept} capture={camera ? "user" : undefined} disabled={disabled} onChange={handleChange} />
       <span className="grid h-11 w-11 place-items-center rounded-full bg-white text-fleet-ember shadow-lift">
         {camera ? <Camera className="h-5 w-5" /> : <FileUp className="h-5 w-5" />}
       </span>

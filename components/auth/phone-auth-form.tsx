@@ -12,7 +12,7 @@ import { readReturningProfile, saveReturningProfile, type ReturningProfile } fro
 import type { UserRole } from "@/types/domain";
 import { cn } from "@/lib/cn";
 import { initials } from "@/lib/format";
-import { IMAGE_UPLOAD_ACCEPT, uploadProfilePhoto } from "@/lib/storage";
+import { IMAGE_UPLOAD_ACCEPT, uploadProfilePhoto, validateClientUpload } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -125,6 +125,18 @@ export function PhoneAuthForm({
       else delete next[key];
       return next;
     });
+  }
+
+  function selectProfilePhoto(file: File | null) {
+    if (!file) return;
+    try {
+      validateClientUpload(file, "profile");
+      setProfilePhotoFile(file);
+      setError("profilePhoto", null);
+    } catch (error) {
+      setProfilePhotoFile(null);
+      setError("profilePhoto", error instanceof Error ? error.message : "Choose a smaller profile photo and try again.");
+    }
   }
 
   useEffect(() => {
@@ -485,9 +497,8 @@ export function PhoneAuthForm({
                 type="file"
                 accept={IMAGE_UPLOAD_ACCEPT}
                 onChange={(event) => {
-                  setProfilePhotoFile(event.target.files?.[0] || null);
+                  selectProfilePhoto(event.target.files?.[0] || null);
                   event.currentTarget.value = "";
-                  if (fieldErrors.profilePhoto) setError("profilePhoto", null);
                 }}
               />
             </span>

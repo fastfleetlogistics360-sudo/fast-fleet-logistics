@@ -956,7 +956,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
   const missingState = !selectedState;
 
   async function handleProfilePhoto(file: File | null) {
-    if (!file) return;
+    if (!file || photoLoading) return;
     setPhotoLoading(true);
     setPhotoMessage("Uploading profile picture...");
     try {
@@ -1025,7 +1025,7 @@ function AccountTab({ profile, onProfile, prefs, onPrefs }: { profile: BusinessP
             </p>
             <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-fleet border border-white/70 bg-white/90 px-3 py-2 text-xs font-black text-fleet-night shadow-[0_10px_26px_rgba(8,17,31,0.08)]">
               {photoLoading ? "Uploading..." : profile.avatar_url ? "Change profile picture" : "Upload profile picture"}
-              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => { void handleProfilePhoto(event.target.files?.[0] || null); event.currentTarget.value = ""; }} />
+              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} disabled={photoLoading} onChange={(event) => { void handleProfilePhoto(event.target.files?.[0] || null); event.currentTarget.value = ""; }} />
             </label>
           </div>
         </div>

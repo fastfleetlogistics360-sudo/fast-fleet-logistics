@@ -74,9 +74,7 @@ export async function POST(request: Request) {
     fileSize = file.size;
 
     const admin = createAdminClient();
-    if (!admin) {
-      return NextResponse.json({ error: "Package photo uploads are not configured. Add SUPABASE_SERVICE_ROLE_KEY in production." }, { status: 503 });
-    }
+    if (!admin) return NextResponse.json({ error: "Package photo uploads are temporarily unavailable. Please try again." }, { status: 503 });
 
     const { data: rider, error: riderError } = await admin
       .from("rider_profiles")
