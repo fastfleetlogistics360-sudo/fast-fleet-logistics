@@ -6,6 +6,8 @@ export type RouteLocation = {
 };
 
 export type GoogleRouteEstimate = {
+  /** Never round this value before a pricing or eligibility decision. */
+  distanceMeters: number;
   distanceKm: number;
   durationSeconds: number;
   durationText: string;
@@ -47,6 +49,7 @@ export async function getGoogleRouteEstimate({
 
   const durationSeconds = parseGoogleDurationSeconds(route?.duration);
   return {
+    distanceMeters: Math.round(distanceMeters),
     distanceKm: Math.round((distanceMeters / 1000) * 10) / 10,
     durationSeconds,
     durationText: formatDurationText(durationSeconds),

@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import { accountMessengerHref } from "@/lib/tracking-links";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { sendWhatsAppText } from "@/lib/whatsapp/messages";
+import { parseFastErrandV2Snapshot } from "@/lib/fast-errands-order-snapshot";
 
 const businessProgress = new Set(["received", "preparing", "packing", "ready_for_pickup"]);
 
@@ -108,6 +109,7 @@ export async function PATCH(request: Request) {
     const orderMetadata = metadataRecord(order.metadata);
     const whatsappPhone = stringValue(orderMetadata.whatsapp_phone);
     const orderItems = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
+    const fastErrandSnapshot = order.marketplace_kind === "fast_errands" ? parseFastErrandV2Snapshot(orderMetadata.fast_errand) : null;
     const branchPickup = pinnedMarketplacePickup(orderItems);
     const pickupState = normalizeState(branchPickup?.state || businessState);
     if (status === "ready_for_pickup" && !pickupState) {
@@ -115,11 +117,13 @@ export async function PATCH(request: Request) {
     }
     const nextPatch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
     let deliveryId = typeof order.delivery_id === "string" ? order.delivery_id : null;
-    const businessPickupAddress = appendStateToAddress(String(order.pickup_address || businessProfile.pickup_address || "Business pickup"), pickupState);
+    const businessPickupAddress = fastErrandSnapshot?.fulfilment.origin_address || appendStateToAddress(String(order.pickup_address || businessProfile.pickup_address || "Business pickup"), pickupState);
     const customerDropoffAddress = String(order.dropoff_address || "");
     const businessPickupContact = businessProfile.business_name || "Business pickup";
     const marketplaceCustomerContact = String(order.customer_contact || "Marketplace customer");
-    const pickupPointPromise = branchPickup
+    const pickupPointPromise = fastErrandSnapshot?.fulfilment.origin_latitude != null && fastErrandSnapshot.fulfilment.origin_longitude != null
+      ? Promise.resolve({ latitude: fastErrandSnapshot.fulfilment.origin_latitude, longitude: fastErrandSnapshot.fulfilment.origin_longitude })
+      : branchPickup
       ? Promise.resolve({ latitude: branchPickup.latitude, longitude: branchPickup.longitude })
       : geocodeAddress(businessPickupAddress);
     const [deliveryPolicy, campusProgram, pickupPoint, dropoffPoint] = await Promise.all([
@@ -128,7 +132,7 @@ export async function PATCH(request: Request) {
       pickupPointPromise,
       geocodeAddress(customerDropoffAddress)
     ]);
-    const marketplaceEstimate = await estimateBusinessOrderDelivery(order, businessPickupAddress, deliveryPolicy, campusProgram);
+    const marketplaceEstimate = fastErrandSnapshot ? fastErrandSnapshotDeliveryEstimate(fastErrandSnapshot) : await estimateBusinessOrderDelivery(order, businessPickupAddress, deliveryPolicy, campusProgram);
     if (status === "ready_for_pickup" && !marketplaceEstimate.allowed) {
       return NextResponse.json({ error: marketplaceEstimate.policyMessage || "This marketplace order cannot be dispatched to that address." }, { status: 422 });
     }
@@ -170,6 +174,7 @@ export async function PATCH(request: Request) {
             business_name: businessProfile.business_name || null,
             marketplace_customer_id: order.customer_id || null,
             marketplace_kind: order.marketplace_kind || null,
+            ...(fastErrandSnapshot ? { fast_errand: fastErrandSnapshot } : {}),
             items: orderItems,
             pickup_state: marketplaceEstimate.pickupState || null,
             dropoff_state: marketplaceEstimate.dropoffState || null,
@@ -291,6 +296,32 @@ async function estimateBusinessOrderDelivery(order: Record<string, unknown>, pic
     campusProgram,
     vehicleOption: selectedVehicleOption
   });
+}
+
+/** Paid v2 FastErrands never consult mutable marketplace fare rules at dispatch. */
+function fastErrandSnapshotDeliveryEstimate(snapshot: NonNullable<ReturnType<typeof parseFastErrandV2Snapshot>>) {
+  const bicycle = snapshot.selected_vehicle.id === "bicycle";
+  return {
+    allowed: true,
+    policyMessage: null,
+    vehicle: snapshot.selected_vehicle.vehicle,
+    vehicleSubtype: snapshot.selected_vehicle.vehicle_subtype,
+    deliverySpeed: "standard" as const,
+    distanceKm: snapshot.display_distance_km,
+    etaMinutes: Math.max(1, Math.round(snapshot.road_distance_meters / 1000 / 20 * 60)),
+    routeSource: "google-routes",
+    routeType: "road",
+    durationSeconds: Math.max(60, Math.round(snapshot.road_distance_meters / 1000 / 20 * 3600)),
+    deliveryFee: snapshot.service_fee_ngn,
+    platformFee: 0,
+    itemsTotal: snapshot.goods_subtotal_ngn,
+    bicycleEligible: bicycle,
+    pickupState: extractNigerianState(snapshot.fulfilment.origin_address),
+    dropoffState: null,
+    campusAdjustment: { applied: false, campusZoneId: null, deliveryFee: snapshot.service_fee_ngn, platformFee: 0, totalDiscount: 0, riderEarningNgn: snapshot.service_fee_ngn, pricingBand: "normal" as const },
+    interstateDispatch: false,
+    interstateDeliveryDays: null
+  };
 }
 
 function appendStateToAddress(address: string, state: string) {

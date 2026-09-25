@@ -6,11 +6,16 @@ import { fastErrandsVendorSettingsKey, normalizeFastErrandsVendorIds } from "@/l
 import { fastErrandsControlsSettingsKey, fastErrandsFulfilmentBusinessSettingsKey, loadFastErrandsCatalog, loadFastErrandsControls } from "@/lib/fast-errands-catalog";
 import type { Json } from "@/lib/supabase/types";
 
+function numberOrNull(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 export async function GET() {
   if (!(await requireAdminSession())) return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to manage FastErrands." }, { status: 503 });
-  const [{ data, error }, { data: businesses }, { data: legacySetting }, { data: fulfilmentSetting }, catalog, controls] = await Promise.all([
+  const [{ data, error }, { data: businesses }, { data: legacySetting }, { data: fulfilmentSetting }, catalog, controls, areasResult, currentOrdersResult] = await Promise.all([
     db
     .from("fast_errand_orders")
     .select("id, errand_code, vendor_name, request_items, purchase_budget_ngn, actual_purchase_ngn, delivery_fee_ngn, service_fee_ngn, customer_total_ngn, vendor_transfer_reference, receipt_url, status, top_up_required_ngn, funded_at, vendor_funded_at, created_at, deliveries(id, delivery_code, status, pickup_address, dropoff_address), business_profiles(id, business_name, user_id), users:users!fast_errand_orders_customer_id_fkey(full_name, email, phone)")
@@ -20,12 +25,14 @@ export async function GET() {
     db.from("platform_settings").select("value").eq("key", fastErrandsVendorSettingsKey).maybeSingle(),
     db.from("platform_settings").select("value").eq("key", fastErrandsFulfilmentBusinessSettingsKey).maybeSingle(),
     loadFastErrandsCatalog(true),
-    loadFastErrandsControls()
+    loadFastErrandsControls(),
+    db.from("fast_errand_service_areas").select("*, fast_errand_service_area_bands(*)").order("priority").limit(100),
+    db.from("orders").select("id, order_code, customer_id, business_profile_id, marketplace_kind, items, amount, delivery_fee_ngn, payment_status, status, distance_km, delivery_id, metadata, created_at, users:users!orders_customer_id_fkey(full_name, email), business_profiles(business_name), deliveries(id, delivery_code, status, rider_id, fleet_asset_id, fast_errand_delivery_payouts(payout_model))").eq("marketplace_kind", "fast_errands").order("created_at", { ascending: false }).limit(100)
   ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   const fulfilmentValue = fulfilmentSetting?.value;
   const fulfilmentBusinessId = typeof fulfilmentValue === "string" ? fulfilmentValue : fulfilmentValue && typeof fulfilmentValue === "object" && !Array.isArray(fulfilmentValue) && typeof (fulfilmentValue as { businessId?: unknown }).businessId === "string" ? (fulfilmentValue as { businessId: string }).businessId : null;
-  return NextResponse.json({ errands: data || [], businesses: businesses || [], selectedBusinessIds: normalizeFastErrandsVendorIds(legacySetting?.value), fulfilmentBusinessId, catalog, controls });
+  return NextResponse.json({ errands: data || [], businesses: businesses || [], selectedBusinessIds: normalizeFastErrandsVendorIds(legacySetting?.value), fulfilmentBusinessId, catalog, controls, serviceAreas: areasResult.data || [], currentOrders: currentOrdersResult.data || [] });
 }
 
 export async function PATCH(request: Request) {
@@ -40,9 +47,10 @@ export async function PATCH(request: Request) {
   if (action === "save-controls") {
     const enabled = body.enabled !== false;
     const customerNotice = String(body.customerNotice || "").trim().slice(0, 280) || null;
-    const { error } = await db.from("platform_settings").upsert({ key: fastErrandsControlsSettingsKey, value: { enabled, customerNotice } as unknown as Json, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    const mode = body.mode === "neighborhood" ? "neighborhood" : "legacy";
+    const { error } = await db.from("platform_settings").upsert({ key: fastErrandsControlsSettingsKey, value: { enabled, customerNotice, mode } as unknown as Json, updated_at: new Date().toISOString() }, { onConflict: "key" });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ controls: { enabled, customerNotice } });
+    return NextResponse.json({ controls: { enabled, customerNotice, mode } });
   }
   if (action === "add-note") {
     const errandId = String(body.errandId || "").trim();
@@ -88,6 +96,36 @@ export async function PATCH(request: Request) {
     const { error } = await mutation;
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ catalog: await loadFastErrandsCatalog(true) });
+  }
+  if (action === "save-service-area") {
+    const id = String(body.id || "").trim();
+    const code = String(body.code || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 63);
+    const name = String(body.name || "").trim().slice(0, 120);
+    const businessProfileId = String(body.businessProfileId || "").trim();
+    const originAddress = String(body.originAddress || "").trim().slice(0, 500);
+    const originPlaceId = String(body.originPlaceId || "").trim().slice(0, 255) || null;
+    const maximumDistanceMeters = Math.round(Number(body.maximumDistanceMeters || 0));
+    const minimumCartNgn = Math.round(Number(body.minimumCartNgn || 1500));
+    const priority = Math.round(Number(body.priority || 100));
+    const pricingVersion = Math.max(1, Math.round(Number(body.pricingVersion || 1)));
+    const isActive = body.isActive === true;
+    if (!/^[a-z0-9][a-z0-9_-]{1,62}$/.test(code) || name.length < 2 || !businessProfileId || originAddress.length < 6 || maximumDistanceMeters < 1 || minimumCartNgn < 1) return NextResponse.json({ error: "Enter a valid code, name, fulfilment business, origin, distance and minimum cart." }, { status: 400 });
+    const payload = { code, name, business_profile_id: businessProfileId, origin_address: originAddress, origin_place_id: originPlaceId, origin_latitude: numberOrNull(body.originLatitude), origin_longitude: numberOrNull(body.originLongitude), maximum_distance_meters: maximumDistanceMeters, minimum_cart_ngn: minimumCartNgn, priority, pricing_version: pricingVersion, is_active: isActive };
+    const result = id ? await db.from("fast_errand_service_areas").update(payload).eq("id", id) : await db.from("fast_errand_service_areas").insert(payload);
+    if (result.error) return NextResponse.json({ error: result.error.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  }
+  if (action === "save-service-area-bands") {
+    const serviceAreaId = String(body.serviceAreaId || "").trim();
+    const bands: Array<{ minDistanceExclusiveMeters?: unknown; maxDistanceInclusiveMeters?: unknown; serviceFeeNgn?: unknown; isActive?: unknown }> = Array.isArray(body.bands) ? body.bands : [];
+    if (!serviceAreaId || !bands.length || bands.length > 20) return NextResponse.json({ error: "Add valid pricing bands." }, { status: 400 });
+    const rows = bands.map((band, index) => ({ service_area_id: serviceAreaId, min_distance_exclusive_meters: Math.round(Number(band?.minDistanceExclusiveMeters || 0)), max_distance_inclusive_meters: Math.round(Number(band?.maxDistanceInclusiveMeters || 0)), service_fee_ngn: Math.round(Number(band?.serviceFeeNgn || 0)), sort_order: index, is_active: band?.isActive !== false }));
+    if (rows.some((row) => row.min_distance_exclusive_meters < 0 || row.max_distance_inclusive_meters <= row.min_distance_exclusive_meters || row.service_fee_ngn < 0)) return NextResponse.json({ error: "Pricing bands contain invalid values." }, { status: 400 });
+    const { error: removeError } = await db.from("fast_errand_service_area_bands").delete().eq("service_area_id", serviceAreaId);
+    if (removeError) return NextResponse.json({ error: removeError.message }, { status: 400 });
+    const { error } = await db.from("fast_errand_service_area_bands").insert(rows);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
   }
   if (Array.isArray(body.vendorBusinessIds)) {
     const requestedIds = normalizeFastErrandsVendorIds(body.vendorBusinessIds);

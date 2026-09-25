@@ -63,13 +63,16 @@ export function customerVehicleOptionForLegacyVehicle(vehicle: VehicleType, vehi
 export async function createCustomerVehicleOptions({
   input,
   fareConfig,
-  db
+  db,
+  route: suppliedRoute
 }: {
   input: Omit<DeliveryQuoteInput, "vehicle" | "fareConfig" | "vehicleSubtypeOverride">;
   fareConfig: FareConfig;
   db: SupabaseClient;
+  /** Lets specialised checkouts reuse their already-authoritative route. */
+  route?: Awaited<ReturnType<typeof getGoogleRouteEstimate>>;
 }): Promise<CustomerVehicleOption[]> {
-  const route = await getGoogleRouteEstimate({ origin: input.pickup, destination: input.dropoff });
+  const route = suppliedRoute || await getGoogleRouteEstimate({ origin: input.pickup, destination: input.dropoff });
   const motorcycle = createDeliveryQuoteFromRoute({ ...input, vehicle: "bike", fareConfig, vehicleSubtypeOverride: null }, route);
   const bicycle = createDeliveryQuoteFromRoute({ ...input, vehicle: "bike", fareConfig, vehicleSubtypeOverride: "bicycle" }, route);
   const car = createDeliveryQuoteFromRoute({ ...input, vehicle: "car", fareConfig }, route);

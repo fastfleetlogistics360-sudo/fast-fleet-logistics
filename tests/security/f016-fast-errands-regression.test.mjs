@@ -6,21 +6,34 @@ const root = new URL("../../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), "utf8");
 
 const checkout = read("app/api/fast-errands/checkout/route.ts");
+const quote = read("app/api/fast-errands/quote/route.ts");
+const resolver = read("lib/fast-errands-service-areas.ts");
 const adminQueue = read("app/api/admin/fast-errands/route.ts");
 const settlement = read("lib/payments/settlement.ts");
 const completion = read("lib/delivery-completion.ts");
 const migration = read("supabase-fasterrands-delta.sql");
 const catalogueMigration = read("supabase-fast-errands-catalog-delta.sql");
 
-test("F-016 uses an admin-selected active fulfilment business and server-owned catalogue prices", () => {
-  assert.match(checkout, /loadFastErrandsFulfilmentBusinessId/);
-  assert.match(checkout, /loadActiveLinkedBusiness/);
-  assert.match(checkout, /fast_errand_catalog_items/);
-  assert.match(checkout, /price_ngn/);
-  assert.match(checkout, /business\.operating_state/);
-  assert.match(checkout, /businessStates\.includes\(dropoffState\)/);
+test("F-016 uses one server-owned neighborhood resolver for catalogue and price", () => {
+  assert.match(checkout, /resolveFastErrandQuote/);
+  assert.match(quote, /resolveFastErrandQuote/);
+  assert.match(resolver, /loadFastErrandsCatalog/);
+  assert.match(resolver, /price_ngn/);
+  assert.match(resolver, /fast_errand_service_areas/);
+  assert.match(resolver, /getGoogleRouteEstimate/);
+  assert.match(resolver, /findFastErrandBand/);
   assert.match(checkout, /purpose: "marketplace_business_order"/);
   assert.doesNotMatch(checkout, /purchaseBudgetNgn/);
+});
+
+test("F-016 rejects forged client economics by rebuilding and comparing the quote", () => {
+  assert.match(checkout, /resolveFastErrandQuote/);
+  assert.match(checkout, /quoteFingerprint/);
+  assert.match(checkout, /clientFingerprint !== quote\.fingerprint/);
+  assert.doesNotMatch(checkout, /FAST_ERRAND_FEE_NGN/);
+  assert.doesNotMatch(checkout, /payload\.price/);
+  assert.doesNotMatch(checkout, /payload\.subtotal/);
+  assert.doesNotMatch(checkout, /payload\.distance/);
 });
 
 test("F-016 lets admins manage one fulfilment account plus categories and priced items", () => {

@@ -338,6 +338,21 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["deliveries"]["Row"]>;
       };
+      fast_errand_service_areas: {
+        Row: { id: string; code: string; name: string; service_type: "neighborhood"; pricing_mode: "distance_bands"; business_profile_id: string; origin_address: string; origin_place_id: string | null; origin_latitude: number | null; origin_longitude: number | null; maximum_distance_meters: number; minimum_cart_ngn: number; priority: number; pricing_version: number; is_active: boolean; created_at: string; updated_at: string };
+        Insert: Partial<Database["public"]["Tables"]["fast_errand_service_areas"]["Row"]> & { code: string; name: string; business_profile_id: string; origin_address: string; maximum_distance_meters: number };
+        Update: Partial<Database["public"]["Tables"]["fast_errand_service_areas"]["Row"]>;
+      };
+      fast_errand_service_area_bands: {
+        Row: { id: string; service_area_id: string; min_distance_exclusive_meters: number; max_distance_inclusive_meters: number; service_fee_ngn: number; sort_order: number; is_active: boolean; created_at: string; updated_at: string };
+        Insert: Partial<Database["public"]["Tables"]["fast_errand_service_area_bands"]["Row"]> & { service_area_id: string; max_distance_inclusive_meters: number; service_fee_ngn: number };
+        Update: Partial<Database["public"]["Tables"]["fast_errand_service_area_bands"]["Row"]>;
+      };
+      fast_errand_delivery_payouts: {
+        Row: { id: string; delivery_id: string; payout_model: "company_bicycle" | "investor_bicycle" | "independent_rider"; eligible_revenue_ngn: number; rider_percentage: number; rider_payout_ngn: number; investor_percentage: number; investor_payout_ngn: number; company_percentage: number; company_share_ngn: number; fleet_asset_id: string | null; rider_id: string | null; investor_profile_id: string | null; asset_ownership_model: string; frozen_at: string; settled_at: string | null };
+        Insert: Partial<Database["public"]["Tables"]["fast_errand_delivery_payouts"]["Row"]> & { delivery_id: string; payout_model: "company_bicycle" | "investor_bicycle" | "independent_rider" };
+        Update: Partial<Database["public"]["Tables"]["fast_errand_delivery_payouts"]["Row"]>;
+      };
       delivery_confirmations: {
         Row: {
           id: string;

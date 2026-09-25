@@ -6,6 +6,8 @@ export const fastErrandsControlsSettingsKey = "fast_errands_controls";
 export type FastErrandsControls = {
   enabled: boolean;
   customerNotice: string | null;
+  /** New installs stay on the compatibility path until explicitly activated. */
+  mode: "legacy" | "neighborhood";
 };
 
 export type FastErrandsCategory = {
@@ -24,6 +26,8 @@ export type FastErrandsCatalogItem = {
   name: string;
   description: string | null;
   price_ngn: number;
+  image_url: string | null;
+  image_path: string | null;
   sort_order: number;
   is_active: boolean;
 };
@@ -32,7 +36,7 @@ export async function loadFastErrandsCatalog(includeInactive = false): Promise<F
   const db = createAdminClient();
   if (!db) return [];
   const categoriesQuery = db.from("fast_errand_categories").select("id, name, description, emoji, sort_order, is_active").order("sort_order").order("name");
-  const itemsQuery = db.from("fast_errand_catalog_items").select("id, category_id, name, description, price_ngn, sort_order, is_active").order("sort_order").order("name");
+  const itemsQuery = db.from("fast_errand_catalog_items").select("id, category_id, name, description, price_ngn, image_url, image_path, sort_order, is_active").order("sort_order").order("name");
   if (!includeInactive) {
     categoriesQuery.eq("is_active", true);
     itemsQuery.eq("is_active", true);
@@ -56,13 +60,14 @@ export async function loadFastErrandsFulfilmentBusinessId() {
 
 export async function loadFastErrandsControls(): Promise<FastErrandsControls> {
   const db = createAdminClient();
-  if (!db) return { enabled: true, customerNotice: null };
+  if (!db) return { enabled: true, customerNotice: null, mode: "legacy" };
   const { data } = await db.from("platform_settings").select("value").eq("key", fastErrandsControlsSettingsKey).maybeSingle();
   const value = data?.value;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return { enabled: true, customerNotice: null };
-  const controls = value as { enabled?: unknown; customerNotice?: unknown };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { enabled: true, customerNotice: null, mode: "legacy" };
+  const controls = value as { enabled?: unknown; customerNotice?: unknown; mode?: unknown };
   return {
     enabled: controls.enabled !== false,
-    customerNotice: typeof controls.customerNotice === "string" ? controls.customerNotice.trim().slice(0, 280) || null : null
+    customerNotice: typeof controls.customerNotice === "string" ? controls.customerNotice.trim().slice(0, 280) || null : null,
+    mode: controls.mode === "neighborhood" ? "neighborhood" : "legacy"
   };
 }

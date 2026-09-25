@@ -15,7 +15,7 @@ function FastErrandCallbackContent() {
   const reference = search.get("reference") || search.get("transaction_ref") || "";
   const code = search.get("code") || "";
   const [state, setState] = useState<"loading" | "pending" | "success" | "error">("loading");
-  const [message, setMessage] = useState("Confirming your protected purchase payment with Squad...");
+  const [message, setMessage] = useState("Confirming your FastErrand payment with Squad...");
   useEffect(() => {
     if (!reference) { setState("error"); setMessage("Missing payment reference."); return; }
     let stopped = false; let attempt = 0;
@@ -26,7 +26,7 @@ function FastErrandCallbackContent() {
         const data = await response.json();
         if (response.status === 202 && attempt < 8 && !stopped) { setState("pending"); setMessage(data.message || "Payment is still being confirmed."); window.setTimeout(verify, 5000); return; }
         if (!response.ok) throw new Error(data.error || "Payment verification failed.");
-        setState("success"); setMessage("Payment confirmed. Your purchase budget is protected while Fast Fleets funds the verified vendor. A rider cannot be assigned before that step is complete.");
+        setState("success"); setMessage("Payment confirmed. Your fulfilment team can now prepare the order, and Fast Fleets will assign a rider when it is ready for pickup.");
       } catch (error) { setState("error"); setMessage(error instanceof Error ? error.message : "Payment verification failed."); }
     };
     verify(); return () => { stopped = true; };

@@ -12,6 +12,7 @@ import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { riderCanReceiveDelivery } from "@/lib/rider-eligibility";
 import { accountMessengerHref } from "@/lib/tracking-links";
 import { notifyWhatsAppDeliveryUpdate } from "@/lib/whatsapp/delivery-updates";
+import { freezeFastErrandDeliveryPayout } from "@/lib/fast-errands-payouts";
 import type { DeliveryStatus } from "@/types/domain";
 
 const statusFlow: Record<string, DeliveryStatus> = {
@@ -185,6 +186,9 @@ export async function POST(request: Request) {
       const { error } = await supabase.rpc("accept_or_queue_delivery_offer", { target_delivery_id: id });
       if (error) throw error;
       const { data: accepted } = await db.from("deliveries").select("status").eq("id", id).maybeSingle<{ status?: string | null }>();
+      // The delivery RPC has now authoritatively assigned any bicycle asset.
+      // Freeze v2 FastErrand allocation immediately; legacy deliveries are a no-op.
+      await freezeFastErrandDeliveryPayout(db, id);
       await syncLinkedBusinessOrder(db, id, accepted?.status === "accepted_pending_delivery" ? "accepted_pending_delivery" : "rider_assigned");
       if (accepted?.status === "accepted") {
         // Dispatch is already committed. A temporary provider failure must not

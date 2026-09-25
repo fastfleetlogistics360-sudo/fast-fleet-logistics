@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Supabase public product image URLs are optional and dynamic. */
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Minus, PackageCheck, Plus, Search, ShoppingCart, WalletCards } from "lucide-react";
+import { Loader2, Minus, PackageCheck, Plus, ShoppingCart } from "lucide-react";
 import { AddressAutocompleteInput } from "@/components/location/address-autocomplete-input";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
@@ -9,101 +10,44 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatMoney } from "@/lib/format";
 import type { FastErrandsCatalogItem, FastErrandsCategory } from "@/lib/fast-errands-catalog";
-import { LightVehicleOptions, type LightVehicleOption } from "@/components/booking/light-vehicle-options";
 
-type CartItem = FastErrandsCatalogItem & { category: string; quantity: number };
+type CartItem = FastErrandsCatalogItem & { category: string; quantity: number; subtotal?: number };
+type Quote = { fingerprint: string; goodsSubtotalNgn: number; minimumCartNgn: number; amountToMinimumNgn: number; serviceFeeNgn: number; customerTotalNgn: number; roadDistanceMeters: number; displayDistanceKm: number; etaMinutes: number; vehicleOptions: Array<{ id: "bicycle" | "motorcycle"; label: string; description: string; availability: { status: "available" | "limited" | "unavailable"; label: string } }> };
 
-export function FastErrandCheckout({ catalog, fulfilmentConfigured }: { catalog: FastErrandsCategory[]; fulfilmentConfigured: boolean }) {
+export function FastErrandCheckout({ catalog, neighborhoodEnabled }: { catalog: FastErrandsCategory[]; neighborhoodEnabled: boolean }) {
   const [activeCategoryId, setActiveCategoryId] = useState(catalog[0]?.id || "");
-  const [cart, setCart] = useState<Record<string, CartItem>>({});
-  const [customRequest, setCustomRequest] = useState("");
-  const [address, setAddress] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [vehicleOptions, setVehicleOptions] = useState<LightVehicleOption[]>([]);
-  const [selectedVehicle, setSelectedVehicle] = useState<LightVehicleOption | null>(null);
-  const [vehicleLoading, setVehicleLoading] = useState(false);
-  const [vehicleError, setVehicleError] = useState<string | null>(null);
-  const [activeErrands, setActiveErrands] = useState<Array<{ id: string; errand_code: string; vendor_name: string; status: string; top_up_required_ngn: number }>>([]);
+  const [cart, setCart] = useState<Record<string, CartItem>>({}); const [address, setAddress] = useState(""); const [email, setEmail] = useState(""); const [phone, setPhone] = useState(""); const [note, setNote] = useState("");
+  const [quote, setQuote] = useState<Quote | null>(null); const [selectedVehicle, setSelectedVehicle] = useState<string>(""); const [quoteLoading, setQuoteLoading] = useState(false); const [message, setMessage] = useState<string | null>(null); const [paying, setPaying] = useState(false);
   const activeCategory = catalog.find((category) => category.id === activeCategoryId) || catalog[0] || null;
   const cartItems = useMemo(() => Object.values(cart), [cart]);
-  const itemTotal = useMemo(() => cartItems.reduce((total, item) => total + Number(item.price_ngn) * item.quantity, 0), [cartItems]);
-  const itemCount = useMemo(() => cartItems.reduce((count, item) => count + item.quantity, 0), [cartItems]);
+  const displayedSubtotal = useMemo(() => cartItems.reduce((total, item) => total + Number(item.price_ngn) * item.quantity, 0), [cartItems]);
+  const minimumRemaining = Math.max(0, 1500 - displayedSubtotal);
 
   useEffect(() => {
-    fetch("/api/fast-errands", { cache: "no-store" }).then((response) => response.ok ? response.json() : { errands: [] }).then((data) => setActiveErrands(Array.isArray(data.errands) ? data.errands : [])).catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    if (!cartItems.length || address.trim().length < 6) {
-      setVehicleOptions([]); setSelectedVehicle(null); setVehicleLoading(false); setVehicleError(null);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      setVehicleLoading(true); setVehicleError(null);
+    if (!neighborhoodEnabled || !cartItems.length || address.trim().length < 6) { setQuote(null); setSelectedVehicle(""); return; }
+    const controller = new AbortController(); const timer = window.setTimeout(async () => {
+      setQuoteLoading(true); setMessage(null);
       try {
-        const response = await fetch("/api/fast-errands/vehicle-options", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: cartItems.map((item) => ({ itemId: item.id, quantity: item.quantity })), address }), signal: controller.signal });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || "Could not check rider options.");
-        const options = Array.isArray(payload.options) ? payload.options as LightVehicleOption[] : [];
-        setVehicleOptions(options);
-        setSelectedVehicle((current) => options.find((option) => option.id === current?.id && option.availability.status !== "unavailable") || null);
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        setVehicleOptions([]); setSelectedVehicle(null); setVehicleError(error instanceof Error ? error.message : "Could not check rider options.");
-      } finally { if (!controller.signal.aborted) setVehicleLoading(false); }
+        const response = await fetch("/api/fast-errands/quote", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ items: cartItems.map((item) => ({ itemId: item.id, quantity: item.quantity })), address }) });
+        const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || "Could not refresh your FastErrand quote.");
+        const next = data.quote as Quote; setQuote(next); setSelectedVehicle((current) => next.vehicleOptions.find((option) => option.id === current && option.availability.status !== "unavailable")?.id || next.vehicleOptions.find((option) => option.availability.status !== "unavailable")?.id || "");
+      } catch (error) { if (!controller.signal.aborted) { setQuote(null); setSelectedVehicle(""); setMessage(error instanceof Error ? error.message : "Could not refresh your quote."); } }
+      finally { if (!controller.signal.aborted) setQuoteLoading(false); }
     }, 500);
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [address, cartItems]);
+  }, [address, cartItems, neighborhoodEnabled]);
 
-  function changeQuantity(item: FastErrandsCatalogItem, delta: number) {
-    setCart((current) => {
-      const quantity = Math.max(0, (current[item.id]?.quantity || 0) + delta);
-      const next = { ...current };
-      if (!quantity) delete next[item.id];
-      else next[item.id] = { ...item, category: activeCategory?.name || "FastErrand", quantity };
-      return next;
-    });
-  }
-
-  async function payTopUp(errandId: string) {
-    setLoading(true); setMessage(null);
-    try {
-      const response = await fetch("/api/fast-errands/top-up", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ errandId }) });
-      const data = await response.json();
-      if (!response.ok || !data.authorizationUrl) throw new Error(data.error || "Could not start the top-up.");
-      window.location.assign(data.authorizationUrl);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not start the top-up."); setLoading(false); }
-  }
-
+  function changeQuantity(item: FastErrandsCatalogItem, delta: number) { setCart((current) => { const quantity = Math.max(0, (current[item.id]?.quantity || 0) + delta); const next = { ...current }; if (!quantity) delete next[item.id]; else next[item.id] = { ...item, category: activeCategory?.name || "FastErrand", quantity }; return next; }); }
   async function checkout() {
-    setMessage(null);
-    if (!fulfilmentConfigured) { setMessage("FastErrands is not available yet. Ask an administrator to attach the fulfilment business account."); return; }
-    if (!cartItems.length) { setMessage("Add at least one FastErrand item before checking out."); return; }
-    if (!email.trim() || address.trim().length < 6) { setMessage("Enter your receipt email and delivery address before checking out."); return; }
-    if (vehicleLoading || !selectedVehicle) { setMessage(vehicleError || "Choose an available Bicycle or Bike rider option before checkout."); return; }
-    setLoading(true);
+    if (!quote || !selectedVehicle || !email.includes("@")) return setMessage("Add your receipt email, delivery address, and choose an available rider option.");
+    setPaying(true); setMessage(null);
     try {
-      const response = await fetch("/api/fast-errands/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: cartItems.map((item) => ({ itemId: item.id, quantity: item.quantity })), note: customRequest, address, email, phone, vehicleOption: selectedVehicle.id }) });
-      const data = await response.json();
-      if (!response.ok || !data.authorizationUrl) throw new Error(data.error || "Could not start FastErrands payment.");
-      window.location.assign(data.authorizationUrl);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not start FastErrands payment."); } finally { setLoading(false); }
+      const response = await fetch("/api/fast-errands/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: cartItems.map((item) => ({ itemId: item.id, quantity: item.quantity })), address, email, phone, note, vehicleOption: selectedVehicle, quoteFingerprint: quote.fingerprint }) });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 409 && data.quote) { setQuote((current) => current ? { ...current, ...data.quote } : current); throw new Error(data.error || "Your quote changed. Review it and try again."); }
+      if (!response.ok || !data.authorizationUrl) throw new Error(data.error || "Could not start FastErrand payment."); window.location.assign(data.authorizationUrl);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not start payment."); setPaying(false); }
   }
-
-  return <>
-    <BackButton className="section-wrap pb-4 pt-4" />
-    <section className="section-wrap pb-12 pt-2">
-      <div className="overflow-hidden rounded-[24px] border border-fleet-line bg-white shadow-lift"><div className="grid md:grid-cols-[300px_1fr]"><div className="relative min-h-48 bg-fleet-night"><span className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(244,126,24,0.55),_transparent_45%)]" /><span className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-xs font-black uppercase tracking-[0.13em] text-fleet-ember"><WalletCards className="h-4 w-4" /> FastErrands</span><div className="absolute bottom-5 left-5 right-5 text-white"><PackageCheck className="h-9 w-9 text-orange-300" /><p className="mt-3 text-lg font-black leading-tight">Need something? We&apos;ll get it for you.</p></div></div><div className="p-5 sm:p-7"><span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Priced everyday essentials</span><h1 className="mt-2 max-w-2xl text-3xl font-black leading-tight text-fleet-night sm:text-4xl">Build one FastErrand across the things you need.</h1><p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-slate-600">Choose items from any category, review their exact prices in one cart, then check out securely. Your FastErrand is prepared through our fulfilment account and released to a rider after payment.</p><div className="mt-5 flex flex-wrap gap-2"><StatusBadge tone="green">Item prices shown before checkout</StatusBadge><StatusBadge tone="neutral">One combined FastErrand</StatusBadge></div></div></div></div>
-
-      <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]"><div className="min-w-0"><Card className="p-4 sm:p-5"><span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Choose a category</span><div className="no-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1">{catalog.map((category) => <button key={category.id} type="button" onClick={() => setActiveCategoryId(category.id)} className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-black transition ${category.id === activeCategory?.id ? "bg-fleet-ember text-white shadow-[0_12px_26px_rgba(244,126,24,0.20)]" : "bg-fleet-paper text-fleet-night hover:bg-white hover:shadow-[0_10px_24px_rgba(8,17,31,0.08)]"}`}><span>{category.emoji}</span>{category.name}</button>)}</div></Card>
-        {activeCategory ? <div className="mt-5 rounded-fleet border border-fleet-line bg-white p-4 shadow-[0_10px_24px_rgba(8,17,31,0.06)] sm:p-5"><div className="flex items-start justify-between gap-4"><div><span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">{activeCategory.name}</span><h2 className="mt-1 text-2xl font-black text-fleet-night">{activeCategory.emoji} {activeCategory.name}</h2><p className="mt-1 text-sm font-semibold text-slate-600">{activeCategory.description}</p></div><StatusBadge tone="green">{activeCategory.items.length} items</StatusBadge></div><div className="mt-5 grid gap-3 sm:grid-cols-2">{activeCategory.items.map((item) => { const quantity = cart[item.id]?.quantity || 0; return <article key={item.id} className="rounded-fleet border border-fleet-line bg-fleet-paper p-4"><div className="flex gap-3"><div className="min-w-0 flex-1"><strong className="block text-base font-black text-fleet-night">{item.name}</strong>{item.description ? <span className="mt-1 block text-xs font-bold text-slate-500">{item.description}</span> : null}<span className="mt-3 block text-lg font-black text-fleet-night">{formatMoney(item.price_ngn)}</span></div><div className="flex shrink-0 items-end gap-2"><button type="button" aria-label={`Remove ${item.name}`} onClick={() => changeQuantity(item, -1)} disabled={!quantity} className="grid h-9 w-9 place-items-center rounded-full border border-fleet-line bg-white text-fleet-night disabled:cursor-not-allowed disabled:opacity-40"><Minus className="h-4 w-4" /></button><span className="grid h-9 min-w-7 place-items-center text-sm font-black text-fleet-night">{quantity}</span><button type="button" aria-label={`Add ${item.name}`} onClick={() => changeQuantity(item, 1)} className="grid h-9 w-9 place-items-center rounded-full bg-fleet-night text-white"><Plus className="h-4 w-4" /></button></div></div></article>; })}</div></div> : <Card className="mt-5 p-5"><h2 className="text-xl font-black text-fleet-night">FastErrands is being stocked</h2><p className="mt-2 text-sm font-semibold text-slate-600">Check back shortly while the FastErrands catalogue is prepared.</p></Card>}
-        <Card className="mt-5 p-5"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-fleet bg-orange-50 text-fleet-ember"><Search className="h-5 w-5" /></span><div><h2 className="font-black text-fleet-night">Can&apos;t find what you need?</h2><p className="text-xs font-bold text-slate-500">Add a note for the fulfilment team to review with your order.</p></div></div><textarea className="form-input mt-4 min-h-24" value={customRequest} onChange={(event) => setCustomRequest(event.target.value)} placeholder="Example: Please add fresh ugu if it is available. No substitutions without asking me." /></Card></div>
-        <div><Card className="h-fit p-5 lg:sticky lg:top-24"><div className="flex items-start justify-between gap-4"><div><span className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Your FastErrand</span><strong className="mt-1 block text-3xl font-black text-fleet-night">{formatMoney(selectedVehicle?.total ?? itemTotal)}</strong></div><StatusBadge tone="green">{itemCount} items</StatusBadge></div><div className="mt-5 grid gap-3">{!cartItems.length ? <div className="rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-500">Choose your FastErrand items to see your checkout total.</div> : cartItems.map((item) => <div key={item.id} className="rounded-fleet bg-fleet-paper p-3"><div className="flex items-start justify-between gap-3"><span className="min-w-0"><strong className="block text-sm font-black text-fleet-night">{item.name}</strong><span className="text-xs font-bold text-slate-500">{item.category} · {item.quantity} × {formatMoney(item.price_ngn)}</span></span><strong className="shrink-0 text-sm font-black text-fleet-night">{formatMoney(item.price_ngn * item.quantity)}</strong></div></div>)}</div><div className="mt-5 grid gap-2 border-t border-fleet-line pt-4 text-sm font-bold"><div className="flex items-center justify-between gap-4"><span className="text-slate-600">Items subtotal</span><span className="text-fleet-night">{formatMoney(itemTotal)}</span></div>{selectedVehicle ? <><div className="flex items-center justify-between gap-4"><span className="text-slate-600">{selectedVehicle.label} delivery</span><span className="text-fleet-night">{formatMoney(selectedVehicle.deliveryFee)}</span></div><div className="flex items-center justify-between gap-4"><span className="text-slate-600">FastErrand fee</span><span className="text-fleet-night">{formatMoney(selectedVehicle.total - itemTotal - selectedVehicle.deliveryFee)}</span></div></> : <p className="text-xs font-semibold leading-5 text-slate-500">Choose an address and rider option to see your final total.</p>}</div><div className="mt-5 grid gap-3"><input className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email for receipt" type="email" /><input className="form-input" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" inputMode="tel" /><AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} placeholder="Enter recipient street address" /><LightVehicleOptions options={vehicleOptions} selectedId={selectedVehicle?.id || ""} loading={vehicleLoading} error={vehicleError} onSelect={setSelectedVehicle} /><Button type="button" onClick={checkout} disabled={loading || !cartItems.length || !fulfilmentConfigured || vehicleLoading || !selectedVehicle}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}Checkout FastErrand</Button></div>{message ? <p className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">{message}</p> : null}</Card></div></div>
-      {activeErrands.length ? <Card className="mt-5 p-5"><h2 className="text-lg font-black text-fleet-night">Your active FastErrands</h2><div className="mt-3 grid gap-3">{activeErrands.map((errand) => <div key={errand.id} className="flex flex-col gap-3 rounded-fleet bg-fleet-paper p-3 sm:flex-row sm:items-center sm:justify-between"><span><strong className="block text-sm font-black text-fleet-night">{errand.errand_code} · {errand.vendor_name}</strong><span className="text-xs font-bold text-slate-500">{errand.status === "top_up_required" ? "Your order needs an approved adjustment." : errand.status.replaceAll("_", " ")}</span></span>{errand.status === "top_up_required" ? <Button size="sm" onClick={() => payTopUp(errand.id)} disabled={loading}>Approve {formatMoney(errand.top_up_required_ngn)} adjustment</Button> : <StatusBadge tone={errand.status === "vendor_funded" ? "green" : "amber"}>{errand.status.replaceAll("_", " ")}</StatusBadge>}</div>)}</div></Card> : null}
-    </section>
-  </>;
+  return <><BackButton className="section-wrap pb-4 pt-4" /><section className="section-wrap pb-12 pt-2"><div className="rounded-[24px] bg-fleet-night p-6 text-white shadow-lift"><span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-orange-300"><PackageCheck className="h-4 w-4" /> Neighborhood FastErrand</span><h1 className="mt-2 text-3xl font-black">Curated essentials, procured nearby.</h1><p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-300">Prices and availability are confirmed securely at checkout. Delivery uses Google road distance from the service area.</p></div>
+    {!neighborhoodEnabled ? <Card className="mt-5 p-5"><h2 className="text-xl font-black text-fleet-night">Neighborhood FastErrand is coming soon</h2><p className="mt-2 text-sm font-semibold text-slate-600">This service is being configured for its first service area. Please use another Fast Fleets delivery service for now.</p></Card> : <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_380px]"><div><Card className="p-4"><div className="flex gap-2 overflow-x-auto">{catalog.map((category) => <button key={category.id} onClick={() => setActiveCategoryId(category.id)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-black ${category.id === activeCategory?.id ? "bg-fleet-ember text-white" : "bg-fleet-paper text-fleet-night"}`}>{category.emoji || "📦"} {category.name}</button>)}</div></Card>{activeCategory ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{activeCategory.items.map((item) => { const quantity = cart[item.id]?.quantity || 0; return <Card key={item.id} className="overflow-hidden p-0"><div className="flex gap-3 p-4">{item.image_url ? <img src={item.image_url} alt="" className="h-20 w-20 rounded-fleet object-cover" /> : <div className="grid h-20 w-20 place-items-center rounded-fleet bg-fleet-paper text-2xl">{activeCategory.emoji || "📦"}</div>}<div className="min-w-0 flex-1"><strong className="block font-black text-fleet-night">{item.name}</strong><p className="mt-1 text-xs font-semibold text-slate-500">{item.description}</p><b className="mt-2 block text-fleet-night">{formatMoney(item.price_ngn)}</b></div></div><div className="flex items-center justify-between border-t border-fleet-line px-4 py-3"><StatusBadge tone="green">Available</StatusBadge><span className="flex items-center gap-2"><button aria-label={`Remove ${item.name}`} disabled={!quantity} onClick={() => changeQuantity(item, -1)} className="grid h-8 w-8 place-items-center rounded-full border border-fleet-line disabled:opacity-40"><Minus className="h-4 w-4" /></button><b>{quantity}</b><button aria-label={`Add ${item.name}`} onClick={() => changeQuantity(item, 1)} className="grid h-8 w-8 place-items-center rounded-full bg-fleet-night text-white"><Plus className="h-4 w-4" /></button></span></div></Card>; })}</div> : null}</div><Card className="h-fit p-5 lg:sticky lg:top-24"><div className="flex items-start justify-between"><div><span className="text-xs font-black uppercase tracking-[.16em] text-fleet-ember">Your FastErrand</span><b className="mt-1 block text-3xl text-fleet-night">{formatMoney(quote?.customerTotalNgn || displayedSubtotal)}</b></div><StatusBadge tone="green">{cartItems.length} lines</StatusBadge></div><div className="mt-4 grid gap-2 text-sm font-bold">{cartItems.map((item) => <div key={item.id} className="flex justify-between"><span>{item.quantity}× {item.name}</span><span>{formatMoney(item.subtotal || item.price_ngn * item.quantity)}</span></div>)}</div>{minimumRemaining > 0 ? <p className="mt-4 rounded-fleet bg-amber-50 p-3 text-xs font-bold text-amber-800">Add {formatMoney(minimumRemaining)} more to reach the ₦1,500 FastErrand minimum.</p> : <p className="mt-4 rounded-fleet bg-emerald-50 p-3 text-xs font-bold text-emerald-800">FastErrand minimum reached.</p>}<div className="mt-4 border-t border-fleet-line pt-4 text-sm font-bold"><div className="flex justify-between"><span>Items</span><span>{formatMoney(quote?.goodsSubtotalNgn || displayedSubtotal)}</span></div>{quote ? <><div className="mt-2 flex justify-between"><span>FastErrand Delivery</span><span>{formatMoney(quote.serviceFeeNgn)}</span></div><div className="mt-2 flex justify-between text-base text-fleet-night"><span>Total</span><span>{formatMoney(quote.customerTotalNgn)}</span></div><p className="mt-2 text-xs text-slate-500">Road distance: {quote.displayDistanceKm.toFixed(2)} km · about {quote.etaMinutes} min</p></> : null}</div><div className="mt-4 grid gap-3"><input className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email for receipt" type="email"/><input className="form-input" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number"/><AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} placeholder="Enter recipient street address"/><textarea className="form-input min-h-20" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional procurement note"/>{quoteLoading ? <p className="text-xs font-bold text-slate-500">Refreshing secure quote…</p> : null}{quote?.vehicleOptions.map((option) => <button key={option.id} onClick={() => setSelectedVehicle(option.id)} disabled={option.availability.status === "unavailable"} className={`rounded-fleet border p-3 text-left ${selectedVehicle === option.id ? "border-fleet-ember bg-orange-50" : "border-fleet-line"} disabled:opacity-45`}><b>{option.label}</b><span className="block text-xs text-slate-500">{option.description} · {option.availability.label}</span></button>)}<Button onClick={checkout} disabled={paying || !quote || !selectedVehicle || minimumRemaining > 0}>{paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}Checkout FastErrand</Button></div>{message ? <p className="mt-3 rounded-fleet bg-amber-50 p-3 text-xs font-bold text-amber-900">{message}</p> : null}</Card></div>}</section></>;
 }

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { settleInvestorDelivery, type InvestorDeliverySettlement } from "@/lib/investor-ledger";
 import { DEFAULT_CAMPUS_PROGRAM } from "@/lib/campus-program";
+import { settleFastErrandInvestorPayout } from "@/lib/fast-errands-payouts";
 
 export const MIN_WITHDRAWAL_NGN = 2000;
 export const MAX_WITHDRAWAL_NGN = 200000;
@@ -253,18 +254,28 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
   amount = Math.max(0, Math.round(amount));
   if (amount <= 0) return { credited: false, amount: 0 };
 
+  // A v2 FastErrand has a frozen allocation from the acceptance point. Do not
+  // infer an independent 90/10 split for a bicycle merely from rider account.
+  let fastErrandSettlement: Awaited<ReturnType<typeof settleFastErrandInvestorPayout>> | null = null;
+  if (metadata.marketplace_kind === "fast_errands" && metadata.fast_errand && typeof metadata.fast_errand === "object" && (metadata.fast_errand as { schema_version?: unknown }).schema_version === 2) {
+    fastErrandSettlement = await settleFastErrandInvestorPayout(db, delivery.id);
+    if (fastErrandSettlement.applicable) amount = Math.max(0, Math.round(Number(fastErrandSettlement.rider_payout_ngn || 0)));
+  }
+
   // Investor-owned bicycles follow the programme split. This is intentionally
   // separate from every other rider wallet and leaves non-investor deliveries unchanged.
   let investorSettlement: InvestorDeliverySettlement = { investor_owned: false };
-  try {
-    investorSettlement = await settleInvestorDelivery(db, delivery.id);
-  } catch (error) {
-    // Phase 2 can be deployed gradually. An absent settlement RPC must never
-    // interrupt an ordinary rider's delivery completion.
-    const code = String((error as { code?: string }).code || "");
-    if (code !== "PGRST202" && code !== "42883") throw error;
+  if (!fastErrandSettlement?.applicable) {
+    try {
+      investorSettlement = await settleInvestorDelivery(db, delivery.id);
+    } catch (error) {
+      // Phase 2 can be deployed gradually. An absent settlement RPC must never
+      // interrupt an ordinary rider's delivery completion.
+      const code = String((error as { code?: string }).code || "");
+      if (code !== "PGRST202" && code !== "42883") throw error;
+    }
+    if (investorSettlement.investor_owned) amount = Math.max(0, Math.round(Number(investorSettlement.rider_share_ngn || 0)));
   }
-  if (investorSettlement.investor_owned) amount = Math.max(0, Math.round(Number(investorSettlement.rider_share_ngn || 0)));
   if (amount <= 0) return { credited: false, amount: 0 };
 
   const { data: rider, error: riderError } = await db
@@ -315,6 +326,14 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
     deliveryMarginNgn: Math.max(0, grossDeliveryFee - amount),
     platformFeeNgn: Math.max(0, money(metadata.platform_fee_ngn))
   });
+  if (fastErrandSettlement?.applicable) await recordFastErrandPayoutAccounting(db, {
+    deliveryId: delivery.id,
+    deliveryCode: delivery.delivery_code || delivery.id,
+    riderPayoutNgn: amount,
+    investorPayoutNgn: Math.max(0, Math.round(Number(fastErrandSettlement.investor_payout_ngn || 0))),
+    companyShareNgn: Math.max(0, Math.round(Number(fastErrandSettlement.company_share_ngn || 0))),
+    model: String(fastErrandSettlement.payout_model || "")
+  });
   await Promise.allSettled([
     db.from("wallets").update({ balance_ngn: nextBalance, updated_at: nowIso() }).eq("id", wallet.id),
     db.from("notifications").insert({
@@ -328,6 +347,22 @@ export async function creditRiderDeliveryWallet(db: SupabaseClient, deliveryId: 
   ]);
 
   return { credited: true, amount };
+}
+
+async function recordFastErrandPayoutAccounting(db: SupabaseClient, input: { deliveryId: string; deliveryCode: string; riderPayoutNgn: number; investorPayoutNgn: number; companyShareNgn: number; model: string }) {
+  const rows = [
+    { suffix: "rider-payout", amount: input.riderPayoutNgn, title: "FastErrand rider payout" },
+    { suffix: "investor-payout", amount: input.investorPayoutNgn, title: "FastErrand investor payout" }
+  ].filter((row) => row.amount > 0);
+  await Promise.allSettled(rows.map(async (row) => {
+    const reference = `${input.deliveryCode}-${row.suffix}`;
+    const { data: existing } = await db.from("company_transaction_logs").select("id").eq("reference", reference).maybeSingle<{ id: string }>();
+    if (!existing) await db.from("company_transaction_logs").insert({
+      entry_date: new Date().toISOString().slice(0, 10), category: row.suffix === "rider-payout" ? "rider_payments" : "investor_payouts", direction: "expense", amount_ngn: row.amount,
+      title: `${row.title} ${input.deliveryCode}`, reference, payment_method: "wallet", status: "cleared",
+      notes: `Frozen ${input.model} allocation. Company share: NGN ${input.companyShareNgn.toLocaleString("en-NG")}. Delivery ID: ${input.deliveryId}.`
+    });
+  }));
 }
 
 function isCampusDutyPayout(metadata: JsonRecord, rider: { rider_account_type?: string | null; campus_zone_id?: string | null }, delivery: { vehicle_subtype?: string | null; metadata?: unknown }) {

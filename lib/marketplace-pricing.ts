@@ -164,6 +164,7 @@ function quoteForMarketplaceVehicle({
       vehicleSubtypeOverride
     },
     {
+      distanceMeters: Math.max(1, Math.round(initialQuote.distanceKm * 1000)),
       distanceKm: initialQuote.distanceKm,
       durationSeconds: initialQuote.durationSeconds,
       durationText: initialQuote.durationText,
