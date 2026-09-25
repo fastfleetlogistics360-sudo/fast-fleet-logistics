@@ -11,6 +11,11 @@ import { createPaymentIntent, markPaymentIntentInitializationFailed, markPayment
 import { generatePaymentReference, initiateSquadPayment, paymentChannelsFor } from "@/lib/payments/squad";
 import { defaultShoppingMalls, mallMenuSettingsKey, normalizeShoppingMalls, type ShoppingMall } from "@/lib/mall-menu";
 import { defaultRestaurantKitchens, normalizeRestaurantKitchens, restaurantMenuSettingsKey, type RestaurantKitchen } from "@/lib/restaurant-menu";
+import { loadFastErrandsCatalog, type FastErrandsCategory } from "@/lib/fast-errands-catalog";
+import { FastErrandQuoteError, resolveFastErrandQuote, type FastErrandRequestedItem } from "@/lib/fast-errands-service-areas";
+import { buildFastErrandV2Snapshot } from "@/lib/fast-errands-order-snapshot";
+import { customerVehicleSelection } from "@/lib/customer-vehicle-options";
+import { resolveStorageQuote, StorageQuoteError, storageDuration } from "@/lib/storage-facility";
 import { whatsappConfig } from "@/lib/whatsapp/config";
 import { assertWhatsAppPaymentReturnConfigured, whatsappPaymentReturnToken } from "@/lib/whatsapp/payment-return";
 
@@ -47,11 +52,15 @@ export async function handleWhatsAppOrdering(input: {
     if (command === "MENU") return [welcome(firstName(input.customer.full_name))];
     if (["1", "MARKETPLACE", "SHOP", "FOOD"].includes(command)) return beginMarketplace(input, command);
     if (["2", "DISPATCH", "DELIVERY"].includes(command)) return beginDispatch(input);
+    if (["3", "FASTERRANDS", "FAST ERRANDS", "ERRANDS"].includes(command)) return beginFastErrands(input);
+    if (["4", "STORAGE", "STORAGE FACILITY", "STORAGE BOOKING"].includes(command)) return beginStorageBooking(input);
     return [welcome(firstName(input.customer.full_name))];
   }
 
   if (state.startsWith("marketplace_")) return handleMarketplace(input, state, data, text, command);
   if (state.startsWith("dispatch_")) return handleDispatch(input, state, data, text, command);
+  if (state.startsWith("fast_errands_")) return handleFastErrands(input, state, data, text, command);
+  if (state.startsWith("storage_")) return handleStorageBooking(input, state, data, text, command);
 
   await save(input.db, input.phone, input.customer.id, "ready", {});
   return [welcome(firstName(input.customer.full_name))];
@@ -204,6 +213,208 @@ async function handleDispatch(
       return [`Your dispatch booking ${checkout.code} is ready for payment.\n\nPay securely here: ${checkout.authorizationUrl}\n\nAfter payment, you will return to this WhatsApp chat. We will confirm your booking and send every update here.`];
     } catch {
       return ["We could not create the secure dispatch checkout. You have not been charged. Reply PAY to try again."];
+    }
+  }
+  return ["Reply CANCEL to return to the main menu."];
+}
+
+async function beginFastErrands(input: { db: SupabaseClient; phone: string; customer: Customer }) {
+  const catalog = await loadFastErrandsCatalog();
+  const categories = catalog.filter((category) => category.is_active && category.items.some((item) => item.is_active));
+  if (!categories.length) return ["FastErrands is unavailable right now. Please try another Fast Fleets service shortly."];
+  await save(input.db, input.phone, input.customer.id, "fast_errands_category", { flow: "fast_errands", cart: [], categoryIds: categories.slice(0, 9).map((category) => category.id) });
+  return [fastErrandCategoryMenu(categories)];
+}
+
+async function handleFastErrands(
+  input: { db: SupabaseClient; phone: string; customer: Customer },
+  state: string,
+  data: JsonRecord,
+  text: string,
+  command: string
+) {
+  const catalog = await loadFastErrandsCatalog();
+  const categories = catalog.filter((category) => category.is_active && category.items.some((item) => item.is_active));
+  if (!categories.length) return ["FastErrands is unavailable right now. Please try another Fast Fleets service shortly."];
+  const cart = fastErrandCartFrom(data.cart, catalog);
+
+  if (state === "fast_errands_category") {
+    const categoryIds = strings(data.categoryIds);
+    const choice = Number(command);
+    const category = Number.isInteger(choice) ? categories.find((item) => item.id === categoryIds[choice - 1]) : null;
+    if (!category) return ["Reply with a number from the FastErrands category list."];
+    await save(input.db, input.phone, input.customer.id, "fast_errands_cart", { flow: "fast_errands", cart, categoryId: category.id });
+    return [fastErrandItemMenu(category, cart)];
+  }
+
+  if (state === "fast_errands_cart") {
+    const category = categories.find((item) => item.id === string(data.categoryId));
+    if (!category) return beginFastErrands(input);
+    if (command === "CATEGORIES") {
+      await save(input.db, input.phone, input.customer.id, "fast_errands_category", { flow: "fast_errands", cart, categoryIds: categories.slice(0, 9).map((item) => item.id) });
+      return [fastErrandCategoryMenu(categories, cart)];
+    }
+    if (command === "MENU") return [fastErrandItemMenu(category, cart)];
+    if (command === "CHECKOUT") {
+      if (!cart.length) return ["Your FastErrands cart is empty. Reply MENU and add an item first."];
+      await save(input.db, input.phone, input.customer.id, "fast_errands_address", { flow: "fast_errands", cart });
+      return ["Please reply with the full delivery address, including area and a landmark."];
+    }
+    const change = parseCartChange(command);
+    const product = change ? category.items.filter((item) => item.is_active).slice(0, 20)[change.index - 1] : null;
+    if (!change || !product) return ["Reply with an item number to add one. Reply ADD <number> <quantity> for more, REMOVE <number> to remove an item, CATEGORIES to switch categories, or CHECKOUT when ready."];
+    const current = cart.find((item) => item.itemId === product.id)?.quantity || 0;
+    const nextQuantity = change.action === "remove" ? 0 : Math.min(25, current + change.quantity);
+    const nextCart = cart.filter((item) => item.itemId !== product.id);
+    if (nextQuantity) nextCart.push({ itemId: product.id, quantity: nextQuantity });
+    await save(input.db, input.phone, input.customer.id, "fast_errands_cart", { flow: "fast_errands", cart: nextCart, categoryId: category.id });
+    return [`${fastErrandCartSummary(catalog, nextCart)}\n\nReply another item number to add one, CATEGORIES to add from another category, or CHECKOUT when ready.`];
+  }
+
+  if (state === "fast_errands_address") {
+    const address = sanitizeAddressText(text);
+    if (address.length < 6) return ["Please send a complete delivery address with a street, area, and landmark."];
+    if (!cart.length) return ["This FastErrands cart has expired. Reply FASTERRANDS to start again."];
+    await save(input.db, input.phone, input.customer.id, "fast_errands_vehicle", { flow: "fast_errands", cart, address });
+    return ["Choose a rider: reply BICYCLE for light items on an assigned bicycle, or BIKE for a motorcycle."];
+  }
+
+  if (state === "fast_errands_vehicle") {
+    const vehicleOption = command === "BICYCLE" ? "bicycle" : ["BIKE", "MOTORCYCLE"].includes(command) ? "motorcycle" : "";
+    if (!vehicleOption) return ["Reply BICYCLE or BIKE."];
+    const address = string(data.address);
+    if (!address || !cart.length) return ["This FastErrands draft has expired. Reply FASTERRANDS to start again."];
+    try {
+      const quote = await quoteFastErrands(input.db, cart, address, vehicleOption);
+      await save(input.db, input.phone, input.customer.id, "fast_errands_review", { flow: "fast_errands", cart, address, vehicleOption });
+      return [fastErrandReview(catalog, cart, address, quote)];
+    } catch (error) {
+      return [fastErrandErrorMessage(error)];
+    }
+  }
+
+  if (state === "fast_errands_review") {
+    const paymentMethod = whatsappPaymentMethod(command);
+    if (!paymentMethod) return ["Reply PAY CARD or PAY TRANSFER to create your secure checkout, or CANCEL to discard this FastErrand."];
+    try {
+      const checkout = await createFastErrandPayment(input.db, input.customer, input.phone, cart, string(data.address), string(data.vehicleOption), paymentMethod);
+      await save(input.db, input.phone, input.customer.id, "ready", {});
+      return [`Your FastErrand ${checkout.code} is ready for payment.\n\nPay securely here: ${checkout.authorizationUrl}\n\nAfter payment, return to this WhatsApp chat. We will confirm your FastErrand and send updates here.`];
+    } catch (error) {
+      return [fastErrandErrorMessage(error, "We could not create the secure FastErrand checkout. Your cart has not been charged. Reply PAY to try again.")];
+    }
+  }
+  return ["Reply CANCEL to return to the main menu."];
+}
+
+async function beginStorageBooking(input: { db: SupabaseClient; phone: string; customer: Customer }) {
+  const items = await loadStorageCatalog(input.db);
+  if (!items.length) return ["Storage Facility Booking is unavailable right now. Please try again shortly."];
+  await save(input.db, input.phone, input.customer.id, "storage_cart", { flow: "storage", cart: [], itemIds: items.slice(0, 9).map((item) => item.id) });
+  return [storageItemMenu(items, [])];
+}
+
+async function handleStorageBooking(
+  input: { db: SupabaseClient; phone: string; customer: Customer },
+  state: string,
+  data: JsonRecord,
+  text: string,
+  command: string
+) {
+  const items = await loadStorageCatalog(input.db);
+  const cart = storageCartFrom(data.cart, items);
+
+  if (state === "storage_cart") {
+    const itemIds = strings(data.itemIds);
+    if (command === "MENU") return [storageItemMenu(items, cart)];
+    if (command === "CHECKOUT") {
+      if (!cart.length) return ["Your storage booking has no items. Reply MENU and add an item first."];
+      await save(input.db, input.phone, input.customer.id, "storage_duration", { flow: "storage", cart });
+      return ["Choose your storage duration: reply 1 for 1 Day, 2 for 3 Days, 3 for 1 Week, 4 for 2 Weeks, or 5 for 1 Month."];
+    }
+    const change = parseCartChange(command);
+    const item = change ? items.find((entry) => entry.id === itemIds[change.index - 1]) : null;
+    if (!change || !item) return ["Reply with an item number to add one. Reply ADD <number> <quantity> for more, REMOVE <number> to remove an item, or CHECKOUT when ready."];
+    const current = cart.find((entry) => entry.itemId === item.id);
+    const nextQuantity = change.action === "remove" ? 0 : Math.min(50, (current?.quantity || 0) + change.quantity);
+    const nextCart = cart.filter((entry) => entry.itemId !== item.id);
+    if (nextQuantity) nextCart.push({ itemId: item.id, quantity: nextQuantity, otherDescription: current?.otherDescription || "" });
+    if (item.is_other && nextQuantity && !current?.otherDescription) {
+      await save(input.db, input.phone, input.customer.id, "storage_other_description", { flow: "storage", cart: nextCart, itemIds, otherItemId: item.id });
+      return ["Please describe the Other Item you want to store."];
+    }
+    await save(input.db, input.phone, input.customer.id, "storage_cart", { flow: "storage", cart: nextCart, itemIds });
+    return [`${storageCartSummary(items, nextCart)}\n\nReply another item number to add one, or CHECKOUT when ready.`];
+  }
+
+  if (state === "storage_other_description") {
+    const otherItemId = string(data.otherItemId);
+    const description = text.trim().slice(0, 500);
+    if (description.length < 3) return ["Please describe the Other Item in at least three characters."];
+    const nextCart = cart.map((entry) => entry.itemId === otherItemId ? { ...entry, otherDescription: description } : entry);
+    await save(input.db, input.phone, input.customer.id, "storage_cart", { flow: "storage", cart: nextCart, itemIds: items.slice(0, 9).map((item) => item.id) });
+    return [`${storageCartSummary(items, nextCart)}\n\nReply another item number to add one, or CHECKOUT when ready.`];
+  }
+
+  if (state === "storage_duration") {
+    const duration = storageDurationChoice(command);
+    if (!duration) return ["Reply 1 for 1 Day, 2 for 3 Days, 3 for 1 Week, 4 for 2 Weeks, or 5 for 1 Month."];
+    await save(input.db, input.phone, input.customer.id, "storage_pickup_choice", { flow: "storage", cart, duration });
+    return ["Would you like Fast Fleets to collect the items? Reply PICKUP, or SELF if you will bring them to the facility."];
+  }
+
+  if (state === "storage_pickup_choice") {
+    if (["SELF", "NO", "DROP OFF", "DROPOFF"].includes(command)) {
+      await save(input.db, input.phone, input.customer.id, "storage_acknowledgement", { ...data, cart, pickupSelected: false });
+      return [storageSafetyPrompt()];
+    }
+    if (["PICKUP", "YES"].includes(command)) {
+      await save(input.db, input.phone, input.customer.id, "storage_pickup_address", { ...data, cart, pickupSelected: true });
+      return ["Please send the full pickup address, including area and a landmark."];
+    }
+    return ["Reply PICKUP for Fast Fleets collection, or SELF if you will bring the items to the facility."];
+  }
+
+  if (state === "storage_pickup_address") {
+    const pickupAddress = sanitizeAddressText(text);
+    if (pickupAddress.length < 6) return ["Please send a complete pickup address with a street, area, and landmark."];
+    await save(input.db, input.phone, input.customer.id, "storage_pickup_vehicle", { ...data, cart, pickupAddress });
+    return ["Choose a collection vehicle: reply BIKE, CAR, or VAN."];
+  }
+
+  if (state === "storage_pickup_vehicle") {
+    const pickupVehicle = command.toLowerCase();
+    if (!dispatchVehicles.has(pickupVehicle)) return ["Reply BIKE, CAR, or VAN."];
+    await save(input.db, input.phone, input.customer.id, "storage_pickup_instructions", { ...data, cart, pickupVehicle });
+    return ["Reply with any pickup instructions, or reply SKIP."];
+  }
+
+  if (state === "storage_pickup_instructions") {
+    const pickupInstructions = command === "SKIP" ? "" : text.slice(0, 500);
+    await save(input.db, input.phone, input.customer.id, "storage_acknowledgement", { ...data, cart, pickupInstructions });
+    return [storageSafetyPrompt()];
+  }
+
+  if (state === "storage_acknowledgement") {
+    if (!["CONFIRM", "I CONFIRM", "YES"].includes(command)) return ["Reply CONFIRM only if the items contain no prohibited or hazardous goods, or CANCEL to stop this booking."];
+    try {
+      const quote = await quoteStorage(input.db, cart, data);
+      await save(input.db, input.phone, input.customer.id, "storage_review", { ...data, cart, prohibitedAcknowledged: true });
+      return [storageReview(items, quote, Boolean(data.pickupSelected))];
+    } catch (error) {
+      return [storageErrorMessage(error)];
+    }
+  }
+
+  if (state === "storage_review") {
+    const paymentMethod = whatsappPaymentMethod(command);
+    if (!paymentMethod) return ["Reply PAY CARD or PAY TRANSFER to create your secure checkout, or CANCEL to discard this storage booking."];
+    try {
+      const checkout = await createStoragePayment(input.db, input.customer, input.phone, cart, data, paymentMethod);
+      await save(input.db, input.phone, input.customer.id, "ready", {});
+      return [`Your storage booking ${checkout.code} is ready for payment.\n\nPay securely here: ${checkout.authorizationUrl}\n\nAfter payment, return to this WhatsApp chat. We will confirm your booking and send updates here.`];
+    } catch (error) {
+      return [storageErrorMessage(error, "We could not create the secure storage checkout. Your booking has not been charged. Reply PAY to try again.")];
     }
   }
   return ["Reply CANCEL to return to the main menu."];
@@ -381,6 +592,182 @@ async function createDispatchPayment(db: SupabaseClient, customer: Customer, pho
   }
 }
 
+type FastErrandCartItem = { itemId: string; quantity: number };
+type StorageCatalogItem = { id: string; name: string; description: string | null; is_other: boolean };
+type StorageCartItem = { itemId: string; quantity: number; otherDescription: string };
+
+function fastErrandCategoryMenu(categories: FastErrandsCategory[], cart: FastErrandCartItem[] = []) {
+  return `FastErrands\n\n${categories.slice(0, 9).map((category, index) => `${index + 1}. ${category.emoji || "📦"} ${category.name}`).join("\n")}\n\nReply with a category number.${cart.length ? " Your cart will be kept." : ""}\n\nReply CANCEL at any time to return to the main menu.`;
+}
+
+function fastErrandItemMenu(category: FastErrandsCategory, cart: FastErrandCartItem[]) {
+  const items = category.items.filter((item) => item.is_active).slice(0, 20);
+  return `${category.emoji || "📦"} ${category.name}\n\n${items.map((item, index) => `${index + 1}. ${item.name} — ₦${formatMoney(Number(item.price_ngn))}`).join("\n")}\n\nReply with an item number to add one. Reply ADD <number> <quantity> for more, REMOVE <number> to remove an item, CATEGORIES to browse more, or CHECKOUT when ready.${cart.length ? `\n\n${fastErrandCartSummary([category], cart)}` : ""}`;
+}
+
+function fastErrandCartFrom(value: unknown, catalog: FastErrandsCategory[]): FastErrandCartItem[] {
+  if (!Array.isArray(value)) return [];
+  const items = catalog.flatMap((category) => category.items).filter((item) => item.is_active);
+  return value.flatMap((entry) => {
+    const itemId = string(record(entry).itemId);
+    const quantity = Math.min(25, Math.max(1, Math.round(Number(record(entry).quantity || 1))));
+    return items.some((item) => item.id === itemId) && Number.isFinite(quantity) ? [{ itemId, quantity }] : [];
+  });
+}
+
+function fastErrandCartSummary(catalog: FastErrandsCategory[], cart: FastErrandCartItem[]) {
+  const items = catalog.flatMap((category) => category.items);
+  const lines = cart.flatMap((entry) => {
+    const item = items.find((candidate) => candidate.id === entry.itemId);
+    return item ? [`${entry.quantity}× ${item.name} — ₦${formatMoney(Number(item.price_ngn) * entry.quantity)}`] : [];
+  });
+  const total = cart.reduce((sum, entry) => sum + (Number(items.find((candidate) => candidate.id === entry.itemId)?.price_ngn) || 0) * entry.quantity, 0);
+  return `Your FastErrands cart\n${lines.join("\n")}\nItems subtotal: ₦${formatMoney(total)}`;
+}
+
+async function quoteFastErrands(db: SupabaseClient, cart: FastErrandCartItem[], address: string, vehicleOption: string) {
+  const selectedVehicle = customerVehicleSelection(vehicleOption);
+  if (!selectedVehicle || !["bicycle", "motorcycle"].includes(selectedVehicle.id)) throw new FastErrandQuoteError("Choose an available bicycle or bike rider option.", 400);
+  return resolveFastErrandQuote({ db, items: cart as FastErrandRequestedItem[], address, selectedVehicle });
+}
+
+function fastErrandReview(catalog: FastErrandsCategory[], cart: FastErrandCartItem[], address: string, quote: Awaited<ReturnType<typeof resolveFastErrandQuote>>) {
+  return `FastErrand review\n\n${fastErrandCartSummary(catalog, cart)}\nFastErrand delivery: ₦${formatMoney(quote.serviceFeeNgn)}\nTotal: ₦${formatMoney(quote.customerTotalNgn)}\nDeliver to: ${address}\nDistance: ${quote.displayDistanceKm.toFixed(2)} km · about ${quote.etaMinutes} min\n\nReply PAY CARD or PAY TRANSFER to continue securely, or CANCEL to discard.`;
+}
+
+async function createFastErrandPayment(db: SupabaseClient, customer: Customer, phone: string, cart: FastErrandCartItem[], address: string, vehicleOption: string, paymentMethod: "card" | "transfer") {
+  if (!customer.email?.includes("@")) throw new Error("Missing customer email");
+  assertWhatsAppPaymentReturnConfigured();
+  const quote = await quoteFastErrands(db, cart, address, vehicleOption);
+  const selectedVehicle = customerVehicleSelection(vehicleOption);
+  const vehicle = selectedVehicle && quote.vehicleOptions.find((option) => option.id === selectedVehicle.id);
+  if (!selectedVehicle || !vehicle || vehicle.availability.status === "unavailable") throw new Error("That rider option is no longer available.");
+  const snapshot = buildFastErrandV2Snapshot({
+    pricing_mode: "neighborhood", goods_subtotal_ngn: quote.goodsSubtotalNgn, service_fee_ngn: quote.serviceFeeNgn, customer_total_ngn: quote.customerTotalNgn, minimum_cart_ngn: quote.minimumCartNgn, road_distance_meters: quote.roadDistanceMeters,
+    service_area: { id: quote.area.id, code: quote.area.code, name: quote.area.name, priority: Number(quote.area.priority), pricing_version: Number(quote.area.pricing_version) },
+    pricing_band: { id: quote.band.id, min_distance_exclusive_meters: Number(quote.band.min_distance_exclusive_meters), max_distance_inclusive_meters: Number(quote.band.max_distance_inclusive_meters), service_fee_ngn: quote.serviceFeeNgn },
+    fulfilment: { business_profile_id: quote.area.business_profile_id, business_name: quote.business?.business_name || null, origin_address: quote.area.origin_address, origin_place_id: quote.area.origin_place_id, origin_latitude: Number(quote.area.origin_latitude) || null, origin_longitude: Number(quote.area.origin_longitude) || null },
+    selected_vehicle: { id: selectedVehicle.id, vehicle: selectedVehicle.vehicle, vehicle_subtype: selectedVehicle.vehicleSubtype, label: selectedVehicle.label }, customer_note: null, quote_fingerprint: quote.fingerprint
+  });
+  const reference = generatePaymentReference("FFE");
+  const { data: order, error } = await db.from("orders").insert({
+    order_code: reference, customer_id: customer.id, business_id: quote.business?.user_id, business_profile_id: quote.area.business_profile_id, marketplace_kind: "fast_errands", items: quote.items,
+    customer_contact: phone || customer.email, pickup_address: quote.area.origin_address, dropoff_address: address, package_type: "FastErrand neighbourhood procurement", vehicle_type: selectedVehicle.vehicle, vehicle_subtype: selectedVehicle.vehicleSubtype,
+    status: "pending", amount: quote.customerTotalNgn, delivery_fee_ngn: quote.serviceFeeNgn, platform_fee_ngn: 0, distance_km: quote.displayDistanceKm, eta_minutes: quote.etaMinutes, route_source: quote.route.source, route_type: "road", payment_method: paymentMethod, payment_status: "pending",
+    metadata: { source: "whatsapp_ordering", whatsapp_phone: phone, payment_provider: "squad", provider_reference: reference, payment_choice: paymentMethod, fast_errand: snapshot }
+  }).select("id, order_code").single<{ id: string; order_code: string }>();
+  if (error || !order) throw error || new Error("Could not create FastErrand order.");
+  let intent;
+  try {
+    intent = await createPaymentIntent(db, { reference, internalReference: `fast-errand-order:${order.id}`, purpose: "marketplace_business_order", ownerUserId: customer.id, amountNgn: quote.customerTotalNgn, orderId: order.id });
+    const callback = new URL("/whatsapp/payment-return", siteUrl());
+    callback.searchParams.set("reference", reference); callback.searchParams.set("code", order.order_code); callback.searchParams.set("token", whatsappPaymentReturnToken(reference));
+    const squad = await initiateSquadPayment({ amountNgn: quote.customerTotalNgn, email: customer.email, reference, callbackUrl: callback.toString(), customerName: customer.full_name || null, channels: paymentChannelsFor(paymentMethod), metadata: { purpose: "fast_errand_neighborhood_order", order_id: order.id, order_code: order.order_code, source: "whatsapp_ordering" } });
+    await markPaymentIntentPending(db, intent.id);
+    return { code: order.order_code, authorizationUrl: squad.authorizationUrl };
+  } catch (error) {
+    if (intent) await markPaymentIntentInitializationFailed(db, intent.id).catch(() => undefined);
+    await db.from("orders").update({ status: "cancelled", payment_status: "failed" }).eq("id", order.id);
+    throw error;
+  }
+}
+
+async function loadStorageCatalog(db: SupabaseClient): Promise<StorageCatalogItem[]> {
+  const { data, error } = await db.from("storage_catalog_items").select("id, name, description, is_other").eq("is_active", true).order("sort_order").limit(50);
+  if (error) throw error;
+  return (data || []) as StorageCatalogItem[];
+}
+
+function storageItemMenu(items: StorageCatalogItem[], cart: StorageCartItem[]) {
+  const shown = items.slice(0, 9);
+  return `Storage Facility Booking\n\n${shown.map((item, index) => `${index + 1}. ${item.name}${item.description ? ` — ${item.description}` : ""}`).join("\n")}\n\nReply with an item number to add one. Reply ADD <number> <quantity> for more, REMOVE <number> to remove an item, or CHECKOUT when ready.${cart.length ? `\n\n${storageCartSummary(items, cart)}` : ""}`;
+}
+
+function storageCartFrom(value: unknown, items: StorageCatalogItem[]): StorageCartItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const itemId = string(record(entry).itemId);
+    const quantity = Math.min(50, Math.max(1, Math.round(Number(record(entry).quantity || 1))));
+    return items.some((item) => item.id === itemId) && Number.isFinite(quantity) ? [{ itemId, quantity, otherDescription: string(record(entry).otherDescription).slice(0, 500) }] : [];
+  });
+}
+
+function storageCartSummary(items: StorageCatalogItem[], cart: StorageCartItem[]) {
+  const lines = cart.flatMap((entry) => {
+    const item = items.find((candidate) => candidate.id === entry.itemId);
+    return item ? [`${entry.quantity}× ${item.name}${entry.otherDescription ? ` (${entry.otherDescription})` : ""}`] : [];
+  });
+  return `Your storage items\n${lines.join("\n")}`;
+}
+
+function storageDurationChoice(command: string) {
+  return ({ "1": "day_1", "2": "day_3", "3": "week_1", "4": "week_2", "5": "month_1" } as Record<string, string>)[command] || null;
+}
+
+function storageSafetyPrompt() {
+  return "Safety confirmation\n\nStorage cannot accept prohibited or hazardous goods. Reply CONFIRM only if your items contain none of these goods.";
+}
+
+async function quoteStorage(db: SupabaseClient, cart: StorageCartItem[], data: JsonRecord) {
+  const duration = string(data.duration);
+  if (!storageDuration(duration)) throw new StorageQuoteError("Choose a valid storage duration.", 400);
+  return resolveStorageQuote({ db, items: cart, duration, pickupSelected: data.pickupSelected === true, pickupAddress: string(data.pickupAddress), pickupVehicle: storagePickupVehicle(data.pickupVehicle) });
+}
+
+function storagePickupVehicle(value: unknown): "bike" | "car" | "van" | undefined {
+  const vehicle = string(value).toLowerCase();
+  return vehicle === "bike" || vehicle === "car" || vehicle === "van" ? vehicle : undefined;
+}
+
+function storageReview(items: StorageCatalogItem[], quote: Awaited<ReturnType<typeof resolveStorageQuote>>, pickupSelected: boolean) {
+  const cart = quote.items.map((item) => ({ itemId: item.item_id, quantity: item.quantity, otherDescription: item.other_description || "" }));
+  return `Storage booking review\n\n${storageCartSummary(items, cart)}\nDuration: ${quote.duration.label}\nStorage: ₦${formatMoney(quote.storageSubtotalNgn)}\nPickup: ₦${formatMoney(quote.pickup?.feeNgn || 0)}\nTotal: ₦${formatMoney(quote.totalNgn)}${pickupSelected && quote.pickup ? `\nCollection distance: ${quote.pickup.distanceKm.toFixed(2)} km` : ""}\n\nReply PAY CARD or PAY TRANSFER to continue securely, or CANCEL to discard.`;
+}
+
+async function createStoragePayment(db: SupabaseClient, customer: Customer, phone: string, cart: StorageCartItem[], data: JsonRecord, paymentMethod: "card" | "transfer") {
+  if (!customer.email?.includes("@")) throw new Error("Missing customer email");
+  assertWhatsAppPaymentReturnConfigured();
+  if (data.prohibitedAcknowledged !== true) throw new StorageQuoteError("Confirm that your items contain no prohibited or hazardous goods.", 400);
+  const quote = await quoteStorage(db, cart, data);
+  const reference = generatePaymentReference("ST");
+  const pickupAddress = string(data.pickupAddress);
+  const pickupInstructions = string(data.pickupInstructions).slice(0, 500) || null;
+  const { data: order, error: orderError } = await db.from("orders").insert({
+    order_code: reference, customer_id: customer.id, marketplace_kind: "storage_facility", items: quote.items, customer_contact: phone || customer.email, pickup_address: quote.pickup ? pickupAddress : quote.facility.address, dropoff_address: quote.facility.address,
+    package_type: "Storage facility booking", vehicle_type: quote.pickup?.vehicle || "any", status: "pending", amount: quote.totalNgn, delivery_fee_ngn: quote.pickup?.feeNgn || 0, platform_fee_ngn: 0, distance_km: quote.pickup?.distanceKm || 0, eta_minutes: quote.pickup?.etaMinutes || 0, route_source: quote.pickup?.routeSource || null, route_type: "storage", payment_method: paymentMethod, payment_status: "pending",
+    metadata: { source: "whatsapp_ordering", whatsapp_phone: phone, payment_provider: "squad", provider_reference: reference, payment_choice: paymentMethod, storage: { schema_version: 1, facility: quote.facility, duration: quote.duration, duration_key: quote.durationKey, storage_subtotal_ngn: quote.storageSubtotalNgn, pickup: quote.pickup, total_ngn: quote.totalNgn, fingerprint: quote.fingerprint, prohibited_acknowledged_at: new Date().toISOString(), pickup_instructions: pickupInstructions } }
+  }).select("id, order_code").single<{ id: string; order_code: string }>();
+  if (orderError || !order) throw orderError || new Error("Could not create storage order.");
+  const { data: booking, error: bookingError } = await db.from("storage_bookings").insert({
+    order_id: order.id, customer_id: customer.id, facility_id: quote.facility.id, pickup_selected: Boolean(quote.pickup), pickup_address: quote.pickup ? pickupAddress : null, pickup_contact: phone || customer.email, pickup_instructions: pickupInstructions, prohibited_items_acknowledged_at: new Date().toISOString(), snapshot: { ...quote, created_at: new Date().toISOString() }
+  }).select("id, booking_reference").single<{ id: string; booking_reference: string }>();
+  if (bookingError || !booking) {
+    await db.from("orders").update({ status: "cancelled", payment_status: "failed" }).eq("id", order.id);
+    throw bookingError || new Error("Could not create storage booking.");
+  }
+  let intent;
+  try {
+    intent = await createPaymentIntent(db, { reference, internalReference: `storage-booking:${booking.id}`, purpose: "marketplace_business_order", ownerUserId: customer.id, amountNgn: quote.totalNgn, orderId: order.id });
+    const callback = new URL("/whatsapp/payment-return", siteUrl());
+    callback.searchParams.set("reference", reference); callback.searchParams.set("code", booking.booking_reference); callback.searchParams.set("token", whatsappPaymentReturnToken(reference));
+    const squad = await initiateSquadPayment({ amountNgn: quote.totalNgn, email: customer.email, reference, callbackUrl: callback.toString(), customerName: customer.full_name || null, channels: paymentChannelsFor(paymentMethod), metadata: { purpose: "storage_facility_booking", order_id: order.id, storage_booking_id: booking.id, source: "whatsapp_ordering" } });
+    await markPaymentIntentPending(db, intent.id);
+    return { code: booking.booking_reference, authorizationUrl: squad.authorizationUrl };
+  } catch (error) {
+    if (intent) await markPaymentIntentInitializationFailed(db, intent.id).catch(() => undefined);
+    await db.from("orders").update({ status: "cancelled", payment_status: "failed" }).eq("id", order.id);
+    throw error;
+  }
+}
+
+function fastErrandErrorMessage(error: unknown, fallback = "We could not refresh your FastErrand quote. Please try again.") {
+  return error instanceof FastErrandQuoteError ? error.message : fallback;
+}
+
+function storageErrorMessage(error: unknown, fallback = "We could not refresh your storage quote. Please try again.") {
+  return error instanceof StorageQuoteError ? error.message : fallback;
+}
+
 async function save(db: SupabaseClient, phone: string, userId: string, state: string, stateData: JsonRecord) {
   const { error } = await db.from("whatsapp_conversations").upsert({ whatsapp_phone: phone, user_id: userId, state, state_data: stateData, last_message_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: "whatsapp_phone" });
   if (error) throw error;
@@ -399,7 +786,7 @@ function marketplaceItems(kind: MarketplaceKind, vendor: CatalogVendor, cart: Ca
 }
 
 function welcome(name: string) {
-  return `Welcome, ${name}.\n\nReply 1 to order food or shopping.\nReply 2 to send a delivery.\n\nReply CANCEL or MENU at any time to return here.`;
+  return `Welcome, ${name}.\n\nReply 1 to order food or shopping.\nReply 2 to send a delivery.\nReply 3 for FastErrands.\nReply 4 to book a storage facility.\n\nReply CANCEL or MENU at any time to return here.`;
 }
 
 function formatMoney(value: number) { return Math.max(0, Math.round(value || 0)).toLocaleString("en-NG"); }

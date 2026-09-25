@@ -48,3 +48,17 @@ test("F-015 keeps WhatsApp marketplace and dispatch orders in shared app records
   assert.match(ordering, /source: "whatsapp_ordering"/);
   assert.match(ordering, /PAY TRANSFER/);
 });
+
+test("WhatsApp ordering supports FastErrands and Storage Facility Booking end to end", () => {
+  assert.match(ordering, /Reply 3 for FastErrands/);
+  assert.match(ordering, /Reply 4 to book a storage facility/);
+  assert.match(ordering, /state === "fast_errands_review"/);
+  assert.match(ordering, /state === "storage_review"/);
+  assert.match(ordering, /resolveFastErrandQuote/);
+  assert.match(ordering, /resolveStorageQuote/);
+  assert.match(ordering, /internalReference: `fast-errand-order:/);
+  assert.match(ordering, /internalReference: `storage-booking:/);
+  assert.match(ordering, /marketplace_kind: "fast_errands"/);
+  assert.match(ordering, /marketplace_kind: "storage_facility"/);
+  assert.match(ordering, /prohibitedAcknowledged/);
+});
