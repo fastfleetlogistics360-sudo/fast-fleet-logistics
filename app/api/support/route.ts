@@ -7,6 +7,7 @@ import { verifySupportTurnstile } from "@/lib/support/turnstile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { attachSupportDeliveryContext } from "@/lib/support/context";
+import { initializeSupportCaseManagement } from "@/lib/support/initialization";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
       return data ? { id: data.id, deliveryCode: data.delivery_code } : null;
     },
     attachDeliveryContext: (ticketId, delivery) => attachSupportDeliveryContext(db, ticketId, delivery),
+    initializeCaseManagement: (ticketId, userId, topic) => initializeSupportCaseManagement(db, ticketId, userId, topic),
     reportUnexpectedPersistenceError: () => console.error("support_ticket_creation_failed")
   })(request);
 }

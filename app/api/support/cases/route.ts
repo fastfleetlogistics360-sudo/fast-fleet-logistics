@@ -15,14 +15,16 @@ export async function GET() {
   await db.from("support_tickets").update({ status: "closed", closed_at: now, last_activity_at: now }).eq("user_id", user.id).eq("status", "resolved").lte("resolved_at", new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString());
   const { data, error } = await db
     .from("support_tickets")
-    .select("id, case_number, topic, subject, priority, status, delivery_id, tracking_code, created_at, updated_at, last_activity_at, customer_last_read_at, resolved_at, closed_at, support_messages(sender_type, created_at)")
+    .select("id, case_number, topic, subject, priority, status, delivery_id, tracking_code, created_at, updated_at, last_activity_at, customer_last_read_at, resolved_at, closed_at")
     .eq("user_id", user.id)
     .order("last_activity_at", { ascending: false })
     .limit(100);
   if (error) return NextResponse.json({ error: "Could not load support cases." }, { status: 503 });
+  const ids = (data || []).map((item: any) => item.id);
+  const { data: publicMessages } = ids.length ? await db.from("support_messages").select("ticket_id, sender_type, created_at").in("ticket_id", ids).eq("visibility", "public") : { data: [] };
   const cases = (data || []).map((item: any) => ({
     ...item,
-    unread: (item.support_messages || []).some((message: any) => message.sender_type === "admin" && (!item.customer_last_read_at || new Date(message.created_at) > new Date(item.customer_last_read_at))),
+    unread: (publicMessages || []).some((message: any) => message.ticket_id === item.id && message.sender_type === "admin" && (!item.customer_last_read_at || new Date(message.created_at) > new Date(item.customer_last_read_at))),
     autoCloseEligible: shouldAutoClose(item.resolved_at)
   }));
   return NextResponse.json({ cases, availability: supportAvailability() }, { headers: { "Cache-Control": "no-store" } });

@@ -5,7 +5,8 @@ import {
   isSupportIdempotencyKey,
   normalizeSupportSource,
   normalizeSupportTopic,
-  supportTopics
+  supportTopics,
+  type SupportTopicKey
 } from "@/lib/support/policy";
 import type { SupportTurnstileResult } from "@/lib/support/turnstile";
 
@@ -49,6 +50,7 @@ export type SupportPostDependencies = {
   createTicket: (input: AtomicSupportTicketInput) => Promise<{ ticketId: string; created: boolean }>;
   resolveDeliveryContext?: (userId: string, deliveryId: string) => Promise<{ id: string; deliveryCode: string } | null>;
   attachDeliveryContext?: (ticketId: string, delivery: { id: string; deliveryCode: string }) => Promise<void>;
+  initializeCaseManagement?: (ticketId: string, userId: string | null, topic: SupportTopicKey) => Promise<void>;
   reportUnexpectedPersistenceError?: (error: unknown) => void;
 };
 
@@ -139,6 +141,7 @@ export function createSupportPostHandler(dependencies: SupportPostDependencies) 
         customerMessage: source === "widget" ? message : null,
         botMessage: source === "widget" ? policy.automatedReply : null
       });
+      await dependencies.initializeCaseManagement?.(ticket.ticketId, user?.id || null, topic);
       if (deliveryContext && dependencies.attachDeliveryContext) await dependencies.attachDeliveryContext(ticket.ticketId, deliveryContext);
       return response(user ? { ticketId: ticket.ticketId, created: ticket.created } : { created: ticket.created }, ticket.created ? 201 : 200);
     } catch (error) {
