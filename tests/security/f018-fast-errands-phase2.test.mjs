@@ -7,6 +7,8 @@ const read = (path) => readFileSync(new URL(path, root), "utf8");
 const migration = read("supabase-fast-errands-phase2-delta.sql");
 const dispatch = read("app/api/business/orders/route.ts");
 const wallet = read("lib/wallet-ledger.ts");
+const adminRoute = read("app/api/admin/fast-errands/route.ts");
+const adminQueue = read("components/admin/fast-errands-admin-queue.tsx");
 
 test("F-018 preserves raw-metre pricing, inactive-by-default areas, and no inventory schema", () => {
   assert.match(migration, /maximum_distance_meters integer not null/);
@@ -28,4 +30,11 @@ test("F-018 payout models use the required exact allocations and rider wallet us
   assert.match(migration, /independent_rider.*rider_pct:=90; investor_pct:=0; company_pct:=10/s);
   assert.match(migration, /rider_payout_ngn \+ investor_payout_ngn \+ company_share_ngn = eligible_revenue_ngn/);
   assert.match(wallet, /settleFastErrandInvestorPayout/);
+});
+
+test("F-018 saves a service area and its complete band schedule before activation", () => {
+  assert.match(adminRoute, /serviceAreaId: result\.data\.id/);
+  assert.match(adminQueue, /save-service-area-bands/);
+  assert.match(adminQueue, /\{ \.\.\.body, isActive: false \}/);
+  assert.match(adminQueue, /requestedActive/);
 });

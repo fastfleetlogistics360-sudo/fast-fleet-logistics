@@ -111,9 +111,12 @@ export async function PATCH(request: Request) {
     const isActive = body.isActive === true;
     if (!/^[a-z0-9][a-z0-9_-]{1,62}$/.test(code) || name.length < 2 || !businessProfileId || originAddress.length < 6 || maximumDistanceMeters < 1 || minimumCartNgn < 1) return NextResponse.json({ error: "Enter a valid code, name, fulfilment business, origin, distance and minimum cart." }, { status: 400 });
     const payload = { code, name, business_profile_id: businessProfileId, origin_address: originAddress, origin_place_id: originPlaceId, origin_latitude: numberOrNull(body.originLatitude), origin_longitude: numberOrNull(body.originLongitude), maximum_distance_meters: maximumDistanceMeters, minimum_cart_ngn: minimumCartNgn, priority, pricing_version: pricingVersion, is_active: isActive };
-    const result = id ? await db.from("fast_errand_service_areas").update(payload).eq("id", id) : await db.from("fast_errand_service_areas").insert(payload);
+    const result = id
+      ? await db.from("fast_errand_service_areas").update(payload).eq("id", id).select("id").maybeSingle<{ id: string }>()
+      : await db.from("fast_errand_service_areas").insert(payload).select("id").single<{ id: string }>();
     if (result.error) return NextResponse.json({ error: result.error.message }, { status: 400 });
-    return NextResponse.json({ ok: true });
+    if (!result.data?.id) return NextResponse.json({ error: "Service area could not be found after saving." }, { status: 404 });
+    return NextResponse.json({ ok: true, serviceAreaId: result.data.id });
   }
   if (action === "save-service-area-bands") {
     const serviceAreaId = String(body.serviceAreaId || "").trim();
