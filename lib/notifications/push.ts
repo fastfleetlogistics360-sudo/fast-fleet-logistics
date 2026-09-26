@@ -249,8 +249,10 @@ async function sendFcm(subscription: PushSubscriptionRow, notification: Notifica
           ttl: "1800s",
           notification: {
             channel_id: "delivery_updates",
-            tag: notificationTag(notification, metadata),
-            click_action: "OPEN_FASTFLEETS_TRACKING"
+            // Do not set click_action without a matching Android intent-filter.
+            // The Capacitor activity's default launch intent preserves the FCM
+            // data payload for the safe in-app tap handler instead.
+            tag: notificationTag(notification, metadata)
           }
         },
         webpush: {

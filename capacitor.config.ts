@@ -13,6 +13,11 @@ const config = {
     buildOptions: {
       releaseType: "AAB"
     }
+  },
+  plugins: {
+    PushNotifications: {
+      presentationOptions: ["sound", "alert"]
+    }
   }
 };
 

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android status-bar icons must be monochrome on a transparent background. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,5h11v10h-11zM14,8h4.4l2.6,3v4h-6zM6,17a2,2 0,1 0,0 4a2,2 0,0 0,0 -4M17,17a2,2 0,1 0,0 4a2,2 0,0 0,0 -4" />
+</vector>

@@ -1,50 +1,22 @@
 "use client";
 
 import { useEffect } from "react";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+import { PushNotifications } from "@capacitor/push-notifications";
 import { createClient } from "@/lib/supabase/client";
 
 // Native FCM requires android/app/google-services.json in the installed binary.
 // Keep it opt-in so native startup remains safe until Firebase is configured.
 const nativePushEnabled = process.env.NEXT_PUBLIC_ENABLE_NATIVE_PUSH === "true";
 
-type NativePushToken = {
-  value?: string;
+type NativePushReadinessPlugin = {
+  check: () => Promise<{ ready?: boolean }>;
 };
 
-type NativePushAction = {
-  notification?: {
-    data?: Record<string, unknown>;
-  };
-};
-
-type NativePushPlugin = {
-  requestPermissions?: () => Promise<{ receive?: string }>;
-  register?: () => Promise<void>;
-  createChannel?: (channel: {
-    id: string;
-    name: string;
-    description?: string;
-    importance?: 1 | 2 | 3 | 4 | 5;
-    visibility?: -1 | 0 | 1;
-    lights?: boolean;
-    vibration?: boolean;
-  }) => Promise<void>;
-  addListener?: (
-    event: "registration" | "registrationError" | "pushNotificationReceived" | "pushNotificationActionPerformed",
-    callback: (payload: NativePushToken & NativePushAction & Record<string, unknown>) => void
-  ) => Promise<{ remove: () => Promise<void> }> | { remove: () => Promise<void> };
-};
-
-declare global {
-  interface Window {
-    Capacitor?: {
-      getPlatform?: () => string;
-      Plugins?: {
-        PushNotifications?: NativePushPlugin;
-      };
-    };
-  }
-}
+// New Android binaries provide this small native preflight. Older installed
+// binaries do not, which lets us safely skip FCM instead of calling Firebase
+// before its google-services configuration has been compiled into the app.
+const NativePushReadiness = registerPlugin<NativePushReadinessPlugin>("NativePushReadiness");
 
 function urlBase64ToUint8Array(value: string) {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
@@ -91,6 +63,7 @@ export function PushNotificationRegistrar() {
     let cancelled = false;
     let removeRealtimeChannel: (() => void) | undefined;
     let removeNativeRegistrationListener: (() => void) | undefined;
+    let removeNativeRegistrationErrorListener: (() => void) | undefined;
     let removeNativeActionListener: (() => void) | undefined;
 
     function openNotificationTarget(data?: Record<string, unknown>) {
@@ -100,12 +73,22 @@ export function PushNotificationRegistrar() {
     }
 
     async function registerNativePush() {
-      const plugin = window.Capacitor?.Plugins?.PushNotifications;
-      if (!plugin?.register) return;
-      const permission = plugin.requestPermissions ? await plugin.requestPermissions().catch(() => null) : null;
-      if (permission?.receive && permission.receive !== "granted") return;
-      if (window.Capacitor?.getPlatform?.() === "android") {
-        await plugin.createChannel?.({
+      // The app currently supports native FCM on Android only. Keeping the gate
+      // explicit prevents an unconfigured native binary from prompting or crashing.
+      if (!nativePushEnabled || !Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") return;
+
+      if (!Capacitor.isPluginAvailable("NativePushReadiness")) return;
+      const readiness = await NativePushReadiness.check().catch(() => null);
+      if (!readiness?.ready || cancelled) return;
+
+      const currentPermission = await PushNotifications.checkPermissions().catch(() => null);
+      if (!currentPermission || cancelled) return;
+      const permission = currentPermission.receive === "prompt"
+        ? await PushNotifications.requestPermissions().catch(() => null)
+        : currentPermission;
+      if (!permission || permission.receive !== "granted" || cancelled) return;
+
+      await PushNotifications.createChannel({
           id: "delivery_updates",
           name: "Delivery updates",
           description: "Order, rider, package, and wallet delivery alerts.",
@@ -114,11 +97,10 @@ export function PushNotificationRegistrar() {
           lights: true,
           vibration: true
         }).catch(() => null);
-      }
-      const listener = await plugin.addListener?.("registration", (token) => {
-        if (!token.value) return;
+      const registrationListener = await PushNotifications.addListener("registration", (token) => {
+        if (!token.value || cancelled) return;
         void saveSubscription({
-          platform: window.Capacitor?.getPlatform?.() || "native",
+          platform: "android",
           provider: "fcm",
           token: token.value,
           endpoint: `fcm:${token.value}`,
@@ -126,15 +108,23 @@ export function PushNotificationRegistrar() {
         });
       });
       removeNativeRegistrationListener = () => {
-        void Promise.resolve(listener?.remove?.()).catch(() => null);
+        void registrationListener.remove().catch(() => null);
       };
-      const actionListener = await plugin.addListener?.("pushNotificationActionPerformed", (payload) => {
-        openNotificationTarget(payload.notification?.data);
+      const registrationErrorListener = await PushNotifications.addListener("registrationError", (error) => {
+        // Do not retry permission or token registration in a loop: a broken Firebase
+        // setup must not repeatedly destabilise a low-memory Android device.
+        console.warn("Android push registration failed", error.error);
+      });
+      removeNativeRegistrationErrorListener = () => {
+        void registrationErrorListener.remove().catch(() => null);
+      };
+      const actionListener = await PushNotifications.addListener("pushNotificationActionPerformed", (payload) => {
+        openNotificationTarget(payload.notification?.data as Record<string, unknown> | undefined);
       });
       removeNativeActionListener = () => {
-        void Promise.resolve(actionListener?.remove?.()).catch(() => null);
+        void actionListener.remove().catch(() => null);
       };
-      await plugin.register().catch(() => null);
+      await PushNotifications.register().catch(() => null);
     }
 
     async function registerWebPush() {
@@ -193,6 +183,7 @@ export function PushNotificationRegistrar() {
       window.clearTimeout(setupTimer);
       removeRealtimeChannel?.();
       removeNativeRegistrationListener?.();
+      removeNativeRegistrationErrorListener?.();
       removeNativeActionListener?.();
     };
   }, []);

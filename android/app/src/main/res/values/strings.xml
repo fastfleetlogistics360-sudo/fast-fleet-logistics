@@ -4,4 +4,5 @@
     <string name="title_activity_main">Fast Fleets 360 Logistics</string>
     <string name="package_name">com.fastfleetlogistics.app</string>
     <string name="custom_url_scheme">com.fastfleetlogistics.app</string>
+    <string name="default_notification_channel_id">delivery_updates</string>
 </resources>
