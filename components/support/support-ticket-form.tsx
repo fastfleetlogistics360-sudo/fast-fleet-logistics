@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Headphones, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -10,11 +12,13 @@ import { newSupportIdempotencyKey, supportTopics, type SupportTopicKey } from "@
 const formTopics: SupportTopicKey[] = ["delivery", "rider_kyc", "wallet", "business"];
 
 export function SupportTicketForm() {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [challenge, setChallenge] = useState<SupportChallengeState>({ ready: false, required: true, token: null, error: null });
   const [challengeReset, setChallengeReset] = useState(0);
   const [idempotencyKey, setIdempotencyKey] = useState(newSupportIdempotencyKey);
+  const [availability, setAvailability] = useState<{ staffed: boolean; message: string } | null>(null);
   const [form, setForm] = useState<{
     name: string;
     phone: string;
@@ -30,6 +34,13 @@ export function SupportTicketForm() {
     trackingCode: "",
     body: ""
   });
+
+  useEffect(() => { void fetch("/api/support/availability").then((response) => response.json()).then((result) => setAvailability(result)).catch(() => undefined); }, []);
+  useEffect(() => {
+    const requested = searchParams.get("topic");
+    if (requested?.startsWith("delivery")) setForm((current) => ({ ...current, topic: "delivery" }));
+    else if (requested === "business" || requested === "rider_kyc" || requested === "wallet") setForm((current) => ({ ...current, topic: requested }));
+  }, [searchParams]);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -55,6 +66,7 @@ export function SupportTicketForm() {
           topic: form.topic,
           body: form.body,
           trackingCode: form.trackingCode,
+          deliveryId: searchParams.get("delivery"),
           name: form.name,
           email: form.email,
           phone: form.phone,
@@ -64,6 +76,10 @@ export function SupportTicketForm() {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Support request was rejected.");
+      if (typeof result.ticketId === "string") {
+        window.location.assign(`/support/cases/${result.ticketId}`);
+        return;
+      }
       setMessage("Support request received. Our team will respond as soon as possible.");
       setForm({ name: "", phone: "", email: "", topic: "delivery", trackingCode: "", body: "" });
       setIdempotencyKey(newSupportIdempotencyKey());
@@ -79,8 +95,9 @@ export function SupportTicketForm() {
     <div className="p-5">
       <div className="flex items-center justify-between">
         <div>
-          <StatusBadge tone="green">Online</StatusBadge>
-          <h2 className="mt-3 text-2xl font-black text-fleet-night">Create support ticket</h2>
+          <StatusBadge tone={availability?.staffed === false ? "amber" : "green"}>{availability?.staffed === false ? "Outside staffed hours" : "Support hours"}</StatusBadge>
+          <h2 className="mt-3 text-2xl font-black text-fleet-night">Create support case</h2>
+          <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{availability?.message || "Support is staffed daily from 08:00 to 20:00 WAT. You can send a case at any time."}</p>
         </div>
         <Headphones className="h-6 w-6 text-fleet-ember" />
       </div>
@@ -116,6 +133,7 @@ export function SupportTicketForm() {
           {challenge.error ? <p className="mt-2 text-xs font-bold text-red-700">{challenge.error}</p> : null}
         </div>
         {message ? <div className="rounded-fleet bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-800 sm:col-span-2">{message}</div> : null}
+        <Link href="/support/cases" className="text-center text-sm font-black text-fleet-navy sm:col-span-2">View my support cases</Link>
         <Button className="sm:col-span-2" type="button" onClick={submit} disabled={loading || !challenge.ready || (challenge.required && !challenge.token)}>
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           Send request

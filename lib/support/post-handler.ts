@@ -14,6 +14,7 @@ type SupportRequest = {
   topic?: unknown;
   body?: unknown;
   trackingCode?: unknown;
+  deliveryId?: unknown;
   name?: unknown;
   email?: unknown;
   phone?: unknown;
@@ -46,6 +47,8 @@ export type SupportPostDependencies = {
     expectedHostname: string;
   }) => Promise<SupportTurnstileResult>;
   createTicket: (input: AtomicSupportTicketInput) => Promise<{ ticketId: string; created: boolean }>;
+  resolveDeliveryContext?: (userId: string, deliveryId: string) => Promise<{ id: string; deliveryCode: string } | null>;
+  attachDeliveryContext?: (ticketId: string, delivery: { id: string; deliveryCode: string }) => Promise<void>;
   reportUnexpectedPersistenceError?: (error: unknown) => void;
 };
 
@@ -101,8 +104,16 @@ export function createSupportPostHandler(dependencies: SupportPostDependencies) 
       }
     }
 
+    let deliveryContext: { id: string; deliveryCode: string } | null = null;
+    const requestedDeliveryId = cleanSupportText(body.deliveryId, 80);
+    if (requestedDeliveryId) {
+      if (!user || !dependencies.resolveDeliveryContext) return response({ error: "Sign in to attach a delivery to support.", code: "SUPPORT_CONTEXT_DENIED" }, 403);
+      deliveryContext = await dependencies.resolveDeliveryContext(user.id, requestedDeliveryId);
+      if (!deliveryContext) return response({ error: "That delivery is not available for this support case.", code: "SUPPORT_CONTEXT_DENIED" }, 403);
+    }
+
     const policy = supportTopics[topic];
-    const trackingCode = cleanSupportText(body.trackingCode, 80);
+    const trackingCode = deliveryContext?.deliveryCode || cleanSupportText(body.trackingCode, 80);
     const contactName = user
       ? cleanSupportText(profile?.full_name, 120) || cleanSupportText(user.user_metadata?.full_name, 120) || null
       : cleanSupportText(body.name, 120) || null;
@@ -128,6 +139,7 @@ export function createSupportPostHandler(dependencies: SupportPostDependencies) 
         customerMessage: source === "widget" ? message : null,
         botMessage: source === "widget" ? policy.automatedReply : null
       });
+      if (deliveryContext && dependencies.attachDeliveryContext) await dependencies.attachDeliveryContext(ticket.ticketId, deliveryContext);
       return response(user ? { ticketId: ticket.ticketId, created: ticket.created } : { created: ticket.created }, ticket.created ? 201 : 200);
     } catch (error) {
       if (!(error instanceof SupportPersistenceError)) dependencies.reportUnexpectedPersistenceError?.(error);

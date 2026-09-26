@@ -31,7 +31,7 @@ export function SupportWidget() {
 
   async function createTicket() {
     if (!topic || form.body.trim().length < 6) {
-      setMessage("Tell us a little more before connecting you to support.");
+      setMessage("Tell us a little more so we can create your support case.");
       return;
     }
     if (!challenge.ready || (challenge.required && !challenge.token)) {
@@ -58,7 +58,11 @@ export function SupportWidget() {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Support request was rejected.");
-      setMessage("Support request received. Our team will respond as soon as possible.");
+      if (typeof result.ticketId === "string") {
+        window.location.assign(`/support/cases/${result.ticketId}`);
+        return;
+      }
+      setMessage("Support case received. You can follow replies in My Cases.");
       setConnect(false);
       setForm({ name: "", email: "", phone: "", trackingCode: "", body: "" });
       setIdempotencyKey(newSupportIdempotencyKey());
@@ -77,15 +81,15 @@ export function SupportWidget() {
           <div className="flex items-center justify-between gap-3 border-b border-fleet-line bg-fleet-night px-4 py-3 text-white">
             <span className="flex items-center gap-2 text-sm font-black">
               <Headphones className="h-4 w-4" />
-              Fast Fleets 360 support
+              Help & Support
             </span>
             <button type="button" className="grid h-8 w-8 place-items-center rounded-full bg-white/10" onClick={() => setOpen(false)} aria-label="Close support chat">
               <X className="h-4 w-4" />
             </button>
           </div>
           <div className="max-h-[70vh] overflow-y-auto p-4">
-            <StatusBadge tone="green">Auto help first</StatusBadge>
-            <p className="mt-3 text-sm font-bold leading-6 text-slate-600">Pick the problem. I’ll suggest the fastest fix first, then connect you to a representative if needed.</p>
+            <StatusBadge tone="green">Support launcher</StatusBadge>
+            <p className="mt-3 text-sm font-bold leading-6 text-slate-600">Choose a topic for guided help or create a support case. Agent replies appear in My Cases.</p>
             <div className="mt-4 grid gap-2">
               {(Object.keys(supportTopics) as SupportTopicKey[]).map((item) => (
                 <button
@@ -113,7 +117,7 @@ export function SupportWidget() {
                     Solved
                   </Button>
                   <Button type="button" size="sm" onClick={() => setConnect(true)}>
-                    Representative
+                    Create case
                   </Button>
                 </div>
               </div>
@@ -124,12 +128,12 @@ export function SupportWidget() {
                 <input className="form-input" value={form.email} onChange={(event) => update("email", event.target.value)} placeholder="Email" inputMode="email" />
                 <input className="form-input" value={form.phone} onChange={(event) => update("phone", event.target.value)} placeholder="Phone" inputMode="tel" />
                 <input className="form-input" value={form.trackingCode} onChange={(event) => update("trackingCode", event.target.value)} placeholder="Tracking code, if any" />
-                <textarea className="form-textarea" value={form.body} onChange={(event) => update("body", event.target.value)} placeholder="Tell the representative what happened" />
+                <textarea className="form-textarea" value={form.body} onChange={(event) => update("body", event.target.value)} placeholder="Tell us what happened" />
                 <SupportTurnstile onChange={setChallenge} resetSignal={challengeReset} />
                 {challenge.error ? <p className="text-xs font-bold text-red-700">{challenge.error}</p> : null}
                 <Button type="button" onClick={createTicket} disabled={loading || !challenge.ready || (challenge.required && !challenge.token)}>
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Connect to representative
+                  Send support case
                 </Button>
               </div>
             ) : null}
@@ -141,7 +145,7 @@ export function SupportWidget() {
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="grid h-12 w-12 place-items-center rounded-full bg-fleet-ember text-white shadow-[0_18px_45px_rgba(239,108,0,0.32)] transition hover:-translate-y-0.5"
-        aria-label="Open support chat"
+        aria-label="Open help and support"
       >
         <MessageCircle className="h-5 w-5" />
       </button>

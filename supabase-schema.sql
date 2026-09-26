@@ -2473,9 +2473,15 @@ create table if not exists public.support_tickets (
   subject text constraint support_tickets_subject_length_check check (subject is null or char_length(subject) <= 180),
   message text not null constraint support_tickets_message_length_check check (char_length(trim(message)) between 6 and 2100),
   priority text not null default 'normal' check (priority in ('low', 'normal', 'high', 'urgent')),
-  status text not null default 'open' check (status in ('open', 'in_progress', 'resolved', 'closed')),
+  status text not null default 'open' check (status in ('open', 'triaged', 'in_progress', 'waiting_for_customer', 'waiting_for_internal', 'resolved', 'closed')),
   assigned_admin_id uuid references public.users(id),
   admin_notes text,
+  case_number text,
+  last_activity_at timestamptz not null default now(),
+  customer_last_read_at timestamptz,
+  admin_last_read_at timestamptz,
+  resolved_at timestamptz,
+  closed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -2489,7 +2495,13 @@ alter table if exists public.support_tickets
   add column if not exists email text,
   add column if not exists phone text,
   add column if not exists tracking_code text,
-  add column if not exists admin_notes text;
+  add column if not exists admin_notes text,
+  add column if not exists case_number text,
+  add column if not exists last_activity_at timestamptz not null default now(),
+  add column if not exists customer_last_read_at timestamptz,
+  add column if not exists admin_last_read_at timestamptz,
+  add column if not exists resolved_at timestamptz,
+  add column if not exists closed_at timestamptz;
 
 create table if not exists public.support_messages (
   id uuid primary key default gen_random_uuid(),

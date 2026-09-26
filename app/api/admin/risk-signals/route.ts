@@ -1,43 +1,6 @@
 import { NextResponse } from "next/server";
 import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { canUseDemoFallback, missingServiceResponse } from "@/lib/runtime";
-
-const demoRiskSignals = [
-  {
-    id: "FS-1001",
-    signal_type: "payment_mismatch",
-    risk_score: 82,
-    details: { reason: "Wallet debit did not match delivery amount" },
-    resolved_at: null,
-    created_at: new Date().toISOString(),
-    users: { full_name: "Fast Fleets 360 Customer", email: "customer@example.com", phone: "+2348000000000" },
-    deliveries: { delivery_code: "FF-240911-02", status: "pending_payment", price_ngn: 12500 }
-  }
-];
-
-const demoSupportTickets = [
-  {
-    id: "ST-1001",
-    topic: "refund",
-    subject: "Wallet top-up pending",
-    message: "Customer says Squad debited them but wallet has not updated.",
-    priority: "urgent",
-    status: "open",
-    contact_name: "Fast Fleets 360 Customer",
-    contact_email: "customer@example.com",
-    contact_phone: "+2348000000000",
-    created_at: new Date().toISOString(),
-    support_messages: [
-      {
-        id: "STM-1001",
-        sender_type: "customer",
-        body: "Customer says Squad debited them but wallet has not updated.",
-        created_at: new Date().toISOString()
-      }
-    ]
-  }
-];
 
 export async function GET() {
   if (!(await requireAdminSession())) {
@@ -46,8 +9,7 @@ export async function GET() {
 
   const supabase = createAdminClient();
   if (!supabase) {
-    if (canUseDemoFallback()) return NextResponse.json({ riskSignals: demoRiskSignals, supportTickets: demoSupportTickets, demo: true });
-    return NextResponse.json(missingServiceResponse("risk and support queues"), { status: 503 });
+    return NextResponse.json({ error: "Risk and support queues are temporarily unavailable. No demo data is shown." }, { status: 503 });
   }
 
   const [riskResult, supportResult] = await Promise.all([

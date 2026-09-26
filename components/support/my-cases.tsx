@@ -1,0 +1,16 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Loader2, MessageCircle, Plus } from "lucide-react";
+import { LinkButton } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
+
+type SupportCase = { id: string; case_number: string; topic: string; subject: string | null; priority: string; status: string; created_at: string; last_activity_at: string; unread: boolean; tracking_code?: string | null };
+
+export function MyCases() {
+  const [cases, setCases] = useState<SupportCase[]>([]);
+  const [message, setMessage] = useState("Loading your support cases…");
+  useEffect(() => { void fetch("/api/support/cases").then(async (response) => { const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "Could not load cases."); setCases(result.cases || []); setMessage(""); }).catch((error) => setMessage(error instanceof Error ? error.message : "Could not load cases.")); }, []);
+  return <section className="section-wrap py-8 sm:py-12"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Help & Support</p><h1 className="mt-2 text-3xl font-black text-fleet-night sm:text-4xl">My cases</h1><p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-slate-600">Read updates, reply to support, and follow the progress of your requests.</p></div><LinkButton href="/support"><Plus className="h-4 w-4" />New support case</LinkButton></div><div className="mt-6 grid gap-3">{message ? <div className="rounded-fleet border border-fleet-line bg-white p-5 text-sm font-bold text-slate-600">{message.includes("Loading") ? <Loader2 className="mr-2 inline h-4 w-4 animate-spin" /> : null}{message}</div> : null}{cases.map((item) => <Link key={item.id} href={`/support/cases/${item.id}`} className="rounded-fleet border border-fleet-line bg-white p-4 shadow-lift transition hover:border-fleet-gold"><div className="flex items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><strong className="text-sm font-black text-fleet-night">{item.case_number}</strong>{item.unread ? <span className="rounded-full bg-fleet-ember px-2 py-0.5 text-[0.65rem] font-black text-white">New reply</span> : null}</div><h2 className="mt-2 text-base font-black text-fleet-night">{item.subject || item.topic}</h2><p className="mt-1 text-xs font-bold text-slate-500">{item.tracking_code ? `Delivery ${item.tracking_code} · ` : ""}Updated {new Date(item.last_activity_at).toLocaleString()}</p></div><StatusBadge tone={item.status === "resolved" || item.status === "closed" ? "green" : item.priority === "urgent" ? "red" : "amber"}>{item.status.replaceAll("_", " ")}</StatusBadge></div></Link>)}{!message && !cases.length ? <div className="rounded-fleet border border-dashed border-fleet-line bg-fleet-paper p-8 text-center"><MessageCircle className="mx-auto h-7 w-7 text-fleet-ember" /><h2 className="mt-3 font-black text-fleet-night">No support cases yet</h2><p className="mt-2 text-sm font-semibold text-slate-600">If you need help with a delivery, payment, or account, create a support case.</p></div> : null}</div></section>;
+}

@@ -6,6 +6,7 @@ import { createSupportPostHandler } from "@/lib/support/post-handler";
 import { verifySupportTurnstile } from "@/lib/support/turnstile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { attachSupportDeliveryContext } from "@/lib/support/context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,11 @@ export async function POST(request: Request) {
     },
     verifyTurnstile: verifySupportTurnstile,
     createTicket: (input) => createSupportTicketAtomic(db, input),
+    resolveDeliveryContext: async (userId, deliveryId) => {
+      const { data } = await db.from("deliveries").select("id, delivery_code").eq("id", deliveryId).eq("customer_id", userId).maybeSingle<{ id: string; delivery_code: string }>();
+      return data ? { id: data.id, deliveryCode: data.delivery_code } : null;
+    },
+    attachDeliveryContext: (ticketId, delivery) => attachSupportDeliveryContext(db, ticketId, delivery),
     reportUnexpectedPersistenceError: () => console.error("support_ticket_creation_failed")
   })(request);
 }

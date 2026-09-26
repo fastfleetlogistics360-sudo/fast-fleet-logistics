@@ -38,6 +38,7 @@ export default function SupportPage() {
           <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Support center</span>
           <h2 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Support for every delivery.</h2>
           <p className="mt-4 text-sm font-semibold leading-7 text-slate-600">Send your request with the relevant order details. Our team will route it to the right specialist.</p>
+          <LinkButton href="/support/cases" variant="secondary" className="mt-5">View my cases</LinkButton>
         </div>
         <Card>
           <SupportTicketForm />
