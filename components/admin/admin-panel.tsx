@@ -1849,7 +1849,7 @@ export function AdminPanel() {
     }
   }
 
-  async function saveHubPromotionSlides(options: { notifyUsers?: boolean } = {}) {
+  async function saveHubPromotionSlides(options: { notifyUsers?: boolean; promotionId?: string } = {}) {
     const slides = normalizeHubPromotionSlides(hubPromotionSlides);
     setBusyAction(options.notifyUsers ? "hub-promotions:notify" : "hub-promotions:save");
     setAdminMessage(null);
@@ -1857,7 +1857,7 @@ export function AdminPanel() {
       const response = await fetch("/api/admin/hub-promotion-slides", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slides, notifyUsers: Boolean(options.notifyUsers) })
+        body: JSON.stringify({ slides, notifyUsers: Boolean(options.notifyUsers), promotionId: options.promotionId })
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Could not save Hub promotions.");
@@ -1867,7 +1867,8 @@ export function AdminPanel() {
       if (options.notifyUsers) {
         const count = Number(result.notification?.notificationCount || 0);
         const suffix = result.notification?.skippedReason ? ` ${result.notification.skippedReason}` : "";
-        setAdminMessage(`Hub promotions saved. Promotion push sent to ${count.toLocaleString("en-NG")} subscribed user${count === 1 ? "" : "s"}.${suffix}`);
+        const promotionTitle = typeof result.notification?.promotionTitle === "string" ? `“${result.notification.promotionTitle}”` : "This promotion";
+        setAdminMessage(`Hub promotions saved. ${promotionTitle} push sent to ${count.toLocaleString("en-NG")} subscribed user${count === 1 ? "" : "s"}.${suffix}`);
       } else {
         setAdminMessage("Hub promotions saved. The /hub carousel will load the updated active slides.");
       }

@@ -1046,7 +1046,6 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, prof
         onWithdraw={onOpenWithdrawal}
         transactionHref="/rider/dashboard#transactions"
       />
-      <TransactionHistory accountKind="rider" />
       <Card className="p-5">
         <button type="button" onClick={onToggleOnline} className={cn("flex w-full items-center justify-between rounded-fleet p-5 text-left transition", online ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600")}>
           <span><strong className="block text-2xl font-black">{online ? "Go offline" : "Go online"}</strong><span className="text-sm font-bold">{online ? `Online for ${elapsed}` : "Paused from dispatch"}</span></span>
@@ -1054,6 +1053,7 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, prof
         </button>
         <RiderAccountTypeCard accountType={profile.rider_account_type} />
       </Card>
+      <TransactionHistory accountKind="rider" />
       <div className="grid grid-cols-2 gap-3">
         <Stat label="Trips" value={String(profile.completed_deliveries || recentTrips.length)} />
         <Stat label="Rating" value={(profile.rating || 4.9).toFixed(1)} />

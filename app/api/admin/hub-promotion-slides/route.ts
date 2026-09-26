@@ -33,6 +33,7 @@ export async function PUT(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const slides = normalizeHubPromotionSlides(body.slides);
   const notifyUsers = body.notifyUsers === true;
+  const promotionId = typeof body.promotionId === "string" ? body.promotionId.trim() : "";
   const supabase = createAdminClient();
   if (!supabase) {
     return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to save Hub promotions." }, { status: 503 });
@@ -46,17 +47,18 @@ export async function PUT(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   const savedSlides = normalizeHubPromotionSlides(data.value);
-  const notification = notifyUsers ? await notifyPromotionSubscribers(supabase, savedSlides) : null;
+  const notification = notifyUsers ? await notifyPromotionSubscribers(supabase, savedSlides, promotionId) : null;
   return NextResponse.json({ slides: savedSlides, notification });
 }
 
 async function notifyPromotionSubscribers(
   supabase: NonNullable<ReturnType<typeof createAdminClient>>,
-  slides: HubPromotionSlide[]
+  slides: HubPromotionSlide[],
+  promotionId: string
 ) {
-  const [promotion] = enabledHubPromotionSlides(slides);
+  const promotion = enabledHubPromotionSlides(slides).find((slide) => slide.id === promotionId);
   if (!promotion) {
-    return { notificationCount: 0, skippedReason: "No enabled promotion was available to notify." };
+    return { notificationCount: 0, skippedReason: "Choose the enabled Hub promotion you want to notify users about." };
   }
 
   const { data, error } = await supabase

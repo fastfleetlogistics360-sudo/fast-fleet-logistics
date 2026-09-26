@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { IMAGE_UPLOAD_ACCEPT } from "@/lib/storage";
 
+type HubPromotionSaveOptions = { notifyUsers?: boolean; promotionId?: string };
+
 type HubPromotionSlidesSectionProps = {
   slides: HubPromotionSlide[];
   busyAction: string | null;
@@ -17,7 +19,7 @@ type HubPromotionSlidesSectionProps = {
   onAddSlide: () => void;
   onRemoveSlide: (id: string) => void;
   onMoveSlide: (id: string, direction: -1 | 1) => void;
-  onSave: (options?: { notifyUsers?: boolean }) => void;
+  onSave: (options?: HubPromotionSaveOptions) => void;
 };
 
 export function HubPromotionSlidesSection({
@@ -55,8 +57,7 @@ export function HubPromotionSlidesSection({
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={onAddSlide}><Plus className="h-4 w-4" />Add promotion</Button>
-          <Button type="button" variant="secondary" onClick={() => onSave()} disabled={busy}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Save only</Button>
-          <Button type="button" onClick={() => onSave({ notifyUsers: true })} disabled={busy}>{notifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}Save & notify users</Button>
+          <Button type="button" variant="secondary" onClick={() => onSave()} disabled={busy}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Save all promotions</Button>
         </div>
       </div>
 
@@ -90,6 +91,10 @@ export function HubPromotionSlidesSection({
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-fleet bg-fleet-paper p-3">
                     <label className="flex items-center gap-2 text-sm font-black text-fleet-night"><input type="checkbox" className="h-5 w-5 accent-fleet-ember" checked={slide.enabled} onChange={(event) => onSlideChange(slide.id, { enabled: event.target.checked })} />Enable promotion</label>
                     <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" onClick={() => onSave({ notifyUsers: true, promotionId: slide.id })} disabled={busy || !slide.enabled} title={slide.enabled ? "Save every promotion and notify users about this one" : "Enable this promotion before notifying users"}>
+                        {notifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
+                        Save & notify users
+                      </Button>
                       <Button type="button" size="sm" variant="secondary" onClick={() => onMoveSlide(slide.id, -1)} disabled={index === 0} aria-label={`Move ${slide.title || "promotion"} up`}><ArrowUp className="h-4 w-4" /></Button>
                       <Button type="button" size="sm" variant="secondary" onClick={() => onMoveSlide(slide.id, 1)} disabled={index === editableSlides.length - 1} aria-label={`Move ${slide.title || "promotion"} down`}><ArrowDown className="h-4 w-4" /></Button>
                       <Button type="button" size="sm" variant="secondary" onClick={() => onRemoveSlide(slide.id)} disabled={editableSlides.length <= 1}><Trash2 className="h-4 w-4" />Remove</Button>
