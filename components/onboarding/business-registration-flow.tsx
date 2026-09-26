@@ -525,21 +525,17 @@ function BusinessDocumentDropzone({
       onDragOver={(event) => event.preventDefault()}
       onDrop={handleDrop}
     >
-      <input id={`${type}-camera`} className="sr-only" type="file" accept={accept} capture="environment" disabled={disabled} onChange={handleChange} />
       <input id={`${type}-upload`} className="sr-only" type="file" accept={accept} disabled={disabled} onChange={handleChange} />
       <span className="grid h-11 w-11 place-items-center rounded-full bg-white text-fleet-ember shadow-lift">
         <Camera className="h-5 w-5" />
       </span>
       <span>
         <strong className="mt-3 block text-sm font-black text-fleet-night">{label}</strong>
-        <span className="mt-1 block text-xs font-semibold text-slate-500">Take a photo or choose an existing image</span>
+        <span className="mt-1 block text-xs font-semibold text-slate-500">Choose a photo or document from your device</span>
       </span>
       <span className="mt-3 flex flex-wrap justify-center gap-2">
-        <label htmlFor={`${type}-camera`} className="cursor-pointer rounded-fleet bg-fleet-navy px-3 py-2 text-xs font-black text-white transition hover:bg-fleet-night">
-          Take photo
-        </label>
         <label htmlFor={`${type}-upload`} className="cursor-pointer rounded-fleet border border-fleet-line bg-white px-3 py-2 text-xs font-black text-fleet-night transition hover:border-fleet-gold">
-          Upload existing photo
+          Choose file
         </label>
       </span>
       {doc ? (

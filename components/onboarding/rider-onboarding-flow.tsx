@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, ReactNode } from "react";
-import { Banknote, Bike, Camera, CheckCircle2, FileText, FileUp, IdCard, Loader2, RefreshCcw, ShieldCheck, UserRound } from "lucide-react";
+import { Banknote, Bike, CheckCircle2, FileText, FileUp, IdCard, Loader2, RefreshCcw, ShieldCheck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { IMAGE_UPLOAD_ACCEPT, KYC_DOCUMENT_UPLOAD_ACCEPT, uploadProfilePhoto, uploadRiderDocument } from "@/lib/storage";
@@ -73,6 +73,28 @@ type SubmitPayload = {
   documents: UploadedDoc[];
 };
 
+const riderOnboardingDraftKey = "fastfleets:rider-onboarding-draft:v1";
+
+type RiderOnboardingDraft = {
+  current: StepIndex;
+  form: Omit<RiderForm, "accountNumber" | "accountName">;
+  documents: Partial<Record<DocumentKey, UploadedDoc>>;
+};
+
+const documentKeys: readonly DocumentKey[] = ["profile_photo", "government_id", "drivers_licence", "vehicle_registration", "vehicle_papers"];
+
+function restoredDocuments(value: unknown): Partial<Record<DocumentKey, UploadedDoc>> {
+  if (!value || typeof value !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).flatMap(([key, candidate]) => {
+      if (!documentKeys.includes(key as DocumentKey) || !candidate || typeof candidate !== "object") return [];
+      const document = candidate as Partial<UploadedDoc>;
+      if (typeof document.name !== "string" || (!document.path && !document.url)) return [];
+      return [[key, { ...document, key: key as DocumentKey, progress: 100 }]];
+    })
+  ) as Partial<Record<DocumentKey, UploadedDoc>>;
+}
+
 function normalizeNigerianPhone(value: string) {
   const digits = value.replace(/\D/g, "");
   if (!digits) return "+234";
@@ -90,6 +112,8 @@ function validatePhone(value: string) {
 }
 
 export function RiderOnboardingFlow() {
+  const uploadInFlight = useRef<Set<DocumentKey>>(new Set());
+  const [draftHydrated, setDraftHydrated] = useState(false);
   const [current, setCurrent] = useState<StepIndex>(0);
   const [loadingUser, setLoadingUser] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -123,11 +147,11 @@ export function RiderOnboardingFlow() {
   });
 
   const documentRequirements = useMemo(() => {
-    const requirements: Array<{ key: DocumentKey; label: string; accept: string; camera?: boolean }> = [
-      { key: "profile_photo", label: "Profile photo", accept: IMAGE_UPLOAD_ACCEPT, camera: true },
+    const requirements: Array<{ key: DocumentKey; label: string; accept: string }> = [
+      { key: "profile_photo", label: "Profile photo", accept: IMAGE_UPLOAD_ACCEPT },
       { key: "government_id", label: `Government ID: ${governmentIds.find(([value]) => value === form.governmentIdType)?.[1] || "Selected ID"}`, accept: IMAGE_UPLOAD_ACCEPT },
       { key: "vehicle_registration", label: "Vehicle registration document", accept: KYC_DOCUMENT_UPLOAD_ACCEPT },
-      { key: "vehicle_papers", label: "UPLOAD YOUR VEHICLE PICTURE", accept: IMAGE_UPLOAD_ACCEPT, camera: true }
+      { key: "vehicle_papers", label: "UPLOAD YOUR VEHICLE PICTURE", accept: IMAGE_UPLOAD_ACCEPT }
     ];
     if (form.governmentIdType !== "drivers_licence") {
       requirements.splice(2, 0, { key: "drivers_licence", label: "Driver's Licence", accept: IMAGE_UPLOAD_ACCEPT });
@@ -171,6 +195,38 @@ export function RiderOnboardingFlow() {
 
   const stepComplete = validators.map((validator) => Object.values(validator()).every((value) => !value));
   const completion = Math.round(((current + 1) / steps.length) * 100);
+
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem(riderOnboardingDraftKey);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as Partial<RiderOnboardingDraft>;
+      if (draft.form && typeof draft.form === "object") setForm((previous) => ({ ...previous, ...draft.form }));
+      setDocs(restoredDocuments(draft.documents));
+      if (typeof draft.current === "number" && draft.current >= 0 && draft.current < steps.length) setCurrent(draft.current as StepIndex);
+      setMessage("We restored your onboarding details. If Android did not return a selected file, choose that document again.");
+    } catch {
+      window.sessionStorage.removeItem(riderOnboardingDraftKey);
+    } finally {
+      setDraftHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!draftHydrated) return;
+    const saveDraft = () => {
+      const { accountNumber: _accountNumber, accountName: _accountName, ...draftForm } = form;
+      const draft: RiderOnboardingDraft = { current, form: draftForm, documents: docs };
+      window.sessionStorage.setItem(riderOnboardingDraftKey, JSON.stringify(draft));
+    };
+    saveDraft();
+    window.addEventListener("pagehide", saveDraft);
+    window.addEventListener("visibilitychange", saveDraft);
+    return () => {
+      window.removeEventListener("pagehide", saveDraft);
+      window.removeEventListener("visibilitychange", saveDraft);
+    };
+  }, [current, docs, draftHydrated, form]);
 
   useEffect(() => {
     let mounted = true;
@@ -318,6 +374,11 @@ export function RiderOnboardingFlow() {
   }
 
   async function handleFile(key: DocumentKey, label: string, file: File) {
+    if (uploadInFlight.current.size) {
+      setMessage("Please wait for the current upload to finish before choosing another image.");
+      return;
+    }
+    uploadInFlight.current.add(key);
     setDocs((previous) => ({
       ...previous,
       [key]: { key, label, name: file.name, progress: 10, contentType: file.type }
@@ -352,6 +413,8 @@ export function RiderOnboardingFlow() {
         return next;
       });
       setMessage(error instanceof Error ? error.message : "Upload failed. Try again.");
+    } finally {
+      uploadInFlight.current.delete(key);
     }
   }
 
@@ -375,6 +438,7 @@ export function RiderOnboardingFlow() {
       });
       const result: { error?: string } = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not submit your application.");
+      window.sessionStorage.removeItem(riderOnboardingDraftKey);
       setSubmitted(true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not submit your application.");
@@ -452,7 +516,6 @@ export function RiderOnboardingFlow() {
                   type="profile_photo"
                   label="Profile photo"
                   accept={IMAGE_UPLOAD_ACCEPT}
-                  camera
                   doc={docs.profile_photo}
                   error={errors.profilePhoto}
                   disabled={Boolean(docs.profile_photo && docs.profile_photo.progress < 100)}
@@ -497,7 +560,6 @@ export function RiderOnboardingFlow() {
                     type={requirement.key}
                     label={requirement.label}
                     accept={requirement.accept}
-                    camera={requirement.camera}
                     doc={docs[requirement.key]}
                     error={errors[requirement.key]}
                     disabled={Boolean(docs[requirement.key] && docs[requirement.key]!.progress < 100)}
@@ -680,7 +742,6 @@ function DocumentDropzone({
   type,
   label,
   accept,
-  camera,
   doc,
   error,
   disabled = false,
@@ -689,7 +750,6 @@ function DocumentDropzone({
   type: DocumentKey;
   label: string;
   accept: string;
-  camera?: boolean;
   doc?: UploadedDoc;
   error?: string;
   disabled?: boolean;
@@ -716,13 +776,13 @@ function DocumentDropzone({
       onDragOver={(event) => event.preventDefault()}
       onDrop={handleDrop}
     >
-      <input className="sr-only" type="file" accept={accept} capture={camera ? "user" : undefined} disabled={disabled} onChange={handleChange} />
+      <input className="sr-only" type="file" accept={accept} disabled={disabled} onChange={handleChange} />
       <span className="grid h-11 w-11 place-items-center rounded-full bg-white text-fleet-ember shadow-lift">
-        {camera ? <Camera className="h-5 w-5" /> : <FileUp className="h-5 w-5" />}
+        <FileUp className="h-5 w-5" />
       </span>
       <span>
         <strong className="mt-3 block text-sm font-black text-fleet-night">{label}</strong>
-        <span className="mt-1 block text-xs font-semibold text-slate-500">Browse or use camera</span>
+        <span className="mt-1 block text-xs font-semibold text-slate-500">Choose an existing photo from your device</span>
       </span>
       {doc ? (
         <span className="mt-3 block w-full">

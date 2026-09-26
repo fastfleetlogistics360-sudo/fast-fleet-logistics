@@ -61,42 +61,57 @@ export async function uploadMarketplaceImage(file: File, onProgress?: (progress:
 
 type UploadKind = "profile-photo" | "rider-document" | "business-document" | "hero-image" | "marketplace-image";
 
-async function uploadViaApi(kind: UploadKind, file: File, documentType?: string, onProgress?: (progress: number) => void) {
-  const body = new FormData();
-  body.set("kind", kind);
-  body.set("file", file);
-  if (documentType) body.set("documentType", documentType);
+let browserUploadInFlight = false;
 
-  onProgress?.(18);
-  let response: Response;
+/** Keeps selected full-resolution Files from overlapping in browser memory. */
+export async function runExclusiveBrowserUpload<T>(operation: () => Promise<T>) {
+  if (browserUploadInFlight) throw new Error("Another upload is still in progress. Please wait before choosing another file.");
+  browserUploadInFlight = true;
   try {
-    response = await fetch("/api/uploads", { method: "POST", body });
-  } catch {
-    throw new Error("We couldn't upload your file. Check your connection and try again.");
+    return await operation();
+  } finally {
+    browserUploadInFlight = false;
   }
-  onProgress?.(82);
+}
 
-  const result = (await response.json().catch(() => null)) as {
-    error?: string;
-    bucket?: string;
-    path?: string;
-    publicUrl?: string | null;
-    size?: number;
-    type?: string;
-  } | null;
+async function uploadViaApi(kind: UploadKind, file: File, documentType?: string, onProgress?: (progress: number) => void) {
+  return runExclusiveBrowserUpload(async () => {
+    const body = new FormData();
+    body.set("kind", kind);
+    body.set("file", file);
+    if (documentType) body.set("documentType", documentType);
 
-  if (!response.ok || !result?.path) {
-    throw new Error(friendlyUploadError(result?.error));
-  }
+    onProgress?.(18);
+    let response: Response;
+    try {
+      response = await fetch("/api/uploads", { method: "POST", body });
+    } catch {
+      throw new Error("We couldn't upload your file. Check your connection and try again.");
+    }
+    onProgress?.(82);
 
-  onProgress?.(100);
-  return {
-    bucket: result.bucket,
-    path: result.path,
-    publicUrl: result.publicUrl || undefined,
-    size: result.size || file.size,
-    type: result.type || file.type
-  };
+    const result = (await response.json().catch(() => null)) as {
+      error?: string;
+      bucket?: string;
+      path?: string;
+      publicUrl?: string | null;
+      size?: number;
+      type?: string;
+    } | null;
+
+    if (!response.ok || !result?.path) {
+      throw new Error(friendlyUploadError(result?.error));
+    }
+
+    onProgress?.(100);
+    return {
+      bucket: result.bucket,
+      path: result.path,
+      publicUrl: result.publicUrl || undefined,
+      size: result.size || file.size,
+      type: result.type || file.type
+    };
+  });
 }
 
 export function friendlyUploadError(message?: string | null) {

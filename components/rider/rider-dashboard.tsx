@@ -15,7 +15,7 @@ import { bicycleCrossStateRouteMaxKm, coordinatePoint, crossStatePickupRadiusKm,
 import { extractNigerianState, pickupMatchesRiderState } from "@/lib/location/state-matching";
 import { isCustomerPickupProofRequired, pickupProofFromMetadata, pickupProofNeedsUpload, pickupProofReviewExpired, pickupProofReviewSecondsRemaining, pickupProofStatusMessage } from "@/lib/pickup-proof";
 import { riderAccountTypeLabel, type RiderAccountType } from "@/lib/rider-account-type";
-import { IMAGE_UPLOAD_ACCEPT, friendlyUploadError, uploadProfilePhoto, validateClientUpload } from "@/lib/storage";
+import { IMAGE_UPLOAD_ACCEPT, friendlyUploadError, runExclusiveBrowserUpload, uploadProfilePhoto, validateClientUpload } from "@/lib/storage";
 import { AccountDeletionButton } from "@/components/dashboard/account-deletion";
 import { DashboardEmptyState } from "@/components/dashboard/dashboard-empty-state";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -283,17 +283,19 @@ async function publishRiderLocation(input: {
 
 async function uploadPickupProof(deliveryId: string, file: File) {
   validateClientUpload(file, "delivery-proof");
-  const body = new FormData();
-  body.set("deliveryId", deliveryId);
-  // Do not decode camera photos in a browser canvas; the server optimizes them.
-  body.set("file", file);
+  return runExclusiveBrowserUpload(async () => {
+    const body = new FormData();
+    body.set("deliveryId", deliveryId);
+    // Do not decode camera photos in a browser canvas; the server optimizes them.
+    body.set("file", file);
 
-  let response: Response;
-  try { response = await fetch("/api/rider/pickup-proof", { method: "POST", body }); }
-  catch { throw new Error("We couldn't upload your package photo. Check your connection and try again."); }
-  const payload = (await response.json().catch(() => ({}))) as { job?: JobRow; error?: string };
-  if (!response.ok || !payload.job) throw new Error(friendlyUploadError(payload.error));
-  return payload.job;
+    let response: Response;
+    try { response = await fetch("/api/rider/pickup-proof", { method: "POST", body }); }
+    catch { throw new Error("We couldn't upload your package photo. Check your connection and try again."); }
+    const payload = (await response.json().catch(() => ({}))) as { job?: JobRow; error?: string };
+    if (!response.ok || !payload.job) throw new Error(friendlyUploadError(payload.error));
+    return payload.job;
+  });
 }
 
 function mergeJobs(jobs: JobRow[]) {
