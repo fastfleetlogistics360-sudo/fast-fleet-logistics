@@ -9,6 +9,7 @@ const dispatch = read("app/api/business/orders/route.ts");
 const wallet = read("lib/wallet-ledger.ts");
 const adminRoute = read("app/api/admin/fast-errands/route.ts");
 const adminQueue = read("components/admin/fast-errands-admin-queue.tsx");
+const customerPage = read("app/fast-errands/page.tsx");
 
 test("F-018 preserves raw-metre pricing, inactive-by-default areas, and no inventory schema", () => {
   assert.match(migration, /maximum_distance_meters integer not null/);
@@ -37,4 +38,9 @@ test("F-018 saves a service area and its complete band schedule before activatio
   assert.match(adminQueue, /save-service-area-bands/);
   assert.match(adminQueue, /\{ \.\.\.body, isActive: false \}/);
   assert.match(adminQueue, /requestedActive/);
+});
+
+test("F-018 serves catalogue price changes from live operational data", () => {
+  assert.match(customerPage, /export const dynamic = "force-dynamic"/);
+  assert.match(customerPage, /export const revalidate = 0/);
 });

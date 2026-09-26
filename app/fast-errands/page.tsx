@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import { FastErrandCheckout } from "@/components/fast-errands/fast-errand-checkout";
 import { loadFastErrandsCatalog, loadFastErrandsControls } from "@/lib/fast-errands-catalog";
 
+// Catalogue prices are operational data. Never serve a build-time or ISR copy
+// after an admin changes an item price.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: "FastErrands | Protected Shopping & Delivery",
   description: "FastErrands by Fast Fleets 360 is a curated neighborhood procurement and tracked delivery service.",
