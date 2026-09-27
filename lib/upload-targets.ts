@@ -53,7 +53,7 @@ export function resolveUploadTarget(kind: UploadKind, documentType: string): Upl
     return { bucket: "hero-images", profile: "admin-banner", public: true, context: "site-media", adminOnly: true };
   }
   if (kind === "marketplace-image") {
-    return { bucket: "marketplace-images", profile: "general-image", public: true, context: "marketplace", adminOnly: true };
+    return { bucket: "marketplace-images", profile: "marketplace-product-image", public: true, context: "marketplace", adminOnly: true };
   }
   if (kind === "rider-document" && isRiderDocumentType(documentType)) {
     return {

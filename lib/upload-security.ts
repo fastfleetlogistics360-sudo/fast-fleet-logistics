@@ -39,6 +39,7 @@ type UploadProfile = {
   maxPixels?: number;
   maxOutputWidth?: number;
   maxOutputHeight?: number;
+  imageQuality?: number;
   transformImage: boolean;
   preserveMetadata: boolean;
   allowPdf: boolean;
@@ -75,7 +76,7 @@ const IMAGE_MAX_PIXELS = 25_000_000;
 
 export const UPLOAD_PROFILES: Readonly<Record<UploadProfileName, UploadProfile>> = {
   avatar: imageProfile({ minWidth: 64, minHeight: 64, maxOutputWidth: 1024, maxOutputHeight: 1024 }),
-  "general-image": imageProfile({ minWidth: 32, minHeight: 32, maxOutputWidth: 1920, maxOutputHeight: 1920 }),
+  "general-image": imageProfile({ minWidth: 32, minHeight: 32, maxOutputWidth: 960, maxOutputHeight: 960, imageQuality: 76 }),
   "kyc-image": imageProfile({ minWidth: 32, minHeight: 32, transformImage: false, preserveMetadata: true }),
   "kyc-document": {
     ...imageProfile({ minWidth: 32, minHeight: 32, transformImage: false, preserveMetadata: true }),
@@ -83,7 +84,7 @@ export const UPLOAD_PROFILES: Readonly<Record<UploadProfileName, UploadProfile>>
     allowPdf: true
   },
   "delivery-proof": imageProfile({ minWidth: 64, minHeight: 64, maxOutputWidth: 1920, maxOutputHeight: 1920 }),
-  "marketplace-product-image": imageProfile({ minWidth: 64, minHeight: 64, maxOutputWidth: 1800, maxOutputHeight: 1800 }),
+  "marketplace-product-image": imageProfile({ minWidth: 64, minHeight: 64, maxOutputWidth: 640, maxOutputHeight: 640, imageQuality: 72 }),
   "business-logo": imageProfile({ minWidth: 64, minHeight: 64, maxOutputWidth: 1200, maxOutputHeight: 1200 }),
   "admin-banner": imageProfile({ minWidth: 160, minHeight: 90, maxOutputWidth: 2400, maxOutputHeight: 1600 })
 };
@@ -370,7 +371,7 @@ async function validateImage(bytes: Buffer, detectedMime: Exclude<SupportedMime,
         fit: "inside",
         withoutEnlargement: true
       })
-      .webp({ quality: 84, effort: 4 })
+      .webp({ quality: profile.imageQuality || 84, effort: 4 })
       .toBuffer();
 
     return {

@@ -240,7 +240,7 @@ test("F-004 marketplace image uploads remain admin-mediated and public-read only
 
   assert.match(targets, /"marketplace-image"/);
   assert.match(targets, /bucket: "marketplace-images"/);
-  assert.match(targets, /profile: "general-image"/);
+  assert.match(targets, /profile: "marketplace-product-image"/);
   assert.match(targets, /adminOnly: true/);
   assert.match(uploadRoute, /kind === "hero-image" \|\| kind === "marketplace-image"/);
   assert.match(migration, /'marketplace-images', 'marketplace-images', true/);
