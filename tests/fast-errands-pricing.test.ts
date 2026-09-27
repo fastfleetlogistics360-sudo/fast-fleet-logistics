@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { findFastErrandBand, fastErrandMinimumProgress, validateFastErrandBands } from "../lib/fast-errands-pricing.ts";
+
+const deliveryServiceRules = readFileSync(new URL("../lib/delivery-service-rules.ts", import.meta.url), "utf8");
 
 const bands = [
   { min_distance_exclusive_meters: 0, max_distance_inclusive_meters: 2000, service_fee_ngn: 1000 },
@@ -25,4 +28,9 @@ test("FastErrand raw-metre distance bands have correct boundaries", () => {
 test("FastErrand service area schedule rejects gaps and overlaps", () => {
   assert.equal(validateFastErrandBands(bands, 10000).valid, true);
   assert.equal(validateFastErrandBands([{ ...bands[0] }, { ...bands[1], min_distance_exclusive_meters: 2001 }], 4000).valid, false);
+});
+
+test("Light FastErrand carts are evaluated for bicycle eligibility", () => {
+  assert.match(deliveryServiceRules, /fast\\s\*errand/);
+  assert.match(deliveryServiceRules, /return isLightMarketplaceCart\(input\.items\)/);
 });

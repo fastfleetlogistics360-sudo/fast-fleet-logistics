@@ -81,6 +81,10 @@ function isLightOrder(input: DeliveryRuleInput) {
   if (input.marketplaceKind === "shopping") return isLightMarketplaceCart(input.items);
 
   const parcel = String(input.parcelType || "").toLowerCase();
+  // FastErrands always use a neutral procurement parcel label. Evaluate the
+  // resolved cart so a light grocery order can surface the Bicycle option,
+  // while the existing bulky-item guard still keeps unsuitable carts off it.
+  if (/fast\s*errand/.test(parcel)) return isLightMarketplaceCart(input.items);
   if (!parcel) return false;
   if (/(document|food|meal|grocery|retail|small|light|pharmacy|medicine|fashion|clothes|clothing|envelope|electronics|gadget|gadgets|phone|accessory|accessories)/i.test(parcel)) {
     return !bulkyItemPattern.test(parcel);

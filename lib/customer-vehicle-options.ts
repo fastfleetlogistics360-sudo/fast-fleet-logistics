@@ -92,7 +92,7 @@ export async function createCustomerVehicleOptions({
   });
 
   const definitions: Array<{ selection: CustomerVehicleSelection; quote: DeliveryQuote; description: string }> = [
-    ...(bicycle.bicycleEligible ? [{ selection: selections.bicycle, quote: bicycle, description: "Light parcels on an assigned Fast Fleets bicycle." }] : []),
+    ...(bicycle.bicycleEligible ? [{ selection: selections.bicycle, quote: bicycle, description: "Light parcels on a verified bicycle rider." }] : []),
     { selection: selections.motorcycle, quote: motorcycle, description: "Fast everyday parcels and small shopping." },
     { selection: selections.car, quote: car, description: "More room for careful medium-sized deliveries." },
     { selection: selections.van, quote: van, description: "Bulky parcels, business stock, and larger loads." }
