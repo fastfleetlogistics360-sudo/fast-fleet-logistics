@@ -9,6 +9,7 @@ import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
+import { readFastErrandAgeAcknowledgementFromCookieHeader } from "@/lib/fast-errands-age-access";
 
 export async function POST(request: Request) {
   try {
@@ -26,7 +27,8 @@ export async function POST(request: Request) {
     if (address.length < 6 || !email.includes("@") || !selectedVehicle || !["bicycle", "motorcycle"].includes(selectedVehicle.id)) return NextResponse.json({ error: "Add FastErrand items, a delivery address, receipt email, and available rider option." }, { status: 400 });
     const db = createAdminClient();
     if (!db) return NextResponse.json({ error: "FastErrand checkout is temporarily unavailable." }, { status: 503 });
-    const quote = await resolveFastErrandQuote({ db, items: Array.isArray(payload.items) ? payload.items : [], address, selectedVehicle });
+    const acknowledgedMinimumAge = readFastErrandAgeAcknowledgementFromCookieHeader(request.headers.get("cookie"));
+    const quote = await resolveFastErrandQuote({ db, items: Array.isArray(payload.items) ? payload.items : [], address, selectedVehicle, acknowledgedMinimumAge });
     const clientFingerprint = String(payload.quoteFingerprint || "").trim();
     if (clientFingerprint && clientFingerprint !== quote.fingerprint) return NextResponse.json({ error: "Prices or delivery details changed. Review the refreshed FastErrand quote.", quote: safeQuote(quote) }, { status: 409 });
     const vehicle = quote.vehicleOptions.find((option) => option.id === selectedVehicle.id);
@@ -36,7 +38,8 @@ export async function POST(request: Request) {
       service_area: { id: quote.area.id, code: quote.area.code, name: quote.area.name, priority: Number(quote.area.priority), pricing_version: Number(quote.area.pricing_version) },
       pricing_band: { id: quote.band.id, min_distance_exclusive_meters: Number(quote.band.min_distance_exclusive_meters), max_distance_inclusive_meters: Number(quote.band.max_distance_inclusive_meters), service_fee_ngn: quote.serviceFeeNgn },
       fulfilment: { business_profile_id: quote.area.business_profile_id, business_name: quote.business?.business_name || null, origin_address: quote.area.origin_address, origin_place_id: quote.area.origin_place_id, origin_latitude: Number(quote.area.origin_latitude) || null, origin_longitude: Number(quote.area.origin_longitude) || null },
-      selected_vehicle: { id: selectedVehicle.id, vehicle: selectedVehicle.vehicle, vehicle_subtype: selectedVehicle.vehicleSubtype, label: selectedVehicle.label }, customer_note: note, quote_fingerprint: quote.fingerprint
+      selected_vehicle: { id: selectedVehicle.id, vehicle: selectedVehicle.vehicle, vehicle_subtype: selectedVehicle.vehicleSubtype, label: selectedVehicle.label }, customer_note: note, quote_fingerprint: quote.fingerprint,
+      ...(quote.items.some((item) => item.minimum_age) ? { age_restriction: { acknowledgement: "session_only_not_identity_verification" as const, maximum_minimum_age: Math.max(...quote.items.map((item) => item.minimum_age || 0)), restricted_item_ids: quote.items.filter((item) => item.minimum_age).map((item) => item.item_id) } } : {})
     });
     const reference = generatePaymentReference("FFE");
     const { data: order, error: orderError } = await db.from("orders").insert({

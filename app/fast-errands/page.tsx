@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { FastErrandCheckout } from "@/components/fast-errands/fast-errand-checkout";
 import { loadFastErrandsCatalog, loadFastErrandsControls } from "@/lib/fast-errands-catalog";
+import { cookies } from "next/headers";
+import { fastErrandAgeAcknowledgementCookieName, readFastErrandAgeAcknowledgement } from "@/lib/fast-errands-age-access";
 
 // Catalogue prices are operational data. Never serve a build-time or ISR copy
 // after an admin changes an item price.
@@ -16,9 +18,10 @@ export const metadata: Metadata = {
 };
 
 export default async function FastErrandsPage() {
-  const [catalog, controls] = await Promise.all([loadFastErrandsCatalog(), loadFastErrandsControls()]);
+  const [catalog, controls, cookieStore] = await Promise.all([loadFastErrandsCatalog(), loadFastErrandsControls(), cookies()]);
+  const initialAcknowledgedMinimumAge = readFastErrandAgeAcknowledgement(cookieStore.get(fastErrandAgeAcknowledgementCookieName)?.value);
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "Service", name: "FastErrands", provider: { "@type": "Organization", name: "Fast Fleets 360 Logistics", url: "https://fastfleet.com.ng" }, areaServed: "Nigeria", description: "A curated neighborhood procurement and delivery service." }) }} />
-    <FastErrandCheckout catalog={catalog} neighborhoodEnabled={controls.enabled && controls.mode === "neighborhood"} />
+    <FastErrandCheckout catalog={catalog} neighborhoodEnabled={controls.enabled && controls.mode === "neighborhood"} initialAcknowledgedMinimumAge={initialAcknowledgedMinimumAge} />
   </>;
 }

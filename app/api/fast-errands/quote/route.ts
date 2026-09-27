@@ -3,6 +3,7 @@ import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { resolveFastErrandQuote, FastErrandQuoteError, type FastErrandRequestedItem } from "@/lib/fast-errands-service-areas";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readFastErrandAgeAcknowledgementFromCookieHeader } from "@/lib/fast-errands-age-access";
 
 export async function POST(request: Request) {
   try {
@@ -13,7 +14,8 @@ export async function POST(request: Request) {
     if (address.length < 6) return NextResponse.json({ error: "Enter a delivery address to receive a FastErrand quote." }, { status: 400 });
     const db = createAdminClient();
     if (!db) return NextResponse.json({ error: "FastErrand is temporarily unavailable." }, { status: 503 });
-    const quote = await resolveFastErrandQuote({ db, items: Array.isArray(payload.items) ? payload.items : [], address });
+    const acknowledgedMinimumAge = readFastErrandAgeAcknowledgementFromCookieHeader(request.headers.get("cookie"));
+    const quote = await resolveFastErrandQuote({ db, items: Array.isArray(payload.items) ? payload.items : [], address, acknowledgedMinimumAge });
     return NextResponse.json({ quote: safeQuote(quote, true) });
   } catch (error) {
     if (error instanceof FastErrandQuoteError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });

@@ -7,15 +7,16 @@ import { findFastErrandBand, fastErrandDisplayDistanceKm, fastErrandMinimumProgr
 import { loadActiveLinkedBusiness } from "@/lib/marketplace-business-links";
 import { getGoogleRouteEstimate, type GoogleRouteEstimate, type RouteLocation } from "@/lib/maps/route-distance";
 import { extractNigerianState } from "@/lib/location/state-matching";
+import { effectiveFastErrandMinimumAge, hasFastErrandAgeAccess } from "@/lib/fast-errands-age-access";
 
 const maxQuantityPerItem = 25;
 export type FastErrandRequestedItem = { itemId?: unknown; quantity?: unknown };
 type AreaRow = { id: string; code: string; name: string; business_profile_id: string; origin_address: string; origin_place_id: string | null; origin_latitude: number | string | null; origin_longitude: number | string | null; maximum_distance_meters: number | string; minimum_cart_ngn: number | string; priority: number | string; pricing_version: number | string; is_active: boolean };
-type ItemRow = { id: string; category_id: string; name: string; description: string | null; price_ngn: number | string; image_url: string | null; is_active: boolean };
+type ItemRow = { id: string; category_id: string; name: string; description: string | null; price_ngn: number | string; image_url: string | null; is_active: boolean; minimum_age: number | null };
 
 export type FastErrandResolvedQuote = {
   fingerprint: string;
-  items: Array<{ item_id: string; category_id: string; category: string; name: string; description: string | null; image_url: string | null; price: number; quantity: number; subtotal: number }>;
+  items: Array<{ item_id: string; category_id: string; category: string; name: string; description: string | null; image_url: string | null; price: number; quantity: number; subtotal: number; minimum_age: number | null }>;
   goodsSubtotalNgn: number;
   minimumCartNgn: number;
   amountToMinimumNgn: number;
@@ -33,7 +34,7 @@ export type FastErrandResolvedQuote = {
 
 export class FastErrandQuoteError extends Error { constructor(message: string, readonly status = 409, readonly code = "fast_errand_unavailable") { super(message); } }
 
-export async function resolveFastErrandQuote(input: { db: SupabaseClient; items: FastErrandRequestedItem[]; address: string; selectedVehicle?: CustomerVehicleSelection | null }) : Promise<FastErrandResolvedQuote> {
+export async function resolveFastErrandQuote(input: { db: SupabaseClient; items: FastErrandRequestedItem[]; address: string; selectedVehicle?: CustomerVehicleSelection | null; acknowledgedMinimumAge?: number | null }) : Promise<FastErrandResolvedQuote> {
   const controls = await loadFastErrandsControls();
   if (!controls.enabled) throw new FastErrandQuoteError(controls.customerNotice || "FastErrands is temporarily unavailable.", 503, "paused");
   if (controls.mode !== "neighborhood") throw new FastErrandQuoteError("Neighborhood FastErrand is not active yet. Please use another Fast Fleets delivery service.", 409, "legacy_mode");
@@ -41,16 +42,18 @@ export async function resolveFastErrandQuote(input: { db: SupabaseClient; items:
   if (!quantities.size) throw new FastErrandQuoteError("Add FastErrand items before requesting a quote.", 400, "invalid_items");
   if (quantities.size > 40) throw new FastErrandQuoteError("Choose no more than 40 different FastErrand items.", 400, "invalid_items");
   const [catalog, areasResult] = await Promise.all([
-    loadFastErrandsCatalog(true),
+    loadFastErrandsCatalog(true, true),
     input.db.from("fast_errand_service_areas").select("id, code, name, business_profile_id, origin_address, origin_place_id, origin_latitude, origin_longitude, maximum_distance_meters, minimum_cart_ngn, priority, pricing_version, is_active").eq("is_active", true).order("priority")
   ]);
   if (areasResult.error) throw areasResult.error;
-  const allItems = catalog.flatMap((category) => category.items.map((item) => ({ ...item, category: category.name, category_active: category.is_active }))) as Array<ItemRow & { category: string; category_active: boolean }>;
+  const allItems = catalog.flatMap((category) => category.items.map((item) => ({ ...item, category: category.name, category_active: category.is_active, category_minimum_age: category.minimum_age }))) as Array<ItemRow & { category: string; category_active: boolean; category_minimum_age: number | null }>;
   const resolvedItems = [...quantities.entries()].map(([id, quantity]) => {
     const item = allItems.find((entry) => entry.id === id);
     if (!item || !item.is_active || !item.category_active) throw new FastErrandQuoteError("One or more FastErrand items are no longer available. Refresh your cart and try again.", 409, "stale_cart");
+    const minimum_age = effectiveFastErrandMinimumAge(item.category_minimum_age, item.minimum_age);
+    if (!hasFastErrandAgeAccess(input.acknowledgedMinimumAge, minimum_age)) throw new FastErrandQuoteError("Please confirm you are 18+ before adding this restricted FastErrand item.", 403, "age_acknowledgement_required");
     const price = moneyNgn(item.price_ngn);
-    return { item_id: item.id, category_id: item.category_id, category: item.category, name: item.name, description: item.description || null, image_url: item.image_url || null, price, quantity, subtotal: price * quantity };
+    return { item_id: item.id, category_id: item.category_id, category: item.category, name: item.name, description: item.description || null, image_url: item.image_url || null, price, quantity, subtotal: price * quantity, minimum_age };
   });
   const goodsSubtotalNgn = resolvedItems.reduce((sum, item) => sum + item.subtotal, 0);
   const areas = (areasResult.data || []) as AreaRow[];

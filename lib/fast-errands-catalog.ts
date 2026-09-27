@@ -17,6 +17,10 @@ export type FastErrandsCategory = {
   emoji: string | null;
   sort_order: number;
   is_active: boolean;
+  /** Category-level restriction. Item-level restrictions can make access_minimum_age stricter. */
+  minimum_age: number | null;
+  /** Effective gate for this collection, derived server-side. */
+  access_minimum_age: number | null;
   items: FastErrandsCatalogItem[];
 };
 
@@ -30,22 +34,29 @@ export type FastErrandsCatalogItem = {
   image_path: string | null;
   sort_order: number;
   is_active: boolean;
+  minimum_age: number | null;
 };
 
-export async function loadFastErrandsCatalog(includeInactive = false): Promise<FastErrandsCategory[]> {
+export async function loadFastErrandsCatalog(includeInactive = false, includeRestrictedItems = false): Promise<FastErrandsCategory[]> {
   const db = createAdminClient();
   if (!db) return [];
-  const categoriesQuery = db.from("fast_errand_categories").select("id, name, description, emoji, sort_order, is_active").order("sort_order").order("name");
-  const itemsQuery = db.from("fast_errand_catalog_items").select("id, category_id, name, description, price_ngn, image_url, image_path, sort_order, is_active").order("sort_order").order("name");
+  const categoriesQuery = db.from("fast_errand_categories").select("id, name, description, emoji, sort_order, is_active, minimum_age").order("sort_order").order("name");
+  const itemsQuery = db.from("fast_errand_catalog_items").select("id, category_id, name, description, price_ngn, image_url, image_path, sort_order, is_active, minimum_age").order("sort_order").order("name");
   if (!includeInactive) {
     categoriesQuery.eq("is_active", true);
     itemsQuery.eq("is_active", true);
   }
   const [{ data: categories }, { data: items }] = await Promise.all([categoriesQuery, itemsQuery]);
-  return ((categories || []) as Omit<FastErrandsCategory, "items">[]).map((category) => ({
-    ...category,
-    items: ((items || []) as FastErrandsCatalogItem[]).filter((item) => item.category_id === category.id)
-  }));
+  return ((categories || []) as Array<Omit<FastErrandsCategory, "items" | "access_minimum_age">>).map((category) => {
+    const categoryItems = ((items || []) as FastErrandsCatalogItem[]).filter((item) => item.category_id === category.id);
+    const access_minimum_age = effectiveMinimumAge(category.minimum_age, ...categoryItems.filter((item) => item.is_active).map((item) => item.minimum_age));
+    return { ...category, access_minimum_age, items: includeRestrictedItems || !access_minimum_age ? categoryItems : [] };
+  });
+}
+
+function effectiveMinimumAge(...values: unknown[]) {
+  const ages = values.map((value) => Math.round(Number(value))).filter((value) => Number.isInteger(value) && value >= 18 && value <= 100);
+  return ages.length ? Math.max(...ages) : null;
 }
 
 export async function loadFastErrandsFulfilmentBusinessId() {

@@ -6,6 +6,7 @@ import { fastErrandsVendorSettingsKey, normalizeFastErrandsVendorIds } from "@/l
 import { fastErrandsControlsSettingsKey, fastErrandsFulfilmentBusinessSettingsKey, loadFastErrandsCatalog, loadFastErrandsControls } from "@/lib/fast-errands-catalog";
 import { geocodeAddress } from "@/lib/maps/geocode";
 import type { Json } from "@/lib/supabase/types";
+import { normaliseFastErrandMinimumAge } from "@/lib/fast-errands-age-access";
 
 export async function GET() {
   if (!(await requireAdminSession())) return NextResponse.json({ error: "Admin session required." }, { status: 401 });
@@ -73,8 +74,12 @@ export async function PATCH(request: Request) {
     const emoji = String(body.emoji || "").trim().slice(0, 16) || null;
     const sortOrder = Math.max(0, Math.round(Number(body.sortOrder || 0)));
     const isActive = body.isActive !== false;
+    const hasMinimumAge = Object.prototype.hasOwnProperty.call(body, "minimumAge");
+    const minimumAge = body.minimumAge == null || body.minimumAge === "" ? null : normaliseFastErrandMinimumAge(body.minimumAge);
+    if (body.minimumAge != null && body.minimumAge !== "" && !minimumAge) return NextResponse.json({ error: "A category age gate must be between 18 and 100." }, { status: 400 });
     if (name.length < 2) return NextResponse.json({ error: "Enter a category name." }, { status: 400 });
-    const mutation = id ? db.from("fast_errand_categories").update({ name, description, emoji, sort_order: sortOrder, is_active: isActive }).eq("id", id).select("id").maybeSingle() : db.from("fast_errand_categories").insert({ name, description, emoji, sort_order: sortOrder, is_active: isActive }).select("id").single();
+    const categoryPayload = { name, description, emoji, sort_order: sortOrder, is_active: isActive, ...(hasMinimumAge ? { minimum_age: minimumAge } : {}) };
+    const mutation = id ? db.from("fast_errand_categories").update(categoryPayload).eq("id", id).select("id").maybeSingle() : db.from("fast_errand_categories").insert({ ...categoryPayload, minimum_age: minimumAge }).select("id").single();
     const { error } = await mutation;
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ catalog: await loadFastErrandsCatalog(true) });
@@ -87,8 +92,12 @@ export async function PATCH(request: Request) {
     const priceNgn = Math.round(Number(body.priceNgn || 0));
     const sortOrder = Math.max(0, Math.round(Number(body.sortOrder || 0)));
     const isActive = body.isActive !== false;
+    const hasMinimumAge = Object.prototype.hasOwnProperty.call(body, "minimumAge");
+    const minimumAge = body.minimumAge == null || body.minimumAge === "" ? null : normaliseFastErrandMinimumAge(body.minimumAge);
+    if (body.minimumAge != null && body.minimumAge !== "" && !minimumAge) return NextResponse.json({ error: "An item age gate must be between 18 and 100." }, { status: 400 });
     if (!categoryId || name.length < 2 || priceNgn < 1) return NextResponse.json({ error: "Choose a category and enter an item name and price." }, { status: 400 });
-    const mutation = id ? db.from("fast_errand_catalog_items").update({ category_id: categoryId, name, description, price_ngn: priceNgn, sort_order: sortOrder, is_active: isActive }).eq("id", id).select("id").maybeSingle() : db.from("fast_errand_catalog_items").insert({ category_id: categoryId, name, description, price_ngn: priceNgn, sort_order: sortOrder, is_active: isActive }).select("id").single();
+    const itemPayload = { category_id: categoryId, name, description, price_ngn: priceNgn, sort_order: sortOrder, is_active: isActive, ...(hasMinimumAge ? { minimum_age: minimumAge } : {}) };
+    const mutation = id ? db.from("fast_errand_catalog_items").update(itemPayload).eq("id", id).select("id").maybeSingle() : db.from("fast_errand_catalog_items").insert({ ...itemPayload, minimum_age: minimumAge }).select("id").single();
     const { error } = await mutation;
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ catalog: await loadFastErrandsCatalog(true) });

@@ -15,6 +15,8 @@ export type FastErrandV2Snapshot = {
   selected_vehicle: { id: string; vehicle: string; vehicle_subtype: string | null; label: string };
   customer_note: string | null;
   quote_fingerprint: string;
+  /** Audit fact only: a session acknowledgement, never identity or legal age verification. */
+  age_restriction?: { acknowledgement: "session_only_not_identity_verification"; maximum_minimum_age: number; restricted_item_ids: string[] };
 };
 
 export function buildFastErrandV2Snapshot(input: Omit<FastErrandV2Snapshot, "schema_version" | "display_distance_km">): FastErrandV2Snapshot {
