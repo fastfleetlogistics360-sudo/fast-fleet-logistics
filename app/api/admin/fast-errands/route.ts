@@ -4,12 +4,8 @@ import { ensureWallet } from "@/lib/wallet-ledger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fastErrandsVendorSettingsKey, normalizeFastErrandsVendorIds } from "@/lib/fast-errands-vendors";
 import { fastErrandsControlsSettingsKey, fastErrandsFulfilmentBusinessSettingsKey, loadFastErrandsCatalog, loadFastErrandsControls } from "@/lib/fast-errands-catalog";
+import { geocodeAddress } from "@/lib/maps/geocode";
 import type { Json } from "@/lib/supabase/types";
-
-function numberOrNull(value: unknown) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
 
 export async function GET() {
   if (!(await requireAdminSession())) return NextResponse.json({ error: "Admin session required." }, { status: 401 });
@@ -110,7 +106,12 @@ export async function PATCH(request: Request) {
     const pricingVersion = Math.max(1, Math.round(Number(body.pricingVersion || 1)));
     const isActive = body.isActive === true;
     if (!/^[a-z0-9][a-z0-9_-]{1,62}$/.test(code) || name.length < 2 || !businessProfileId || originAddress.length < 6 || maximumDistanceMeters < 1 || minimumCartNgn < 1) return NextResponse.json({ error: "Enter a valid code, name, fulfilment business, origin, distance and minimum cart." }, { status: 400 });
-    const payload = { code, name, business_profile_id: businessProfileId, origin_address: originAddress, origin_place_id: originPlaceId, origin_latitude: numberOrNull(body.originLatitude), origin_longitude: numberOrNull(body.originLongitude), maximum_distance_meters: maximumDistanceMeters, minimum_cart_ngn: minimumCartNgn, priority, pricing_version: pricingVersion, is_active: isActive };
+    // A FastErrand origin is an operational pickup pin, not just a label in a
+    // form. Resolve it again on the server so a browser cannot submit made-up
+    // coordinates and every active pricing area starts from Google Maps data.
+    const mappedOrigin = originAddress.length >= 6 ? await geocodeAddress(originAddress) : null;
+    if (!mappedOrigin) return NextResponse.json({ error: "Google Maps could not verify this procurement origin. Search and select the mapped location, then save again." }, { status: 422 });
+    const payload = { code, name, business_profile_id: businessProfileId, origin_address: originAddress, origin_place_id: originPlaceId, origin_latitude: mappedOrigin.latitude, origin_longitude: mappedOrigin.longitude, maximum_distance_meters: maximumDistanceMeters, minimum_cart_ngn: minimumCartNgn, priority, pricing_version: pricingVersion, is_active: isActive };
     const result = id
       ? await db.from("fast_errand_service_areas").update(payload).eq("id", id).select("id").maybeSingle<{ id: string }>()
       : await db.from("fast_errand_service_areas").insert(payload).select("id").single<{ id: string }>();

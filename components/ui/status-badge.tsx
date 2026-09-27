@@ -5,8 +5,10 @@ const tones = {
   neutral: "bg-slate-100 text-slate-700",
   green: "bg-emerald-50 text-emerald-700",
   amber: "bg-amber-50 text-amber-700",
+  yellow: "bg-amber-50 text-amber-700",
   blue: "bg-sky-50 text-sky-700",
   red: "bg-rose-50 text-rose-700",
+  gray: "bg-slate-100 text-slate-700",
   dark: "bg-fleet-night text-white"
 };
 
