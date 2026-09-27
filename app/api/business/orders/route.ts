@@ -372,7 +372,7 @@ async function notifyApprovedRiders(
 ) {
   const { data: riders } = await db
     .from("rider_profiles")
-    .select("id, user_id, vehicle_type, operating_zone, address, campus_zone_id")
+    .select("id, user_id, vehicle_type, independent_bicycle_enabled, operating_zone, address, campus_zone_id")
     .eq("application_status", "approved")
     .eq("online", true)
     .limit(25);
@@ -381,20 +381,45 @@ async function notifyApprovedRiders(
   const eligibleRiders = [];
   for (const rider of riders || []) {
     if (rider.vehicle_type !== delivery.vehicle_type) continue;
-    const [locationResult, asset] = await Promise.all([
+    const [locationResult, asset, activeTripsResult, queuedTripsResult] = await Promise.all([
       db
         .from("rider_locations")
         .select("latitude, longitude, updated_at")
         .eq("rider_profile_id", rider.id)
         .maybeSingle<{ latitude?: number | string | null; longitude?: number | string | null; updated_at?: string | null }>(),
-      bicycle ? loadAssignedBicycleAsset(db, rider.id) : Promise.resolve(null)
+      bicycle ? loadAssignedBicycleAsset(db, rider.id) : Promise.resolve(null),
+      db
+        .from("deliveries")
+        .select("id")
+        .eq("rider_id", rider.id)
+        .in("status", ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"])
+        .limit(1),
+      db
+        .from("deliveries")
+        .select("id")
+        .eq("rider_id", rider.id)
+        .eq("status", "accepted_pending_delivery")
+        .limit(1)
     ]);
+    // The delivery RPC permits one next job while a rider finishes a live one.
+    // Do not alert riders who already have that one allowed queued job.
+    if (queuedTripsResult.data?.length) continue;
+
+    // A fleet bicycle is intentionally marked busy during the active trip. It
+    // is still valid for the one queued offer that the RPC will activate after
+    // delivery; independent bicycles follow the same queue rule without an
+    // assigned fleet asset.
+    const hasActiveTrip = Boolean(activeTripsResult.data?.length);
+    const hasAvailableBicycle = Boolean(
+      rider.independent_bicycle_enabled
+      || (asset?.id && (asset.status === "available" || (hasActiveTrip && asset.status === "busy")))
+    );
     if (!riderCanReceiveDelivery({
       job: delivery,
       riderZone: rider.operating_zone || rider.address,
       riderCampusZone: rider.campus_zone_id,
       riderLocation: locationResult.data || null,
-      hasAvailableBicycle: Boolean(asset?.id && asset.status === "available"),
+      hasAvailableBicycle,
       policy
     })) continue;
     eligibleRiders.push(rider);

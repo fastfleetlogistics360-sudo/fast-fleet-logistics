@@ -9,7 +9,7 @@ import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 // strand that queued assignment.
 const activeDeliveryStatuses = ["accepted", "accepted_pending_delivery", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"];
 const riderProfileSelect =
-  "id, user_id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, operating_zone";
+  "id, user_id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, independent_bicycle_enabled, operating_zone";
 
 type RiderProfileRow = {
   id: string;
@@ -25,6 +25,7 @@ type RiderProfileRow = {
   online?: boolean | null;
   application_status?: string | null;
   rider_account_type?: string | null;
+  independent_bicycle_enabled?: boolean | null;
   operating_zone?: string | null;
 };
 

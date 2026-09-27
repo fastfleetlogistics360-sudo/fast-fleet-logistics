@@ -58,6 +58,7 @@ type RiderProfile = {
   online?: boolean | null;
   application_status?: KycStatus | null;
   rider_account_type?: RiderAccountType | null;
+  independent_bicycle_enabled?: boolean | null;
 };
 
 type JobRow = {
@@ -107,7 +108,7 @@ const jobFields =
   "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, vehicle_subtype, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
 
 const riderProfileFields =
-  "id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, operating_zone, address";
+  "id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, independent_bicycle_enabled, operating_zone, address";
 
 export function RiderAccessState({ status, rejectionReason }: { status: KycStatus; rejectionReason?: string | null }) {
   const router = useRouter();
@@ -1539,6 +1540,12 @@ function ProfileImage({ src, name, className }: { src?: string | null; name: str
   return <span className={cn("grid shrink-0 place-items-center rounded-full bg-fleet-navy text-lg font-black text-white", className)}>{initials(name)}</span>;
 }
 
+function riderVehicleLabel(profile: RiderProfile) {
+  if (profile.independent_bicycle_enabled) return "Independent bicycle";
+  if (profile.vehicle_type === "bike") return "Motorcycle";
+  return profile.vehicle_type || "Vehicle pending";
+}
+
 function AccountTab({ profile, onProfile, kycStatus, prefs, onPrefs }: { profile: RiderProfile; onProfile: (profile: RiderProfile) => void; kycStatus: KycStatus; prefs: { jobs: boolean; payouts: boolean; sms: boolean }; onPrefs: (prefs: { jobs: boolean; payouts: boolean; sms: boolean }) => void }) {
   const approved = kycStatus === "approved";
   const kycTone = approved ? "green" : kycStatus === "rejected" ? "red" : "amber";
@@ -1581,7 +1588,7 @@ function AccountTab({ profile, onProfile, kycStatus, prefs, onPrefs }: { profile
         </div>
         {photoMessage ? <div className="mt-4 rounded-fleet bg-fleet-paper p-3 text-xs font-bold leading-5 text-slate-600">{photoMessage}</div> : null}
       </Card>
-      <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Vehicle details</h2><div className="mt-4 grid gap-3 text-sm font-bold text-slate-600"><Info label="Vehicle" value={profile.vehicle_type || "Motorcycle"} /><Info label="Plate" value={profile.plate_number || "Pending"} /><Info label="Colour" value={profile.vehicle_color || "Pending"} /></div><p className="mt-4 text-xs font-bold text-slate-500">Vehicle edits require re-submission.</p></Card>
+      <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Vehicle details</h2><div className="mt-4 grid gap-3 text-sm font-bold text-slate-600"><Info label="Vehicle" value={riderVehicleLabel(profile)} /><Info label="Plate" value={profile.plate_number || "Pending"} /><Info label="Colour" value={profile.vehicle_color || "Pending"} /></div><p className="mt-4 text-xs font-bold text-slate-500">Vehicle edits require re-submission.</p></Card>
       <Card className="p-5"><div className="flex items-center justify-between gap-3"><h2 className="text-xl font-black text-fleet-night">KYC document status</h2><StatusBadge tone={kycTone}>{kycStatus.replaceAll("_", " ")}</StatusBadge></div><div className="mt-4 grid gap-2">{["Government ID", "Driver's Licence", "Vehicle registration", "Vehicle picture"].map((item) => <div key={item} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black text-fleet-night"><span>{item}</span><StatusBadge tone={kycTone}>{approved ? "Approved" : "Review"}</StatusBadge></div>)}</div><LinkButton href="/rider/onboarding" variant="secondary" className="mt-4 w-full">Update KYC</LinkButton></Card>
       <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Rating breakdown</h2><p className="mt-3 text-3xl font-black text-fleet-night">{(profile.rating || 4.9).toFixed(1)} <Star className="inline h-6 w-6 fill-fleet-gold text-fleet-gold" /></p><p className="mt-1 text-sm font-semibold text-slate-600">{profile.completed_deliveries || 0} total trips</p></Card>
       <Card className="p-5"><h2 className="text-xl font-black text-fleet-night">Notifications</h2><div className="mt-4 grid gap-3">{(["jobs", "payouts", "sms"] as const).map((key) => <label key={key} className="flex items-center justify-between rounded-fleet bg-fleet-paper p-3 text-sm font-black capitalize text-fleet-night">{key}<input type="checkbox" className="h-5 w-5 accent-fleet-navy" checked={prefs[key]} onChange={(event) => onPrefs({ ...prefs, [key]: event.target.checked })} /></label>)}</div></Card>

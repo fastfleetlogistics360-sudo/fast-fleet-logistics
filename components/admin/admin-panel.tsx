@@ -4644,7 +4644,7 @@ function RiderApprovalSection({
                 <div>
                   <strong className="block text-lg font-black text-fleet-night">{riderName}</strong>
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
-                    {rider.vehicle_type || "Vehicle pending"} · {rider.plate_number || "No plate"} · {rider.operating_zone || "No zone"}
+                    {rider.independent_bicycle_enabled ? "Independent bicycle" : rider.vehicle_type || "Vehicle pending"} · {rider.plate_number || "No plate"} · {rider.operating_zone || "No zone"}
                   </span>
                   {rider.campus_zone_id ? <span className="mt-1 inline-block rounded-full bg-emerald-50 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-emerald-700">KWASU campus rider</span> : null}
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">

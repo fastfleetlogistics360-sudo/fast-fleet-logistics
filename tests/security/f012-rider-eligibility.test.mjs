@@ -24,6 +24,9 @@ test("F-012 applies one configurable eligibility policy to job lists, notificati
   assert.match(riderJobs, /riderCanReceiveDelivery/);
   assert.match(businessOrders, /notifyApprovedRiders/);
   assert.match(businessOrders, /riderCanReceiveDelivery/);
+  assert.match(businessOrders, /independent_bicycle_enabled/);
+  assert.match(businessOrders, /accepted_pending_delivery/);
+  assert.match(businessOrders, /hasActiveTrip && asset\.status === "busy"/);
 });
 
 test("F-012 makes database acceptance authoritative and atomically reserves bicycles", () => {
