@@ -53,9 +53,10 @@ export function readFastErrandAgeAcknowledgementFromCookieHeader(header: string 
 }
 
 function acknowledgementSecret() {
-  const configured = process.env.FASTERRAND_AGE_ACK_SECRET?.trim();
+  const configured = process.env.FASTERRAND_AGE_ACK_SECRET?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (configured && configured.length >= 32) return configured;
-  // Local development stays usable without pretending a development key is safe
-  // for production. Production must provide a dedicated secret.
+  // FastErrand uses its dedicated secret when configured. The service-role
+  // fallback keeps the signed acknowledgement durable in existing production
+  // deployments, where that server-only secret is already mandatory.
   return process.env.NODE_ENV === "production" ? null : "fast-errand-local-development-acknowledgement-secret";
 }

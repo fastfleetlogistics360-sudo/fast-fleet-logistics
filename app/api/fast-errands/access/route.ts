@@ -15,7 +15,10 @@ export async function POST(request: Request) {
   if (!category?.access_minimum_age) return NextResponse.json({ error: "That restricted collection is not available." }, { status: 404 });
   const signed = signFastErrandAgeAcknowledgement(category.access_minimum_age);
   if (!signed) return NextResponse.json({ error: "Restricted FastErrand access is not configured." }, { status: 503 });
-  const response = NextResponse.json({ acknowledgedMinimumAge: category.access_minimum_age, acknowledgement: "session_only_not_identity_verification" });
+  // Return the authorised collection in this same response. It prevents a
+  // browser timing race where a follow-up fetch could run before Set-Cookie is
+  // committed, while still never exposing it before acknowledgement.
+  const response = NextResponse.json({ acknowledgedMinimumAge: category.access_minimum_age, acknowledgement: "session_only_not_identity_verification", category });
   response.cookies.set(fastErrandAgeAcknowledgementCookieName, signed, cookieOptions);
   return response;
 }
