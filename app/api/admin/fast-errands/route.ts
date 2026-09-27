@@ -21,7 +21,10 @@ export async function GET() {
     db.from("business_profiles").select("id, business_name, operating_state, pickup_address").eq("registration_status", "active").order("business_name").limit(200),
     db.from("platform_settings").select("value").eq("key", fastErrandsVendorSettingsKey).maybeSingle(),
     db.from("platform_settings").select("value").eq("key", fastErrandsFulfilmentBusinessSettingsKey).maybeSingle(),
-    loadFastErrandsCatalog(true),
+    // Administrators need the complete catalogue, including items behind an
+    // age gate. Customer-facing reads intentionally omit those until the
+    // customer acknowledges the gate.
+    loadFastErrandsCatalog(true, true),
     loadFastErrandsControls(),
     db.from("fast_errand_service_areas").select("*, fast_errand_service_area_bands(*)").order("priority").limit(100),
     db.from("orders").select("id, order_code, customer_id, business_profile_id, marketplace_kind, items, amount, delivery_fee_ngn, payment_status, status, distance_km, delivery_id, metadata, created_at, users:users!orders_customer_id_fkey(full_name, email), business_profiles(business_name), deliveries(id, delivery_code, status, rider_id, fleet_asset_id, fast_errand_delivery_payouts(payout_model))").eq("marketplace_kind", "fast_errands").order("created_at", { ascending: false }).limit(100)
@@ -82,7 +85,7 @@ export async function PATCH(request: Request) {
     const mutation = id ? db.from("fast_errand_categories").update(categoryPayload).eq("id", id).select("id").maybeSingle() : db.from("fast_errand_categories").insert({ ...categoryPayload, minimum_age: minimumAge }).select("id").single();
     const { error } = await mutation;
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ catalog: await loadFastErrandsCatalog(true) });
+    return NextResponse.json({ catalog: await loadFastErrandsCatalog(true, true) });
   }
   if (action === "save-item") {
     const id = String(body.id || "").trim();
@@ -100,7 +103,7 @@ export async function PATCH(request: Request) {
     const mutation = id ? db.from("fast_errand_catalog_items").update(itemPayload).eq("id", id).select("id").maybeSingle() : db.from("fast_errand_catalog_items").insert({ ...itemPayload, minimum_age: minimumAge }).select("id").single();
     const { error } = await mutation;
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ catalog: await loadFastErrandsCatalog(true) });
+    return NextResponse.json({ catalog: await loadFastErrandsCatalog(true, true) });
   }
   if (action === "save-service-area") {
     const id = String(body.id || "").trim();

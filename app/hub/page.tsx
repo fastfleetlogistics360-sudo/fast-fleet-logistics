@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { QuickActionHub } from "@/components/hub/quick-action-hub";
 import { parseSelfServiceRole, parseUserRole } from "@/lib/auth/roles";
 import { HUB_TOUR_VERSION } from "@/lib/hub-tour";
+import { loadHubPromotionSlides } from "@/lib/hub-overview";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -35,6 +36,11 @@ export default async function HubPage() {
   const role = parseUserRole(profile?.account_type) || parseSelfServiceRole(user.user_metadata?.account_type || user.user_metadata?.role);
   if (!role) redirect("/choose-account-type?returnTo=/hub");
 
+  // Promotion settings are small, public-facing configuration. Rendering
+  // them with the page avoids a default carousel flashing before the saved
+  // Hub advert arrives through the background overview request.
+  const initialPromotionSlides = await loadHubPromotionSlides();
+
   return (
     <QuickActionHub
       role={role}
@@ -42,6 +48,7 @@ export default async function HubPage() {
       email={profile?.email || user.email || null}
       avatarUrl={profile?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || null}
       shouldShowTour={Number(profile?.hub_tour_version || 0) < HUB_TOUR_VERSION}
+      initialPromotionSlides={initialPromotionSlides}
     />
   );
 }

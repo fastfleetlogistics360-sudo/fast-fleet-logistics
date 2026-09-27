@@ -60,9 +60,9 @@ export async function GET(request: Request) {
     const db = admin || supabase;
     const { data: loadedRider, error: riderError } = await db
       .from("rider_profiles")
-      .select("id, vehicle_type, online, application_status, operating_zone, address, campus_zone_id")
+      .select("id, vehicle_type, independent_bicycle_enabled, online, application_status, operating_zone, address, campus_zone_id")
       .eq("user_id", user.id)
-      .maybeSingle<{ id: string; vehicle_type?: string | null; online?: boolean | null; application_status?: string | null; operating_zone?: string | null; address?: string | null; campus_zone_id?: string | null }>();
+      .maybeSingle<{ id: string; vehicle_type?: string | null; independent_bicycle_enabled?: boolean | null; online?: boolean | null; application_status?: string | null; operating_zone?: string | null; address?: string | null; campus_zone_id?: string | null }>();
     if (riderError) throw riderError;
     let rider = loadedRider;
     if (!rider?.id && admin) {
@@ -146,7 +146,7 @@ export async function GET(request: Request) {
     ].filter(
       (job) =>
         !isRejectedByRider(job, rider.id) &&
-        !hasQueuedDelivery && fastErrandVendorIsFunded(job.metadata) && jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, riderLocation, deliveryPolicy.rider, rider.campus_zone_id, hasActiveDelivery)
+        !hasQueuedDelivery && fastErrandVendorIsFunded(job.metadata) && jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, Boolean(rider.independent_bicycle_enabled), riderLocation, deliveryPolicy.rider, rider.campus_zone_id, hasActiveDelivery)
     );
     return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]) });
   } catch (error) {
@@ -367,9 +367,9 @@ async function canRiderAcceptPickupState(
   const [{ data: rider, error: riderError }, { data: delivery, error: deliveryError }] = await Promise.all([
     db
       .from("rider_profiles")
-        .select("id, operating_zone, address, campus_zone_id")
+        .select("id, operating_zone, address, campus_zone_id, independent_bicycle_enabled")
       .eq("user_id", userId)
-      .maybeSingle<{ id: string; operating_zone?: string | null; address?: string | null; campus_zone_id?: string | null }>(),
+      .maybeSingle<{ id: string; operating_zone?: string | null; address?: string | null; campus_zone_id?: string | null; independent_bicycle_enabled?: boolean | null }>(),
     db
       .from("deliveries")
       .select("id, pickup_address, pickup_latitude, pickup_longitude, distance_km, delivery_speed, vehicle_subtype, metadata")
@@ -400,7 +400,7 @@ async function canRiderAcceptPickupState(
     riderZone,
     riderCampusZone: rider?.campus_zone_id,
     riderLocation,
-    hasAvailableBicycle: Boolean(asset?.id && (asset.status === "available" || (Boolean(activeTrips?.length) && asset.status === "busy"))),
+    hasAvailableBicycle: Boolean(asset?.id && (asset.status === "available" || (Boolean(activeTrips?.length) && asset.status === "busy"))) || rider?.independent_bicycle_enabled === true,
     policy
   })) {
     return { ok: false, error: `This job is outside your registered rider state. Nearby cross-border pickups must be within ${policy.crossBorderPickupRadiusKm} km of your recent live location. Interstate motorcycle jobs must start in your registered pickup state. Bicycle jobs also require an available bicycle and a route of ${policy.bicycleMaxRouteKm} km or less.` };
@@ -408,28 +408,29 @@ async function canRiderAcceptPickupState(
   return { ok: true };
 }
 
-function jobMatchesRiderFleet(job: JobRow, bicycleAsset: RiderFleetAsset, allowBusyBicycle = false) {
+function jobMatchesRiderFleet(job: JobRow, bicycleAsset: RiderFleetAsset, independentBicycleEnabled: boolean, allowBusyBicycle = false) {
   const bicycleJob = isBicycleDelivery(job.metadata, job.vehicle_subtype);
-  if (bicycleJob) return Boolean(bicycleAsset?.id && (bicycleAsset.status === "available" || (allowBusyBicycle && bicycleAsset.status === "busy")));
-  return !bicycleAsset?.id;
+  if (bicycleJob) return independentBicycleEnabled || Boolean(bicycleAsset?.id && (bicycleAsset.status === "available" || (allowBusyBicycle && bicycleAsset.status === "busy")));
+  return !bicycleAsset?.id && !independentBicycleEnabled;
 }
 
 function jobMatchesRiderDispatch(
   job: JobRow,
   riderZone: string | null | undefined,
   bicycleAsset: RiderFleetAsset,
+  independentBicycleEnabled: boolean,
   riderLocation: RiderLocationRow | null,
   policy: DeliveryPolicy["rider"],
   riderCampusZone?: string | null,
   allowBusyBicycle = false
 ) {
-  if (!jobMatchesRiderFleet(job, bicycleAsset, allowBusyBicycle)) return false;
+  if (!jobMatchesRiderFleet(job, bicycleAsset, independentBicycleEnabled, allowBusyBicycle)) return false;
   return riderCanReceiveDelivery({
     job,
     riderZone,
     riderCampusZone,
     riderLocation,
-    hasAvailableBicycle: Boolean(bicycleAsset?.id && (bicycleAsset.status === "available" || (allowBusyBicycle && bicycleAsset.status === "busy"))),
+    hasAvailableBicycle: independentBicycleEnabled || Boolean(bicycleAsset?.id && (bicycleAsset.status === "available" || (allowBusyBicycle && bicycleAsset.status === "busy"))),
     policy
   });
 }

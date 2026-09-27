@@ -30,7 +30,12 @@ export async function loadHubOverview(supabase: SupabaseClient, userId: string, 
   return { promotionSlides, glance, launchPromo };
 }
 
-async function loadHubPromotionSlides(): Promise<HubPromotionSlide[]> {
+/**
+ * Kept separate from the rest of the overview so the Hub can render its
+ * configured promotion on the first paint, without waiting for dashboard
+ * glance data.
+ */
+export async function loadHubPromotionSlides(): Promise<HubPromotionSlide[]> {
   try {
     const admin = createAdminClient();
     if (!admin) return enabledHubPromotionSlides(null);

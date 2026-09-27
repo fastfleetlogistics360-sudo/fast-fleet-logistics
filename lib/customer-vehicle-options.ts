@@ -36,6 +36,7 @@ export type CustomerVehicleOption = {
 type CandidateRider = {
   id: string;
   vehicle_type?: string | null;
+  independent_bicycle_enabled?: boolean | null;
   operating_zone?: string | null;
   address?: string | null;
   campus_zone_id?: string | null;
@@ -119,7 +120,7 @@ async function loadVehicleAvailability({
   const vehicleTypes = [...new Set(options.map((option) => option.selection.vehicle))];
   const { data: riderRows, error: riderError } = await db
     .from("rider_profiles")
-    .select("id, vehicle_type, operating_zone, address, campus_zone_id")
+    .select("id, vehicle_type, independent_bicycle_enabled, operating_zone, address, campus_zone_id")
     .eq("online", true)
     .eq("application_status", "approved")
     .in("vehicle_type", vehicleTypes)
@@ -143,8 +144,9 @@ async function loadVehicleAvailability({
 
   const locations = new Map<string, CandidateLocation>();
   for (const row of (locationsResult.data || []) as CandidateLocation[]) locations.set(row.rider_profile_id, row);
-  const availableBicycleRiders = new Set((bicycleAssetsResult.data || []).map((asset) => String(asset.assigned_rider_profile_id || "")).filter(Boolean));
-  const bicycleRiders = new Set((allBicycleAssetsResult.data || []).map((asset) => String(asset.assigned_rider_profile_id || "")).filter(Boolean));
+  const independentBicycleRiders = new Set(riders.filter((rider) => rider.independent_bicycle_enabled === true).map((rider) => rider.id));
+  const availableBicycleRiders = new Set([...((bicycleAssetsResult.data || []).map((asset) => String(asset.assigned_rider_profile_id || "")).filter(Boolean)), ...independentBicycleRiders]);
+  const bicycleRiders = new Set([...((allBicycleAssetsResult.data || []).map((asset) => String(asset.assigned_rider_profile_id || "")).filter(Boolean)), ...independentBicycleRiders]);
   const busyRiders = new Set((activeDeliveriesResult.data || []).map((delivery) => String(delivery.rider_id || "")).filter(Boolean));
   const response = new Map<CustomerVehicleOptionId, CustomerVehicleAvailability>();
 

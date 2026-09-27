@@ -289,6 +289,7 @@ type AdminRider = {
   id: string;
   application_status: "pending_review" | "submitted" | "under_review" | "approved" | "rejected" | "more_info_required";
   rider_account_type?: RiderAccountType | null;
+  independent_bicycle_enabled?: boolean | null;
   vehicle_type: string | null;
   plate_number: string | null;
   vehicle_color: string | null;
@@ -1226,7 +1227,7 @@ export function AdminPanel() {
     window.history.replaceState(null, "", `#${id}`);
   }
 
-  async function reviewRider(id: string, status: AdminRider["application_status"], riderAccountType?: RiderAccountType, options?: { tagOnly?: boolean }) {
+  async function reviewRider(id: string, status: AdminRider["application_status"], riderAccountType?: RiderAccountType, options?: { tagOnly?: boolean; independentBicycleEnabled?: boolean }) {
     const current = adminRiders.find((rider) => rider.id === id);
     const reason =
       !options?.tagOnly && (status === "rejected" || status === "more_info_required")
@@ -1245,7 +1246,7 @@ export function AdminPanel() {
       const response = await fetch("/api/admin/riders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status, reason, operatingZone, riderAccountType: riderAccountType || current?.rider_account_type || "independent" })
+        body: JSON.stringify({ id, status, reason, operatingZone, riderAccountType: riderAccountType || current?.rider_account_type || "independent", independentBicycleEnabled: options?.independentBicycleEnabled ?? current?.independent_bicycle_enabled === true })
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Could not update rider review.");
@@ -1256,7 +1257,7 @@ export function AdminPanel() {
             : item
         ).map((item) =>
           item.id === id && status === "approved"
-            ? { ...item, rider_account_type: riderAccountType || item.rider_account_type || "independent" }
+            ? { ...item, rider_account_type: riderAccountType || item.rider_account_type || "independent", independent_bicycle_enabled: (riderAccountType || item.rider_account_type || "independent") === "independent" && (options?.independentBicycleEnabled ?? item.independent_bicycle_enabled === true) }
             : item
         )
       );
@@ -4609,10 +4610,11 @@ function RiderApprovalSection({
 }: {
   riders: AdminRider[];
   busyAction: string | null;
-  onReview: (id: string, status: AdminRider["application_status"], riderAccountType?: RiderAccountType, options?: { tagOnly?: boolean }) => void;
+  onReview: (id: string, status: AdminRider["application_status"], riderAccountType?: RiderAccountType, options?: { tagOnly?: boolean; independentBicycleEnabled?: boolean }) => void;
   onCampusZone: (rider: AdminRider) => void;
 }) {
   const [accountTypesByRider, setAccountTypesByRider] = useState<Record<string, RiderAccountType>>({});
+  const [independentBicyclesByRider, setIndependentBicyclesByRider] = useState<Record<string, boolean>>({});
   return (
     <Card id="rider-approvals" className="scroll-mt-24 overflow-hidden">
       <div className="flex items-center justify-between gap-4 border-b border-fleet-line p-5">
@@ -4634,6 +4636,8 @@ function RiderApprovalSection({
           const canEditTag = rider.application_status !== "rejected";
           const selectedAccountType = accountTypesByRider[rider.id] || normalizeRiderAccountType(rider.rider_account_type);
           const tagChanged = selectedAccountType !== normalizeRiderAccountType(rider.rider_account_type);
+          const independentBicycleEnabled = independentBicyclesByRider[rider.id] ?? rider.independent_bicycle_enabled === true;
+          const bicycleChanged = independentBicycleEnabled !== (rider.independent_bicycle_enabled === true);
           return (
             <article key={rider.id} className="rounded-fleet border border-fleet-line bg-white p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -4651,6 +4655,7 @@ function RiderApprovalSection({
                   {riderReviewLabel(rider.application_status)}
                 </StatusBadge>
               </div>
+              <label className={`mt-3 flex items-center justify-between gap-3 rounded-fleet border p-3 text-sm font-bold ${selectedAccountType === "independent" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-fleet-line bg-slate-50 text-slate-400"}`}><span>Enable independent bicycle<br /><span className="text-xs font-semibold">Bicycle jobs only · rider keeps 90% of delivery fee</span></span><input type="checkbox" checked={independentBicycleEnabled} disabled={!canEditTag || selectedAccountType !== "independent"} onChange={(event) => setIndependentBicyclesByRider((current) => ({ ...current, [rider.id]: event.target.checked }))} /></label>
               <div className="mt-3 grid gap-2 rounded-fleet bg-fleet-paper p-3 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div>
                   <span className="block text-[0.68rem] font-black uppercase tracking-[0.12em] text-slate-500">Rider account tag</span>
@@ -4683,12 +4688,12 @@ function RiderApprovalSection({
               </div>
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
                 {rider.application_status === "approved" ? (
-                  <Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "approved", selectedAccountType, { tagOnly: true })} disabled={!tagChanged || busyAction === `rider:${rider.id}:tag`}>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "approved", selectedAccountType, { tagOnly: true, independentBicycleEnabled })} disabled={(!tagChanged && !bicycleChanged) || busyAction === `rider:${rider.id}:tag`}>
                     Save tag
                   </Button>
                 ) : (
                   <>
-                    <Button type="button" size="sm" onClick={() => onReview(rider.id, "approved", selectedAccountType)} disabled={!canAct || busyAction === `rider:${rider.id}:approved`}>
+                    <Button type="button" size="sm" onClick={() => onReview(rider.id, "approved", selectedAccountType, { independentBicycleEnabled })} disabled={!canAct || busyAction === `rider:${rider.id}:approved`}>
                       Approve
                     </Button>
                     <Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "more_info_required")} disabled={!canAct || busyAction === `rider:${rider.id}:more_info_required`}>

@@ -98,7 +98,7 @@ async function upsertFleetAsset(request: Request, editing: boolean) {
       return NextResponse.json({ error: `This operator is already assigned to ${duplicateAsset.asset_code || "another bicycle"}.` }, { status: 400 });
     }
     assignedUserId = rider.user_id || null;
-    await supabase.from("rider_profiles").update({ rider_account_type: "fastfleets360", vehicle_type: "bike", updated_at: new Date().toISOString() }).eq("id", rider.id);
+    await supabase.from("rider_profiles").update({ rider_account_type: "fastfleets360", independent_bicycle_enabled: false, vehicle_type: "bike", updated_at: new Date().toISOString() }).eq("id", rider.id);
   }
 
   const payload = {

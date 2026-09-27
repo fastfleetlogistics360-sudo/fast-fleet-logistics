@@ -13,6 +13,7 @@ const demoRiders = [
     id: "RP-1001",
     application_status: "submitted",
     rider_account_type: "independent",
+    independent_bicycle_enabled: false,
     vehicle_type: "bike",
     plate_number: "LSR-428-QA",
     vehicle_color: "Orange",
@@ -47,7 +48,7 @@ export async function GET() {
   const { data: profileRows, error } = await supabase
     .from("rider_profiles")
     .select(
-      "id, user_id, application_status, rider_account_type, vehicle_type, plate_number, vehicle_color, operating_zone, campus_zone_id, bank_name, account_number, account_name, online, created_at, updated_at, users:users!rider_profiles_user_id_fkey(full_name, phone, email), rider_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)"
+      "id, user_id, application_status, rider_account_type, independent_bicycle_enabled, vehicle_type, plate_number, vehicle_color, operating_zone, campus_zone_id, bank_name, account_number, account_name, online, created_at, updated_at, users:users!rider_profiles_user_id_fkey(full_name, phone, email), rider_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)"
     )
     .order("created_at", { ascending: false })
     .limit(75);
@@ -73,6 +74,7 @@ export async function GET() {
         user_id: application.user_id,
         application_status: application.status || profile?.application_status || "pending_review",
         rider_account_type: profile?.rider_account_type || "independent",
+        independent_bicycle_enabled: profile?.independent_bicycle_enabled === true,
         vehicle_type: application.vehicle_type || profile?.vehicle_type || null,
         plate_number: application.plate_number || profile?.plate_number || null,
         vehicle_color: application.vehicle_color || profile?.vehicle_color || null,
@@ -107,6 +109,8 @@ export async function PATCH(request: Request) {
   const operatingZone = String(body.operatingZone || body.operating_zone || "").trim();
   const riderAccountType = normalizeRiderAccountType(body.riderAccountType || body.rider_account_type);
   const campusZoneId = String(body.campusZoneId || body.campus_zone_id || "").trim();
+  const hasIndependentBicycleSetting = Object.prototype.hasOwnProperty.call(body, "independentBicycleEnabled") || Object.prototype.hasOwnProperty.call(body, "independent_bicycle_enabled");
+  const independentBicycleEnabled = body.independentBicycleEnabled === true || body.independent_bicycle_enabled === true;
 
   if (!id || !riderStatuses.has(status)) {
     return NextResponse.json({ error: "Choose a rider and a valid review status." }, { status: 400 });
@@ -127,6 +131,7 @@ export async function PATCH(request: Request) {
     rider_account_type?: string;
     operating_zone?: string;
     campus_zone_id?: string | null;
+    independent_bicycle_enabled?: boolean;
     online?: boolean;
   } = {
     application_status: status as RiderApplicationStatus,
@@ -137,13 +142,14 @@ export async function PATCH(request: Request) {
   if (Object.prototype.hasOwnProperty.call(body, "campusZoneId") || Object.prototype.hasOwnProperty.call(body, "campus_zone_id")) patch.campus_zone_id = campusZoneId || null;
   if (status === "approved") {
     patch.rider_account_type = riderAccountType;
+    if (hasIndependentBicycleSetting || riderAccountType !== "independent") patch.independent_bicycle_enabled = riderAccountType === "independent" && independentBicycleEnabled;
   }
 
   const { data, error } = await supabase
     .from("rider_profiles")
     .update(patch)
     .eq("id", id)
-    .select("id, user_id, application_status, rider_account_type, operating_zone, campus_zone_id, suspension_reason, reviewed_at")
+    .select("id, user_id, application_status, rider_account_type, independent_bicycle_enabled, operating_zone, campus_zone_id, suspension_reason, reviewed_at")
     .maybeSingle();
 
   if (error) {
@@ -186,7 +192,7 @@ export async function PATCH(request: Request) {
       })
     ]);
 
-    return NextResponse.json({ rider: { id: riderProfile?.id || application.id, user_id: application.user_id, application_status: application.status, rider_account_type: riderAccountType } });
+    return NextResponse.json({ rider: { id: riderProfile?.id || application.id, user_id: application.user_id, application_status: application.status, rider_account_type: riderAccountType, independent_bicycle_enabled: riderAccountType === "independent" && independentBicycleEnabled } });
   }
 
   await Promise.allSettled([
