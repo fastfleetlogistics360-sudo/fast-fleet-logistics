@@ -10,6 +10,8 @@ import { generatePaymentReference, initiateSquadPayment, paymentChannelsFor } fr
 import { launchPromoMetadata, quoteLaunchDeliveryPromo, redeemLaunchDeliveryPromo, reserveLaunchDeliveryPromo, voidLaunchDeliveryPromo } from "@/lib/promos/launch-first-150";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadDeliveryPolicy } from "@/lib/delivery-policy";
+import { notifyEligibleRiders } from "@/lib/rider-delivery-opportunities";
 import { createClient } from "@/lib/supabase/server";
 import { campusFeeMetadata, loadCampusProgram, resolveLecturerBenefit } from "@/lib/campus-program";
 import { accountTrackingHref } from "@/lib/tracking-links";
@@ -219,6 +221,10 @@ export async function POST(request: Request) {
         title: "KWASU lecturer benefit applied",
         body: lecturerBenefit.message || "Fast Fleets 360 is covering your delivery and platform fees."
       });
+      await notifyEligibleRiders(db, {
+        id: delivery.id, delivery_code: delivery.delivery_code, pickup_address: pickup, pickup_latitude: pickupLatitude, pickup_longitude: pickupLongitude,
+        distance_km: estimate.distanceKm, price_ngn: payableFare.deliveryFee, delivery_fee_ngn: estimate.deliveryFee, vehicle_type: vehicle, vehicle_subtype: quote.vehicleSubtype, metadata
+      }, (await loadDeliveryPolicy()).rider).catch(() => undefined);
       return NextResponse.json({ deliveryId: delivery.id, deliveryCode: delivery.delivery_code, matchToken: customerMatchToken, status: "searching", paid: true, campusBenefit: { applied: true, message: lecturerBenefit.message } });
     }
 
@@ -256,6 +262,10 @@ export async function POST(request: Request) {
         notes: "Customer wallet balance was debited for this delivery."
       });
       if (promoMetadata) await redeemLaunchDeliveryPromo(db, delivery.id);
+      await notifyEligibleRiders(db, {
+        id: delivery.id, delivery_code: delivery.delivery_code, pickup_address: pickup, pickup_latitude: pickupLatitude, pickup_longitude: pickupLongitude,
+        distance_km: estimate.distanceKm, price_ngn: payableFare.deliveryFee, delivery_fee_ngn: estimate.deliveryFee, vehicle_type: vehicle, vehicle_subtype: quote.vehicleSubtype, metadata
+      }, (await loadDeliveryPolicy()).rider).catch(() => undefined);
 
       return NextResponse.json({
         deliveryId: delivery.id,

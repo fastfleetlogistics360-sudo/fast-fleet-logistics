@@ -4,10 +4,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 
-// A rider who has accepted their next job is still committed to the platform,
-// even while finishing the current delivery. Do not allow an offline switch to
-// strand that queued assignment.
-const activeDeliveryStatuses = ["accepted", "accepted_pending_delivery", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"];
 const riderProfileSelect =
   "id, user_id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, independent_bicycle_enabled, operating_zone";
 
@@ -87,9 +83,6 @@ async function handleAvailability(rawVehicleType: unknown, requestedOnline?: boo
       if (!approved) {
         return NextResponse.json({ error: "Your rider KYC must be approved before going online." }, { status: 403 });
       }
-      if (!requestedOnline && (await hasActiveDelivery(db, profile.id))) {
-        return NextResponse.json({ error: "You can't go offline until the dispatch job has been delivered." }, { status: 409 });
-      }
       patch.online = requestedOnline;
     }
 
@@ -167,17 +160,6 @@ async function createProfileFromApplication(db: SupabaseClient, application: Rid
     .maybeSingle<RiderProfileRow>();
   if (error) throw error;
   return data || null;
-}
-
-async function hasActiveDelivery(db: SupabaseClient, riderProfileId: string) {
-  const { data, error } = await db
-    .from("deliveries")
-    .select("id")
-    .eq("rider_id", riderProfileId)
-    .in("status", activeDeliveryStatuses)
-    .limit(1);
-  if (error) throw error;
-  return Boolean(data?.length);
 }
 
 function normalizeDispatchVehicle(vehicleType: unknown) {

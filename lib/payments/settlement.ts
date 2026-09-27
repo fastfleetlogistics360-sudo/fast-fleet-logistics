@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isPendingSquadStatus, isSuccessfulSquadStatus, verifySquadTransaction } from "@/lib/payments/squad";
 import { loadPaymentIntent, type PaymentIntent, type PaymentIntentPurpose } from "@/lib/payments/payment-intents";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
+import { loadDeliveryPolicy } from "@/lib/delivery-policy";
+import { notifyEligibleRiders } from "@/lib/rider-delivery-opportunities";
 import { redeemLaunchDeliveryPromo } from "@/lib/promos/launch-first-150";
 import { accountMessengerHref } from "@/lib/tracking-links";
 import { sendWhatsAppText } from "@/lib/whatsapp/messages";
@@ -171,6 +173,29 @@ async function runPostSettlementEffects(db: SupabaseClient, intent: PaymentInten
     // This function is idempotent; retry it after an already-settled callback
     // so a brief notification/promo outage never changes financial settlement.
     await redeemLaunchDeliveryPromo(db, intent.delivery_id);
+    // Payment settlement is the server-side transition into dispatch for card
+    // and transfer deliveries. The idempotency gate makes this safe when a
+    // webhook and a customer callback both retry the settled payment.
+    const { data: delivery } = await db
+      .from("deliveries")
+      .select("id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, distance_km, price_ngn, delivery_fee_ngn, vehicle_type, vehicle_subtype, metadata, status")
+      .eq("id", intent.delivery_id)
+      .maybeSingle();
+    if (delivery?.status === "searching") {
+      await notifyEligibleRiders(db, {
+        id: delivery.id,
+        delivery_code: delivery.delivery_code,
+        pickup_address: delivery.pickup_address,
+        pickup_latitude: delivery.pickup_latitude,
+        pickup_longitude: delivery.pickup_longitude,
+        distance_km: Number(delivery.distance_km || 0),
+        price_ngn: delivery.price_ngn,
+        delivery_fee_ngn: delivery.delivery_fee_ngn,
+        vehicle_type: delivery.vehicle_type,
+        vehicle_subtype: delivery.vehicle_subtype,
+        metadata: delivery.metadata && typeof delivery.metadata === "object" && !Array.isArray(delivery.metadata) ? delivery.metadata as Record<string, unknown> : {}
+      }, (await loadDeliveryPolicy()).rider).catch(() => undefined);
+    }
   }
   if (!result.settledNow) return;
   if (intent.purpose === "delivery_payment" && intent.delivery_id) {

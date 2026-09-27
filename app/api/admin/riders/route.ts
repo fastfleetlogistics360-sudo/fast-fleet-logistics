@@ -39,12 +39,6 @@ export async function GET() {
     return NextResponse.json(missingServiceResponse("admin riders"), { status: 503 });
   }
 
-  await supabase
-    .from("rider_profiles")
-    .update({ online: false })
-    .neq("application_status", "approved")
-    .eq("online", true);
-
   const { data: profileRows, error } = await supabase
     .from("rider_profiles")
     .select(

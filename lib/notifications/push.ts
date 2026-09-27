@@ -2,6 +2,7 @@ import { createCipheriv, createECDH, createHmac, createPrivateKey, createSign, r
 import { accountMessengerHref } from "@/lib/tracking-links";
 
 type PushSubscriptionRow = {
+  id?: string;
   provider?: string | null;
   endpoint?: string | null;
   token?: string | null;
@@ -223,14 +224,14 @@ function encryptWebPushPayload(payload: Record<string, unknown>, userPublicKey: 
 
 async function sendFcm(subscription: PushSubscriptionRow, notification: NotificationPayload) {
   const config = firebaseConfig();
-  if (!config) return;
+  if (!config) return { expired: false };
   const metadata = enrichMetadata(notification);
   const token = subscription.token || (subscription.keys && typeof subscription.keys === "object" ? String((subscription.keys as { token?: string }).token || "") : "");
-  if (!token) return;
+  if (!token) return { expired: false };
   const accessToken = await getFirebaseAccessToken();
-  if (!accessToken) return;
+  if (!accessToken) return { expired: false };
 
-  await fetch(`https://fcm.googleapis.com/v1/projects/${config.projectId}/messages:send`, {
+  const response = await fetch(`https://fcm.googleapis.com/v1/projects/${config.projectId}/messages:send`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -267,18 +268,19 @@ async function sendFcm(subscription: PushSubscriptionRow, notification: Notifica
       }
     })
   }).catch(() => null);
+  return { expired: response?.status === 404 };
 }
 
 async function sendWebPush(subscription: PushSubscriptionRow, notification: NotificationPayload) {
   const endpoint = subscription.endpoint || "";
   const keys = subscription.keys && typeof subscription.keys === "object" ? (subscription.keys as { p256dh?: string; auth?: string }) : null;
-  if (!endpoint || !keys?.p256dh || !keys.auth) return;
+  if (!endpoint || !keys?.p256dh || !keys.auth) return { expired: false };
   const metadata = enrichMetadata(notification);
   const authorization = createVapidAuthorization(endpoint);
-  if (!authorization) return;
+  if (!authorization) return { expired: false };
   const body = encryptWebPushPayload(webPushPayload(notification, metadata), keys.p256dh, keys.auth);
-  if (!body) return;
-  await fetch(endpoint, {
+  if (!body) return { expired: false };
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       Authorization: authorization,
@@ -290,21 +292,24 @@ async function sendWebPush(subscription: PushSubscriptionRow, notification: Noti
     },
     body
   }).catch(() => null);
+  return { expired: response?.status === 404 || response?.status === 410 };
 }
 
 export async function dispatchPushForNotification(db: SupabaseLike, notification: NotificationPayload) {
   const { data } = await db
     .from("push_subscriptions")
-    .select("provider, endpoint, token, keys")
+    .select("id, provider, endpoint, token, keys")
     .eq("user_id", notification.user_id)
     .limit(20);
-  await Promise.allSettled(
+  const outcomes = await Promise.allSettled(
     ((data || []) as PushSubscriptionRow[]).map((subscription) => {
       if (subscription.provider === "fcm") return sendFcm(subscription, notification);
       if (subscription.provider === "web_push") return sendWebPush(subscription, notification);
-      return Promise.resolve();
+      return Promise.resolve({ expired: false });
     })
   );
+  const expiredIds = outcomes.flatMap((outcome, index) => outcome.status === "fulfilled" && outcome.value?.expired && (data || [])[index]?.id ? [String((data || [])[index].id)] : []);
+  if (expiredIds.length) await db.from("push_subscriptions").delete().in("id", expiredIds).catch(() => null);
 }
 
 export async function insertNotificationWithPush(db: SupabaseLike, notification: NotificationPayload) {

@@ -3,6 +3,9 @@ import { recordDeliveryIncome } from "@/lib/company-ledger";
 import { createDeliveryQuote } from "@/lib/delivery-quotes";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
+import { loadDeliveryPolicy } from "@/lib/delivery-policy";
+import { notifyEligibleRiders } from "@/lib/rider-delivery-opportunities";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { accountMessengerHref } from "@/lib/tracking-links";
@@ -171,6 +174,8 @@ export async function POST(request: Request) {
     delivery.status = "searching";
     }
 
+    const dispatchAdmin = createAdminClient();
+    const dispatchPolicy = dispatchAdmin ? await loadDeliveryPolicy() : null;
     await Promise.allSettled([
       supabase.from("delivery_events").insert({
         delivery_id: delivery.id,
@@ -185,7 +190,23 @@ export async function POST(request: Request) {
         body: `${delivery.delivery_code} is ${delivery.status.replaceAll("_", " ")}.`,
         type: "dispatch_created",
         metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code, url: accountMessengerHref(delivery.delivery_code), tag: `ff-business-${delivery.delivery_code}` }
-      })
+      }),
+      // Dispatch remains successful if eligibility lookup or a push provider is unavailable.
+      dispatchAdmin && dispatchPolicy
+        ? notifyEligibleRiders(dispatchAdmin, {
+            id: delivery.id,
+            delivery_code: delivery.delivery_code,
+            pickup_address: pickupAddress,
+            pickup_latitude: pickupLatitude,
+            pickup_longitude: pickupLongitude,
+            distance_km: fare.distanceKm,
+            price_ngn: payableFare.deliveryFee,
+            delivery_fee_ngn: fare.deliveryFee,
+            vehicle_type: vehicleType,
+            vehicle_subtype: quote.vehicleSubtype,
+            metadata: { ...campusMetadata, pickup_state: quote.pickupState || null, vehicle_subtype: quote.vehicleSubtype }
+          }, dispatchPolicy.rider)
+        : Promise.resolve()
     ]);
     await recordDeliveryIncome({
       amountNgn: payableFare.total,

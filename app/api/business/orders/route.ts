@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadDeliveryPolicy, type DeliveryPolicy } from "@/lib/delivery-policy";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
-import { isBicycleDelivery, loadAssignedBicycleAsset } from "@/lib/fleet-assets";
 import { normalizeState } from "@/lib/launch-states";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { geocodeAddress } from "@/lib/maps/geocode";
 import { campusFeeMetadata, loadCampusProgram } from "@/lib/campus-program";
 import { repairMarketplaceDeliveriesForBusiness } from "@/lib/marketplace-order-repair";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
-import { riderCanReceiveDelivery } from "@/lib/rider-eligibility";
+import { notifyEligibleRiders } from "@/lib/rider-delivery-opportunities";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountMessengerHref } from "@/lib/tracking-links";
@@ -212,11 +210,15 @@ export async function PATCH(request: Request) {
           title: "Ready for pickup",
           body: "Business marked this order ready. Fast Fleets 360 is finding a courier."
         }),
-        notifyApprovedRiders(db, delivery.id, delivery.delivery_code, {
+        notifyEligibleRiders(db, {
+          id: delivery.id,
+          delivery_code: delivery.delivery_code,
           pickup_address: businessPickupAddress,
           pickup_latitude: pickupPoint?.latitude || null,
           pickup_longitude: pickupPoint?.longitude || null,
           distance_km: marketplaceEstimate.distanceKm,
+          price_ngn: marketplaceEstimate.campusAdjustment.riderEarningNgn,
+          delivery_fee_ngn: marketplaceEstimate.campusAdjustment.riderEarningNgn,
           vehicle_type: marketplaceEstimate.vehicle,
           vehicle_subtype: marketplaceEstimate.vehicleSubtype,
           metadata: {
@@ -353,87 +355,4 @@ function businessOrderWhatsAppUpdate(orderCode: string, status: string) {
   if (status === "preparing") return `${orderCode} update: your order is now being prepared.`;
   if (status === "packing") return `${orderCode} update: your order is packed and being prepared for dispatch.`;
   return `${orderCode} update: your order is ready for pickup. We are now finding a rider and will send the rider details here once one accepts.`;
-}
-
-async function notifyApprovedRiders(
-  db: SupabaseClient,
-  deliveryId: string,
-  deliveryCode: string,
-  delivery: {
-    pickup_address: string;
-    pickup_latitude?: number | null;
-    pickup_longitude?: number | null;
-    distance_km: number;
-    vehicle_type: string;
-    vehicle_subtype?: string | null;
-    metadata: Record<string, unknown>;
-  },
-  policy: DeliveryPolicy["rider"]
-) {
-  const { data: riders } = await db
-    .from("rider_profiles")
-    .select("id, user_id, vehicle_type, independent_bicycle_enabled, operating_zone, address, campus_zone_id")
-    .eq("application_status", "approved")
-    .eq("online", true)
-    .limit(25);
-
-  const bicycle = isBicycleDelivery(delivery.metadata, delivery.vehicle_subtype);
-  const eligibleRiders = [];
-  for (const rider of riders || []) {
-    if (rider.vehicle_type !== delivery.vehicle_type) continue;
-    const [locationResult, asset, activeTripsResult, queuedTripsResult] = await Promise.all([
-      db
-        .from("rider_locations")
-        .select("latitude, longitude, updated_at")
-        .eq("rider_profile_id", rider.id)
-        .maybeSingle<{ latitude?: number | string | null; longitude?: number | string | null; updated_at?: string | null }>(),
-      bicycle ? loadAssignedBicycleAsset(db, rider.id) : Promise.resolve(null),
-      db
-        .from("deliveries")
-        .select("id")
-        .eq("rider_id", rider.id)
-        .in("status", ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"])
-        .limit(1),
-      db
-        .from("deliveries")
-        .select("id")
-        .eq("rider_id", rider.id)
-        .eq("status", "accepted_pending_delivery")
-        .limit(1)
-    ]);
-    // The delivery RPC permits one next job while a rider finishes a live one.
-    // Do not alert riders who already have that one allowed queued job.
-    if (queuedTripsResult.data?.length) continue;
-
-    // A fleet bicycle is intentionally marked busy during the active trip. It
-    // is still valid for the one queued offer that the RPC will activate after
-    // delivery; independent bicycles follow the same queue rule without an
-    // assigned fleet asset.
-    const hasActiveTrip = Boolean(activeTripsResult.data?.length);
-    const hasAvailableBicycle = Boolean(
-      rider.independent_bicycle_enabled
-      || (asset?.id && (asset.status === "available" || (hasActiveTrip && asset.status === "busy")))
-    );
-    if (!riderCanReceiveDelivery({
-      job: delivery,
-      riderZone: rider.operating_zone || rider.address,
-      riderCampusZone: rider.campus_zone_id,
-      riderLocation: locationResult.data || null,
-      hasAvailableBicycle,
-      policy
-    })) continue;
-    eligibleRiders.push(rider);
-  }
-
-  const rows = eligibleRiders
-    .map((rider) => rider.user_id)
-    .filter(Boolean)
-    .map((userId) => ({
-      user_id: userId,
-      title: "New dispatch request",
-      body: `${deliveryCode} is ready for pickup.`,
-      type: "dispatch_request",
-      metadata: { delivery_id: deliveryId, delivery_code: deliveryCode, url: "/rider/dashboard", tag: `ff-dispatch-${deliveryCode}` }
-    }));
-  if (rows.length) await Promise.allSettled(rows.map((row) => insertNotificationWithPush(db, row)));
 }

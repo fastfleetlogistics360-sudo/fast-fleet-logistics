@@ -72,7 +72,7 @@ export function PushNotificationRegistrar() {
       window.location.assign(url);
     }
 
-    async function registerNativePush() {
+    async function registerNativePush(prompt = false) {
       // The app currently supports native FCM on Android only. Keeping the gate
       // explicit prevents an unconfigured native binary from prompting or crashing.
       if (!nativePushEnabled || !Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") return;
@@ -83,7 +83,7 @@ export function PushNotificationRegistrar() {
 
       const currentPermission = await PushNotifications.checkPermissions().catch(() => null);
       if (!currentPermission || cancelled) return;
-      const permission = currentPermission.receive === "prompt"
+      const permission = prompt && currentPermission.receive === "prompt"
         ? await PushNotifications.requestPermissions().catch(() => null)
         : currentPermission;
       if (!permission || permission.receive !== "granted" || cancelled) return;
@@ -127,10 +127,10 @@ export function PushNotificationRegistrar() {
       await PushNotifications.register().catch(() => null);
     }
 
-    async function registerWebPush() {
+    async function registerWebPush(prompt = false) {
       const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!publicKey || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return;
-      const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission().catch(() => "denied");
+      const permission = Notification.permission === "granted" ? "granted" : prompt ? await Notification.requestPermission().catch(() => "denied") : "default";
       if (permission !== "granted") return;
       const registration = await navigator.serviceWorker.ready.catch(() => null);
       if (!registration?.pushManager) return;
@@ -177,10 +177,16 @@ export function PushNotificationRegistrar() {
       };
     }
 
+    const requestPush = () => {
+      if (nativePushEnabled) void registerNativePush(true);
+      void registerWebPush(true);
+    };
+    window.addEventListener("fastfleet:request-push-notifications", requestPush);
     const setupTimer = window.setTimeout(() => void setupForUser(), 1200);
     return () => {
       cancelled = true;
       window.clearTimeout(setupTimer);
+      window.removeEventListener("fastfleet:request-push-notifications", requestPush);
       removeRealtimeChannel?.();
       removeNativeRegistrationListener?.();
       removeNativeRegistrationErrorListener?.();

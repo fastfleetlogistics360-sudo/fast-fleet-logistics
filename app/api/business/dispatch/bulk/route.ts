@@ -4,6 +4,9 @@ import { createDeliveryQuote } from "@/lib/delivery-quotes";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { loadDeliveryPolicy } from "@/lib/delivery-policy";
+import { notifyEligibleRiders } from "@/lib/rider-delivery-opportunities";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { campusFeeMetadata, loadCampusProgram, resolveLecturerBenefit } from "@/lib/campus-program";
 import type { VehicleType } from "@/types/domain";
@@ -128,7 +131,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from("deliveries")
       .insert(deliveries)
-      .select("id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, proof_url");
+      .select("id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, status, price_ngn, delivery_fee_ngn, distance_km, vehicle_type, vehicle_subtype, metadata, created_at, proof_url");
     if (error) throw error;
 
     const paymentResults = await Promise.allSettled(
@@ -144,6 +147,23 @@ export async function POST(request: Request) {
       throw new Error("Bulk dispatches were created, but at least one wallet payment failed. Review the dispatch history before retrying.");
     }
     const paidDeliveries = (data || []).map((delivery) => ({ ...delivery, status: "searching" }));
+    const dispatchAdmin = createAdminClient();
+    if (dispatchAdmin && paidDeliveries.length) {
+      const policy = await loadDeliveryPolicy();
+      await Promise.allSettled(paidDeliveries.map((delivery) => notifyEligibleRiders(dispatchAdmin, {
+        id: delivery.id,
+        delivery_code: delivery.delivery_code,
+        pickup_address: delivery.pickup_address,
+        pickup_latitude: delivery.pickup_latitude,
+        pickup_longitude: delivery.pickup_longitude,
+        distance_km: Number(delivery.distance_km || 0),
+        price_ngn: delivery.price_ngn,
+        delivery_fee_ngn: delivery.delivery_fee_ngn,
+        vehicle_type: delivery.vehicle_type,
+        vehicle_subtype: delivery.vehicle_subtype,
+        metadata: delivery.metadata && typeof delivery.metadata === "object" && !Array.isArray(delivery.metadata) ? delivery.metadata as Record<string, unknown> : {}
+      }, policy.rider)));
+    }
 
     await supabase.from("notifications").insert({
       user_id: user.id,

@@ -427,6 +427,10 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
   const desiredOnlineRef = useRef<boolean | null>(null);
   const onlineMutationRef = useRef(false);
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "jobs") setActiveTab("jobs");
+  }, []);
+
   const incomingJob = jobs.find((job) => job.status === "searching") || null;
   const activeJob = jobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(job.status)) || null;
   const queuedJob = jobs.find((job) => job.status === "accepted_pending_delivery") || null;
@@ -662,15 +666,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
 	          riderId = riderData.id || null;
 	        }
 	        let dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || "bike";
-	        let effectiveOnline = Boolean(riderData.online);
-	        if (silent && approved && desiredOnlineRef.current === true && !effectiveOnline) {
-	          const restored = await saveRiderAvailability({ online: true, vehicleType: riderData.vehicle_type }).catch(() => null);
-	          if (restored?.id) {
-	            riderData = restored;
-	            riderId = restored.id;
-	            effectiveOnline = Boolean(restored.online);
-	          }
-	        }
+        const effectiveOnline = Boolean(riderData.online);
 	        if (riderId && approved && (riderData.vehicle_type !== dispatchVehicle || riderData.application_status !== "approved")) {
 	          riderData = (await saveRiderAvailability({ vehicleType: dispatchVehicle }).catch(() => null)) || riderData;
 	          riderId = riderData.id || null;
@@ -762,10 +758,6 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       return;
     }
     const nextOnline = !online;
-    if (!nextOnline && activeJob) {
-      window.alert("You can't go offline until the dispatch job has been delivered.");
-      return;
-    }
     desiredOnlineRef.current = nextOnline;
     onlineMutationRef.current = true;
     setOnline(nextOnline);
@@ -778,6 +770,10 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
       desiredOnlineRef.current = nextOnline;
       setProfile((current) => ({ ...current, ...updatedProfile, vehicle_type: dispatchVehicle, online: nextOnline }));
       if (nextOnline) {
+	      // Permission is requested only from this deliberate rider action, never
+	      // on app load or during onboarding. Availability remains independent of
+	      // whether the browser grants that permission.
+	      window.dispatchEvent(new Event("fastfleet:request-push-notifications"));
         const nextJobs = await loadRiderJobs(supabase, updatedProfile.id, dispatchVehicle, true, updatedProfile.operating_zone || updatedProfile.address || profile.operating_zone || profile.address || profile.lga);
         setJobs(nextJobs);
         setOfferNotice(nextJobs.some((job) => job.status === "searching") ? "New dispatch orders are available." : null);
@@ -950,7 +946,6 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason 
             <HomeTab
               loading={loading}
               online={online}
-              elapsed={elapsed}
               onToggleOnline={toggleOnline}
               walletBalance={walletBalance}
               profile={profile}
@@ -1033,7 +1028,7 @@ function MobileTabs({ activeTab, onChange }: { activeTab: RiderTab; onChange: (t
   );
 }
 
-function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, queuedJob, recentTrips, liveLocation, trackingActive, trackingMessage, offerNotice, onOpenWithdrawal, onOpenActiveJob, onRespond }: { loading: boolean; online: boolean; elapsed: string; onToggleOnline: () => void; walletBalance: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; queuedJob: JobRow | null; recentTrips: JobRow[]; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onOpenWithdrawal: () => void; onOpenActiveJob: () => void; onRespond: (job: JobRow, accepted: boolean) => void }) {
+function HomeTab({ loading, online, onToggleOnline, walletBalance, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, queuedJob, recentTrips, liveLocation, trackingActive, trackingMessage, offerNotice, onOpenWithdrawal, onOpenActiveJob, onRespond }: { loading: boolean; online: boolean; onToggleOnline: () => void; walletBalance: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; queuedJob: JobRow | null; recentTrips: JobRow[]; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onOpenWithdrawal: () => void; onOpenActiveJob: () => void; onRespond: (job: JobRow, accepted: boolean) => void }) {
   if (loading) return <DashboardSkeleton />;
   return (
     <div className="grid gap-5">
@@ -1049,7 +1044,7 @@ function HomeTab({ loading, online, elapsed, onToggleOnline, walletBalance, prof
       />
       <Card className="p-5">
         <button type="button" onClick={onToggleOnline} className={cn("flex w-full items-center justify-between rounded-fleet p-5 text-left transition", online ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600")}>
-          <span><strong className="block text-2xl font-black">{online ? "Go offline" : "Go online"}</strong><span className="text-sm font-bold">{online ? `Online for ${elapsed}` : "Paused from dispatch"}</span></span>
+          <span><strong className="block text-2xl font-black">{online ? "ONLINE" : "OFFLINE"}</strong><span className="text-sm font-bold">{online ? "You’re available for delivery requests — even when Fast Fleets isn’t open." : "Go online when you’re ready to receive delivery requests."}</span></span>
           {online ? <ToggleRight className="h-12 w-12" /> : <ToggleLeft className="h-12 w-12" />}
         </button>
         <RiderAccountTypeCard accountType={profile.rider_account_type} />
