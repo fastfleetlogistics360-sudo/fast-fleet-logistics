@@ -8,6 +8,7 @@ const read = (path) => readFileSync(new URL(path, root), "utf8");
 const riderEligibility = read("lib/rider-eligibility.ts");
 const riderJobs = read("app/api/rider/jobs/route.ts");
 const businessOrders = read("app/api/business/orders/route.ts");
+const vehicleOptions = read("lib/customer-vehicle-options.ts");
 const marketplacePricing = read("lib/marketplace-pricing.ts");
 const marketplaceCheckout = read("app/api/marketplace/checkout/route.ts");
 const siteControls = read("app/api/admin/site-controls/route.ts");
@@ -27,6 +28,8 @@ test("F-012 applies one configurable eligibility policy to job lists, notificati
   assert.match(businessOrders, /independent_bicycle_enabled/);
   assert.match(businessOrders, /accepted_pending_delivery/);
   assert.match(businessOrders, /hasActiveTrip && asset\.status === "busy"/);
+  assert.match(vehicleOptions, /queuedRiders/);
+  assert.match(vehicleOptions, /hasActiveDelivery && assets\.includes\("busy"\)/);
 });
 
 test("F-012 makes database acceptance authoritative and atomically reserves bicycles", () => {

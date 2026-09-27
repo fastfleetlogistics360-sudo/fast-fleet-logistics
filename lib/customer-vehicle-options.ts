@@ -43,6 +43,8 @@ type CandidateRider = {
 };
 
 type CandidateLocation = RiderEligibilityLocation & { rider_profile_id: string };
+type CandidateBicycleAsset = { assigned_rider_profile_id?: string | null; status?: string | null };
+type CandidateActiveDelivery = { rider_id?: string | null; status?: string | null };
 
 const selections: Record<CustomerVehicleOptionId, CustomerVehicleSelection> = {
   bicycle: { id: "bicycle", vehicle: "bike", vehicleSubtype: "bicycle", label: "Bicycle" },
@@ -130,30 +132,44 @@ async function loadVehicleAvailability({
   const riderIds = riders.map((rider) => rider.id).filter(Boolean);
   if (!riderIds.length) return new Map(options.map((option) => [option.selection.id, unavailableAvailability()]));
 
-  const [locationsResult, bicycleAssetsResult, allBicycleAssetsResult, activeDeliveriesResult, policy] = await Promise.all([
+  const [locationsResult, bicycleAssetsResult, activeDeliveriesResult, policy] = await Promise.all([
     db.from("rider_locations").select("rider_profile_id, latitude, longitude, updated_at").in("rider_profile_id", riderIds),
-    db.from("fleet_assets").select("assigned_rider_profile_id").eq("asset_type", "bicycle").eq("status", "available").in("assigned_rider_profile_id", riderIds),
-    db.from("fleet_assets").select("assigned_rider_profile_id").eq("asset_type", "bicycle").in("assigned_rider_profile_id", riderIds),
-    db.from("deliveries").select("rider_id").in("rider_id", riderIds).in("status", ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation", "accepted_pending_delivery"]),
+    db.from("fleet_assets").select("assigned_rider_profile_id, status").eq("asset_type", "bicycle").in("assigned_rider_profile_id", riderIds),
+    db.from("deliveries").select("rider_id, status").in("rider_id", riderIds).in("status", ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation", "accepted_pending_delivery"]),
     loadDeliveryPolicy()
   ]);
   if (locationsResult.error) throw locationsResult.error;
   if (bicycleAssetsResult.error) throw bicycleAssetsResult.error;
-  if (allBicycleAssetsResult.error) throw allBicycleAssetsResult.error;
   if (activeDeliveriesResult.error) throw activeDeliveriesResult.error;
 
   const locations = new Map<string, CandidateLocation>();
   for (const row of (locationsResult.data || []) as CandidateLocation[]) locations.set(row.rider_profile_id, row);
   const independentBicycleRiders = new Set(riders.filter((rider) => rider.independent_bicycle_enabled === true).map((rider) => rider.id));
-  const availableBicycleRiders = new Set([...((bicycleAssetsResult.data || []).map((asset) => String(asset.assigned_rider_profile_id || "")).filter(Boolean)), ...independentBicycleRiders]);
-  const bicycleRiders = new Set([...((allBicycleAssetsResult.data || []).map((asset) => String(asset.assigned_rider_profile_id || "")).filter(Boolean)), ...independentBicycleRiders]);
-  const busyRiders = new Set((activeDeliveriesResult.data || []).map((delivery) => String(delivery.rider_id || "")).filter(Boolean));
+  const bicycleAssetStatuses = new Map<string, string[]>();
+  for (const asset of (bicycleAssetsResult.data || []) as CandidateBicycleAsset[]) {
+    const riderId = String(asset.assigned_rider_profile_id || "");
+    if (riderId) bicycleAssetStatuses.set(riderId, [...(bicycleAssetStatuses.get(riderId) || []), String(asset.status || "")]);
+  }
+  const bicycleRiders = new Set([...bicycleAssetStatuses.keys(), ...independentBicycleRiders]);
+  const activeRiders = new Set<string>();
+  const queuedRiders = new Set<string>();
+  for (const delivery of (activeDeliveriesResult.data || []) as CandidateActiveDelivery[]) {
+    const riderId = String(delivery.rider_id || "");
+    if (!riderId) continue;
+    if (delivery.status === "accepted_pending_delivery") queuedRiders.add(riderId);
+    else activeRiders.add(riderId);
+  }
   const response = new Map<CustomerVehicleOptionId, CustomerVehicleAvailability>();
 
   for (const option of options) {
     const matches = riders.filter((rider) => {
-      if (rider.vehicle_type !== option.selection.vehicle || busyRiders.has(rider.id)) return false;
-      if (option.selection.id === "bicycle" && !availableBicycleRiders.has(rider.id)) return false;
+      if (rider.vehicle_type !== option.selection.vehicle || queuedRiders.has(rider.id)) return false;
+      const assets = bicycleAssetStatuses.get(rider.id) || [];
+      const hasActiveDelivery = activeRiders.has(rider.id);
+      const canUseBicycle = independentBicycleRiders.has(rider.id)
+        || assets.includes("available")
+        || (hasActiveDelivery && assets.includes("busy"));
+      if (option.selection.id === "bicycle" && !canUseBicycle) return false;
       if (option.selection.id === "motorcycle" && bicycleRiders.has(rider.id)) return false;
       return riderCanReceiveDelivery({
         job: {
@@ -167,7 +183,7 @@ async function loadVehicleAvailability({
         riderZone: rider.operating_zone || rider.address,
         riderCampusZone: rider.campus_zone_id,
         riderLocation: locations.get(rider.id),
-        hasAvailableBicycle: availableBicycleRiders.has(rider.id),
+        hasAvailableBicycle: canUseBicycle,
         policy: policy.rider
       });
     });
