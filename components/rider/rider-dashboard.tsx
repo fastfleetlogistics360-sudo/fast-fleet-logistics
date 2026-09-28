@@ -669,11 +669,15 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
 	          riderId = riderData.id || null;
 	        }
 	        let dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || "bike";
-        const effectiveOnline = Boolean(riderData.online);
+	        // Never let an incomplete client fallback replace the server-rendered
+	        // preference with Offline. This is especially important immediately
+	        // after a new Supabase session is restored.
+        let effectiveOnline = typeof riderData.online === "boolean" ? riderData.online : initialOnline;
 	        if (riderId && approved && (riderData.vehicle_type !== dispatchVehicle || riderData.application_status !== "approved")) {
 	          riderData = (await saveRiderAvailability({ vehicleType: dispatchVehicle }).catch(() => null)) || riderData;
 	          riderId = riderData.id || null;
 	          dispatchVehicle = normalizeDispatchVehicle(riderData.vehicle_type) || dispatchVehicle;
+	          effectiveOnline = typeof riderData.online === "boolean" ? riderData.online : initialOnline;
 	        }
         const riderZone = riderData.operating_zone || riderData.address || riderData.lga || applicationData.lga || appUserData.default_zone || profileData.lga || null;
 	        const jobsResult = await (

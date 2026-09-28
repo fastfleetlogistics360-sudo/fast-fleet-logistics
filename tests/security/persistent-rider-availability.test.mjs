@@ -18,6 +18,7 @@ test("rider availability is an explicit authenticated server-side preference", (
   assert.doesNotMatch(availability, /hasActiveDelivery/);
   assert.doesNotMatch(dashboard, /restored = await saveRiderAvailability/);
   assert.match(dashboard, /useState\(initialOnline\)/);
+  assert.match(dashboard, /typeof riderData\.online === "boolean" \? riderData\.online : initialOnline/);
   assert.match(read("app/rider/dashboard/page.tsx"), /initialOnline=\{Boolean\(riderProfileResult\.data\?\.online\)\}/);
   assert.doesNotMatch(adminRiders, /\.update\(\{ online: false \}\)[\s\S]{0,120}\.neq\("application_status", "approved"\)/);
 });
