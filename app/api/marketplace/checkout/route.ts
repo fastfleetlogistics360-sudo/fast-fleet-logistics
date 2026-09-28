@@ -20,6 +20,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { accountTrackingHref } from "@/lib/tracking-links";
 import { createCustomerVehicleOptions, customerVehicleSelection } from "@/lib/customer-vehicle-options";
+import { MarketplaceVendorResolutionError, resolveMarketplaceVendorForCheckout } from "@/lib/marketplace-vendors";
 
 export async function POST(request: Request) {
   try {
@@ -67,23 +68,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `${closedVendor} is currently closed and cannot accept orders.` }, { status: 409 });
     }
     const businessLinks = await resolveMarketplaceBusinessLinks(admin, payload.kind, items);
-    if (businessLinks.linkedBusinessIds.length > 1) {
-      return NextResponse.json({ error: "Checkout items from one registered business at a time." }, { status: 400 });
-    }
-    if (businessLinks.hasLinkedItems && businessLinks.hasUnlinkedItems) {
-      return NextResponse.json({ error: "Checkout items must all belong to the same linked marketplace business." }, { status: 400 });
-    }
     const marketplaceKind = payload.kind === "shopping" ? "shopping" : "restaurant";
     const selectedVehicle = customerVehicleSelection(payload.vehicleOption);
     if (!selectedVehicle || (selectedVehicle.id !== "bicycle" && selectedVehicle.id !== "motorcycle")) {
       return NextResponse.json({ error: "Choose an available Bicycle or Bike rider option." }, { status: 400 });
     }
     const resolvedItems = businessLinks.items;
+    let vendorResolution;
+    try {
+      vendorResolution = await resolveMarketplaceVendorForCheckout(admin, payload.kind, resolvedItems);
+    } catch (error) {
+      if (error instanceof MarketplaceVendorResolutionError) return NextResponse.json({ error: error.message }, { status: error.status });
+      throw error;
+    }
     const shoppingBranchStates = Array.from(new Set(resolvedItems.map((item) => String(item.vendorState || "").trim()).filter(Boolean)));
     if (marketplaceKind === "shopping" && shoppingBranchStates.length > 1) {
       return NextResponse.json({ error: "Checkout items must come from one vendor state branch at a time." }, { status: 400 });
     }
-    const linkedBusinessId = businessLinks.linkedBusinessIds[0] || null;
+    // Menu identity is the authoritative mixed-vendor boundary. A shared
+    // internal business profile must never merge two public vendors.
+    const linkedBusinessId = vendorResolution.vendor.linked_business_profile_id || businessLinks.linkedBusinessIds[0] || null;
     const business = await loadActiveLinkedBusiness(admin, linkedBusinessId);
     const configuredPickup = configuredMarketplacePickupAddress(resolvedItems);
     const quotePickupAddress = configuredPickup || (business ? businessPickupAddressFor(business, marketplacePickupAddress(resolvedItems, marketplaceKind)) : null);
@@ -149,6 +153,9 @@ export async function POST(request: Request) {
             business_id: business.user_id,
             business_profile_id: business.id,
             marketplace_kind: payload.kind || "restaurant",
+            marketplace_vendor_id: vendorResolution.vendor.id,
+            marketplace_vendor_branch_id: vendorResolution.branch.id,
+            marketplace_vendor_snapshot: vendorResolution.snapshot,
             items: resolvedItems,
             customer_contact: payload.phone || payload.email,
             pickup_address: pickupAddress,
@@ -209,6 +216,9 @@ export async function POST(request: Request) {
           metadata: {
             source: "fastfleet_marketplace",
             kind: payload.kind,
+            marketplace_vendor_id: vendorResolution.vendor.id,
+            marketplace_vendor_branch_id: vendorResolution.branch.id,
+            marketplace_vendor_snapshot: vendorResolution.snapshot,
             items: resolvedItems,
             pickup_state: estimate.pickupState || null,
             dropoff_state: estimate.dropoffState || null,
@@ -237,6 +247,39 @@ export async function POST(request: Request) {
           }
         }).select("id").single();
         if (deliveryError) throw deliveryError;
+        // Managed vendors may intentionally have no Business Account. Keep the
+        // canonical delivery flow, while recording the Marketplace order and
+        // immutable vendor identity independently of that account relationship.
+        const { error: unmanagedOrderError } = await admin.from("orders").insert({
+          order_code: reference,
+          customer_id: user.id,
+          delivery_id: delivery.id,
+          marketplace_kind: payload.kind || "restaurant",
+          marketplace_vendor_id: vendorResolution.vendor.id,
+          marketplace_vendor_branch_id: vendorResolution.branch.id,
+          marketplace_vendor_snapshot: vendorResolution.snapshot,
+          items: resolvedItems,
+          customer_contact: payload.phone || payload.email,
+          pickup_address: pickupAddress,
+          dropoff_address: address,
+          package_type: payload.kind === "shopping" ? "shopping items" : "food order",
+          vehicle_type: estimate.vehicle,
+          vehicle_subtype: estimate.vehicleSubtype,
+          status: "pending",
+          amount: expectedAmount,
+          delivery_fee_ngn: operationalDeliveryFee,
+          platform_fee_ngn: platformFee,
+          distance_km: estimate.distanceKm,
+          eta_minutes: estimate.etaMinutes,
+          route_source: estimate.routeSource,
+          route_type: estimate.routeType,
+          payment_method: "card",
+          payment_status: "pending"
+        });
+        if (unmanagedOrderError) {
+          await admin.from("deliveries").delete().eq("id", delivery.id);
+          throw unmanagedOrderError;
+        }
         paymentIntentTarget = {
           purpose: "marketplace_delivery_payment",
           internalReference: `delivery:${delivery.id}`,

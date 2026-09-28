@@ -15,8 +15,7 @@ import { accountMessengerHref } from "@/lib/tracking-links";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { sendWhatsAppText } from "@/lib/whatsapp/messages";
 import { parseFastErrandV2Snapshot } from "@/lib/fast-errands-order-snapshot";
-
-const businessProgress = new Set(["received", "preparing", "packing", "ready_for_pickup"]);
+import { MarketplaceOrderTransitionError, parseMarketplaceOrderTransition, transitionCreatesDelivery } from "@/lib/marketplace-order-transitions";
 
 const orderSelect =
   "id, order_code, customer_id, business_id, business_profile_id, delivery_id, marketplace_kind, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, vehicle_subtype, status, amount, payment_status, metadata, created_at, updated_at, delivered_at";
@@ -58,8 +57,16 @@ export async function PATCH(request: Request) {
   try {
     const payload = (await request.json().catch(() => ({}))) as { id?: string; status?: string };
     const id = String(payload.id || "").trim();
-    const status = String(payload.status || "").trim();
-    if (!id || !businessProgress.has(status)) {
+    let status: string;
+    try {
+      status = parseMarketplaceOrderTransition(payload.status);
+    } catch (error) {
+      if (error instanceof MarketplaceOrderTransitionError || !id) {
+        return NextResponse.json({ error: "Choose a valid business order status." }, { status: 400 });
+      }
+      throw error;
+    }
+    if (!id) {
       return NextResponse.json({ error: "Choose a valid business order status." }, { status: 400 });
     }
 
@@ -135,7 +142,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: marketplaceEstimate.policyMessage || "This marketplace order cannot be dispatched to that address." }, { status: 422 });
     }
 
-    if (status === "ready_for_pickup" && !deliveryId) {
+    if (transitionCreatesDelivery(status, deliveryId)) {
       const deliveryCode = String(order.order_code || `FF-BIZ-ORDER-${Date.now().toString(36).toUpperCase()}`);
       const { data: delivery, error: deliveryError } = await db
         .from("deliveries")
