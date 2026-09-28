@@ -62,7 +62,7 @@ export default async function RiderDashboardPage() {
   if (!applicationResult.data && !riderProfileResult.data) redirect("/rider/onboarding");
   if (status !== "approved") return <RiderAccessState status={status} rejectionReason={rejectionReason} />;
   await ensureDispatchProfileForApprovedRider(user.id, applicationResult.data, riderProfileResult.data);
-  return <RiderDashboard initialKycStatus="approved" />;
+  return <RiderDashboard initialKycStatus="approved" initialOnline={Boolean(riderProfileResult.data?.online)} />;
 }
 
 async function ensureDispatchProfileForApprovedRider(userId: string, application: RiderStatusRow | null, riderProfile: RiderProfileStatusRow | null) {

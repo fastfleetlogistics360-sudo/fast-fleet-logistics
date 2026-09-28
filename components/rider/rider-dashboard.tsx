@@ -36,6 +36,7 @@ type KycStatus = "approved" | "pending_review" | "rejected" | "submitted" | "und
 type RiderDashboardProps = {
   initialKycStatus?: KycStatus;
   rejectionReason?: string | null;
+  initialOnline?: boolean;
 };
 
 type RiderProfile = {
@@ -398,10 +399,12 @@ function degreesToRadians(value: number) {
   return (value * Math.PI) / 180;
 }
 
-export function RiderDashboard({ initialKycStatus = "approved", rejectionReason }: RiderDashboardProps) {
+export function RiderDashboard({ initialKycStatus = "approved", rejectionReason, initialOnline = false }: RiderDashboardProps) {
   const [activeTab, setActiveTab] = useState<RiderTab>("home");
   const [loading, setLoading] = useState(true);
-  const [online, setOnline] = useState(false);
+  // Render the server-authoritative preference immediately after sign-in.
+  // The subsequent no-store API request remains the reconciliation source.
+  const [online, setOnline] = useState(initialOnline);
   const [onlineSince, setOnlineSince] = useState<Date | null>(null);
   const [elapsed, setElapsed] = useState("0m");
   const [jobs, setJobs] = useState<JobRow[]>([]);
