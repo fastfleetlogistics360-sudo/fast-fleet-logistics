@@ -51,7 +51,10 @@ export function deriveOperationsRiderStatus(input: OperationsRiderStatusInput) {
 
 export function operationalVehicleLabel(vehicleType?: string | null, assetType?: string | null) {
   const value = String(assetType || vehicleType || "").toLowerCase();
-  if (value === "bike" || value === "bicycle") return "Bicycle";
+  // `bike` is the legacy canonical dispatch bucket for motorcycle jobs. A
+  // real assigned fleet asset supplies `bicycle` and takes precedence above.
+  if (value === "bicycle") return "Bicycle";
+  if (value === "bike") return "Motorcycle";
   if (value === "motorcycle") return "Motorcycle";
   if (value === "car") return "Car";
   if (value === "van") return "Van";

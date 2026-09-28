@@ -8,6 +8,7 @@ const riderStatus = read("lib/operations/rider-status.ts");
 const riderApi = read("app/api/operations/riders/route.ts");
 const teamApi = read("app/api/operations/team/route.ts");
 const riderUi = read("components/operations/rider-fleet-operations.tsx");
+const fleetAssets = read("app/api/admin/fleet-assets/route.ts");
 const phaseOne = read("security-remediation/migrations/202609280002_marketplace_vendor_foundation.sql");
 const migration = read("security-remediation/migrations/202609280004_operations_control_center_indexes.sql");
 
@@ -57,4 +58,10 @@ test("Phase 3 indexes support canonical read models without creating rider prese
   assert.match(migration, /investor_asset_assignments_operations_active_asset_idx/);
   assert.match(migration, /operations_rider_summary/);
   assert.doesNotMatch(migration, /rider_presence/i);
+});
+
+test("Fleet assignment preserves the rider vehicle declaration and Operations labels the legacy bike bucket accurately", () => {
+  assert.doesNotMatch(fleetAssets, /rider_profiles"\)\.update\(\{[^}]*vehicle_type/s);
+  assert.match(riderStatus, /if \(value === "bicycle"\) return "Bicycle"/);
+  assert.match(riderStatus, /if \(value === "bike"\) return "Motorcycle"/);
 });
