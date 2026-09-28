@@ -1,52 +1,34 @@
 import { NextResponse } from "next/server";
-import { loadDeliveryPolicy, type DeliveryPolicy } from "@/lib/delivery-policy";
-import { loadFareConfig } from "@/lib/fare-settings";
-import { estimateMarketplaceCheckout } from "@/lib/marketplace-pricing";
-import { normalizeState } from "@/lib/launch-states";
-import { extractNigerianState } from "@/lib/location/state-matching";
-import { geocodeAddress } from "@/lib/maps/geocode";
-import { campusFeeMetadata, loadCampusProgram } from "@/lib/campus-program";
 import { repairMarketplaceDeliveriesForBusiness } from "@/lib/marketplace-order-repair";
-import { insertNotificationWithPush } from "@/lib/notifications/push";
-import { notifyEligibleRiders } from "@/lib/rider-delivery-opportunities";
+import { MarketplaceOrderTransitionError, parseMarketplaceOrderTransition } from "@/lib/marketplace-order-transitions";
+import { MarketplaceWorkflowError, marketplaceOperationsOrderSelect, transitionMarketplaceOrder } from "@/lib/marketplace-order-workflow";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { accountMessengerHref } from "@/lib/tracking-links";
-import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
-import { sendWhatsAppText } from "@/lib/whatsapp/messages";
-import { parseFastErrandV2Snapshot } from "@/lib/fast-errands-order-snapshot";
-import { MarketplaceOrderTransitionError, parseMarketplaceOrderTransition, transitionCreatesDelivery } from "@/lib/marketplace-order-transitions";
 
-const orderSelect =
-  "id, order_code, customer_id, business_id, business_profile_id, delivery_id, marketplace_kind, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, vehicle_subtype, status, amount, payment_status, metadata, created_at, updated_at, delivered_at";
+// This adapter delegates ready-state dispatch to the shared workflow. That
+// preserves the established notifyApprovedRiders / riderCanReceiveDelivery
+// eligibility contract: independent_bicycle_enabled riders can use a busy
+// asset only when hasActiveTrip && asset.status === "busy", and queued
+// accepted_pending_delivery work remains protected at the canonical layer.
+// parseFastErrandV2Snapshot and fastErrandSnapshotDeliveryEstimate likewise
+// live in that shared workflow: Paid v2 FastErrands never consult mutable marketplace fare rules.
+
+type BusinessProfile = { id: string; user_id: string; business_name?: string | null; registration_status?: string | null };
 
 export async function GET() {
   try {
     const supabase = await createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in to load business orders." }, { status: 401 });
-
     const admin = createAdminClient();
     const db = admin || supabase;
-    const { data: businessProfile, error: businessError } = await db
-      .from("business_profiles")
-      .select("id, registration_status")
-      .eq("user_id", user.id)
-      .maybeSingle<{ id: string; registration_status?: string | null }>();
-    if (businessError) throw businessError;
-    if (businessProfile?.registration_status !== "active") return NextResponse.json({ orders: [] });
-    if (admin) await repairMarketplaceDeliveriesForBusiness(admin, businessProfile.id);
-
-    const { data, error } = await db
-      .from("orders")
-      .select(orderSelect)
-      .or(`business_profile_id.eq.${businessProfile.id},business_id.eq.${user.id}`)
-      .neq("payment_status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(60);
+    const { data: profile, error } = await db.from("business_profiles").select("id, registration_status").eq("user_id", user.id).maybeSingle<{ id: string; registration_status?: string | null }>();
     if (error) throw error;
+    if (profile?.registration_status !== "active") return NextResponse.json({ orders: [] });
+    if (admin) await repairMarketplaceDeliveriesForBusiness(admin, profile.id);
+    const { data, error: ordersError } = await db.from("orders").select(marketplaceOperationsOrderSelect).or(`business_profile_id.eq.${profile.id},business_id.eq.${user.id}`).neq("payment_status", "pending").order("created_at", { ascending: false }).limit(60);
+    if (ordersError) throw ordersError;
     return NextResponse.json({ orders: data || [] });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load business orders." }, { status: 500 });
@@ -55,311 +37,28 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
-    const payload = (await request.json().catch(() => ({}))) as { id?: string; status?: string };
+    const payload = await request.json().catch(() => ({})) as { id?: string; status?: string };
     const id = String(payload.id || "").trim();
     let status: string;
-    try {
-      status = parseMarketplaceOrderTransition(payload.status);
-    } catch (error) {
-      if (error instanceof MarketplaceOrderTransitionError || !id) {
-        return NextResponse.json({ error: "Choose a valid business order status." }, { status: 400 });
-      }
-      throw error;
-    }
-    if (!id) {
-      return NextResponse.json({ error: "Choose a valid business order status." }, { status: 400 });
-    }
-
+    try { status = parseMarketplaceOrderTransition(payload.status); }
+    catch (error) { if (error instanceof MarketplaceOrderTransitionError || !id) return NextResponse.json({ error: "Choose a valid business order status." }, { status: 400 }); throw error; }
+    if (!id) return NextResponse.json({ error: "Choose a valid business order status." }, { status: 400 });
     const supabase = await createClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in to update business orders." }, { status: 401 });
     const limited = await enforceRateLimit(request, rateLimitPolicies.businessOrderStatusUpdate);
     if (limited) return limited;
-
-    const admin = createAdminClient();
-    if (!admin) {
-      return NextResponse.json({ error: "Business order dispatch is not configured. Add SUPABASE_SERVICE_ROLE_KEY in production." }, { status: 503 });
-    }
-    const db = admin;
-    let { data: businessProfile, error: businessError } = await db
-      .from("business_profiles")
-      .select("id, user_id, business_name, pickup_address, operating_state, registration_status, users:users!business_profiles_user_id_fkey(default_zone)")
-      .eq("user_id", user.id)
-      .maybeSingle<{ id: string; user_id: string; business_name?: string | null; pickup_address?: string | null; operating_state?: string | null; registration_status?: string | null; users?: { default_zone?: string | null } | null }>();
-    if (businessError) {
-      const fallback = await db
-        .from("business_profiles")
-        .select("id, user_id, business_name, pickup_address, registration_status, users:users!business_profiles_user_id_fkey(default_zone)")
-        .eq("user_id", user.id)
-        .maybeSingle<{ id: string; user_id: string; business_name?: string | null; pickup_address?: string | null; registration_status?: string | null; users?: { default_zone?: string | null } | null }>();
-      businessProfile = fallback.data ? { ...fallback.data, operating_state: null } : null;
-      businessError = fallback.error;
-    }
-    if (businessError) throw businessError;
-    if (businessProfile?.registration_status !== "active") {
-      return NextResponse.json({ error: "Business KYC must be approved before managing orders." }, { status: 403 });
-    }
-    const businessState = normalizeState(businessProfile.operating_state || businessProfile.users?.default_zone);
-
-    const { data: order, error: orderError } = await db
-      .from("orders")
-      .select(orderSelect)
-      .eq("id", id)
-      .or(`business_profile_id.eq.${businessProfile.id},business_id.eq.${user.id}`)
-      .single<Record<string, unknown>>();
-    if (orderError) throw orderError;
-
-    const orderMetadata = metadataRecord(order.metadata);
-    const whatsappPhone = stringValue(orderMetadata.whatsapp_phone);
-    const orderItems = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
-    const fastErrandSnapshot = order.marketplace_kind === "fast_errands" ? parseFastErrandV2Snapshot(orderMetadata.fast_errand) : null;
-    const branchPickup = pinnedMarketplacePickup(orderItems);
-    const pickupState = normalizeState(branchPickup?.state || businessState);
-    if (status === "ready_for_pickup" && !pickupState) {
-      return NextResponse.json({ error: "This order needs a saved state branch before it can be released to riders." }, { status: 400 });
-    }
-    const nextPatch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
-    let deliveryId = typeof order.delivery_id === "string" ? order.delivery_id : null;
-    const businessPickupAddress = fastErrandSnapshot?.fulfilment.origin_address || appendStateToAddress(String(order.pickup_address || businessProfile.pickup_address || "Business pickup"), pickupState);
-    const customerDropoffAddress = String(order.dropoff_address || "");
-    const businessPickupContact = businessProfile.business_name || "Business pickup";
-    const marketplaceCustomerContact = String(order.customer_contact || "Marketplace customer");
-    const pickupPointPromise = fastErrandSnapshot?.fulfilment.origin_latitude != null && fastErrandSnapshot.fulfilment.origin_longitude != null
-      ? Promise.resolve({ latitude: fastErrandSnapshot.fulfilment.origin_latitude, longitude: fastErrandSnapshot.fulfilment.origin_longitude })
-      : branchPickup
-      ? Promise.resolve({ latitude: branchPickup.latitude, longitude: branchPickup.longitude })
-      : geocodeAddress(businessPickupAddress);
-    const [deliveryPolicy, campusProgram, pickupPoint, dropoffPoint] = await Promise.all([
-      loadDeliveryPolicy(),
-      loadCampusProgram(),
-      pickupPointPromise,
-      geocodeAddress(customerDropoffAddress)
-    ]);
-    const marketplaceEstimate = fastErrandSnapshot ? fastErrandSnapshotDeliveryEstimate(fastErrandSnapshot) : await estimateBusinessOrderDelivery(order, businessPickupAddress, deliveryPolicy, campusProgram);
-    if (status === "ready_for_pickup" && !marketplaceEstimate.allowed) {
-      return NextResponse.json({ error: marketplaceEstimate.policyMessage || "This marketplace order cannot be dispatched to that address." }, { status: 422 });
-    }
-
-    if (transitionCreatesDelivery(status, deliveryId)) {
-      const deliveryCode = String(order.order_code || `FF-BIZ-ORDER-${Date.now().toString(36).toUpperCase()}`);
-      const { data: delivery, error: deliveryError } = await db
-        .from("deliveries")
-        .insert({
-          delivery_code: deliveryCode,
-          customer_id: businessProfile.user_id,
-          pickup_address: businessPickupAddress,
-          pickup_latitude: pickupPoint?.latitude || null,
-          pickup_longitude: pickupPoint?.longitude || null,
-          pickup_contact: businessPickupContact,
-          dropoff_address: customerDropoffAddress,
-          dropoff_latitude: dropoffPoint?.latitude || null,
-          dropoff_longitude: dropoffPoint?.longitude || null,
-          dropoff_contact: marketplaceCustomerContact,
-          parcel_type: order.package_type || "Marketplace order",
-          vehicle_type: marketplaceEstimate.vehicle,
-          delivery_speed: marketplaceEstimate.deliverySpeed,
-          payment_method: "card",
-          status: "searching",
-          price_ngn: marketplaceEstimate.campusAdjustment.riderEarningNgn,
-          delivery_fee_ngn: marketplaceEstimate.campusAdjustment.riderEarningNgn,
-          platform_fee_ngn: marketplaceEstimate.platformFee,
-          distance_km: marketplaceEstimate.distanceKm,
-          eta_minutes: marketplaceEstimate.etaMinutes,
-          route_source: marketplaceEstimate.routeSource,
-          route_type: marketplaceEstimate.routeType,
-          route_duration_seconds: marketplaceEstimate.durationSeconds,
-          vehicle_subtype: marketplaceEstimate.vehicleSubtype,
-          metadata: {
-            source: "marketplace_business_order",
-            ...(whatsappPhone ? { whatsapp_phone: whatsappPhone, whatsapp_order_source: true } : {}),
-            business_order_id: order.id,
-            business_profile_id: businessProfile.id,
-            business_name: businessProfile.business_name || null,
-            marketplace_customer_id: order.customer_id || null,
-            marketplace_kind: order.marketplace_kind || null,
-            ...(fastErrandSnapshot ? { fast_errand: fastErrandSnapshot } : {}),
-            items: orderItems,
-            pickup_state: marketplaceEstimate.pickupState || null,
-            dropoff_state: marketplaceEstimate.dropoffState || null,
-            pickup_latitude: pickupPoint?.latitude || null,
-            pickup_longitude: pickupPoint?.longitude || null,
-            dropoff_latitude: dropoffPoint?.latitude || null,
-            dropoff_longitude: dropoffPoint?.longitude || null,
-            order_total_ngn: Number(order.amount || 0),
-            goods_amount_ngn: marketplaceEstimate.itemsTotal,
-            delivery_fee_ngn: marketplaceEstimate.deliveryFee,
-            platform_fee_ngn: marketplaceEstimate.platformFee,
-            route_source: marketplaceEstimate.routeSource,
-            route_type: marketplaceEstimate.routeType,
-            route_duration_seconds: marketplaceEstimate.durationSeconds,
-            bicycle_eligible: marketplaceEstimate.bicycleEligible,
-            vehicle_subtype: marketplaceEstimate.vehicleSubtype,
-            ...campusFeeMetadata({ program: campusProgram, adjustment: marketplaceEstimate.campusAdjustment }),
-            campus_rider_priority_until: marketplaceEstimate.campusAdjustment.applied ? new Date(Date.now() + campusProgram.riderPriorityMinutes * 60_000).toISOString() : null,
-            marketplace_vehicle: marketplaceEstimate.vehicle,
-            interstate_dispatch: marketplaceEstimate.interstateDispatch,
-            interstate_delivery_days: marketplaceEstimate.interstateDeliveryDays
-          }
-        })
-        .select("id, delivery_code")
-        .single<{ id: string; delivery_code: string }>();
-      if (deliveryError) throw deliveryError;
-      deliveryId = delivery.id;
-      nextPatch.delivery_id = delivery.id;
-
-      await Promise.allSettled([
-        db.from("delivery_events").insert({
-          delivery_id: delivery.id,
-          actor_id: user.id,
-          status: "searching",
-          title: "Ready for pickup",
-          body: "Business marked this order ready. Fast Fleets 360 is finding a courier."
-        }),
-        notifyEligibleRiders(db, {
-          id: delivery.id,
-          delivery_code: delivery.delivery_code,
-          pickup_address: businessPickupAddress,
-          pickup_latitude: pickupPoint?.latitude || null,
-          pickup_longitude: pickupPoint?.longitude || null,
-          distance_km: marketplaceEstimate.distanceKm,
-          price_ngn: marketplaceEstimate.campusAdjustment.riderEarningNgn,
-          delivery_fee_ngn: marketplaceEstimate.campusAdjustment.riderEarningNgn,
-          vehicle_type: marketplaceEstimate.vehicle,
-          vehicle_subtype: marketplaceEstimate.vehicleSubtype,
-          metadata: {
-            pickup_state: marketplaceEstimate.pickupState || null,
-            vehicle_subtype: marketplaceEstimate.vehicleSubtype,
-            ...campusFeeMetadata({ program: campusProgram, adjustment: marketplaceEstimate.campusAdjustment }),
-            campus_rider_priority_until: marketplaceEstimate.campusAdjustment.applied ? new Date(Date.now() + campusProgram.riderPriorityMinutes * 60_000).toISOString() : null
-          }
-        }, deliveryPolicy.rider)
-      ]);
-    } else if (status === "ready_for_pickup" && deliveryId) {
-      await db
-        .from("deliveries")
-        .update({
-          customer_id: businessProfile.user_id,
-          pickup_address: businessPickupAddress,
-          pickup_contact: businessPickupContact,
-          dropoff_address: customerDropoffAddress,
-          dropoff_contact: marketplaceCustomerContact,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", deliveryId);
-    }
-
-    const { data: updated, error: updateError } = await db
-      .from("orders")
-      .update(nextPatch)
-      .eq("id", id)
-      .or(`business_profile_id.eq.${businessProfile.id},business_id.eq.${user.id}`)
-      .select(orderSelect)
-      .single();
-    if (updateError) throw updateError;
-
-    const customerId = typeof order.customer_id === "string" ? order.customer_id : "";
-    const orderCode = String(order.order_code || id);
-    const businessUpdateUrl = deliveryId ? accountMessengerHref(deliveryId) : "/business/dashboard#marketplace-orders";
-    await Promise.allSettled([
-      customerId
-        ? insertNotificationWithPush(db, {
-            user_id: customerId,
-            title: "Order status updated",
-            body: `${String(order.order_code || "Your order")} is ${status.replaceAll("_", " ")}.`,
-            type: "order_update",
-            metadata: { order_id: id, order_code: orderCode, delivery_id: deliveryId, status, url: accountMessengerHref(orderCode), tag: `ff-${orderCode}` }
-          })
-        : Promise.resolve(),
-      insertNotificationWithPush(db, {
-        user_id: user.id,
-        title: status === "ready_for_pickup" ? "Dispatch request sent" : "Business order updated",
-        body: `${String(order.order_code || "Order")} is ${status.replaceAll("_", " ")}.`,
-        type: "business_order_update",
-        metadata: { order_id: id, order_code: orderCode, delivery_id: deliveryId, status, url: businessUpdateUrl, tag: `ff-business-${orderCode}` }
-      }),
-      whatsappPhone && orderMetadata.source === "whatsapp_ordering" && String(order.status || "") !== status
-        ? sendWhatsAppText({ to: whatsappPhone, body: businessOrderWhatsAppUpdate(orderCode, status) })
-        : Promise.resolve()
-    ]);
-
+    const db = createAdminClient();
+    if (!db) return NextResponse.json({ error: "Business order dispatch is not configured. Add SUPABASE_SERVICE_ROLE_KEY in production." }, { status: 503 });
+    const { data: profile, error: profileError } = await db.from("business_profiles").select("id, user_id, business_name, registration_status").eq("user_id", user.id).maybeSingle<BusinessProfile>();
+    if (profileError) throw profileError;
+    if (profile?.registration_status !== "active") return NextResponse.json({ error: "Business KYC must be approved before managing orders." }, { status: 403 });
+    const { data: order, error: orderError } = await db.from("orders").select(marketplaceOperationsOrderSelect).eq("id", id).or(`business_profile_id.eq.${profile.id},business_id.eq.${user.id}`).single<Record<string, unknown>>();
+    if (orderError || !order) throw orderError || new Error("Order was not found.");
+    const updated = await transitionMarketplaceOrder(db, order, status, { userId: user.id, type: "business", dispatchCustomerId: profile.user_id, pickupContact: profile.business_name || "Business pickup", businessProfileId: profile.id });
     return NextResponse.json({ order: updated });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not update business order." }, { status: 500 });
+    const status = error instanceof MarketplaceWorkflowError ? error.status : error instanceof MarketplaceOrderTransitionError ? 409 : 500;
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not update business orders." }, { status });
   }
-}
-
-async function estimateBusinessOrderDelivery(order: Record<string, unknown>, pickupAddress: string, deliveryPolicy: DeliveryPolicy, campusProgram: Awaited<ReturnType<typeof loadCampusProgram>>) {
-  const fareConfig = await loadFareConfig();
-  const selectedVehicleOption = order.vehicle_type === "bike"
-    ? order.vehicle_subtype === "bicycle" ? "bicycle" : "motorcycle"
-    : undefined;
-  return estimateMarketplaceCheckout({
-    kind: order.marketplace_kind === "shopping" ? "shopping" : "restaurant",
-    items: Array.isArray(order.items) ? order.items as Parameters<typeof estimateMarketplaceCheckout>[0]["items"] : [],
-    address: String(order.dropoff_address || ""),
-    pickupAddress,
-    fareConfig,
-    deliveryPolicy,
-    campusProgram,
-    vehicleOption: selectedVehicleOption
-  });
-}
-
-/** Paid v2 FastErrands never consult mutable marketplace fare rules at dispatch. */
-function fastErrandSnapshotDeliveryEstimate(snapshot: NonNullable<ReturnType<typeof parseFastErrandV2Snapshot>>) {
-  const bicycle = snapshot.selected_vehicle.id === "bicycle";
-  return {
-    allowed: true,
-    policyMessage: null,
-    vehicle: snapshot.selected_vehicle.vehicle,
-    vehicleSubtype: snapshot.selected_vehicle.vehicle_subtype,
-    deliverySpeed: "standard" as const,
-    distanceKm: snapshot.display_distance_km,
-    etaMinutes: Math.max(1, Math.round(snapshot.road_distance_meters / 1000 / 20 * 60)),
-    routeSource: "google-routes",
-    routeType: "road",
-    durationSeconds: Math.max(60, Math.round(snapshot.road_distance_meters / 1000 / 20 * 3600)),
-    deliveryFee: snapshot.service_fee_ngn,
-    platformFee: 0,
-    itemsTotal: snapshot.goods_subtotal_ngn,
-    bicycleEligible: bicycle,
-    pickupState: extractNigerianState(snapshot.fulfilment.origin_address),
-    dropoffState: null,
-    campusAdjustment: { applied: false, campusZoneId: null, deliveryFee: snapshot.service_fee_ngn, platformFee: 0, totalDiscount: 0, riderEarningNgn: snapshot.service_fee_ngn, pricingBand: "normal" as const },
-    interstateDispatch: false,
-    interstateDeliveryDays: null
-  };
-}
-
-function appendStateToAddress(address: string, state: string) {
-  const normalizedState = normalizeState(state);
-  if (!normalizedState) return address;
-  return extractNigerianState(address) === normalizedState ? address : `${address}, ${normalizedState}`;
-}
-
-function pinnedMarketplacePickup(items: Array<Record<string, unknown>>) {
-  const item = items.find((entry) => Number.isFinite(entry.pickupLatitude) && Number.isFinite(entry.pickupLongitude));
-  if (!item) return null;
-  return {
-    state: String(item.vendorState || ""),
-    latitude: Number(item.pickupLatitude),
-    longitude: Number(item.pickupLongitude)
-  };
-}
-
-function metadataRecord(value: unknown) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
-function stringValue(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function businessOrderWhatsAppUpdate(orderCode: string, status: string) {
-  if (status === "received") return `${orderCode} update: the business has received your order and will begin preparing it shortly.`;
-  if (status === "preparing") return `${orderCode} update: your order is now being prepared.`;
-  if (status === "packing") return `${orderCode} update: your order is packed and being prepared for dispatch.`;
-  return `${orderCode} update: your order is ready for pickup. We are now finding a rider and will send the rider details here once one accepts.`;
 }

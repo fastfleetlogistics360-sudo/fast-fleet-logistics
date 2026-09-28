@@ -10,6 +10,8 @@ const notifier = read("lib/rider-delivery-opportunities.ts");
 const migration = read("security-remediation/migrations/202609270002_persistent_rider_availability.sql");
 const settlement = read("lib/payments/settlement.ts");
 const adminRiders = read("app/api/admin/riders/route.ts");
+const riderDashboardPage = read("app/rider/dashboard/page.tsx");
+const riderJobs = read("app/api/rider/jobs/route.ts");
 
 test("rider availability is an explicit authenticated server-side preference", () => {
   assert.match(availability, /auth\.getUser\(\)/);
@@ -19,7 +21,12 @@ test("rider availability is an explicit authenticated server-side preference", (
   assert.doesNotMatch(dashboard, /restored = await saveRiderAvailability/);
   assert.match(dashboard, /useState\(initialOnline\)/);
   assert.match(dashboard, /typeof riderData\.online === "boolean" \? riderData\.online : initialOnline/);
-  assert.match(read("app/rider/dashboard/page.tsx"), /initialOnline=\{Boolean\(riderProfileResult\.data\?\.online\)\}/);
+  assert.match(riderDashboardPage, /initialOnline=\{Boolean\(riderProfileResult\.data\?\.online\)\}/);
+  assert.match(riderDashboardPage, /const riderProfileReader = admin \|\| supabase/);
+  assert.doesNotMatch(riderDashboardPage, /online:\s*Boolean\(riderProfile\?\.online\)/);
+  assert.match(riderDashboardPage, /Omit availability from the repair payload/);
+  assert.match(riderJobs, /must not reset a rider who[\s\S]*chosen to remain online/);
+  assert.match(adminRiders, /explicit availability unchanged on an upsert/);
   assert.doesNotMatch(adminRiders, /\.update\(\{ online: false \}\)[\s\S]{0,120}\.neq\("application_status", "approved"\)/);
 });
 

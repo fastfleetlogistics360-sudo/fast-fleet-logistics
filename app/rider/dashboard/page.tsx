@@ -44,6 +44,12 @@ export default async function RiderDashboardPage() {
   if (!role) redirect("/choose-account-type?returnTo=/rider/dashboard");
   if (role !== "rider") redirect(roleHome[role]);
 
+  // The page can repair an approved rider's dispatch profile below. Read that
+  // profile with the server authority when available; an RLS-limited page read
+  // must never make an existing online rider look absent and overwrite their
+  // persisted availability during sign-in.
+  const admin = createAdminClient();
+  const riderProfileReader = admin || supabase;
   const [applicationResult, riderProfileResult] = await Promise.all([
     supabase
       .from("rider_applications")
@@ -52,7 +58,7 @@ export default async function RiderDashboardPage() {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle<RiderStatusRow>(),
-    supabase.from("rider_profiles").select("id, application_status, suspension_reason, vehicle_type, online, operating_zone, address").eq("user_id", user.id).maybeSingle<RiderProfileStatusRow>()
+    riderProfileReader.from("rider_profiles").select("id, application_status, suspension_reason, vehicle_type, online, operating_zone, address").eq("user_id", user.id).maybeSingle<RiderProfileStatusRow>()
   ]);
 
   const rawStatus = applicationResult.data?.status || riderProfileResult.data?.application_status || "pending_review";
@@ -61,12 +67,16 @@ export default async function RiderDashboardPage() {
 
   if (!applicationResult.data && !riderProfileResult.data) redirect("/rider/onboarding");
   if (status !== "approved") return <RiderAccessState status={status} rejectionReason={rejectionReason} />;
-  await ensureDispatchProfileForApprovedRider(user.id, applicationResult.data, riderProfileResult.data);
+  await ensureDispatchProfileForApprovedRider(user.id, applicationResult.data, riderProfileResult.data, admin);
   return <RiderDashboard initialKycStatus="approved" initialOnline={Boolean(riderProfileResult.data?.online)} />;
 }
 
-async function ensureDispatchProfileForApprovedRider(userId: string, application: RiderStatusRow | null, riderProfile: RiderProfileStatusRow | null) {
-  const admin = createAdminClient();
+async function ensureDispatchProfileForApprovedRider(
+  userId: string,
+  application: RiderStatusRow | null,
+  riderProfile: RiderProfileStatusRow | null,
+  admin = createAdminClient()
+) {
   if (!admin) return;
 
   const dispatchVehicle = normalizeDispatchVehicle(riderProfile?.vehicle_type || application?.vehicle_type);
@@ -87,7 +97,9 @@ async function ensureDispatchProfileForApprovedRider(userId: string, application
         bank_name: application?.bank_name || null,
         account_number: application?.account_number || null,
         account_name: application?.account_name || null,
-        online: Boolean(riderProfile?.online),
+        // Omit availability from the repair payload. On insert the database
+        // default is safely offline; on conflict Postgres preserves the rider's
+        // stored preference instead of treating an incomplete page read as false.
         reviewed_at: new Date().toISOString()
       },
       { onConflict: "user_id" }

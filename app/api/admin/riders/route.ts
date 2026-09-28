@@ -242,7 +242,8 @@ async function ensureRiderProfileFromApplication(
         bank_name: application.bank_name || null,
         account_number: application.account_number || null,
         account_name: application.account_name || null,
-        online: false,
+        // A newly approved profile defaults offline. Omitting this field keeps
+        // an existing rider's explicit availability unchanged on an upsert.
         reviewed_at: new Date().toISOString()
       },
       { onConflict: "user_id" }

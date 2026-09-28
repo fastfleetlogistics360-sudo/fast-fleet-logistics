@@ -347,7 +347,9 @@ async function ensureApprovedRiderProfile(admin: NonNullable<ReturnType<typeof c
         bank_name: application.bank_name || null,
         account_number: application.account_number || null,
         account_name: application.account_name || null,
-        online: false,
+        // New profiles use the database offline default. Do not include this
+        // on an upsert conflict: this recovery path must not reset a rider who
+        // has already chosen to remain online.
         reviewed_at: new Date().toISOString()
       },
       { onConflict: "user_id" }

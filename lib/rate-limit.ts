@@ -95,6 +95,7 @@ export const rateLimitPolicies = {
   businessBulkDispatch: policy("business:bulk-dispatch", 5, 10 * 60, "business", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION", "Too many bulk dispatch attempts. Try again later."),
   businessTeamMutation: policy("business:team-mutation", 20, 60 * 60, "business", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION"),
   businessOrderStatusUpdate: policy("business:order-status-update", 60, 10 * 60, "business", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION"),
+  marketplaceOperatorOrderUpdate: policy("marketplace:operator-order-status-update", 60, 10 * 60, "marketplace", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION"),
   businessProfileMutation: policy("business:profile-mutation", 20, 60 * 60, "business", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION"),
   marketplaceProductWrite: policy("marketplace:product-write", 10, 60 * 60, "marketplace", "authenticated_user_or_ip", "RATE_LIMITED_BUSINESS_ACTION"),
   pushSubscriptionWrite: policy("notifications:push-subscription", 30, 10 * 60, "notification", "authenticated_user_or_ip", "RATE_LIMITED"),
