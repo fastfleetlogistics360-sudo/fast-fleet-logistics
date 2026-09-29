@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 export const revalidate = 300;
 
 const updates = [
+  { title: "Fast Fleets 360 is now live", date: "Platform update", body: "Learn about the public services currently available through Fast Fleets 360 Logistics.", icon: CheckCircle2, href: "/updates/fast-fleets-360-now-live" },
   { title: "Soft launch scheduled", date: "August 2026", body: "Fast Fleets 360 is preparing launch operations across Lagos, Ogun, and Kwara States.", icon: BellRing },
   { title: "Marketplace onboarding", date: "2 of 30 slots filled", body: "Nectar & Greens and FarmFresh by V-A.V are the first marketplace partners joining the platform.", icon: CheckCircle2 },
   { title: "Rider and business opportunities", date: "Open now", body: "Applications remain available for riders and businesses that want to be ready for the launch window.", icon: UsersRound }
@@ -62,6 +63,7 @@ export default async function UpdatesPage() {
                     <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">{update.date}</span>
                     <h2 className="mt-1 text-xl font-black text-fleet-night">{update.title}</h2>
                     <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">{update.body}</p>
+                    {"href" in update && update.href ? <Link href={update.href} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-[14px] bg-fleet-night px-4 text-sm font-black text-white transition hover:bg-[#10233a]">Open update <ArrowUpRight className="h-4 w-4" /></Link> : null}
                   </div>
                 </div>
               </article>

@@ -14,7 +14,8 @@ const links = [
   { title: "Frequently Asked Questions", href: "/support", icon: CircleHelp },
   { title: "Meet our Founder", href: "/founder", icon: UserRound },
   { title: "Terms of Service", href: "/terms", icon: FileText },
-  { title: "Privacy and Data Rights", href: "/privacy", icon: ShieldCheck }
+  { title: "Privacy and Data Rights", href: "/privacy", icon: ShieldCheck },
+  { title: "Kwara Media Fashion Week Partnership", href: "/partners/kwara-media-fashion-week", icon: BriefcaseBusiness }
 ];
 
 export default function AboutPage() {

@@ -39,8 +39,9 @@ const structuredData = {
   "@type": "Organization",
   name: "Fast Fleets 360 Logistics",
   alternateName: ["FastFleets360", "FASTFLEETS360", "FAST FLEETS360", "FASTFLEETS 360", "Fast Fleets 360"],
-  url: "https://fastfleet.com.ng",
-  logo: "https://fastfleet.com.ng/brand/fastfleet-logo-2026.png?v=20260713",
+  "@id": "https://www.fastfleet.com.ng/#organization",
+  url: "https://www.fastfleet.com.ng",
+  logo: "https://www.fastfleet.com.ng/brand/fastfleet-logo-2026.png?v=20260713",
   email: "support@fastfleet.com.ng",
   contactPoint: [{
     "@type": "ContactPoint",
@@ -61,14 +62,14 @@ const structuredData = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://fastfleet.com.ng"),
+  metadataBase: new URL("https://www.fastfleet.com.ng"),
   title: {
     default: "Fast Fleets 360 Logistics",
     template: "%s | Fast Fleets 360 Logistics"
   },
-  description: "Premium logistics marketplace for Lagos and Ogun deliveries, riders, fleets, wallets, and live tracking.",
+  description: "Fast Fleets 360 Logistics helps people and businesses book dispatch, shop local essentials, and manage delivery operations in Nigeria.",
   applicationName: "Fast Fleets 360",
-  authors: [{ name: "Fast Fleets 360 Logistics", url: "https://fastfleet.com.ng" }],
+  authors: [{ name: "Fast Fleets 360 Logistics", url: "https://www.fastfleet.com.ng" }],
   creator: "Fast Fleets 360 Logistics",
   publisher: "Fast Fleets 360 Logistics",
   category: "Logistics, Delivery, Marketplace",

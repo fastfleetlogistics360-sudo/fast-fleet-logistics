@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://fastfleet.com.ng").replace(/\/$/, "");
+  const baseUrl = "https://www.fastfleet.com.ng";
 
   return {
     rules: {
@@ -16,6 +16,11 @@ export default function robots(): MetadataRoute.Robots {
         "/rider/dashboard",
         "/business/dashboard",
         "/account",
+        "/auth",
+        "/checkout",
+        "/investor",
+        "/support/cases",
+        "/wallet",
         "/choose-account-type",
         "/delivery/callback",
         "/wallet/callback",

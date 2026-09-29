@@ -25,6 +25,8 @@ const publicRoutes: SitemapEntry[] = [
   { path: "/marketplace/listing", changeFrequency: "weekly", priority: 0.76 },
   { path: "/support", changeFrequency: "weekly", priority: 0.72 },
   { path: "/updates", changeFrequency: "weekly", priority: 0.7 },
+  { path: "/updates/fast-fleets-360-now-live", changeFrequency: "monthly", priority: 0.78 },
+  { path: "/partners/kwara-media-fashion-week", changeFrequency: "monthly", priority: 0.8 },
   { path: "/about", changeFrequency: "monthly", priority: 0.68 },
   { path: "/founder", changeFrequency: "monthly", priority: 0.67 },
   { path: "/privacy", changeFrequency: "monthly", priority: 0.5 },
@@ -34,7 +36,7 @@ const publicRoutes: SitemapEntry[] = [
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://fastfleet.com.ng").replace(/\/$/, "");
+  const baseUrl = "https://www.fastfleet.com.ng";
   const now = new Date();
   const kitchenRoutes: SitemapEntry[] = defaultRestaurantKitchens.map((kitchen) => ({
     path: `/restaurants/${kitchen.id}`,

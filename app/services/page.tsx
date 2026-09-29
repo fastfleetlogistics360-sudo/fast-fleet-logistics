@@ -4,7 +4,10 @@ import { ArrowUpRight, Bike, BriefcaseBusiness, Camera, ShoppingBag, Truck, Wall
 import { CinematicPageHero } from "@/components/layout/cinematic-page-hero";
 
 export const metadata: Metadata = {
-  title: "Services"
+  title: "Delivery, Marketplace & Logistics Services",
+  description: "Explore Fast Fleets 360 delivery, FastErrands, marketplace, restaurant delivery, heavy logistics, storage, business dispatch, and rider services.",
+  alternates: { canonical: "/services" },
+  openGraph: { title: "Fast Fleets 360 Services", description: "Delivery, marketplace, FastErrands, business dispatch, and logistics services.", url: "/services" }
 };
 
 const services = [

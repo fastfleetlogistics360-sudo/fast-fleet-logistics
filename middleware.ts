@@ -4,6 +4,7 @@ import type { UserRole } from "@/types/domain";
 import { legacyRoleHome, parseUserRole, roleHome } from "@/lib/auth/roles";
 
 const PROTECTED_PREFIXES = ["/dashboard", "/customer/dashboard", "/book", "/account/orders", "/choose-account-type", "/rider/dashboard", "/business/dashboard", "/investor", "/admin/dashboard"];
+const NOINDEX_PREFIXES = ["/admin", "/api", "/account", "/auth", "/business/dashboard", "/checkout", "/customer/dashboard", "/dashboard", "/investor", "/rider/dashboard", "/support/cases", "/wallet"];
 
 const ROLE_PREFIXES: Array<{ prefix: string; roles: UserRole[] }> = [
   { prefix: "/customer/dashboard", roles: ["customer"] },
@@ -19,6 +20,9 @@ export async function middleware(request: NextRequest) {
     request
   });
   const pathname = request.nextUrl.pathname;
+  if (NOINDEX_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
