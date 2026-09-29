@@ -66,7 +66,7 @@ export async function notifyEligibleRiders(db: SupabaseClient, delivery: Dispatc
       await insertNotificationWithPush(db, {
         user_id: rider.user_id,
         title: "New delivery available",
-        body: `Pickup: ${pickupArea}${earning > 0 ? ` · Estimated earning: ₦${earning.toLocaleString("en-NG")}` : ""}`,
+        body: `${pickupArea}${earning > 0 ? ` · Estimated earning: ₦${earning.toLocaleString("en-NG")}` : ""}`,
         type: "dispatch_request",
         metadata: { delivery_id: delivery.id, delivery_code: delivery.delivery_code, url: "/rider/dashboard?tab=jobs", tag: `ff-dispatch-${delivery.delivery_code}` }
       });

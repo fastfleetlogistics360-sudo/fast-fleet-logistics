@@ -108,6 +108,9 @@ const tabs: Array<{ id: RiderTab; label: string; icon: LucideIcon }> = [
 const jobFields =
   "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, created_at, proof_url, rider_id, vehicle_type, vehicle_subtype, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
 
+const offerFields =
+  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, status, price_ngn, distance_km, eta_minutes, created_at, rider_id, vehicle_type, vehicle_subtype, users:users!deliveries_customer_id_fkey(full_name, avatar_url)";
+
 const riderProfileFields =
   "id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, independent_bicycle_enabled, operating_zone, address";
 
@@ -182,7 +185,7 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
     canLoadAvailable
       ? supabase
           .from("deliveries")
-          .select(jobFields)
+          .select(offerFields)
           .eq("status", "searching")
           .is("rider_id", null)
           .eq("vehicle_type", vehicleType)
@@ -193,7 +196,7 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
     canLoadAvailable
       ? supabase
           .from("deliveries")
-          .select(jobFields)
+          .select(offerFields)
           .eq("status", "searching")
           .is("rider_id", null)
           .eq("vehicle_type", vehicleType)
@@ -204,7 +207,7 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
     canLoadAvailable
       ? supabase
           .from("deliveries")
-          .select(jobFields)
+          .select(offerFields)
           .eq("status", "searching")
           .is("rider_id", null)
           .eq("vehicle_type", vehicleType)
@@ -1132,10 +1135,10 @@ function IncomingJob({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLoc
           <ProfileImage src={job.users?.avatar_url} name={customerName} className="h-14 w-14" />
           <div className="min-w-0">
 	          <StatusBadge tone="amber">Incoming job</StatusBadge>
-	          <h2 className="mt-3 text-2xl font-black text-fleet-night">{job.pickup_address} to {job.dropoff_address}</h2>
+	          <OfferRoute pickup={job.pickup_address} dropoff={job.dropoff_address} />
 	          <p className="mt-2 text-sm font-semibold text-slate-600">{distanceLabel} · {formatMoney(job.price_ngn)} estimated earning</p>
 	          <p className="mt-2 inline-flex rounded-fleet bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">{pickupEtaLabel(pickupEtaMinutes, pickupEtaLoading, liveLocation)}</p>
-	          <p className="mt-2 text-sm font-bold text-slate-600">Customer: {customerName} · {job.dropoff_contact || job.pickup_contact || job.users?.phone || "Phone pending"}</p>
+	          <p className="mt-2 text-sm font-bold text-slate-600">Customer: {customerName}</p>
 	        </div>
 	        </div>
 	        <span className="grid h-14 w-14 place-items-center rounded-full border-4 border-fleet-navy text-lg font-black text-fleet-navy">{expires}</span>
@@ -1158,6 +1161,10 @@ function RiderAccountTypeCard({ accountType }: { accountType?: RiderAccountType 
       <strong>{label}</strong>
     </div>
   );
+}
+
+function OfferRoute({ pickup, dropoff }: { pickup: string; dropoff: string }) {
+  return <div className="mt-3 min-w-0 text-sm font-semibold leading-5 text-slate-600"><p className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-fleet-ember">Pickup</p><p className="mt-0.5 break-words font-bold text-fleet-night">{pickup}</p><p className="my-1.5 text-center text-xs font-black uppercase tracking-[0.18em] text-fleet-night">TO</p><p className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-fleet-ember">Dropoff</p><p className="mt-0.5 break-words font-bold text-fleet-night">{dropoff}</p></div>;
 }
 
 function IncomingJobModal({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLocation, onRespond }: { job: JobRow; expires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; liveLocation: LiveRiderLocation | null; onRespond: (job: JobRow, accepted: boolean) => void }) {

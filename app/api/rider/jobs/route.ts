@@ -25,6 +25,12 @@ const statusFlow: Record<string, DeliveryStatus> = {
 const jobSelect =
   "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, pickup_contact, dropoff_address, dropoff_contact, status, price_ngn, distance_km, eta_minutes, delivery_speed, created_at, proof_url, rider_id, vehicle_type, vehicle_subtype, metadata, users:users!deliveries_customer_id_fkey(full_name, phone, email, avatar_url)";
 
+// Unassigned riders receive only the details required to decide whether to
+// accept. Contact fields, proof, raw metadata, and customer identifiers stay
+// in the assigned-delivery projection above.
+const offerSelect =
+  "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, status, price_ngn, distance_km, eta_minutes, delivery_speed, created_at, rider_id, vehicle_type, vehicle_subtype, metadata, users:users!deliveries_customer_id_fkey(full_name, avatar_url)";
+
 type JobRow = {
   id: string;
   pickup_address?: string | null;
@@ -91,7 +97,7 @@ export async function GET(request: Request) {
     const availableByAddressQuery = canLoadAvailable
       ? db
           .from("deliveries")
-          .select(jobSelect)
+          .select(offerSelect)
           .eq("status", "searching")
           .is("rider_id", null)
           .eq("vehicle_type", dispatchVehicle)
@@ -102,7 +108,7 @@ export async function GET(request: Request) {
     const availableByMetadataQuery = canLoadAvailable
       ? db
           .from("deliveries")
-          .select(jobSelect)
+          .select(offerSelect)
           .eq("status", "searching")
           .is("rider_id", null)
           .eq("vehicle_type", dispatchVehicle)
@@ -113,7 +119,7 @@ export async function GET(request: Request) {
     const availableNearbyQuery = canLoadAvailable
       ? db
           .from("deliveries")
-          .select(jobSelect)
+          .select(offerSelect)
           .eq("status", "searching")
           .is("rider_id", null)
           .eq("vehicle_type", dispatchVehicle)
@@ -148,10 +154,23 @@ export async function GET(request: Request) {
         !isRejectedByRider(job, rider.id) &&
         !hasQueuedDelivery && fastErrandVendorIsFunded(job.metadata) && jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, Boolean(rider.independent_bicycle_enabled), riderLocation, deliveryPolicy.rider, rider.campus_zone_id, hasActiveDelivery)
     );
-    return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]) });
+    return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]).map((job) => stripUnassignedOfferSensitiveFields(job as Record<string, unknown>)) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load rider jobs." }, { status: 500 });
   }
+}
+
+function stripUnassignedOfferSensitiveFields(job: Record<string, unknown>) {
+  if (job.status !== "searching" || job.rider_id) return job;
+  const offer = { ...job };
+  delete offer.metadata;
+  delete offer.pickup_contact;
+  delete offer.dropoff_contact;
+  delete offer.proof_url;
+  const users = offer.users;
+  delete offer.users;
+  const customer = users && typeof users === "object" ? users as Record<string, unknown> : null;
+  return { ...offer, users: customer ? { full_name: customer.full_name || null, avatar_url: customer.avatar_url || null } : null };
 }
 
 function fastErrandVendorIsFunded(metadata: Record<string, unknown> | null | undefined) {
