@@ -12,23 +12,14 @@ export async function GET() {
     return NextResponse.json({ error: "Risk and support queues are temporarily unavailable. No demo data is shown." }, { status: 503 });
   }
 
-  const [riskResult, supportResult] = await Promise.all([
-    supabase
-      .from("fraud_signals")
-      .select("id, signal_type, risk_score, details, resolved_at, created_at, users(full_name, email, phone), deliveries(delivery_code, status, price_ngn)")
-      .order("created_at", { ascending: false })
-      .limit(50),
-    supabase
-      .from("support_tickets")
-      .select("id, topic, subject, message, priority, status, contact_name, contact_email, contact_phone, created_at, updated_at, support_messages(id, sender_type, body, created_at)")
-      .order("created_at", { ascending: false })
-      .limit(50)
-  ]);
+  const riskResult = await supabase
+    .from("fraud_signals")
+    .select("id, signal_type, risk_score, details, resolved_at, created_at, users(full_name, email, phone), deliveries(delivery_code, status, price_ngn)")
+    .order("created_at", { ascending: false })
+    .limit(50);
 
   if (riskResult.error) return NextResponse.json({ error: riskResult.error.message }, { status: 400 });
-  if (supportResult.error) return NextResponse.json({ error: supportResult.error.message }, { status: 400 });
-
-  return NextResponse.json({ riskSignals: riskResult.data || [], supportTickets: supportResult.data || [] });
+  return NextResponse.json({ riskSignals: riskResult.data || [], supportTickets: [] });
 }
 
 export async function PATCH(request: Request) {
@@ -43,8 +34,8 @@ export async function PATCH(request: Request) {
   const kind = String(body.kind || "");
   const id = String(body.id || "").trim();
 
-  if (!id || !["risk", "support", "support_message"].includes(kind)) {
-    return NextResponse.json({ error: "Choose a valid risk or support item." }, { status: 400 });
+  if (!id || kind !== "risk") {
+    return NextResponse.json({ error: "Support cases are managed in Customer Care." }, { status: 400 });
   }
 
   const supabase = createAdminClient();
@@ -64,36 +55,4 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ item: data });
   }
 
-  if (kind === "support_message") {
-    const reply = String(body.body || "").trim();
-    if (reply.length < 2 || reply.length > 2_000) return NextResponse.json({ error: "Support replies must contain between 2 and 2,000 characters." }, { status: 400 });
-    const { data, error } = await supabase
-      .from("support_messages")
-      .insert({
-        ticket_id: id,
-        sender_type: "admin",
-        sender_user_id: trustedAdmin.userId,
-        body: reply
-      })
-      .select("id, sender_type, body, created_at")
-      .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    await supabase.from("support_tickets").update({ status: "in_progress" }).eq("id", id);
-    return NextResponse.json({ message: data });
-  }
-
-  const status = String(body.status || "");
-  if (!["open", "in_progress", "resolved", "closed"].includes(status)) {
-    return NextResponse.json({ error: "Choose a valid support status." }, { status: 400 });
-  }
-
-  const { data, error } = await supabase
-    .from("support_tickets")
-    .update({ status: status as "open" | "in_progress" | "resolved" | "closed" })
-    .eq("id", id)
-    .select("id, status")
-    .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-
-  return NextResponse.json({ item: data });
 }

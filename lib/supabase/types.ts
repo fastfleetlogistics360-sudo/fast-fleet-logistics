@@ -812,7 +812,16 @@ export interface Database {
           admin_last_read_at?: string | null;
           resolved_at?: string | null;
           closed_at?: string | null;
+          persona?: "customer" | "rider" | "business" | "investor";
+          category?: string | null;
+          subcategory?: string | null;
+          support_queue?: "customer_care_operations" | "payments_finance" | "rider_fleet_operations" | "business_support" | "safety_risk";
+          first_responded_at?: string | null;
+          sla_first_response_at?: string | null;
+          sla_resolution_at?: string | null;
           created_at: string;
+          visibility?: "public" | "internal";
+          message_type?: "message" | "note" | "system";
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["support_tickets"]["Row"]> & {

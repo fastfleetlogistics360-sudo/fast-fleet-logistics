@@ -9,7 +9,7 @@ export const supportPersonas = ["customer", "rider", "business", "investor"] as 
 export type SupportPersona = (typeof supportPersonas)[number];
 export const supportPriorities = ["normal", "high", "urgent"] as const;
 
-const categories: Record<SupportPersona, Record<string, readonly string[]>> = {
+export const supportCategories: Record<SupportPersona, Record<string, readonly string[]>> = {
   customer: { delivery: ["rider_delayed", "rider_did_not_arrive", "delivery_status_problem", "delivery_marked_complete_incorrectly", "other"], order: ["order_not_progressing", "wrong_item", "missing_item", "damaged_item", "vendor_preparation_delay", "other"], payment: ["payment_failed", "charged_not_confirmed", "duplicate_payment", "verification", "other"], account: ["login_access", "profile", "verification_kyc", "restriction", "other"], storage: ["booking", "payment", "access", "extension", "facility_issue"], safety: ["unsafe_delivery", "threat_harassment", "accident", "emergency"], other: ["general"] },
   rider: { rider: ["delivery_job", "pin", "earnings", "vehicle_bicycle", "account_kyc", "safety", "other"], account: ["login_access", "verification_kyc", "other"], safety: ["unsafe_delivery", "threat_harassment", "accident", "emergency"], other: ["general"] },
   business: { business: ["kyc", "listing", "marketplace_order", "preparation", "payment_payout", "rider_issue", "account_issue"], payment: ["payment_failed", "verification", "other"], safety: ["unsafe_delivery", "other"], other: ["general"] },
@@ -19,8 +19,9 @@ const categories: Record<SupportPersona, Record<string, readonly string[]>> = {
 export function isSupportQueue(value: unknown): value is SupportQueue { return typeof value === "string" && (supportQueues as readonly string[]).includes(value); }
 export function isSupportPersona(value: unknown): value is SupportPersona { return typeof value === "string" && (supportPersonas as readonly string[]).includes(value); }
 export function validCategory(persona: SupportPersona, category: unknown, subcategory: unknown) {
-  return Boolean(typeof category === "string" && typeof subcategory === "string" && categories[persona][category]?.includes(subcategory));
+  return Boolean(typeof category === "string" && typeof subcategory === "string" && supportCategories[persona][category]?.includes(subcategory));
 }
+export function categoriesFor(persona: SupportPersona) { return supportCategories[persona]; }
 export function defaultQueue(category: string): SupportQueue { if (category === "payment") return "payments_finance"; if (category === "rider") return "rider_fleet_operations"; if (category === "business") return "business_support"; if (category === "safety") return "safety_risk"; return "customer_care_operations"; }
 export function defaultPriority(category: string) { return category === "safety" ? "urgent" : ["delivery", "order", "payment", "rider", "business"].includes(category) ? "high" : "normal"; }
 

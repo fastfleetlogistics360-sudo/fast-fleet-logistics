@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SupportTurnstile, type SupportChallengeState } from "@/components/support/support-turnstile";
 import { newSupportIdempotencyKey, supportTopics, type SupportTopicKey } from "@/lib/support/policy";
+import { categoriesFor } from "@/lib/support/management";
 
 const formTopics: SupportTopicKey[] = ["delivery", "rider_kyc", "wallet", "business"];
 
@@ -24,6 +25,8 @@ export function SupportTicketForm() {
     phone: string;
     email: string;
     topic: SupportTopicKey;
+    category: string;
+    subcategory: string;
     trackingCode: string;
     body: string;
   }>({
@@ -31,6 +34,8 @@ export function SupportTicketForm() {
     phone: "",
     email: "",
     topic: "delivery",
+    category: "delivery",
+    subcategory: "other",
     trackingCode: "",
     body: ""
   });
@@ -64,9 +69,12 @@ export function SupportTicketForm() {
         body: JSON.stringify({
           source: "form",
           topic: form.topic,
+          category: form.category,
+          subcategory: form.subcategory,
           body: form.body,
           trackingCode: form.trackingCode,
           deliveryId: searchParams.get("delivery"),
+          orderId: searchParams.get("order"),
           name: form.name,
           email: form.email,
           phone: form.phone,
@@ -81,7 +89,7 @@ export function SupportTicketForm() {
         return;
       }
       setMessage("Support request received. Our team will respond as soon as possible.");
-      setForm({ name: "", phone: "", email: "", topic: "delivery", trackingCode: "", body: "" });
+      setForm({ name: "", phone: "", email: "", topic: "delivery", category: "delivery", subcategory: "other", trackingCode: "", body: "" });
       setIdempotencyKey(newSupportIdempotencyKey());
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "We could not send your request. Please try again.");
@@ -116,6 +124,8 @@ export function SupportTicketForm() {
             {formTopics.map((topic) => <option key={topic} value={topic}>{supportTopics[topic].label}</option>)}
           </select>
         </label>
+        <label className="form-field"><span className="form-label">What do you need help with?</span><select className="form-input" value={form.category} onChange={(event) => { const category = event.target.value; update("category", category); update("subcategory", categoriesFor("customer")[category]?.[0] || "general"); }}>{Object.keys(categoriesFor("customer")).map((category) => <option key={category} value={category}>{category.replaceAll("_", " ")}</option>)}</select></label>
+        <label className="form-field"><span className="form-label">Issue</span><select className="form-input" value={form.subcategory} onChange={(event) => update("subcategory", event.target.value)}>{(categoriesFor("customer")[form.category] || []).map((subcategory) => <option key={subcategory} value={subcategory}>{subcategory.replaceAll("_", " ")}</option>)}</select></label>
         <label className="form-field">
           <span className="form-label">Tracking code optional</span>
           <input className="form-input" value={form.trackingCode} onChange={(event) => update("trackingCode", event.target.value)} placeholder="FF-..." />

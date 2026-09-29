@@ -312,7 +312,7 @@ test("F-009 atomic helper makes exactly one RPC and preserves idempotent results
   });
   assert.deepEqual(result, { ticketId: "8ef8a4d0-2f75-4eb7-a668-9574e710ed1f", created: false });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].name, "create_support_ticket_with_messages");
+  assert.equal(calls[0].name, "create_support_case_atomic");
   assert.equal(calls[0].values.next_priority, "high");
   assert.equal(calls[0].values.next_user_id, "625cead0-98c1-4dae-a5fa-b6a7c6cd9736");
 });
@@ -418,12 +418,11 @@ test("F-009 support IP detection ignores spoofable forwarding headers", () => {
   assert.equal(supportClientIp(spoofedChain, { VERCEL: "1" }), "unknown-ip");
 });
 
-test("F-009 admin replies derive admin sender identity and remain bounded", () => {
+test("F-009 retires legacy risk-route support replies in favour of Customer Care", () => {
   const adminRoute = read("app/api/admin/risk-signals/route.ts");
   assert.match(adminRoute, /const trustedAdmin = await requireAdminSession\(request\)/);
-  assert.match(adminRoute, /sender_type: "admin"/);
-  assert.match(adminRoute, /sender_user_id: trustedAdmin\.userId/);
-  assert.match(adminRoute, /reply\.length < 2 \|\| reply\.length > 2_000/);
+  assert.match(adminRoute, /Support cases are managed in Customer Care/);
+  assert.doesNotMatch(adminRoute, /from\("support_(?:tickets|messages)"\)/);
 });
 
 test("F-009 intentionally adds no anonymous follow-up, notifications, or out-of-scope business logic", () => {

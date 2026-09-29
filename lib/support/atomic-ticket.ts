@@ -13,6 +13,10 @@ export type AtomicSupportTicketInput = {
   priority: SupportPriority;
   customerMessage: string | null;
   botMessage: string | null;
+  category?: string | null;
+  subcategory?: string | null;
+  deliveryId?: string | null;
+  orderId?: string | null;
 };
 
 type AtomicSupportTicketResult = {
@@ -34,7 +38,7 @@ export async function createSupportTicketAtomic(db: SupabaseClient, input: Atomi
       error: { message?: string } | null;
     }>;
   };
-  const { data, error } = await client.rpc("create_support_ticket_with_messages", {
+  const { data, error } = await client.rpc("create_support_case_atomic", {
     next_idempotency_key: input.idempotencyKey,
     next_user_id: input.userId,
     next_contact_name: input.contactName,
@@ -45,7 +49,11 @@ export async function createSupportTicketAtomic(db: SupabaseClient, input: Atomi
     next_ticket_message: input.ticketMessage,
     next_priority: input.priority,
     next_customer_message: input.customerMessage,
-    next_bot_message: input.botMessage
+    next_bot_message: input.botMessage,
+    next_category: input.category || null,
+    next_subcategory: input.subcategory || null,
+    next_delivery_id: input.deliveryId || null,
+    next_order_id: input.orderId || null
   });
 
   if (error) throw new SupportPersistenceError();

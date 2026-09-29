@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { canTransitionSupportCase, isSupportStatus, isUuid } from "@/lib/support/cases";
 import { defaultPriority, defaultQueue, isSupportQueue, slaDeadlines, validCategory } from "@/lib/support/management";
 import { recordSupportEvent } from "@/lib/support/events";
+import { getSupportCaseContext } from "@/lib/support/context";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +17,17 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   if (!db) return NextResponse.json({ error: "Customer Care is temporarily unavailable." }, { status: 503 });
   const { data, error } = await db
     .from("support_tickets")
-    .select("id, case_number, user_id, persona, category, subcategory, support_queue, topic, subject, message, priority, status, delivery_id, tracking_code, contact_name, contact_email, contact_phone, assigned_admin_id, created_at, updated_at, last_activity_at, customer_last_read_at, admin_last_read_at, resolved_at, closed_at, first_responded_at, sla_first_response_at, sla_resolution_at, deliveries(id, delivery_code, status, rider_id, pickup_address, dropoff_address, price_ngn, eta_minutes), support_messages(id, sender_type, sender_user_id, body, visibility, message_type, created_at), support_case_events(id, actor_type, event_type, metadata, created_at)")
+    .select("id, case_number, user_id, persona, category, subcategory, support_queue, topic, subject, message, priority, status, delivery_id, tracking_code, contact_name, contact_email, contact_phone, assigned_admin_id, created_at, updated_at, last_activity_at, customer_last_read_at, admin_last_read_at, resolved_at, closed_at, first_responded_at, sla_first_response_at, sla_resolution_at")
     .eq("id", id).maybeSingle();
   if (error || !data) return NextResponse.json({ error: "Support case not found." }, { status: 404 });
   await db.from("support_tickets").update({ admin_last_read_at: new Date().toISOString() }).eq("id", id);
-  return NextResponse.json({ case: data }, { headers: { "Cache-Control": "no-store" } });
+  const page = Math.max(0, Number(new URL(_.url).searchParams.get("historyPage") || 0));
+  const [messagesResult, eventsResult, context] = await Promise.all([
+    db.from("support_messages").select("id, sender_type, body, visibility, message_type, created_at").eq("ticket_id", id).order("created_at", { ascending: false }).range(page * 50, page * 50 + 49),
+    db.from("support_case_events").select("id, actor_type, event_type, metadata, created_at").eq("ticket_id", id).order("created_at", { ascending: false }).range(page * 50, page * 50 + 49),
+    getSupportCaseContext(db, id).catch(() => [])
+  ]);
+  return NextResponse.json({ case: { ...data, support_messages: (messagesResult.data || []).reverse(), support_case_events: (eventsResult.data || []).reverse(), context }, historyPage: page, hasMoreHistory: (messagesResult.data || []).length === 50 || (eventsResult.data || []).length === 50 }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {

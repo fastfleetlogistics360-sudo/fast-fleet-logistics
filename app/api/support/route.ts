@@ -6,8 +6,6 @@ import { createSupportPostHandler } from "@/lib/support/post-handler";
 import { verifySupportTurnstile } from "@/lib/support/turnstile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { attachSupportDeliveryContext } from "@/lib/support/context";
-import { initializeSupportCaseManagement } from "@/lib/support/initialization";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,8 +47,10 @@ export async function POST(request: Request) {
       const { data } = await db.from("deliveries").select("id, delivery_code").eq("id", deliveryId).eq("customer_id", userId).maybeSingle<{ id: string; delivery_code: string }>();
       return data ? { id: data.id, deliveryCode: data.delivery_code } : null;
     },
-    attachDeliveryContext: (ticketId, delivery) => attachSupportDeliveryContext(db, ticketId, delivery),
-    initializeCaseManagement: (ticketId, userId, topic) => initializeSupportCaseManagement(db, ticketId, userId, topic),
+    resolveOrderContext: async (userId, orderId) => {
+      const { data } = await db.from("orders").select("id, order_code").eq("id", orderId).eq("customer_id", userId).maybeSingle<{ id: string; order_code: string | null }>();
+      return data ? { id: data.id, reference: data.order_code || data.id } : null;
+    },
     reportUnexpectedPersistenceError: () => console.error("support_ticket_creation_failed")
   })(request);
 }

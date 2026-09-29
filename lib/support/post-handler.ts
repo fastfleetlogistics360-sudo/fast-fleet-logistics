@@ -5,8 +5,7 @@ import {
   isSupportIdempotencyKey,
   normalizeSupportSource,
   normalizeSupportTopic,
-  supportTopics,
-  type SupportTopicKey
+  supportTopics
 } from "@/lib/support/policy";
 import type { SupportTurnstileResult } from "@/lib/support/turnstile";
 
@@ -16,6 +15,9 @@ type SupportRequest = {
   body?: unknown;
   trackingCode?: unknown;
   deliveryId?: unknown;
+  orderId?: unknown;
+  category?: unknown;
+  subcategory?: unknown;
   name?: unknown;
   email?: unknown;
   phone?: unknown;
@@ -49,8 +51,7 @@ export type SupportPostDependencies = {
   }) => Promise<SupportTurnstileResult>;
   createTicket: (input: AtomicSupportTicketInput) => Promise<{ ticketId: string; created: boolean }>;
   resolveDeliveryContext?: (userId: string, deliveryId: string) => Promise<{ id: string; deliveryCode: string } | null>;
-  attachDeliveryContext?: (ticketId: string, delivery: { id: string; deliveryCode: string }) => Promise<void>;
-  initializeCaseManagement?: (ticketId: string, userId: string | null, topic: SupportTopicKey) => Promise<void>;
+  resolveOrderContext?: (userId: string, orderId: string) => Promise<{ id: string; reference: string } | null>;
   reportUnexpectedPersistenceError?: (error: unknown) => void;
 };
 
@@ -107,11 +108,18 @@ export function createSupportPostHandler(dependencies: SupportPostDependencies) 
     }
 
     let deliveryContext: { id: string; deliveryCode: string } | null = null;
+    let orderContext: { id: string; reference: string } | null = null;
     const requestedDeliveryId = cleanSupportText(body.deliveryId, 80);
     if (requestedDeliveryId) {
       if (!user || !dependencies.resolveDeliveryContext) return response({ error: "Sign in to attach a delivery to support.", code: "SUPPORT_CONTEXT_DENIED" }, 403);
       deliveryContext = await dependencies.resolveDeliveryContext(user.id, requestedDeliveryId);
       if (!deliveryContext) return response({ error: "That delivery is not available for this support case.", code: "SUPPORT_CONTEXT_DENIED" }, 403);
+    }
+    const requestedOrderId = cleanSupportText(body.orderId, 80);
+    if (requestedOrderId) {
+      if (!user || !dependencies.resolveOrderContext) return response({ error: "Sign in to attach an order to support.", code: "SUPPORT_CONTEXT_DENIED" }, 403);
+      orderContext = await dependencies.resolveOrderContext(user.id, requestedOrderId);
+      if (!orderContext) return response({ error: "That order is not available for this support case.", code: "SUPPORT_CONTEXT_DENIED" }, 403);
     }
 
     const policy = supportTopics[topic];
@@ -139,10 +147,12 @@ export function createSupportPostHandler(dependencies: SupportPostDependencies) 
         ticketMessage,
         priority: policy.priority,
         customerMessage: source === "widget" ? message : null,
-        botMessage: source === "widget" ? policy.automatedReply : null
+        botMessage: source === "widget" ? policy.automatedReply : null,
+        category: cleanSupportText(body.category, 80) || null,
+        subcategory: cleanSupportText(body.subcategory, 80) || null,
+        deliveryId: deliveryContext?.id || null,
+        orderId: orderContext?.id || null
       });
-      await dependencies.initializeCaseManagement?.(ticket.ticketId, user?.id || null, topic);
-      if (deliveryContext && dependencies.attachDeliveryContext) await dependencies.attachDeliveryContext(ticket.ticketId, deliveryContext);
       return response(user ? { ticketId: ticket.ticketId, created: ticket.created } : { created: ticket.created }, ticket.created ? 201 : 200);
     } catch (error) {
       if (!(error instanceof SupportPersistenceError)) dependencies.reportUnexpectedPersistenceError?.(error);
