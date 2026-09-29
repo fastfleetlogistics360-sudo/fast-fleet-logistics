@@ -9,7 +9,7 @@ test("partnership page has indexable canonical metadata and parseable structured
   assert.match(page, /Fast Fleets 360/);
   assert.match(page, /Kwara Media Fashion Week/);
   assert.match(page, /alternates: \{ canonical: path \}/);
-  assert.match(page, /https:\/\/www\.fastfleet\.com\.ng\/#organization/);
+  assert.match(page, /https:\/\/fastfleet\.com\.ng\/#organization/);
   assert.match(page, /BreadcrumbList/);
   assert.match(page, /fast-fleets-360-kwara-media-fashion-week-official-logistics-partner\.jpg/);
 });
@@ -25,7 +25,7 @@ test("sitemap contains public SEO pages but not protected private routes", () =>
 test("organization uses the stable canonical identity and private families get a noindex header", () => {
   const layout = read("app/layout.tsx");
   const middleware = read("middleware.ts");
-  assert.match(layout, /https:\/\/www\.fastfleet\.com\.ng\/#organization/);
+  assert.match(layout, /https:\/\/fastfleet\.com\.ng\/#organization/);
   assert.match(middleware, /X-Robots-Tag/);
   assert.match(middleware, /noindex, nofollow, noarchive/);
 });

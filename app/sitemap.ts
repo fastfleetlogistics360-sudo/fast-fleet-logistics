@@ -36,7 +36,7 @@ const publicRoutes: SitemapEntry[] = [
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = "https://www.fastfleet.com.ng";
+  const baseUrl = "https://fastfleet.com.ng";
   const now = new Date();
   const kitchenRoutes: SitemapEntry[] = defaultRestaurantKitchens.map((kitchen) => ({
     path: `/restaurants/${kitchen.id}`,

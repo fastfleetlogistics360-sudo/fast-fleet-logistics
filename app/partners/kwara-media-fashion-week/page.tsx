@@ -24,17 +24,17 @@ const structuredData = [
   {
     "@context": "https://schema.org",
     "@type": "WebPage",
-    "@id": "https://www.fastfleet.com.ng/partners/kwara-media-fashion-week#webpage",
-    url: "https://www.fastfleet.com.ng/partners/kwara-media-fashion-week",
+    "@id": "https://fastfleet.com.ng/partners/kwara-media-fashion-week#webpage",
+    url: "https://fastfleet.com.ng/partners/kwara-media-fashion-week",
     name: "Fast Fleets 360 — Official Logistics Partner of Kwara Media Fashion Week",
     description: "Fast Fleets 360 Logistics is the Official Logistics Partner of Kwara Media Fashion Week 1.0.",
-    about: [{ "@id": "https://www.fastfleet.com.ng/#organization" }, { "@id": "https://www.fastfleet.com.ng/partners/kwara-media-fashion-week#event" }],
-    primaryImageOfPage: { "@id": "https://www.fastfleet.com.ng/partners/kwara-media-fashion-week#image" }
+    about: [{ "@id": "https://fastfleet.com.ng/#organization" }, { "@id": "https://fastfleet.com.ng/partners/kwara-media-fashion-week#event" }],
+    primaryImageOfPage: { "@id": "https://fastfleet.com.ng/partners/kwara-media-fashion-week#image" }
   },
   {
     "@context": "https://schema.org",
     "@type": "Event",
-    "@id": "https://www.fastfleet.com.ng/partners/kwara-media-fashion-week#event",
+    "@id": "https://fastfleet.com.ng/partners/kwara-media-fashion-week#event",
     name: "Kwara Media Fashion Week 1.0",
     description: "Kwara Media Fashion Week 1.0, with Fast Fleets 360 Logistics as its Official Logistics Partner.",
     location: { "@type": "Place", name: "Kwara State, Nigeria" }
@@ -42,16 +42,16 @@ const structuredData = [
   {
     "@context": "https://schema.org",
     "@type": "ImageObject",
-    "@id": "https://www.fastfleet.com.ng/partners/kwara-media-fashion-week#image",
-    contentUrl: "https://www.fastfleet.com.ng/partners/fast-fleets-360-kwara-media-fashion-week-official-logistics-partner.jpg",
+    "@id": "https://fastfleet.com.ng/partners/kwara-media-fashion-week#image",
+    contentUrl: "https://fastfleet.com.ng/partners/fast-fleets-360-kwara-media-fashion-week-official-logistics-partner.jpg",
     caption: "Fast Fleets 360 Logistics, Official Logistics Partner of Kwara Media Fashion Week"
   },
   {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: "https://www.fastfleet.com.ng/" },
-      { "@type": "ListItem", position: 2, name: "Partnerships", item: "https://www.fastfleet.com.ng/partners/kwara-media-fashion-week" },
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://fastfleet.com.ng/" },
+      { "@type": "ListItem", position: 2, name: "Partnerships", item: "https://fastfleet.com.ng/partners/kwara-media-fashion-week" },
       { "@type": "ListItem", position: 3, name: "Kwara Media Fashion Week" }
     ]
   }
