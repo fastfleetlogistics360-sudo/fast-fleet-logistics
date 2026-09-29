@@ -2267,6 +2267,10 @@ export function AdminPanel() {
               <RefreshCw className={`h-4 w-4 ${busyAction === "refresh" ? "animate-spin" : ""}`} />
               Refresh
             </Button>
+            <a href="/admin/monitoring" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] border border-fleet-navy bg-fleet-navy px-3.5 text-[0.84rem] font-extrabold text-white shadow-[0_12px_28px_rgba(8,17,31,0.18)] transition hover:-translate-y-0.5 hover:bg-[#10233a] focus:outline-none focus:ring-4 focus:ring-fleet-gold/20">
+              <Globe2 className="h-4 w-4" />
+              Live monitoring
+            </a>
             <Button type="button" variant="dark" onClick={logout}>
               <LogOut className="h-4 w-4" />
               Logout
