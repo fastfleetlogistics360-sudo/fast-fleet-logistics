@@ -30,14 +30,27 @@ insert into public.fast_errand_catalog_items (category_id, name, description, pr
 select category.id, seed.name, seed.description, seed.price_ngn, seed.sort_order, true, null
 from public.fast_errand_categories category
 cross join (values
-  ('Condoms', 'Private personal-care essential.', 1000, 10),
-  ('Personal Lubricant', 'Private personal-care essential.', 1500, 20),
-  ('Pregnancy Test Kit', 'Private personal-care essential.', 1200, 30),
-  ('Breath Mints / Gum', 'Private convenience essential.', 500, 40),
-  ('Disposable Cups', 'Private convenience essential.', 500, 50),
-  ('Ice Cubes', 'Private convenience essential.', 800, 60),
-  ('Bottled Water', 'Private convenience essential.', 500, 70),
-  ('Personal Hygiene Essentials', 'Private personal-care essential.', 1000, 80)
+  ('Backwoods Russian Cream', '5 cigars', 15000, 10),
+  ('Backwoods Honey Berry', '5 cigars', 15000, 20),
+  ('Backwoods Sweet Aromatic', '5 cigars', 15000, 30),
+  ('Backwoods Honey', '5 cigars', 19500, 40),
+  ('Backwoods Dark Stout', '5 cigars', 19500, 50),
+  ('Captain Black Dark Crema', 'Pack', 6500, 60),
+  ('Benson & Hedges Menthol Boost', '1 pack', 1500, 70),
+  ('Dunhill', '1 pack', 2600, 80),
+  ('St. Moritz Menthol', '1 pack', 1200, 90),
+  ('RAW Classic Rolling Paper', '1 pack', 800, 100),
+  ('BIC Lighter', '1 lighter', 1000, 110),
+  ('Kiss Classic Condom', '3 pcs', 500, 120),
+  ('Fiesta Original Black Condom', '3 pcs', 850, 130),
+  ('Fiesta Intim Gel', '70 ml', 6000, 140),
+  ('Kiss Lube Gel', '50 ml', 3000, 150),
+  ('Assurance Pregnancy Test Strip', '1 strip', 300, 160),
+  ('Postinor 2', '2 tablets', 3000, 170),
+  ('Postpill', '1 pack', 3000, 180),
+  ('OraQuick HIV Self-Test', '1 kit', 5000, 190),
+  ('Action Bitters', '20 cl', 1000, 200),
+  ('Orijin Bitters', '20 cl', 1000, 210)
 ) as seed(name, description, price_ngn, sort_order)
 where category.name = 'Adult Essentials'
 on conflict (category_id, name) do nothing;
