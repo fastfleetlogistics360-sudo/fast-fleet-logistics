@@ -11,7 +11,8 @@ export type UploadProfileName =
   | "delivery-proof"
   | "marketplace-product-image"
   | "business-logo"
-  | "admin-banner";
+  | "admin-banner"
+  | "support-attachment";
 
 export type UploadRejectionCode =
   | "UPLOAD_EMPTY"
@@ -86,7 +87,13 @@ export const UPLOAD_PROFILES: Readonly<Record<UploadProfileName, UploadProfile>>
   "delivery-proof": imageProfile({ minWidth: 64, minHeight: 64, maxOutputWidth: 1920, maxOutputHeight: 1920 }),
   "marketplace-product-image": imageProfile({ minWidth: 64, minHeight: 64, maxOutputWidth: 640, maxOutputHeight: 640, imageQuality: 72 }),
   "business-logo": imageProfile({ minWidth: 64, minHeight: 64, maxOutputWidth: 1200, maxOutputHeight: 1200 }),
-  "admin-banner": imageProfile({ minWidth: 160, minHeight: 90, maxOutputWidth: 2400, maxOutputHeight: 1600 })
+  "admin-banner": imageProfile({ minWidth: 160, minHeight: 90, maxOutputWidth: 2400, maxOutputHeight: 1600 }),
+  "support-attachment": {
+    ...imageProfile({ minWidth: 32, minHeight: 32, maxOutputWidth: 1920, maxOutputHeight: 1920 }),
+    allowedMimeTypes: [...IMAGE_MIMES, "application/pdf"],
+    maxBytes: 10 * MB,
+    allowPdf: true
+  }
 };
 
 const mimeExtensions: Record<SupportedMime, readonly string[]> = {

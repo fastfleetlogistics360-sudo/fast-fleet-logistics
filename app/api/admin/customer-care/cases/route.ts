@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/app/api/admin/_auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSupportQueue } from "@/lib/support/management";
+import { isSupportQueue, slaState } from "@/lib/support/management";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +10,6 @@ export async function GET(request: Request) {
   if (!admin) return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "Customer Care is temporarily unavailable. Real support cases could not be loaded." }, { status: 503 });
-  const now = new Date().toISOString();
-  await db.from("support_tickets").update({ status: "closed", closed_at: now, last_activity_at: now }).eq("status", "resolved").lte("resolved_at", new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString());
   const params = new URL(request.url).searchParams;
   const status = params.get("status"); const priority = params.get("priority"); const queue = params.get("queue"); const category = params.get("category"); const assignment = params.get("assignment"); const search = (params.get("search") || "").trim().slice(0, 100).replace(/[,%()]/g, ""); const page = Math.max(0, Number(params.get("page") || 0)); const limit = Math.min(100, Math.max(10, Number(params.get("limit") || 30)));
   if (queue && !isSupportQueue(queue)) return NextResponse.json({ error: "Choose a valid support queue." }, { status: 400 });
@@ -26,7 +24,8 @@ export async function GET(request: Request) {
   const { data: messageSummary } = ids.length ? await db.from("support_messages").select("ticket_id, sender_type, created_at").in("ticket_id", ids) : { data: [] };
   const cases = (data || []).map((item: any) => ({
     ...item,
-    customerUnread: (messageSummary || []).some((message: any) => message.ticket_id === item.id && message.sender_type === "customer" && (!item.admin_last_read_at || new Date(message.created_at) > new Date(item.admin_last_read_at)))
+    customerUnread: (messageSummary || []).some((message: any) => message.ticket_id === item.id && message.sender_type === "customer" && (!item.admin_last_read_at || new Date(message.created_at) > new Date(item.admin_last_read_at))),
+    slaState: ["resolved", "closed"].includes(item.status) ? "on_track" : slaState(item.sla_resolution_at || null)
   }));
   return NextResponse.json({ cases }, { headers: { "Cache-Control": "no-store" } });
 }

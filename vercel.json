@@ -7,6 +7,10 @@
     {
       "path": "/api/payments/reconcile",
       "schedule": "15 23 * * *"
+    },
+    {
+      "path": "/api/cron/care360",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

@@ -11,8 +11,6 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Please sign in to view support cases." }, { status: 401 });
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "Support cases are temporarily unavailable." }, { status: 503 });
-  const now = new Date().toISOString();
-  await db.from("support_tickets").update({ status: "closed", closed_at: now, last_activity_at: now }).eq("user_id", user.id).eq("status", "resolved").lte("resolved_at", new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString());
   const { data, error } = await db
     .from("support_tickets")
     .select("id, case_number, topic, subject, priority, status, delivery_id, tracking_code, created_at, updated_at, last_activity_at, customer_last_read_at, resolved_at, closed_at")

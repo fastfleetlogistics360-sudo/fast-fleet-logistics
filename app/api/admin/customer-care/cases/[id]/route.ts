@@ -20,14 +20,17 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     .select("id, case_number, user_id, persona, category, subcategory, support_queue, topic, subject, message, priority, status, delivery_id, tracking_code, contact_name, contact_email, contact_phone, assigned_admin_id, created_at, updated_at, last_activity_at, customer_last_read_at, admin_last_read_at, resolved_at, closed_at, first_responded_at, sla_first_response_at, sla_resolution_at")
     .eq("id", id).maybeSingle();
   if (error || !data) return NextResponse.json({ error: "Support case not found." }, { status: 404 });
-  await db.from("support_tickets").update({ admin_last_read_at: new Date().toISOString() }).eq("id", id);
   const page = Math.max(0, Number(new URL(_.url).searchParams.get("historyPage") || 0));
-  const [messagesResult, eventsResult, context] = await Promise.all([
+  const [messagesResult, eventsResult, attachmentsResult, context] = await Promise.all([
     db.from("support_messages").select("id, sender_type, body, visibility, message_type, created_at").eq("ticket_id", id).order("created_at", { ascending: false }).range(page * 50, page * 50 + 49),
     db.from("support_case_events").select("id, actor_type, event_type, metadata, created_at").eq("ticket_id", id).order("created_at", { ascending: false }).range(page * 50, page * 50 + 49),
+    db.from("support_case_attachments").select("id, original_filename, content_type, byte_size, visibility, uploader_type, created_at").eq("ticket_id", id).eq("status", "finalized").order("created_at", { ascending: false }).range(0, 49),
     getSupportCaseContext(db, id).catch(() => [])
   ]);
-  return NextResponse.json({ case: { ...data, support_messages: (messagesResult.data || []).reverse(), support_case_events: (eventsResult.data || []).reverse(), context }, historyPage: page, hasMoreHistory: (messagesResult.data || []).length === 50 || (eventsResult.data || []).length === 50 }, { headers: { "Cache-Control": "no-store" } });
+  const observedAt = page === 0 ? messagesResult.data?.[0]?.created_at : null;
+  if (observedAt) await db.from("support_tickets").update({ admin_last_read_at: observedAt }).eq("id", id).or(`admin_last_read_at.is.null,admin_last_read_at.lte.${observedAt}`);
+  const { data: agents } = await db.from("profiles").select("user_id, users(full_name)").eq("is_admin", true).is("deleted_at", null).limit(100);
+  return NextResponse.json({ case: { ...data, support_messages: (messagesResult.data || []).reverse(), support_case_events: (eventsResult.data || []).reverse(), attachments: attachmentsResult.data || [], context }, agents: agents || [], historyPage: page, hasMoreHistory: (messagesResult.data || []).length === 50 || (eventsResult.data || []).length === 50 }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -47,9 +50,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.status !== undefined) {
     if (!isSupportStatus(body.status) || !canTransitionSupportCase(supportCase.status, body.status)) return NextResponse.json({ error: "That case status transition is not allowed." }, { status: 400 });
     changes.status = body.status;
-    if (body.status === "resolved") changes.resolved_at = new Date().toISOString();
+    if (body.status === "resolved") { changes.resolved_at = new Date().toISOString(); changes.lifecycle_closed_at = null; }
     if (body.status === "closed") changes.closed_at = new Date().toISOString();
-    if (body.status === "in_progress" && ["resolved", "closed"].includes(supportCase.status)) { changes.resolved_at = null; changes.closed_at = null; }
+    if (body.status === "in_progress" && ["resolved", "closed"].includes(supportCase.status)) { changes.resolved_at = null; changes.closed_at = null; changes.lifecycle_closed_at = null; }
     events.push({ eventType: body.status === "resolved" ? "CASE_RESOLVED" : body.status === "closed" ? "CASE_CLOSED" : body.status === "in_progress" && ["resolved", "closed"].includes(supportCase.status) ? "CASE_REOPENED" : "STATUS_CHANGED", metadata: { from: supportCase.status, to: body.status } });
   }
   if (body.priority !== undefined) {

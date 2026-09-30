@@ -819,6 +819,10 @@ export interface Database {
           first_responded_at?: string | null;
           sla_first_response_at?: string | null;
           sla_resolution_at?: string | null;
+          lifecycle_closed_at?: string | null;
+          first_response_sla_escalated_at?: string | null;
+          resolution_sla_escalated_at?: string | null;
+          proactive_incident_key?: string | null;
           created_at: string;
           visibility?: "public" | "internal";
           message_type?: "message" | "note" | "system";
@@ -844,6 +848,25 @@ export interface Database {
           body: string;
         };
         Update: Partial<Database["public"]["Tables"]["support_messages"]["Row"]>;
+      };
+      support_case_attachments: {
+        Row: {
+          id: string;
+          ticket_id: string;
+          message_id: string | null;
+          uploader_user_id: string | null;
+          uploader_type: "customer" | "agent" | "system";
+          visibility: "public" | "internal";
+          storage_key: string;
+          original_filename: string;
+          content_type: "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
+          byte_size: number;
+          status: "pending" | "finalized" | "failed" | "removed";
+          created_at: string;
+          finalized_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["support_case_attachments"]["Row"]> & { ticket_id: string; storage_key: string; original_filename: string; content_type: string; byte_size: number; uploader_type: string };
+        Update: Partial<Database["public"]["Tables"]["support_case_attachments"]["Row"]>;
       };
       fraud_signals: {
         Row: {
