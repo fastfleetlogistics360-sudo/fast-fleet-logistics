@@ -22,8 +22,10 @@ const seoKeywords = [
   "FastFleet Logistics Nigeria",
   "Lagos delivery",
   "Ogun delivery",
+  "Oyo delivery",
   "Lagos dispatch rider",
   "Ogun dispatch rider",
+  "Oyo dispatch rider",
   "courier service Nigeria",
   "same day delivery Lagos",
   "bike delivery Lagos",
@@ -57,7 +59,7 @@ const structuredData = {
     url: "https://fastfleet.com.ng/founder",
     sameAs: ["https://www.instagram.com/a.o.josh01"]
   },
-  areaServed: ["Lagos", "Ogun", "Nigeria"],
+  areaServed: ["Lagos", "Ogun", "Oyo", "Nigeria"],
   serviceType: ["Courier service", "Same-day delivery", "Restaurant delivery", "Shopping delivery", "Business dispatch"]
 };
 

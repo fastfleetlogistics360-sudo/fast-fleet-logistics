@@ -6,15 +6,17 @@ import { loadMarketplaceCustomerState } from "@/lib/marketplace-customer-state";
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "Shopping Delivery in Lagos",
-  description: "Shop grocery, pharmacy, fashion, and everyday vendors on Fast Fleets 360, pay with Squad, and get dispatch delivery estimates for Lagos and Ogun routes.",
+  title: "Shopping Delivery in Lagos, Ogun & Oyo",
+  description: "Shop grocery, pharmacy, fashion, and everyday vendors on Fast Fleets 360, pay with Squad, and get dispatch delivery estimates for Lagos, Ogun, and Oyo routes.",
   keywords: [
     "Fast Fleets 360 shopping delivery",
     "FastFleets360 shopping",
     "FAST FLEETS360 shopping",
     "FASTFLEETS 360 shopping",
     "Lagos shopping delivery",
+    "Oyo shopping delivery",
     "grocery delivery Lagos",
+    "grocery delivery Oyo",
     "pharmacy delivery Lagos",
     "fashion delivery Lagos"
   ],

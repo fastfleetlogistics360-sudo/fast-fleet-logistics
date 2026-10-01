@@ -30,6 +30,15 @@ export default function ServicesPage() {
         image="https://images.unsplash.com/photo-1580674684081-7617fbf3d745?auto=format&fit=crop&w=2200&q=84"
       />
       <section className="section-wrap py-8 sm:py-10">
+        <aside className="mb-5 flex flex-col gap-3 rounded-[20px] border border-fleet-ember/25 bg-orange-50/80 p-5 shadow-[0_14px_36px_rgba(244,126,24,0.08)] sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Now serving Oyo State</p>
+            <h2 className="mt-1 text-xl font-black text-fleet-night">Explore all Fast Fleets 360 services available in Oyo.</h2>
+          </div>
+          <Link href="/locations/oyo-state" className="inline-flex shrink-0 items-center gap-2 text-sm font-black text-fleet-ember transition hover:text-fleet-night">
+            Oyo service coverage <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        </aside>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {services.map((service) => {
             const Icon = service.icon;

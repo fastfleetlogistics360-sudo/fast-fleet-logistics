@@ -19,6 +19,7 @@ const publicRoutes: SitemapEntry[] = [
   { path: "/fastconfirm", changeFrequency: "weekly", priority: 0.86 },
   { path: "/campus-coordinators", changeFrequency: "monthly", priority: 0.72 },
   { path: "/services", changeFrequency: "weekly", priority: 0.85 },
+  { path: "/locations/oyo-state", changeFrequency: "weekly", priority: 0.84 },
   { path: "/how-it-works", changeFrequency: "weekly", priority: 0.85 },
   { path: "/rider/onboarding", changeFrequency: "weekly", priority: 0.82 },
   { path: "/business/register", changeFrequency: "weekly", priority: 0.82 },

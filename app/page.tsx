@@ -5,8 +5,8 @@ import { loadPublicBrandPartners } from "@/lib/public-content";
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "Same-Day Dispatch in Lagos and Ogun",
-  description: "Fast Fleets 360 Logistics provides same-day dispatch for customers, riders, restaurants, shopping vendors, and businesses across Lagos and Ogun.",
+  title: "Same-Day Dispatch in Lagos, Ogun and Oyo",
+  description: "Fast Fleets 360 Logistics provides same-day dispatch for customers, riders, restaurants, shopping vendors, and businesses across Lagos, Ogun, and Oyo.",
   keywords: [
     "Fast Fleets 360",
     "FastFleets360",
@@ -16,6 +16,8 @@ export const metadata: Metadata = {
     "Fast Fleets 360 Logistics",
     "same day dispatch Lagos",
     "Ogun delivery",
+    "Oyo delivery",
+    "Oyo dispatch rider",
     "Lagos courier service"
   ],
   alternates: {
@@ -35,7 +37,7 @@ export default async function LandingPage() {
             "@context": "https://schema.org",
             "@type": "DeliveryEvent",
             name: "Fast Fleets 360 Logistics",
-            description: "Same-day dispatch across Lagos and Ogun",
+            description: "Same-day dispatch across Lagos, Ogun, and Oyo",
             provider: { "@type": "Organization", name: "Fast Fleets 360 Logistics", url: "https://fastfleet.com.ng" }
           })
         }}
