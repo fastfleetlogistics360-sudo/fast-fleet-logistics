@@ -166,6 +166,7 @@ function ShoppingCategoryVendorSelection({ initialMalls, category, customerState
               <div className="mt-4 flex flex-wrap gap-2">
                 <StatusBadge tone="green">{vendors.length} vendors</StatusBadge>
                 <StatusBadge tone="neutral">{productCount} products</StatusBadge>
+                {customerState ? <StatusBadge tone="blue">{customerState} vendors first</StatusBadge> : null}
               </div>
             </div>
             <img src={heroImage} alt={`${meta.label} vendors`} loading="eager" decoding="async" className="hidden h-full min-h-[190px] w-full object-cover lg:block" />
@@ -821,6 +822,8 @@ function sortVendorsByState(vendors: ShoppingCategoryVendor[], customerState?: s
   return [...vendors].sort((left, right) => {
     const leftPreferred = left.location.state.toLowerCase() === preferred ? 0 : 1;
     const rightPreferred = right.location.state.toLowerCase() === preferred ? 0 : 1;
-    return leftPreferred - rightPreferred || left.location.state.localeCompare(right.location.state) || left.store.name.localeCompare(right.store.name);
+    const leftOpen = vendorIsOpen(left.store.operatingStatus) ? 0 : 1;
+    const rightOpen = vendorIsOpen(right.store.operatingStatus) ? 0 : 1;
+    return leftPreferred - rightPreferred || leftOpen - rightOpen || left.location.state.localeCompare(right.location.state) || left.store.name.localeCompare(right.store.name);
   });
 }

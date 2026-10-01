@@ -15,6 +15,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useMarketplaceVehicleOptions, type MarketplaceVehicleOption } from "@/components/marketplace/use-marketplace-vehicle-options";
 import { LightVehicleOptions } from "@/components/booking/light-vehicle-options";
 import { shortVendorDescription, vendorIsOpen, vendorStatusLabel } from "@/lib/vendor-presentation";
+import { extractNigerianState } from "@/lib/location/state-matching";
 
 type StoreItem = {
   id?: string;
@@ -38,8 +39,9 @@ export type Store = {
   items: StoreItem[];
 };
 
-export function RestaurantVendorSelection({ stores }: { stores: Store[] }) {
+export function RestaurantVendorSelection({ stores, customerState }: { stores: Store[]; customerState?: string | null }) {
   const [liveStores, setLiveStores] = useState<Store[]>(stores);
+  const orderedStores = useMemo(() => sortRestaurantsForCustomerState(liveStores, customerState), [customerState, liveStores]);
   const openVendorCount = liveStores.filter((store) => vendorIsOpen(store.operatingStatus)).length;
   const itemCount = liveStores.reduce((count, store) => count + store.items.length, 0);
 
@@ -62,6 +64,7 @@ export function RestaurantVendorSelection({ stores }: { stores: Store[] }) {
               <div className="mt-4 flex flex-wrap gap-2">
                 <StatusBadge tone={openVendorCount ? "green" : "amber"}>{openVendorCount} open</StatusBadge>
                 <StatusBadge tone="neutral">{itemCount} menu items</StatusBadge>
+                {customerState ? <StatusBadge tone="blue">{customerState} restaurants first</StatusBadge> : null}
               </div>
             </div>
             <img
@@ -75,7 +78,7 @@ export function RestaurantVendorSelection({ stores }: { stores: Store[] }) {
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {liveStores.map((store) => (
+          {orderedStores.map((store) => (
             <Link key={store.id || store.name} href={`/restaurants/${store.id || itemKey(store.name, "kitchen")}`} className="group block focus:outline-none focus:ring-2 focus:ring-fleet-ember">
               <article className="overflow-hidden rounded-fleet border border-fleet-line bg-white shadow-[0_8px_18px_rgba(8,17,31,0.06)] transition hover:-translate-y-1 hover:border-fleet-ember">
                 <div className="relative h-28 overflow-hidden bg-fleet-paper">
@@ -113,6 +116,17 @@ export function RestaurantVendorSelection({ stores }: { stores: Store[] }) {
       </section>
     </>
   );
+}
+
+function sortRestaurantsForCustomerState(stores: Store[], customerState?: string | null) {
+  const preferred = String(customerState || "").trim().toLowerCase();
+  return [...stores].sort((left, right) => {
+    const leftLocal = preferred && extractNigerianState(left.address || left.area).toLowerCase() === preferred ? 0 : 1;
+    const rightLocal = preferred && extractNigerianState(right.address || right.area).toLowerCase() === preferred ? 0 : 1;
+    const leftOpen = vendorIsOpen(left.operatingStatus) ? 0 : 1;
+    const rightOpen = vendorIsOpen(right.operatingStatus) ? 0 : 1;
+    return leftLocal - rightLocal || leftOpen - rightOpen || left.name.localeCompare(right.name);
+  });
 }
 
 export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: string; eyebrow: string; stores: Store[]; kind: "restaurant" | "shopping" }) {

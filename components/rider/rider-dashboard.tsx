@@ -1275,6 +1275,7 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
   const navigationHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(navigationDestination)}`;
   const messages = activeJobMessages(job, customerName, trackingActive, proofRequired, proof?.status || null, needsUpload, pendingReview);
   const marketplaceItems = marketplaceItemsForJob(job);
+  const customerNote = customerNoteForJob(job);
   return (
     <Card className="overflow-hidden p-0">
       <div className="border-b border-fleet-line bg-white p-4 sm:p-5">
@@ -1294,7 +1295,7 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
       </div>
 
       <div className="bg-fleet-paper/70 p-3 sm:p-4">
-        {marketplaceItems.length ? <div className="mb-3 rounded-[18px] border border-fleet-line bg-white p-4"><span className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-fleet-ember">Marketplace order contents</span><div className="mt-2 grid gap-2">{marketplaceItems.map((item, index) => <div key={`${item.name}-${index}`} className="flex items-center justify-between gap-3 text-sm"><strong className="text-fleet-night">{item.name}</strong><span className="font-black text-slate-500">x{item.quantity}</span></div>)}</div><p className="mt-3 text-xs font-bold text-slate-500">Confirm these items with the vendor before pickup.</p></div> : null}
+        {marketplaceItems.length ? <AcceptedOrderContents items={marketplaceItems} customerNote={customerNote} /> : null}
         <RoutePreview
           compact
           className="min-h-[260px] rounded-[18px]"
@@ -1486,13 +1487,35 @@ function isActiveJobMessageVisible(key: string, status: string) {
   return statusIndex >= 0 && messageIndex <= statusIndex;
 }
 
-function marketplaceItemsForJob(job: JobRow) {
+type RiderOrderItem = { name: string; quantity: number; price: number; subtotal: number; imageUrl: string | null };
+
+function marketplaceItemsForJob(job: JobRow): RiderOrderItem[] {
+  // The API removes this metadata for open offers. Keep the UI boundary too,
+  // including its local-preview fallback, so cart details appear only after assignment.
+  if (job.status === "searching" && !job.rider_id) return [];
   const raw = job.metadata?.items;
-  if (!Array.isArray(raw)) return [] as Array<{ name: string; quantity: number }>;
+  if (!Array.isArray(raw)) return [];
   return raw.map((item) => {
     const value = item && typeof item === "object" ? item as Record<string, unknown> : {};
-    return { name: String(value.name || value.productName || "Marketplace item"), quantity: Math.max(1, Number(value.quantity || 1)) };
+    const quantity = Math.max(1, Number(value.quantity || 1));
+    const candidatePrice = Number(value.price ?? value.price_ngn ?? 0);
+    const price = Number.isFinite(candidatePrice) ? Math.max(0, candidatePrice) : 0;
+    const candidateSubtotal = Number(value.subtotal ?? value.subtotal_ngn ?? price * quantity);
+    const subtotal = Number.isFinite(candidateSubtotal) ? Math.max(0, candidateSubtotal) : price * quantity;
+    return { name: String(value.name || value.productName || "Marketplace item"), quantity, price, subtotal, imageUrl: typeof value.image_url === "string" && value.image_url ? value.image_url : typeof value.imageUrl === "string" && value.imageUrl ? value.imageUrl : null };
   });
+}
+
+function customerNoteForJob(job: JobRow) {
+  if (job.status === "searching" && !job.rider_id) return null;
+  const fastErrand = job.metadata?.fast_errand;
+  const source = fastErrand && typeof fastErrand === "object" && !Array.isArray(fastErrand) ? fastErrand as Record<string, unknown> : job.metadata;
+  const note = typeof source?.customer_note === "string" ? source.customer_note.trim() : "";
+  return note ? note.slice(0, 700) : null;
+}
+
+function AcceptedOrderContents({ items, customerNote }: { items: RiderOrderItem[]; customerNote: string | null }) {
+  return <div className="mb-3 rounded-[18px] border border-fleet-line bg-white p-4"><span className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-fleet-ember">Order to pick up</span><div className="mt-3 grid gap-2">{items.map((item, index) => <div key={`${item.name}-${index}`} className="flex min-w-0 items-center gap-3 rounded-xl bg-fleet-paper p-2"><img src={item.imageUrl || "/fast-errands/foodstuff.webp"} alt={item.name} className="h-14 w-14 shrink-0 rounded-lg object-cover" loading="lazy" /><div className="min-w-0 flex-1"><strong className="block break-words text-sm text-fleet-night">{item.name}</strong><span className="mt-1 block text-xs font-semibold text-slate-600">{formatMoney(item.price)} each · Quantity {item.quantity}</span></div><span className="shrink-0 text-right"><strong className="block text-sm font-black text-fleet-night">{formatMoney(item.subtotal)}</strong><span className="text-xs font-black text-slate-500">×{item.quantity}</span></span></div>)}</div>{customerNote ? <aside className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3"><span className="text-[0.62rem] font-black uppercase tracking-[0.12em] text-amber-800">Customer note</span><p className="mt-1 break-words text-sm font-semibold leading-5 text-amber-950">{customerNote}</p></aside> : null}<p className="mt-3 text-xs font-bold text-slate-500">Confirm these items with the vendor before pickup.</p></div>;
 }
 
 function JobsTab({ loading, jobs, online, onToggleOnline }: { loading: boolean; jobs: JobRow[]; online: boolean; onToggleOnline: () => void }) {

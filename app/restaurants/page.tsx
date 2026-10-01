@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { RestaurantVendorSelection } from "@/components/marketplace/order-marketplace";
 import { loadPublicRestaurantKitchens } from "@/lib/public-content";
+import { loadMarketplaceCustomerState } from "@/lib/marketplace-customer-state";
 
 export const revalidate = 300;
 
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RestaurantsPage() {
-  const stores = await loadPublicRestaurantKitchens();
+  const [stores, customerState] = await Promise.all([loadPublicRestaurantKitchens(), loadMarketplaceCustomerState()]);
 
-  return <RestaurantVendorSelection stores={stores} />;
+  return <RestaurantVendorSelection stores={stores} customerState={customerState} />;
 }
