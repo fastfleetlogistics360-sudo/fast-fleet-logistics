@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/care360",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
