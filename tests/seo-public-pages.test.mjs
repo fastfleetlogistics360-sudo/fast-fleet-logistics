@@ -18,8 +18,19 @@ test("sitemap contains public SEO pages but not protected private routes", () =>
   const sitemap = read("app/sitemap.ts");
   assert.match(sitemap, /partners\/kwara-media-fashion-week/);
   assert.match(sitemap, /updates\/fast-fleets-360-now-live/);
+  assert.match(sitemap, /refer-and-win/);
+  assert.doesNotMatch(sitemap, /path: "\/referrals"/);
   assert.doesNotMatch(sitemap, /path: "\/admin"/);
   assert.doesNotMatch(sitemap, /path: "\/account"/);
+});
+
+test("Refer & Win has a crawlable canonical page with programme structured data", () => {
+  const page = read("app/refer-and-win/page.tsx");
+  assert.match(page, /alternates: \{ canonical: path \}/);
+  assert.match(page, /Fast Fleets 360 Refer & Win Rewards Programme/);
+  assert.match(page, /"@type": "HowTo"/);
+  assert.match(page, /"@type": "BreadcrumbList"/);
+  assert.match(page, /returnTo=\/referrals/);
 });
 
 test("organization uses the stable canonical identity and private families get a noindex header", () => {

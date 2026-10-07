@@ -21,6 +21,7 @@ const publicRoutes: SitemapEntry[] = [
   { path: "/services", changeFrequency: "weekly", priority: 0.85 },
   { path: "/locations/oyo-state", changeFrequency: "weekly", priority: 0.84 },
   { path: "/how-it-works", changeFrequency: "weekly", priority: 0.85 },
+  { path: "/refer-and-win", changeFrequency: "weekly", priority: 0.82 },
   { path: "/rider/onboarding", changeFrequency: "weekly", priority: 0.82 },
   { path: "/business/register", changeFrequency: "weekly", priority: 0.82 },
   { path: "/marketplace/listing", changeFrequency: "weekly", priority: 0.76 },
