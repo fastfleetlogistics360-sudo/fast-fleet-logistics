@@ -21,6 +21,8 @@ test("referral schema makes codes, acquisition attribution, and rewards unique",
   assert.match(sql, /referrals[\s\S]*referred_user_id uuid not null unique/);
   assert.match(sql, /referral_rewards[\s\S]*referral_id uuid not null unique/);
   assert.match(sql, /idempotency_key text not null unique/);
+  assert.match(sql, /replace\(gen_random_uuid\(\)::text, '-', ''\)/);
+  assert.doesNotMatch(sql, /gen_random_bytes/);
 });
 
 test("attribution is a server-stored intent and rejects existing accounts and self-referrals", async () => {

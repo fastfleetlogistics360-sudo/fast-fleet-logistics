@@ -166,7 +166,7 @@ begin
   select public.referral_code_for_name(full_name) into name_stub from public.users where id = target_user_id;
   name_stub := trim(both '-' from left(coalesce(nullif(name_stub, ''), 'MEMBER'), 18));
   loop
-    candidate := 'FAST-' || name_stub || '-' || upper(substr(encode(gen_random_bytes(5), 'hex'), 1, 8));
+    candidate := 'FAST-' || name_stub || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
     begin
       insert into public.referral_codes(user_id, code) values (target_user_id, candidate);
       return candidate;
