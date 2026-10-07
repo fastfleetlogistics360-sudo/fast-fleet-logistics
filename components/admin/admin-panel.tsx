@@ -290,6 +290,7 @@ type AdminRider = {
   application_status: "pending_review" | "submitted" | "under_review" | "approved" | "rejected" | "more_info_required";
   rider_account_type?: RiderAccountType | null;
   independent_bicycle_enabled?: boolean | null;
+  onboarding_path?: "standard" | "bicycle_application" | null;
   vehicle_type: string | null;
   plate_number: string | null;
   vehicle_color: string | null;
@@ -4636,8 +4637,9 @@ function RiderApprovalSection({
       <div className="grid gap-3 p-4">
         {riders.map((rider) => {
           const riderName = rider.users?.full_name || rider.users?.phone || "Rider";
-          const canAct = rider.application_status !== "approved" && rider.application_status !== "rejected";
-          const canEditTag = rider.application_status !== "rejected";
+          const bicycleApplicant = rider.onboarding_path === "bicycle_application";
+          const canAct = !bicycleApplicant && rider.application_status !== "approved" && rider.application_status !== "rejected";
+          const canEditTag = !bicycleApplicant && rider.application_status !== "rejected";
           const selectedAccountType = accountTypesByRider[rider.id] || normalizeRiderAccountType(rider.rider_account_type);
           const tagChanged = selectedAccountType !== normalizeRiderAccountType(rider.rider_account_type);
           const independentBicycleEnabled = independentBicyclesByRider[rider.id] ?? rider.independent_bicycle_enabled === true;
@@ -4650,6 +4652,7 @@ function RiderApprovalSection({
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
                     {rider.independent_bicycle_enabled ? "Independent bicycle" : rider.vehicle_type || "Vehicle pending"} · {rider.plate_number || "No plate"} · {rider.operating_zone || "No zone"}
                   </span>
+                  {bicycleApplicant ? <span className="mt-1 inline-block rounded-full bg-amber-50 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-amber-800">Bicycle applicant</span> : null}
                   {rider.campus_zone_id ? <span className="mt-1 inline-block rounded-full bg-emerald-50 px-2 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-emerald-700">KWASU campus rider</span> : null}
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
                     {rider.users?.email || "No email"} · {rider.users?.phone || "No phone"}
@@ -4691,7 +4694,12 @@ function RiderApprovalSection({
                 ))}
               </div>
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                {rider.application_status === "approved" ? (
+                {bicycleApplicant ? (
+                  <>
+                    {rider.application_status !== "approved" && rider.application_status !== "rejected" ? <><Button type="button" size="sm" onClick={() => onReview(rider.id, "approved", "fastfleets360")} disabled={busyAction === `rider:${rider.id}:approved`}>Approve bicycle applicant</Button><Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "rejected")} disabled={busyAction === `rider:${rider.id}:rejected`}>Reject</Button></> : null}
+                    <a href="/operations/cyclist-applications" className="inline-flex min-h-9 items-center justify-center rounded-fleet border border-fleet-line px-3 text-sm font-black text-fleet-night hover:bg-fleet-paper">Review bicycle application</a>
+                  </>
+                ) : rider.application_status === "approved" ? (
                   <Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "approved", selectedAccountType, { tagOnly: true, independentBicycleEnabled })} disabled={(!tagChanged && !bicycleChanged) || busyAction === `rider:${rider.id}:tag`}>
                     Save tag
                   </Button>

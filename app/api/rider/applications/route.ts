@@ -151,6 +151,17 @@ export async function POST(request: NextRequest) {
 
   const now = new Date().toISOString();
   const db = createAdminClient() || supabase;
+  const { data: cyclistApplication, error: cyclistApplicationError } = await db
+    .from("cyclist_applications")
+    .select("id")
+    .eq("user_id", user.id)
+    .in("status", ["submitted", "screening", "assessment_invited", "assessment_passed", "approved", "rider_activated"])
+    .limit(1)
+    .maybeSingle();
+  if (cyclistApplicationError) return NextResponse.json({ error: cyclistApplicationError.message }, { status: 400 });
+  if (cyclistApplication?.id) {
+    return NextResponse.json({ error: "You already have an active bicycle rider application. Open your Rider Dashboard to track it or contact support to change pathways." }, { status: 409 });
+  }
   let verifiedDocuments: Awaited<ReturnType<typeof verifyRiderKycUploads>>;
   try {
     verifiedDocuments = await verifyRiderKycUploads(db, {
@@ -191,6 +202,7 @@ export async function POST(request: NextRequest) {
       email: form.email,
       avatar_url: profilePhotoUrl,
       account_type: "rider",
+      rider_onboarding_path: "standard",
       updated_at: now
     })
   ]);
@@ -202,6 +214,9 @@ export async function POST(request: NextRequest) {
       {
         user_id: user.id,
         application_status: "submitted",
+        onboarding_path: "standard",
+        rider_account_type: "independent",
+        independent_bicycle_enabled: false,
         address: form.lga,
         vehicle_type: legacyVehicleType(form.vehicleType),
         plate_number: form.plateNumber,

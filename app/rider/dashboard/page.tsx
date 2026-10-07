@@ -30,6 +30,7 @@ type RiderProfileStatusRow = {
   online?: boolean | null;
   operating_zone?: string | null;
   address?: string | null;
+  onboarding_path?: "standard" | "bicycle_application" | null;
 };
 
 export default async function RiderDashboardPage() {
@@ -58,15 +59,20 @@ export default async function RiderDashboardPage() {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle<RiderStatusRow>(),
-    riderProfileReader.from("rider_profiles").select("id, application_status, suspension_reason, vehicle_type, online, operating_zone, address").eq("user_id", user.id).maybeSingle<RiderProfileStatusRow>()
+    riderProfileReader.from("rider_profiles").select("id, application_status, suspension_reason, vehicle_type, online, operating_zone, address, onboarding_path").eq("user_id", user.id).maybeSingle<RiderProfileStatusRow>()
   ]);
 
-  const rawStatus = applicationResult.data?.status || riderProfileResult.data?.application_status || "pending_review";
+  const bicycleApplicant = riderProfileResult.data?.onboarding_path === "bicycle_application";
+  const rawStatus = bicycleApplicant
+    ? riderProfileResult.data?.application_status || "pending_review"
+    : applicationResult.data?.status || riderProfileResult.data?.application_status || "pending_review";
   const status = rawStatus === "submitted" || rawStatus === "under_review" ? "pending_review" : rawStatus;
-  const rejectionReason = applicationResult.data?.rejection_reason || riderProfileResult.data?.suspension_reason || null;
+  const rejectionReason = bicycleApplicant
+    ? riderProfileResult.data?.suspension_reason || null
+    : applicationResult.data?.rejection_reason || riderProfileResult.data?.suspension_reason || null;
 
   if (!applicationResult.data && !riderProfileResult.data) redirect("/rider/onboarding");
-  if (status !== "approved") return <RiderAccessState status={status} rejectionReason={rejectionReason} />;
+  if (status !== "approved") return <RiderAccessState status={status} rejectionReason={rejectionReason} onboardingPath={riderProfileResult.data?.onboarding_path} />;
   await ensureDispatchProfileForApprovedRider(user.id, applicationResult.data, riderProfileResult.data, admin);
   return <RiderDashboard initialKycStatus="approved" initialOnline={Boolean(riderProfileResult.data?.online)} />;
 }

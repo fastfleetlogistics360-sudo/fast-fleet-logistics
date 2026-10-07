@@ -42,7 +42,7 @@ export async function GET() {
   const { data: profileRows, error } = await supabase
     .from("rider_profiles")
     .select(
-      "id, user_id, application_status, rider_account_type, independent_bicycle_enabled, vehicle_type, plate_number, vehicle_color, operating_zone, campus_zone_id, bank_name, account_number, account_name, online, created_at, updated_at, users:users!rider_profiles_user_id_fkey(full_name, phone, email), rider_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)"
+      "id, user_id, application_status, rider_account_type, independent_bicycle_enabled, onboarding_path, vehicle_type, plate_number, vehicle_color, operating_zone, campus_zone_id, bank_name, account_number, account_name, online, created_at, updated_at, users:users!rider_profiles_user_id_fkey(full_name, phone, email), rider_documents(id, document_type, status, file_url, storage_path, rejection_reason, created_at)"
     )
     .order("created_at", { ascending: false })
     .limit(75);
@@ -116,6 +116,57 @@ export async function PATCH(request: Request) {
   const supabase = createAdminClient();
   if (!supabase) {
     return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to review riders." }, { status: 503 });
+  }
+
+  const { data: targetProfile, error: targetProfileError } = await supabase
+    .from("rider_profiles")
+    .select("id, user_id, onboarding_path")
+    .eq("id", id)
+    .maybeSingle<{ id: string; user_id: string; onboarding_path?: string | null }>();
+  if (targetProfileError) return NextResponse.json({ error: targetProfileError.message }, { status: 400 });
+
+  // Bicycle applicants deliberately use the same Rider Approvals surface, but
+  // their approval must flow through the cyclist transition RPC so rider KYC
+  // and recruitment status cannot disagree. Fleet allocation stays separate.
+  if (targetProfile?.onboarding_path === "bicycle_application") {
+    if (status !== "approved" && status !== "rejected") {
+      return NextResponse.json({ error: "Approve or reject a bicycle applicant from this Rider Approvals screen; use Bicycle Applications for intermediate screening steps." }, { status: 400 });
+    }
+    const { data: cyclistApplication } = await supabase
+      .from("cyclist_applications")
+      .select("id")
+      .eq("user_id", targetProfile.user_id)
+      .in("status", ["submitted", "screening", "assessment_invited", "assessment_passed"])
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+    if (!cyclistApplication?.id) return NextResponse.json({ error: "This bicycle application is not awaiting a review decision." }, { status: 409 });
+    const transition = await supabase.rpc("transition_cyclist_application", {
+      target_application_id: cyclistApplication.id,
+      next_status: status,
+      note: status === "rejected" ? reason : null
+    });
+    if (transition.error) return NextResponse.json({ error: transition.error.message }, { status: 400 });
+    if (status === "approved" && operatingZone) {
+      const { error: zoneError } = await supabase
+        .from("rider_profiles")
+        .update({ operating_zone: operatingZone, updated_at: new Date().toISOString() })
+        .eq("id", targetProfile.id);
+      if (zoneError) return NextResponse.json({ error: zoneError.message }, { status: 400 });
+    }
+    const { data: updated } = await supabase
+      .from("rider_profiles")
+      .select("id, user_id, application_status, rider_account_type, independent_bicycle_enabled, operating_zone, campus_zone_id, suspension_reason, reviewed_at")
+      .eq("id", targetProfile.id)
+      .maybeSingle();
+    await insertNotificationWithPush(supabase, {
+      user_id: targetProfile.user_id,
+      title: status === "approved" ? "Rider KYC approved" : "Rider KYC rejected",
+      body: status === "approved" ? "Your Rider KYC is approved. Fleet Operations will assign a bicycle before you can go online for bicycle deliveries." : reason,
+      type: "rider_application",
+      metadata: { rider_profile_id: targetProfile.id, cyclist_application_id: cyclistApplication.id, status, url: "/rider/dashboard", tag: `ff-rider-kyc-${targetProfile.id}` }
+    }).catch(() => undefined);
+    return NextResponse.json({ rider: updated });
   }
 
   const patch: {

@@ -3,7 +3,7 @@ import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/ad
 import { insertNotificationWithPush } from "@/lib/notifications/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const statuses = new Set(["screening", "assessment_invited", "assessment_passed", "approved", "rider_activated", "rejected", "withdrawn", "suspended"]);
+const statuses = new Set(["screening", "assessment_invited", "assessment_passed", "approved", "rejected", "withdrawn", "suspended"]);
 
 export async function GET() {
   if (!(await requireAdminSession())) return NextResponse.json({ error: "Admin session required." }, { status: 401 });
@@ -28,12 +28,10 @@ export async function PATCH(request: Request) {
   if (!db) return NextResponse.json({ error: "Cyclist operations are not configured." }, { status: 503 });
   const { data: application } = await db.from("cyclist_applications").select("id, user_id, referral_id").eq("id", id).maybeSingle<{ id: string; user_id: string; referral_id?: string | null }>();
   if (!application) return NextResponse.json({ error: "Cyclist application not found." }, { status: 404 });
-  const rpc = status === "rider_activated"
-    ? await db.rpc("activate_cyclist_rider", { target_application_id: id })
-    : await db.rpc("transition_cyclist_application", { target_application_id: id, next_status: status, note: reason || null });
+  const rpc = await db.rpc("transition_cyclist_application", { target_application_id: id, next_status: status, note: reason || null });
   if (rpc.error) return NextResponse.json({ error: rpc.error.message }, { status: 400 });
-  const copy = status === "approved" ? "Your cyclist application was approved. Final rider activation is next." : status === "rider_activated" ? "Your rider profile is active. Complete your first delivery to start earning." : status === "rejected" ? `Your cyclist application was not approved: ${reason}` : `Your cyclist application is now ${status.replaceAll("_", " ")}.`;
-  void insertNotificationWithPush(db, { user_id: application.user_id, title: "Cyclist application update", body: copy, type: "cyclist_application", metadata: { cyclist_application_id: id, status, url: "/referrals" } }).catch(() => undefined);
+  const copy = status === "approved" ? "Your Rider KYC is approved. Fleet Operations will assign a bicycle before you can go online for bicycle deliveries." : status === "rejected" ? `Your bicycle rider application was not approved: ${reason}` : `Your bicycle rider application is now ${status.replaceAll("_", " ")}.`;
+  void insertNotificationWithPush(db, { user_id: application.user_id, title: status === "approved" ? "Rider KYC approved" : "Bicycle rider application update", body: copy, type: "cyclist_application", metadata: { cyclist_application_id: id, status, url: "/rider/dashboard" } }).catch(() => undefined);
   if (status === "approved" && application.referral_id) {
     const { data: referral } = await db.from("referrals").select("referrer_user_id").eq("id", application.referral_id).maybeSingle<{ referrer_user_id?: string | null }>();
     if (referral?.referrer_user_id) void insertNotificationWithPush(db, { user_id: referral.referrer_user_id, title: "Cyclist referral approved", body: "Your cyclist referral was approved. One completed delivery remains to unlock your reward.", type: "referral_cyclist_approved", metadata: { referral_id: application.referral_id, url: "/referrals" } }).catch(() => undefined);

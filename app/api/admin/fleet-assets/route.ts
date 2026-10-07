@@ -75,12 +75,13 @@ async function upsertFleetAsset(request: Request, editing: boolean) {
   if (!supabase) return NextResponse.json({ error: "Set SUPABASE_SERVICE_ROLE_KEY to manage fleet assets." }, { status: 503 });
 
   let assignedUserId: string | null = null;
+  let assignedRider: { id: string; user_id?: string | null; onboarding_path?: string | null } | null = null;
   if (assignedRiderProfileId) {
     const { data: rider, error: riderError } = await supabase
       .from("rider_profiles")
-      .select("id, user_id, application_status, rider_account_type, vehicle_type")
+      .select("id, user_id, application_status, rider_account_type, vehicle_type, onboarding_path")
       .eq("id", assignedRiderProfileId)
-      .maybeSingle<{ id: string; user_id?: string | null; application_status?: string | null; rider_account_type?: string | null; vehicle_type?: string | null }>();
+      .maybeSingle<{ id: string; user_id?: string | null; application_status?: string | null; rider_account_type?: string | null; vehicle_type?: string | null; onboarding_path?: string | null }>();
     if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 });
     if (!rider?.id || rider.application_status !== "approved") {
       return NextResponse.json({ error: "Assign bicycles only to approved rider accounts." }, { status: 400 });
@@ -98,6 +99,7 @@ async function upsertFleetAsset(request: Request, editing: boolean) {
       return NextResponse.json({ error: `This operator is already assigned to ${duplicateAsset.asset_code || "another bicycle"}.` }, { status: 400 });
     }
     assignedUserId = rider.user_id || null;
+    assignedRider = rider;
     // Fleet assignment establishes the bicycle relationship. It must not
     // overwrite the rider's declared dispatch vehicle; that is changed only
     // through the explicit rider administration flow.
@@ -123,6 +125,22 @@ async function upsertFleetAsset(request: Request, editing: boolean) {
 
   const { data, error } = await query.select(assetSelect).single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // The recruitment record becomes rider-activated only when the existing
+  // fleet workflow has actually assigned a bicycle. Approval itself remains a
+  // separate KYC decision and never fabricates an allocation.
+  if (assignedRider?.onboarding_path === "bicycle_application" && assignedRider.user_id) {
+    const { data: cyclistApplication } = await supabase
+      .from("cyclist_applications")
+      .select("id")
+      .eq("user_id", assignedRider.user_id)
+      .eq("status", "approved")
+      .maybeSingle<{ id: string }>();
+    if (cyclistApplication?.id) {
+      const activation = await supabase.rpc("activate_cyclist_rider", { target_application_id: cyclistApplication.id });
+      if (activation.error) return NextResponse.json({ error: activation.error.message }, { status: 400 });
+    }
+  }
   return NextResponse.json({ fleetAsset: data });
 }
 

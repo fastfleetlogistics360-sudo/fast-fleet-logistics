@@ -3,16 +3,24 @@ import { Suspense } from "react";
 import { Bike, FileCheck2, ShieldCheck } from "lucide-react";
 import { PhoneAuthForm } from "@/components/auth/phone-auth-form";
 import { RiderOnboardingFlow } from "@/components/onboarding/rider-onboarding-flow";
+import { RiderOnboardingChoice } from "@/components/onboarding/rider-onboarding-choice";
 import { BackButton } from "@/components/ui/back-button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
+import { parseUserRole } from "@/lib/auth/roles";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Rider Onboarding"
 };
 
-export default async function RiderOnboardingPage() {
+type RiderOnboardingPageProps = {
+  searchParams: Promise<{ path?: string }>;
+};
+
+export default async function RiderOnboardingPage({ searchParams }: RiderOnboardingPageProps) {
+  const { path } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user }
@@ -52,12 +60,20 @@ export default async function RiderOnboardingPage() {
     );
   }
 
-  return (
-    <section className="section-wrap pb-8 pt-4 sm:pb-12 sm:pt-6">
-      <BackButton className="mb-4" />
-      <RiderOnboardingFlow />
-    </section>
-  );
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("account_type, rider_onboarding_path")
+    .eq("user_id", user.id)
+    .maybeSingle<{ account_type?: string | null; rider_onboarding_path?: string | null }>();
+  if (parseUserRole(profile?.account_type) !== "rider") redirect("/choose-account-type?returnTo=/rider/onboarding");
+
+  // The standard form remains exactly the existing rider KYC flow. It is
+  // entered only after the server has recorded this rider's chosen path.
+  if (path === "standard" && profile?.rider_onboarding_path === "standard") {
+    return <section className="section-wrap pb-8 pt-4 sm:pb-12 sm:pt-6"><BackButton className="mb-4" /><RiderOnboardingFlow /></section>;
+  }
+
+  return <RiderOnboardingChoice initialMode={profile?.rider_onboarding_path} />;
 }
 
 function RiderAuthSkeleton() {

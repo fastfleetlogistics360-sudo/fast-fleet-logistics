@@ -7,6 +7,7 @@ const referralRoutePath = new URL("../app/api/referrals/route.ts", import.meta.u
 const intentRoutePath = new URL("../app/api/referrals/intent/route.ts", import.meta.url);
 const claimRoutePath = new URL("../app/referrals/claim/route.ts", import.meta.url);
 const cyclistApplicationRoutePath = new URL("../app/api/referrals/cyclist-applications/route.ts", import.meta.url);
+const cyclistApplicationServicePath = new URL("../lib/cyclist-rider-application.ts", import.meta.url);
 const marketplaceWorkflowPath = new URL("../lib/marketplace-order-workflow.ts", import.meta.url);
 const fastErrandCheckoutPath = new URL("../app/api/fast-errands/checkout/route.ts", import.meta.url);
 const deliveryCompletionPath = new URL("../lib/delivery-completion.ts", import.meta.url);
@@ -75,11 +76,13 @@ test("campaign rewards snapshot the amount, respect pause-at-claim, and preserve
 });
 
 test("cyclist activation requires approval without assigning a dispatch bicycle", async () => {
-  const [sql, fleetAssets, applicationRoute] = await Promise.all([source(migrationPath), source(fleetAssetsPath), source(cyclistApplicationRoutePath)]);
+  const [sql, fleetAssets, applicationRoute, applicationService] = await Promise.all([source(migrationPath), source(fleetAssetsPath), source(cyclistApplicationRoutePath), source(cyclistApplicationServicePath)]);
   const activation = sql.slice(sql.indexOf("create or replace function public.activate_cyclist_rider"), sql.indexOf("alter table public.referral_codes"));
   const qualification = sql.slice(sql.indexOf("create or replace function public.qualify_referral_from_delivery"), sql.indexOf("create or replace function public.process_referral_delivery_completion"));
-  assert.match(applicationRoute, /campaign_type === "cyclist"/);
-  assert.match(applicationRoute, /referral_id: referralId/);
+  assert.match(applicationRoute, /submitCyclistRiderApplication/);
+  assert.match(applicationRoute, /account\?\.account_type !== "rider"/);
+  assert.match(applicationService, /campaign_type === "cyclist"/);
+  assert.match(applicationService, /referral_id: referralId/);
   assert.match(activation, /application\.status <> 'approved'/);
   assert.match(activation, /rider_account_type = 'fastfleets360'/);
   assert.doesNotMatch(activation, /vehicle_type/);

@@ -3,14 +3,16 @@ import { createClient } from "@/lib/supabase/server";
 import { parseReferralIntent, REFERRAL_COOKIE } from "@/lib/referrals";
 
 export async function GET(request: NextRequest) {
-  const destination = new URL("/hub", request.url);
+  const requestedReturnTo = request.nextUrl.searchParams.get("returnTo");
+  const safeReturnTo = requestedReturnTo && requestedReturnTo.startsWith("/") && !requestedReturnTo.startsWith("//") ? requestedReturnTo : "/hub";
+  const destination = new URL(safeReturnTo, request.url);
   const intent = parseReferralIntent(request.cookies.get(REFERRAL_COOKIE)?.value);
   if (!intent) return NextResponse.redirect(destination);
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     const auth = new URL("/auth", request.url);
-    auth.searchParams.set("returnTo", "/referrals/claim");
+    auth.searchParams.set("returnTo", `/referrals/claim?returnTo=${encodeURIComponent(safeReturnTo)}`);
     return NextResponse.redirect(auth);
   }
   const { error } = await supabase.rpc("claim_referral_attribution", { target_intent_id: intent.intentId });

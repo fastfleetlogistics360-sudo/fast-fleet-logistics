@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Bike, Check, ChevronRight, Copy, Gift, Info, Loader2, Send, WalletCards, X } from "lucide-react";
 
 type Campaign = { id: string; slug: string; title: string; description: string; campaign_type: "customer" | "cyclist"; reward_amount_ngn: number };
-type Reward = { id: string; amountNgn: number; status: string; pendingAt: string; availableAt?: string | null; transferredAt?: string | null; qualifyingActivityType?: string | null; referredName: string; campaign: { slug: string; title: string; campaign_type: "customer" | "cyclist" } | null };
-type Data = { code: string; links: { customer: string; cyclist: string }; campaigns: Campaign[]; rewards: Reward[]; totals: { pending: number; available: number; earned: number }; cyclistApplication: { id: string; status: string } | null };
+type Reward = { id: string; amountNgn: number; status: string; referredName: string; campaign: { slug: string; title: string; campaign_type: "customer" | "cyclist" } | null };
+type Data = { code: string; links: { customer: string; cyclist: string }; campaigns: Campaign[]; rewards: Reward[]; totals: { pending: number; available: number; earned: number } };
 
 const money = (amount: number) => `₦${amount.toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
 
@@ -14,93 +15,31 @@ export function ReferralDashboard() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [transferring, setTransferring] = useState<string | null>(null);
-  const [applicationOpen, setApplicationOpen] = useState(false);
-
   const reload = () => fetch("/api/referrals", { cache: "no-store" }).then(async (response) => {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || "Could not load Refer & Win.");
     setData(payload as Data);
   });
-  useEffect(() => { reload().catch((error) => setNotice(error.message)).finally(() => setLoading(false)); }, []);
-  useEffect(() => {
-    if (!notice || !data) return;
-    const timer = window.setTimeout(() => setNotice(null), 3500);
-    return () => window.clearTimeout(timer);
-  }, [data, notice]);
-
+  useEffect(() => { void reload().catch((error) => setNotice(error.message)).finally(() => setLoading(false)); }, []);
+  useEffect(() => { if (!notice || !data) return; const timer = window.setTimeout(() => setNotice(null), 3500); return () => window.clearTimeout(timer); }, [data, notice]);
   const customerCampaign = useMemo(() => data?.campaigns.find((campaign) => campaign.slug === "customer_referral"), [data]);
   const cyclistCampaign = useMemo(() => data?.campaigns.find((campaign) => campaign.slug === "cyclist_referral"), [data]);
-
-  async function copy(value: string, label: string) {
-    await navigator.clipboard.writeText(value).catch(() => undefined);
-    setNotice(`${label} copied.`);
-  }
-  async function share(link: string, campaign: "customer" | "cyclist") {
-    const text = campaign === "cyclist"
-      ? "Can you ride a bicycle? Join Fast Fleets 360 as a cyclist using my referral link. Bicycle opportunities available:"
-      : "Join Fast Fleets 360 with my referral link and access delivery, FastErrands, Marketplace and more:";
-    if (navigator.share) await navigator.share({ title: "Fast Fleets 360 Refer & Win", text, url: link }).catch(() => undefined);
-    else await copy(`${text} ${link}`, "Share message");
-  }
-  async function transfer(rewardId: string) {
-    setTransferring(rewardId);
-    setNotice(null);
-    try {
-      const response = await fetch("/api/referrals/transfer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rewardId }) });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "Could not transfer this reward.");
-      setNotice("Referral reward transferred to your Fast Fleets wallet.");
-      await reload();
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not transfer this reward.");
-    } finally {
-      setTransferring(null);
-    }
-  }
-
+  async function copy(value: string, label: string) { await navigator.clipboard.writeText(value).catch(() => undefined); setNotice(`${label} copied.`); }
+  async function share(link: string, campaign: "customer" | "cyclist") { const text = campaign === "cyclist" ? "Can you ride a bicycle? Join Fast Fleets 360 as a cyclist using my referral link. Bicycle opportunities available:" : "Join Fast Fleets 360 with my referral link and access delivery, FastErrands, Marketplace and more:"; if (navigator.share) await navigator.share({ title: "Fast Fleets 360 Refer & Win", text, url: link }).catch(() => undefined); else await copy(`${text} ${link}`, "Share message"); }
+  async function transfer(rewardId: string) { setTransferring(rewardId); setNotice(null); try { const response = await fetch("/api/referrals/transfer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rewardId }) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || "Could not transfer this reward."); setNotice("Referral reward transferred to your Fast Fleets wallet."); await reload(); } catch (error) { setNotice(error instanceof Error ? error.message : "Could not transfer this reward."); } finally { setTransferring(null); } }
   if (loading) return <main className="section-wrap grid min-h-[60vh] place-items-center"><Loader2 className="h-7 w-7 animate-spin text-fleet-ember" /></main>;
   if (!data) return <main className="section-wrap py-10"><p className="rounded-fleet bg-rose-50 p-4 font-bold text-rose-700">{notice || "Refer & Win could not load."}</p></main>;
-
   return <main className="min-h-screen bg-fleet-paper pb-12"><div className="section-wrap max-w-4xl px-4 py-4 sm:px-6 sm:py-6">
-    <section className="rounded-[24px] bg-fleet-night px-5 py-4 text-white shadow-lift sm:px-6">
-      <div className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-fleet-gold"><Gift className="h-3.5 w-3.5" /> Refer & Win</span><a href="#how-it-works" className="inline-flex items-center text-xs font-black text-white/70 hover:text-white">How it works <ChevronRight className="h-3.5 w-3.5" /></a></div>
-      <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Invite people. Earn rewards.</h1>
-      <p className="mt-1 text-sm font-semibold text-white/70">Refer customers or cyclists and earn when they qualify.</p>
-    </section>
-
-    <section aria-label="Referral reward summary" className="mt-3 grid grid-cols-3 overflow-hidden rounded-[18px] border border-fleet-line bg-white shadow-sm">
-      <Summary label="Available" amount={data.totals.available} tone="green" />
-      <Summary label="Pending" amount={data.totals.pending} tone="amber" />
-      <Summary label="Total earned" amount={data.totals.earned} tone="neutral" />
-    </section>
-
-    <section className="mt-3 flex items-center gap-3 rounded-[18px] border border-fleet-line bg-white px-3 py-2.5 shadow-sm sm:px-4">
-      <div className="min-w-0 flex-1"><span className="block text-[10px] font-black uppercase tracking-[0.14em] text-fleet-ember">Your referral code</span><strong title={data.code} className="mt-0.5 block truncate font-mono text-sm font-black text-fleet-night sm:text-base">{data.code}</strong></div>
-      <button onClick={() => copy(data.code, "Referral code")} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-fleet-line px-2.5 text-xs font-black text-fleet-night hover:bg-fleet-paper" aria-label="Copy referral code"><Copy className="h-3.5 w-3.5" /> Copy</button>
-    </section>
-
-    <section className="mt-5"><div className="mb-2"><span className="text-[10px] font-black uppercase tracking-[0.14em] text-fleet-ember">Earn with Fast Fleets</span><h2 className="text-lg font-black text-fleet-night">Share. Qualify. Earn.</h2></div>
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-        <CampaignCard icon={<Gift className="h-4 w-4" />} title="Refer a user" reward={customerCampaign?.reward_amount_ngn || 1000} detail="First qualifying order" onCopy={() => copy(data.links.customer, "Customer link")} onShare={() => share(data.links.customer, "customer")} />
-        <CampaignCard icon={<Bike className="h-4 w-4" />} title="Refer a cyclist" reward={cyclistCampaign?.reward_amount_ngn || 5000} detail="Approved + first delivery" onCopy={() => copy(data.links.cyclist, "Cyclist link")} onShare={() => share(data.links.cyclist, "cyclist")} />
-      </div>
-      <button onClick={() => setApplicationOpen(true)} className="mt-3 inline-flex items-center gap-1 text-sm font-black text-fleet-ember hover:underline">Apply as a cyclist yourself <ChevronRight className="h-4 w-4" /></button>
-    </section>
-
-    <section className="mt-5 rounded-[20px] border border-fleet-line bg-white p-4 shadow-sm"><div className="flex items-baseline justify-between gap-3"><div><h2 className="text-lg font-black text-fleet-night">Referral history</h2><p className="mt-0.5 text-xs font-semibold text-slate-500">Track every reward from invitation to wallet.</p></div><span className="rounded-full bg-fleet-paper px-2 py-1 text-[10px] font-black text-slate-500">{data.rewards.length} {data.rewards.length === 1 ? "referral" : "referrals"}</span></div>
-      <div className="mt-3 grid gap-2">{data.rewards.length ? data.rewards.map((reward) => <RewardRow key={reward.id} reward={reward} transferring={transferring === reward.id} onTransfer={() => transfer(reward.id)} />) : <div className="rounded-xl bg-fleet-paper px-3 py-3 text-sm"><strong className="block text-fleet-night">No referrals yet.</strong><span className="font-semibold text-slate-500">Share a link to start earning.</span></div>}</div>
-    </section>
-
+    <section className="rounded-[24px] bg-fleet-night px-5 py-4 text-white shadow-lift sm:px-6"><div className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-fleet-gold"><Gift className="h-3.5 w-3.5" /> Refer & Win</span><a href="#how-it-works" className="inline-flex items-center text-xs font-black text-white/70 hover:text-white">How it works <ChevronRight className="h-3.5 w-3.5" /></a></div><h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Invite people. Earn rewards.</h1><p className="mt-1 text-sm font-semibold text-white/70">Refer customers or cyclists and earn when they qualify.</p></section>
+    <section aria-label="Referral reward summary" className="mt-3 grid grid-cols-3 overflow-hidden rounded-[18px] border border-fleet-line bg-white shadow-sm"><Summary label="Available" amount={data.totals.available} tone="green" /><Summary label="Pending" amount={data.totals.pending} tone="amber" /><Summary label="Total earned" amount={data.totals.earned} tone="neutral" /></section>
+    <section className="mt-3 flex items-center gap-3 rounded-[18px] border border-fleet-line bg-white px-3 py-2.5 shadow-sm sm:px-4"><div className="min-w-0 flex-1"><span className="block text-[10px] font-black uppercase tracking-[0.14em] text-fleet-ember">Your referral code</span><strong title={data.code} className="mt-0.5 block truncate font-mono text-sm font-black text-fleet-night sm:text-base">{data.code}</strong></div><button onClick={() => void copy(data.code, "Referral code")} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-fleet-line px-2.5 text-xs font-black text-fleet-night hover:bg-fleet-paper"><Copy className="h-3.5 w-3.5" /> Copy</button></section>
+    <section className="mt-5"><div className="mb-2"><span className="text-[10px] font-black uppercase tracking-[0.14em] text-fleet-ember">Earn with Fast Fleets</span><h2 className="text-lg font-black text-fleet-night">Share. Qualify. Earn.</h2></div><div className="grid grid-cols-2 gap-2.5 sm:gap-3"><CampaignCard icon={<Gift className="h-4 w-4" />} title="Refer a user" reward={customerCampaign?.reward_amount_ngn || 1000} detail="First qualifying order" onCopy={() => void copy(data.links.customer, "Customer link")} onShare={() => void share(data.links.customer, "customer")} /><CampaignCard icon={<Bike className="h-4 w-4" />} title="Refer a cyclist" reward={cyclistCampaign?.reward_amount_ngn || 5000} detail="Approved + first delivery" onCopy={() => void copy(data.links.cyclist, "Cyclist link")} onShare={() => void share(data.links.cyclist, "cyclist")} /></div><Link href="/cyclist" className="mt-3 inline-flex items-center gap-1 text-sm font-black text-fleet-ember hover:underline">Apply as a bicycle rider yourself <ChevronRight className="h-4 w-4" /></Link></section>
+    <section className="mt-5 rounded-[20px] border border-fleet-line bg-white p-4 shadow-sm"><div className="flex items-baseline justify-between gap-3"><div><h2 className="text-lg font-black text-fleet-night">Referral history</h2><p className="mt-0.5 text-xs font-semibold text-slate-500">Track every reward from invitation to wallet.</p></div><span className="rounded-full bg-fleet-paper px-2 py-1 text-[10px] font-black text-slate-500">{data.rewards.length} {data.rewards.length === 1 ? "referral" : "referrals"}</span></div><div className="mt-3 grid gap-2">{data.rewards.length ? data.rewards.map((reward) => <RewardRow key={reward.id} reward={reward} transferring={transferring === reward.id} onTransfer={() => void transfer(reward.id)} />) : <div className="rounded-xl bg-fleet-paper px-3 py-3 text-sm"><strong className="block text-fleet-night">No referrals yet.</strong><span className="font-semibold text-slate-500">Share a link to start earning.</span></div>}</div></section>
     <details id="how-it-works" className="group mt-4 rounded-[18px] border border-fleet-line bg-white px-4 py-3 shadow-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-black text-fleet-night"><span className="inline-flex items-center gap-2"><Info className="h-4 w-4 text-fleet-ember" /> How rewards work</span><ChevronRight className="h-4 w-4 text-slate-400 transition group-open:rotate-90" /></summary><p className="mt-3 text-sm font-semibold leading-6 text-slate-600">Rewards remain pending until the referred customer completes their first qualifying activity, or a referred cyclist is approved, activated, and completes a first delivery. Available rewards can then be transferred to your Fast Fleets wallet.</p></details>
     {notice ? <div role="status" className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-sm items-center justify-between gap-3 rounded-2xl bg-fleet-night px-4 py-3 text-sm font-bold text-white shadow-lift"><span>{notice}</span><button onClick={() => setNotice(null)} aria-label="Dismiss message" className="text-white/70 hover:text-white"><X className="h-4 w-4" /></button></div> : null}
-    {applicationOpen ? <CyclistApplication onClose={() => setApplicationOpen(false)} onSaved={() => { setApplicationOpen(false); setNotice("Cyclist application submitted. We’ll update you after operations review it."); reload().catch(() => undefined); }} /> : null}
   </div></main>;
 }
 
 function Summary({ label, amount, tone }: { label: string; amount: number; tone: "green" | "amber" | "neutral" }) { const color = tone === "green" ? "bg-emerald-50" : tone === "amber" ? "bg-amber-50" : "bg-white"; return <div className={`min-w-0 border-r border-fleet-line px-2 py-3 text-center last:border-r-0 sm:px-4 ${color}`}><span className="block truncate text-[9px] font-black uppercase tracking-[0.08em] text-slate-500 sm:text-[10px]">{label}</span><strong className="mt-1 block truncate text-base font-black tracking-tight text-fleet-night sm:text-xl">{money(amount)}</strong></div>; }
-
-function CampaignCard({ icon, title, reward, detail, onCopy, onShare }: { icon: React.ReactNode; title: string; reward: number; detail: string; onCopy: () => void; onShare: () => void }) { return <article className="rounded-[18px] border border-fleet-line bg-white p-3 shadow-sm sm:p-4"><span className="grid h-8 w-8 place-items-center rounded-lg bg-amber-50 text-fleet-ember">{icon}</span><h3 className="mt-2 text-[11px] font-black uppercase tracking-[0.08em] text-fleet-night sm:text-xs">{title}</h3><strong className="mt-0.5 block text-lg font-black tracking-tight text-fleet-ember sm:text-2xl">{money(reward)}</strong><p className="mt-0.5 min-h-8 text-[11px] font-semibold leading-4 text-slate-500 sm:text-xs">{detail}</p><div className="mt-3 flex gap-1.5"><button onClick={onShare} className="inline-flex h-9 flex-1 items-center justify-center gap-1 rounded-xl bg-fleet-night px-2 text-xs font-black text-white hover:bg-slate-800"><Send className="h-3.5 w-3.5" /> Share</button><button onClick={onCopy} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-fleet-line text-fleet-night hover:bg-fleet-paper" aria-label={`Copy ${title} referral link`} title="Copy link"><Copy className="h-3.5 w-3.5" /></button></div></article>; }
-
+function CampaignCard({ icon, title, reward, detail, onCopy, onShare }: { icon: React.ReactNode; title: string; reward: number; detail: string; onCopy: () => void; onShare: () => void }) { return <article className="rounded-[18px] border border-fleet-line bg-white p-3 shadow-sm sm:p-4"><span className="grid h-8 w-8 place-items-center rounded-lg bg-amber-50 text-fleet-ember">{icon}</span><h3 className="mt-2 text-[11px] font-black uppercase tracking-[0.08em] text-fleet-night sm:text-xs">{title}</h3><strong className="mt-0.5 block text-lg font-black tracking-tight text-fleet-ember sm:text-2xl">{money(reward)}</strong><p className="mt-0.5 min-h-8 text-[11px] font-semibold leading-4 text-slate-500 sm:text-xs">{detail}</p><div className="mt-3 flex gap-1.5"><button onClick={onShare} className="inline-flex h-9 flex-1 items-center justify-center gap-1 rounded-xl bg-fleet-night px-2 text-xs font-black text-white hover:bg-slate-800"><Send className="h-3.5 w-3.5" /> Share</button><button onClick={onCopy} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-fleet-line text-fleet-night hover:bg-fleet-paper" aria-label={`Copy ${title} referral link`}><Copy className="h-3.5 w-3.5" /></button></div></article>; }
 function RewardRow({ reward, transferring, onTransfer }: { reward: Reward; transferring: boolean; onTransfer: () => void }) { const cyclist = reward.campaign?.campaign_type === "cyclist"; const pending = reward.status === "pending" || reward.status === "held"; const condition = cyclist ? "Approved + first delivery" : "First qualifying activity"; return <article className="rounded-xl border border-fleet-line px-3 py-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><strong className="block truncate text-sm text-fleet-night">{reward.referredName}</strong><span className="mt-0.5 inline-flex rounded-full bg-fleet-paper px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-600">{cyclist ? "Cyclist" : "Customer"}</span></div><strong className="shrink-0 text-base font-black text-fleet-night">{money(reward.amountNgn)}</strong></div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><p className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600"><Check className={`h-3.5 w-3.5 ${pending ? "text-amber-500" : "text-emerald-600"}`} />{pending ? `Waiting for ${condition.toLowerCase()}` : cyclist ? "First delivery completed" : "Qualified"}</p><div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wide ${reward.status === "available" ? "bg-emerald-100 text-emerald-700" : reward.status === "transferred" ? "bg-slate-100 text-slate-700" : reward.status === "held" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}>{reward.status}</span>{reward.status === "available" ? <button disabled={transferring} onClick={onTransfer} className="inline-flex h-8 items-center gap-1 rounded-lg bg-fleet-night px-2 text-[10px] font-black text-white disabled:opacity-60">{transferring ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <WalletCards className="h-3.5 w-3.5" />} Wallet</button> : null}</div></div></article>; }
-
-function CyclistApplication({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) { const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null); async function submit(form: FormData) { setLoading(true); setError(null); const body = { canRideBicycle: form.get("canRide") === "on", residentialArea: form.get("area"), preferredOperatingZone: form.get("zone"), employmentPreference: form.get("preference"), hasSmartphone: form.get("smartphone") === "on", hasValidId: form.get("id") === "on", hasGuarantor: form.get("guarantor") === "on", experienceNotes: form.get("notes") }; try { const response = await fetch("/api/referrals/cyclist-applications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || "Could not submit your application."); onSaved(); } catch (value) { setError(value instanceof Error ? value.message : "Could not submit your application."); } finally { setLoading(false); } } return <div className="fixed inset-0 z-50 grid place-items-end bg-slate-950/45 p-0 sm:place-items-center sm:p-4"><form action={submit} className="max-h-[94vh] w-full max-w-lg overflow-y-auto rounded-t-[28px] bg-white p-5 sm:rounded-[28px]"><div className="flex items-center justify-between"><h2 className="text-xl font-black text-fleet-night">Cyclist application</h2><button type="button" onClick={onClose} className="text-sm font-black text-slate-500">Close</button></div><p className="mt-2 text-sm font-semibold leading-6 text-slate-600">This starts bicycle-rider recruitment. It does not create a separate account type.</p><label className="form-field mt-4"><span className="form-label">Residential area</span><input name="area" required className="form-input" /></label><label className="form-field mt-3"><span className="form-label">Preferred operating zone</span><input name="zone" required className="form-input" /></label><label className="form-field mt-3"><span className="form-label">Work preference</span><select name="preference" className="form-input"><option value="full_time">Full-time</option><option value="part_time">Part-time</option><option value="flexible">Flexible</option></select></label><label className="form-field mt-3"><span className="form-label">Optional experience notes</span><textarea name="notes" className="form-input min-h-20" /></label><div className="mt-4 grid gap-2 text-sm font-bold text-fleet-night">{[["canRide", "I can ride a bicycle"], ["smartphone", "I have a smartphone"], ["id", "I have a valid ID"], ["guarantor", "I have a guarantor"]].map(([name, label]) => <label key={name} className="flex gap-2"><input name={name} type="checkbox" /> {label}</label>)}</div>{error ? <p className="mt-4 rounded-fleet bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</p> : null}<button disabled={loading} className="mt-5 flex h-11 w-full items-center justify-center rounded-xl bg-fleet-night text-sm font-black text-white disabled:opacity-60">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Submit application"}</button></form></div>; }

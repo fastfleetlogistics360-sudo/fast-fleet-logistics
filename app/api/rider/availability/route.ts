@@ -3,9 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
+import { loadAssignedBicycleAsset } from "@/lib/fleet-assets";
 
 const riderProfileSelect =
-  "id, user_id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, independent_bicycle_enabled, operating_zone";
+  "id, user_id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, independent_bicycle_enabled, onboarding_path, operating_zone";
 
 type RiderProfileRow = {
   id: string;
@@ -22,6 +23,7 @@ type RiderProfileRow = {
   application_status?: string | null;
   rider_account_type?: string | null;
   independent_bicycle_enabled?: boolean | null;
+  onboarding_path?: string | null;
   operating_zone?: string | null;
 };
 
@@ -79,6 +81,20 @@ async function handleAvailability(rawVehicleType: unknown, requestedOnline?: boo
     if (profile.vehicle_type !== dispatchVehicle) patch.vehicle_type = dispatchVehicle;
 
     const approved = promotedFromApplication || profile.application_status === "approved";
+    if (profile.onboarding_path === "bicycle_application" && (requestedOnline === true || profile.online === true)) {
+      const assignedBicycle = await loadAssignedBicycleAsset(db, profile.id);
+      if (!assignedBicycle?.id || assignedBicycle.status !== "available") {
+        if (requestedOnline === true) {
+          return NextResponse.json({ error: "An assigned, available Fast Fleets 360 bicycle is required before you can go online for bicycle deliveries." }, { status: 403 });
+        }
+        // An administrator may unassign or place an asset into maintenance
+        // while this rider is offline from the app. The next canonical profile
+        // read safely clears stale availability instead of leaving an
+        // unallocated bicycle applicant visibly online.
+        patch.online = false;
+      }
+    }
+
     if (typeof requestedOnline === "boolean") {
       if (!approved) {
         return NextResponse.json({ error: "Your rider KYC must be approved before going online." }, { status: 403 });

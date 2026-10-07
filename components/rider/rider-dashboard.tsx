@@ -24,6 +24,7 @@ import type { LiveRiderLocation } from "@/components/realtime/use-live-delivery-
 import { ReviewPrompt } from "@/components/reviews/review-prompt";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 import { WalletDashboardCard } from "@/components/wallet/wallet-dashboard-card";
+import { BicycleAllocationCard } from "@/components/rider/bicycle-allocation-card";
 import { BackButton } from "@/components/ui/back-button";
 import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -60,6 +61,7 @@ type RiderProfile = {
   application_status?: KycStatus | null;
   rider_account_type?: RiderAccountType | null;
   independent_bicycle_enabled?: boolean | null;
+  onboarding_path?: "standard" | "bicycle_application" | null;
 };
 
 type JobRow = {
@@ -112,9 +114,9 @@ const offerFields =
   "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, status, price_ngn, distance_km, eta_minutes, created_at, rider_id, vehicle_type, vehicle_subtype, users:users!deliveries_customer_id_fkey(full_name, avatar_url)";
 
 const riderProfileFields =
-  "id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, independent_bicycle_enabled, operating_zone, address";
+  "id, vehicle_type, plate_number, vehicle_color, bank_name, account_number, account_name, rating, completed_deliveries, online, application_status, rider_account_type, independent_bicycle_enabled, onboarding_path, operating_zone, address";
 
-export function RiderAccessState({ status, rejectionReason }: { status: KycStatus; rejectionReason?: string | null }) {
+export function RiderAccessState({ status, rejectionReason, onboardingPath }: { status: KycStatus; rejectionReason?: string | null; onboardingPath?: "standard" | "bicycle_application" | null }) {
   const router = useRouter();
   const rejected = status === "rejected";
 
@@ -161,7 +163,7 @@ export function RiderAccessState({ status, rejectionReason }: { status: KycStatu
           {rejected ? rejectionReason || "Fast Fleets 360 operations rejected this application. Please review the note and re-apply." : "We review rider applications within 48 hours. You will receive an SMS and email when a decision is made."}
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-          <LinkButton href="/rider/onboarding">{rejected ? "Re-apply" : "Update application"}</LinkButton>
+          <LinkButton href={onboardingPath === "bicycle_application" ? "/cyclist" : "/rider/onboarding"}>{rejected ? "Re-apply" : "Update application"}</LinkButton>
           <LinkButton href="/support" variant="secondary">Contact support</LinkButton>
         </div>
       </Card>
@@ -1052,6 +1054,7 @@ function HomeTab({ loading, online, onToggleOnline, walletBalance, profile, inco
         onWithdraw={onOpenWithdrawal}
         transactionHref="/rider/dashboard#transactions"
       />
+      {profile.onboarding_path === "bicycle_application" ? <BicycleAllocationCard /> : null}
       <Card className="p-5">
         <button type="button" onClick={onToggleOnline} className={cn("flex w-full items-center justify-between rounded-fleet p-5 text-left transition", online ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600")}>
           <span><strong className="block text-2xl font-black">{online ? "ONLINE" : "OFFLINE"}</strong><span className="text-sm font-bold">{online ? "You’re available for delivery requests — even when Fast Fleets isn’t open." : "Go online when you’re ready to receive delivery requests."}</span></span>
