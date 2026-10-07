@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
 import { decryptInvestorAccountNumber } from "@/lib/investor-payout-accounts";
 import { insertNotificationWithPush } from "@/lib/notifications/push";
@@ -95,13 +95,18 @@ export async function PATCH(request: Request) {
       const { error } = await supabase.rpc("review_investor_withdrawal", { target_request_id: id, next_status: status, actor_user_id: admin.userId, note: status === "rejected" ? reason.trim() : null });
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
       const { data: profile } = await supabase.from("investor_profiles").select("user_id").eq("id", investorRequest.investor_profile_id).maybeSingle<{ user_id?: string | null }>();
-      if (profile?.user_id) await insertNotificationWithPush(supabase, {
-        user_id: profile.user_id,
-        title: status === "approved" ? "Investor payout approved" : status === "paid" ? "Investor payout paid" : "Investor payout rejected",
-        body: status === "approved" ? `Your investor payout request for NGN ${Number(investorRequest.amount_ngn || 0).toLocaleString("en-NG")} was approved.` : status === "paid" ? `Your investor payout request for NGN ${Number(investorRequest.amount_ngn || 0).toLocaleString("en-NG")} has been marked as paid.` : `Your investor payout request was rejected: ${reason.trim()}`,
-        type: status === "rejected" ? "withdrawal_rejected" : "withdrawal_approved",
-        metadata: { investor_withdrawal_request_id: id, status, url: "/investor/dashboard", tag: `ff-investor-withdrawal-${id}` }
-      });
+      const investorUserId = profile?.user_id;
+      if (investorUserId) {
+        after(() =>
+          insertNotificationWithPush(supabase, {
+            user_id: investorUserId,
+            title: status === "approved" ? "Investor payout approved" : status === "paid" ? "Investor payout paid" : "Investor payout rejected",
+            body: status === "approved" ? `Your investor payout request for NGN ${Number(investorRequest.amount_ngn || 0).toLocaleString("en-NG")} was approved.` : status === "paid" ? `Your investor payout request for NGN ${Number(investorRequest.amount_ngn || 0).toLocaleString("en-NG")} has been marked as paid.` : `Your investor payout request was rejected: ${reason.trim()}`,
+            type: status === "rejected" ? "withdrawal_rejected" : "withdrawal_approved",
+            metadata: { investor_withdrawal_request_id: id, status, url: "/investor/dashboard", tag: `ff-investor-withdrawal-${id}` }
+          }).catch(() => undefined)
+        );
+      }
       return NextResponse.json({ ok: true, id });
     }
     return reviewWalletWithdrawal(supabase, id, status, reason.trim());
@@ -119,18 +124,20 @@ export async function PATCH(request: Request) {
 
   const userId = existingRequest.rider_profiles?.user_id;
   if (userId) {
-    await insertNotificationWithPush(supabase, {
-      user_id: userId,
-      title: status === "approved" ? "Withdrawal approved" : status === "paid" ? "Withdrawal paid" : "Withdrawal rejected",
-      body:
-        status === "approved"
-          ? `Your NGN ${Number(existingRequest.amount_ngn || 0).toLocaleString("en-NG")} rider withdrawal was approved. Bank payout should be credited within ${PAYOUT_SLA_HOURS} business hours.`
-          : status === "paid"
-            ? `Your NGN ${Number(existingRequest.amount_ngn || 0).toLocaleString("en-NG")} rider withdrawal has been marked as paid.`
-            : `Your rider withdrawal was rejected: ${reason.trim()}`,
-      type: status === "approved" || status === "paid" ? "withdrawal_approved" : "withdrawal_rejected",
-      metadata: { withdrawal_request_id: id, amount_ngn: Number(existingRequest.amount_ngn || 0), status, url: "/rider/dashboard", tag: `ff-withdrawal-${id}` }
-    });
+    after(() =>
+      insertNotificationWithPush(supabase, {
+        user_id: userId,
+        title: status === "approved" ? "Withdrawal approved" : status === "paid" ? "Withdrawal paid" : "Withdrawal rejected",
+        body:
+          status === "approved"
+            ? `Your NGN ${Number(existingRequest.amount_ngn || 0).toLocaleString("en-NG")} rider withdrawal was approved. Bank payout should be credited within ${PAYOUT_SLA_HOURS} business hours.`
+            : status === "paid"
+              ? `Your NGN ${Number(existingRequest.amount_ngn || 0).toLocaleString("en-NG")} rider withdrawal has been marked as paid.`
+              : `Your rider withdrawal was rejected: ${reason.trim()}`,
+        type: status === "approved" || status === "paid" ? "withdrawal_approved" : "withdrawal_rejected",
+        metadata: { withdrawal_request_id: id, amount_ngn: Number(existingRequest.amount_ngn || 0), status, url: "/rider/dashboard", tag: `ff-withdrawal-${id}` }
+      }).catch(() => undefined)
+    );
   }
 
   return NextResponse.json({ ok: true, id: data });
@@ -314,18 +321,20 @@ async function reviewWalletWithdrawal(
     ]);
   }
 
-  await insertNotificationWithPush(supabase, {
-    user_id: wallet.user_id,
-    title: status === "approved" ? "Withdrawal approved" : status === "paid" ? "Withdrawal paid" : "Withdrawal rejected",
-    body:
-      status === "approved"
-        ? `Your NGN ${amount.toLocaleString("en-NG")} withdrawal was approved. Bank payout should be credited within ${PAYOUT_SLA_HOURS} business hours.`
-        : status === "paid"
-          ? `Your NGN ${amount.toLocaleString("en-NG")} withdrawal has been marked as paid.`
-          : `Your withdrawal was rejected: ${reason}`,
-    type: status === "approved" || status === "paid" ? "withdrawal_approved" : "withdrawal_rejected",
-    metadata: { withdrawal_request_id: id, transaction_id: transaction.id, amount_ngn: amount, status, url: notificationUrl, tag: `ff-withdrawal-${transaction.id}` }
-  });
+  after(() =>
+    insertNotificationWithPush(supabase, {
+      user_id: wallet.user_id,
+      title: status === "approved" ? "Withdrawal approved" : status === "paid" ? "Withdrawal paid" : "Withdrawal rejected",
+      body:
+        status === "approved"
+          ? `Your NGN ${amount.toLocaleString("en-NG")} withdrawal was approved. Bank payout should be credited within ${PAYOUT_SLA_HOURS} business hours.`
+          : status === "paid"
+            ? `Your NGN ${amount.toLocaleString("en-NG")} withdrawal has been marked as paid.`
+            : `Your withdrawal was rejected: ${reason}`,
+      type: status === "approved" || status === "paid" ? "withdrawal_approved" : "withdrawal_rejected",
+      metadata: { withdrawal_request_id: id, transaction_id: transaction.id, amount_ngn: amount, status, url: notificationUrl, tag: `ff-withdrawal-${transaction.id}` }
+    }).catch(() => undefined)
+  );
 
   return NextResponse.json({ ok: true, id: transaction.id });
 }
