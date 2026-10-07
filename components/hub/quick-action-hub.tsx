@@ -87,6 +87,7 @@ export function QuickActionHub({ role, fullName, email, avatarUrl, shouldShowTou
     { id: "dashboard", title: "Dashboard", href: roleHome[role], icon: LayoutDashboard, tone: "navy", description: "See your account activity, wallet, deliveries, and the tools that matter to your role." },
     { id: "dispatch", title: "Dispatch", href: "/book", icon: Truck, tone: "orange", description: "Book a rider for parcels, documents, and everyday deliveries." },
     { id: "fast-errands", title: "FastErrands", href: "/fast-errands", icon: WalletCards, tone: "orange", description: "Ask a verified runner to help with quick local errands." },
+    { id: "refer-and-win", title: "Refer & Win", href: "/referrals", icon: Gift, tone: "pink", description: "Invite customers or cyclists, track pending rewards, and transfer unlocked earnings to your wallet." },
     { id: "storage-facility", title: "Book Storage Facility", href: "/storage-facility", icon: Warehouse, tone: "navy", description: "Book affordable storage and bring your items or let Fast Fleets pick them up." },
     { id: "restaurants", title: "Restaurants", href: "/restaurants", icon: Utensils, tone: "orange", description: "Order from restaurant partners and follow delivery from checkout." },
     { id: "shopping", title: "Shopping", href: "/shopping", icon: ShoppingBag, tone: "green", description: "Browse local stores and have selected items delivered to you." },
@@ -103,7 +104,7 @@ export function QuickActionHub({ role, fullName, email, avatarUrl, shouldShowTou
   const glance = overview?.glance || placeholderGlance(role);
 
   useEffect(() => {
-    const destinations = [roleHome[role], "/book", "/fast-errands", "/storage-facility", "/restaurants", "/shopping", "/heavy-logistics", "/track", "/services", "/updates", "/about", "/support"];
+    const destinations = [roleHome[role], "/book", "/fast-errands", "/referrals", "/storage-facility", "/restaurants", "/shopping", "/heavy-logistics", "/track", "/services", "/updates", "/about", "/support"];
     if (role === "business") destinations.push("/marketplace/listing");
     destinations.forEach((destination) => router.prefetch(destination));
   }, [role, router]);

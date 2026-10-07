@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test tests/security/*.test.mjs tests/fast-errands-pricing.test.ts",
+    "test": "node --experimental-strip-types --test tests/security/*.test.mjs tests/fast-errands-pricing.test.ts tests/referral-engine.test.mjs",
     "typecheck": "tsc --noEmit",
     "native:add:ios": "npx cap add ios",
     "native:add:android": "npx cap add android",
