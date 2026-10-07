@@ -104,5 +104,7 @@ test("dashboard generates the stable code server-side rather than exposing user 
   assert.match(route, /ensure_referral_code/);
   assert.match(route, /referralLink\(origin, codeData, "customer_referral"\)/);
   assert.match(route, /referralLink\(origin, codeData, "cyclist_referral"\)/);
+  assert.match(route, /referral:referrals!inner\(referred_user_id, referred:users!referrals_referred_user_id_fkey/);
+  assert.doesNotMatch(route, /\), referred:users!referrals_referred_user_id_fkey/);
   assert.doesNotMatch(route, /user\.id.*ref=/);
 });

@@ -13,15 +13,15 @@ export async function GET(request: Request) {
   if (codeError || typeof codeData !== "string") return NextResponse.json({ error: "Could not create your referral code." }, { status: 500 });
   const [campaignResult, rewardResult, referralResult] = await Promise.all([
     db.from("referral_campaigns").select("id, slug, title, description, campaign_type, reward_amount_ngn, qualification_type").eq("is_active", true).order("created_at"),
-    db.from("referral_rewards").select("id, referral_id, amount_ngn, status, pending_at, available_at, transferred_at, qualifying_activity_type, qualifying_activity_id, referral:referrals!inner(referred_user_id, campaign:referral_campaigns!inner(slug, title, campaign_type)), referred:users!referrals_referred_user_id_fkey(full_name)").eq("referrer_user_id", user.id).order("created_at", { ascending: false }).limit(100),
+    db.from("referral_rewards").select("id, referral_id, amount_ngn, status, pending_at, available_at, transferred_at, qualifying_activity_type, qualifying_activity_id, referral:referrals!inner(referred_user_id, referred:users!referrals_referred_user_id_fkey(full_name), campaign:referral_campaigns!inner(slug, title, campaign_type))").eq("referrer_user_id", user.id).order("created_at", { ascending: false }).limit(100),
     db.from("referrals").select("id, campaign_id, referred_user_id").eq("referred_user_id", user.id).maybeSingle()
   ]);
   if (campaignResult.error || rewardResult.error) return NextResponse.json({ error: "Could not load your referral activity." }, { status: 500 });
   const cyclistReferralId = referralResult.data?.id || null;
   const { data: ownCyclistApplication } = await db.from("cyclist_applications").select("id, status, submitted_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const rewards = (rewardResult.data || []).map((reward) => {
-    const referred = Array.isArray(reward.referred) ? reward.referred[0] : reward.referred;
     const referral = Array.isArray(reward.referral) ? reward.referral[0] : reward.referral;
+    const referred = referral?.referred ? (Array.isArray(referral.referred) ? referral.referred[0] : referral.referred) : null;
     const campaign = referral?.campaign ? (Array.isArray(referral.campaign) ? referral.campaign[0] : referral.campaign) : null;
     return {
     id: reward.id,
