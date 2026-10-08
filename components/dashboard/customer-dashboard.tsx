@@ -329,9 +329,13 @@ export function CustomerDashboard() {
         const { data: launchRow } = await supabase.from("platform_launch_states").select("status").eq("state", selectedState).maybeSingle<{ status?: string | null }>();
         setLaunchStatus(normalizeLaunchStatus(launchRow?.status || (DEFAULT_LIVE_STATES.includes(selectedState as (typeof DEFAULT_LIVE_STATES)[number]) ? "active" : "waitlist")));
         const mergedOrders = mergeLocalDeliveries(payload.orders || [], payload.user?.id || null);
-        const hydratedOrders = await enrichOrdersWithRiderDetails(mergedOrders);
-        if (!mounted) return;
-        setOrders(hydratedOrders);
+        // Render delivery metadata immediately. In particular, FastConfirm
+        // photos must reach the messenger at the same time as their alert,
+        // rather than waiting for optional rider-detail enrichment.
+        setOrders(mergedOrders);
+        void enrichOrdersWithRiderDetails(mergedOrders).then((hydratedOrders) => {
+          if (mounted) setOrders(hydratedOrders);
+        });
         setPromotions(payload.promotions || []);
         setAddresses(payload.addresses || []);
         if (!removeRealtime && payload.user?.id) {
@@ -360,12 +364,19 @@ export function CustomerDashboard() {
       }
     }
     void load();
+    const onDeliveryUpdate = (event: Event) => {
+      const metadata = (event as CustomEvent<Record<string, unknown> | undefined>).detail;
+      if (!metadata?.delivery_id && !metadata?.order_id && !metadata?.delivery_code && !metadata?.order_code) return;
+      void load(true);
+    };
+    window.addEventListener("fastfleet:delivery-update", onDeliveryUpdate);
     const timer = window.setInterval(() => {
       void load(true);
-    }, 60000);
+    }, 30000);
     return () => {
       mounted = false;
       window.clearInterval(timer);
+      window.removeEventListener("fastfleet:delivery-update", onDeliveryUpdate);
       removeRealtime?.();
     };
   }, []);

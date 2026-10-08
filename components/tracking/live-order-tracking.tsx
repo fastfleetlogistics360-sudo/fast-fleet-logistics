@@ -225,11 +225,19 @@ export function LiveOrderTracking({
     }
     const timer = window.setInterval(() => {
       void refreshTracking();
-    }, 25000);
+    }, 12000);
+    const onDeliveryUpdate = (event: Event) => {
+      const metadata = (event as CustomEvent<Record<string, unknown> | undefined>).detail;
+      const matchesDelivery = String(metadata?.delivery_id || "") === order.id || String(metadata?.delivery_code || "").toUpperCase() === order.delivery_code.toUpperCase();
+      const matchesMarketplaceOrder = Boolean(initialOrder.marketplace_order?.id) && String(metadata?.order_id || "") === initialOrder.marketplace_order?.id;
+      if (matchesDelivery || matchesMarketplaceOrder) void refreshTracking();
+    };
+    window.addEventListener("fastfleet:delivery-update", onDeliveryUpdate);
     void refreshTracking();
     return () => {
       stopped = true;
       window.clearInterval(timer);
+      window.removeEventListener("fastfleet:delivery-update", onDeliveryUpdate);
     };
   }, [order.delivery_code, order.status]);
 

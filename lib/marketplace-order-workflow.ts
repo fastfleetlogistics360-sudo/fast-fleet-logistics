@@ -111,6 +111,7 @@ export async function transitionMarketplaceOrder(
           business_profile_id: actor.businessProfileId || null,
           marketplace_vendor_id: order.marketplace_vendor_id || null,
           marketplace_vendor_branch_id: order.marketplace_vendor_branch_id || null,
+          marketplace_vendor_snapshot: snapshot,
           marketplace_customer_id: order.customer_id || null,
           marketplace_kind: order.marketplace_kind || null,
           ...(fastErrandSnapshot ? { fast_errand: fastErrandSnapshot } : {}),

@@ -1,18 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { accountMessengerHref } from "@/lib/tracking-links";
+import { pickupProofFromMetadata } from "@/lib/pickup-proof";
 
 type MessengerOrder = {
   id?: string | null;
+  delivery_id?: string | null;
   delivery_code?: string | null;
   pickup_address?: string | null;
   dropoff_address?: string | null;
   status?: string | null;
+  metadata?: Record<string, unknown> | null;
   rider_profiles?: {
     users?: {
       full_name?: string | null;
@@ -60,6 +63,9 @@ export function ActiveOrderMessengerSheet({
   const href = hrefForOrder ? hrefForOrder(activeOrder) : accountMessengerHref(activeOrder.delivery_code || activeOrder.id);
   const riderName = activeOrder.rider_profiles?.users?.full_name || "Your rider";
   const route = [activeOrder.pickup_address, activeOrder.dropoff_address].filter(Boolean).join(" to ");
+  const proof = pickupProofFromMetadata(activeOrder.metadata);
+  const proofDeliveryId = activeOrder.delivery_id || activeOrder.id || null;
+  const showFastConfirmPreview = Boolean(proof?.url && proofDeliveryId);
 
   function dismiss() {
     try {
@@ -76,32 +82,46 @@ export function ActiveOrderMessengerSheet({
       aria-live="polite"
       aria-label="Ongoing delivery messenger"
       className={cn(
-        "fixed inset-x-3 bottom-24 z-[60] mx-auto max-w-sm rounded-[20px] border border-white/80 bg-white/95 p-3 shadow-[0_20px_55px_rgba(8,17,31,0.20)] ring-1 ring-fleet-line/30 backdrop-blur-2xl lg:bottom-5",
+        "fixed inset-x-3 bottom-24 z-[60] mx-auto max-w-md rounded-[17px] border border-white/80 bg-white/95 p-2.5 shadow-[0_16px_42px_rgba(8,17,31,0.18)] ring-1 ring-fleet-line/30 backdrop-blur-2xl lg:bottom-5",
         className
       )}
     >
-      <button type="button" onClick={dismiss} className="mx-auto mb-2 block h-1 w-12 rounded-full bg-slate-300" aria-label="Dismiss messenger prompt" />
-      <div className="flex items-start gap-2.5">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[13px] bg-fleet-night text-white shadow-[0_10px_24px_rgba(8,17,31,0.18)]">
-          <MessageCircle className="h-4 w-4" />
+      <div className="flex items-start gap-2">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[11px] bg-fleet-night text-white shadow-[0_8px_18px_rgba(8,17,31,0.16)]">
+          <MessageCircle className="h-3.5 w-3.5" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <span>
-              <span className="text-[0.65rem] font-black uppercase tracking-[0.12em] text-fleet-ember">Ongoing job</span>
-              <h2 className="mt-0.5 text-base font-black leading-tight text-fleet-night">{statusHeadline(String(activeOrder.status || ""))}</h2>
+              <span className="text-[0.58rem] font-black uppercase tracking-[0.12em] text-fleet-ember">Delivery update</span>
+              <h2 className="mt-0.5 text-sm font-black leading-tight text-fleet-night">{statusHeadline(String(activeOrder.status || ""))}</h2>
             </span>
-            <button type="button" onClick={dismiss} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-fleet-paper text-slate-500" aria-label="Close messenger prompt">
-              <X className="h-4 w-4" />
+            <button type="button" onClick={dismiss} className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-fleet-paper text-slate-500" aria-label="Close messenger prompt">
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-600">{riderName} is connected. Open the messenger for live updates.</p>
-          {route ? <p className="mt-1 line-clamp-1 text-[0.7rem] font-bold leading-4 text-slate-500">{route}</p> : null}
-          <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-            <Link href={href} className="inline-flex min-h-10 items-center justify-center rounded-[13px] bg-fleet-night px-3 text-xs font-black text-white transition hover:bg-fleet-ember">
-              Open messenger
+          <p className="mt-1 text-[0.72rem] font-semibold leading-4 text-slate-600">
+            {showFastConfirmPreview ? "FastConfirm photo is ready for your review." : `${riderName} is connected. Live updates appear here as they arrive.`}
+          </p>
+          {route ? <p className="mt-1 line-clamp-1 text-[0.65rem] font-bold leading-4 text-slate-500">{route}</p> : null}
+          {showFastConfirmPreview ? (
+            <Link href={href} className="mt-2 flex items-center gap-2 rounded-[11px] border border-fleet-gold/40 bg-amber-50/70 p-1.5">
+              <Image
+                src={`/api/uploads/access?scope=delivery-proof&id=${encodeURIComponent(proofDeliveryId || "")}`}
+                alt="FastConfirm package photo"
+                width={80}
+                height={52}
+                priority
+                unoptimized
+                className="h-10 w-14 rounded-[8px] object-cover"
+              />
+              <span className="min-w-0 text-[0.7rem] font-black leading-4 text-fleet-night">FastConfirm photo<br /><span className="font-semibold text-slate-500">Tap to review</span></span>
             </Link>
-            <Button type="button" variant="secondary" onClick={dismiss}>Later</Button>
+          ) : null}
+          <div className="mt-2">
+            <Link href={href} className="inline-flex min-h-9 w-full items-center justify-center rounded-[11px] bg-fleet-night px-3 text-xs font-black text-white transition hover:bg-fleet-ember">
+              Open delivery messenger
+            </Link>
           </div>
         </div>
       </div>

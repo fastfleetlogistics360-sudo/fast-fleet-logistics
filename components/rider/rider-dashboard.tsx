@@ -82,6 +82,7 @@ type JobRow = {
   rider_id?: string | null;
   vehicle_type?: string | null;
   vehicle_subtype?: string | null;
+  vendor_name?: string | null;
   metadata?: Record<string, unknown> | null;
   users?: {
     full_name?: string | null;
@@ -1114,6 +1115,7 @@ function ActiveJobLauncher({ job, trackingActive, trackingMessage, onOpen }: { j
             {trackingActive ? <StatusBadge tone="green">Tracking on</StatusBadge> : null}
           </div>
           <h2 className="mt-2 break-words text-xl font-black leading-tight text-fleet-night">{job.delivery_code}</h2>
+          {job.vendor_name ? <p className="mt-1 text-xs font-black uppercase tracking-[0.1em] text-fleet-ember">Pickup from {job.vendor_name}</p> : null}
           <p className="mt-1 line-clamp-2 text-sm font-semibold leading-6 text-slate-600">{job.pickup_address} to {job.dropoff_address}</p>
           {trackingMessage ? <p className="mt-2 text-xs font-bold leading-5 text-slate-500">{trackingMessage}</p> : null}
         </div>
@@ -1139,6 +1141,7 @@ function IncomingJob({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLoc
           <div className="min-w-0">
 	          <StatusBadge tone="amber">Incoming job</StatusBadge>
 	          <OfferRoute pickup={job.pickup_address} dropoff={job.dropoff_address} />
+	          {job.vendor_name ? <p className="mt-2 text-sm font-black text-fleet-ember">Vendor: {job.vendor_name}</p> : null}
 	          <p className="mt-2 text-sm font-semibold text-slate-600">{distanceLabel} · {formatMoney(job.price_ngn)} estimated earning</p>
 	          <p className="mt-2 inline-flex rounded-fleet bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">{pickupEtaLabel(pickupEtaMinutes, pickupEtaLoading, liveLocation)}</p>
 	          <p className="mt-2 text-sm font-bold text-slate-600">Customer: {customerName}</p>
@@ -1286,6 +1289,7 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
           <div className="min-w-0">
             <StatusBadge tone="blue">Active delivery</StatusBadge>
             <h2 className="mt-3 break-words text-2xl font-black text-fleet-night">{job.delivery_code}</h2>
+            {job.vendor_name ? <p className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-fleet-ember">Restaurant / vendor · {job.vendor_name}</p> : null}
             <div className="mt-3 grid gap-2 text-sm font-semibold leading-5 text-slate-600">
               <span><strong className="mr-2 text-[0.62rem] uppercase tracking-[0.12em] text-emerald-700">Pickup</strong>{job.pickup_address}</span>
               <span><strong className="mr-2 text-[0.62rem] uppercase tracking-[0.12em] text-fleet-ember">Delivery</strong>{job.dropoff_address}</span>
@@ -1648,7 +1652,7 @@ function WithdrawalModal({ amount, onAmount, profile, loading, message, onClose,
 }
 
 function TripCard({ job }: { job: JobRow }) {
-  return <article className="rounded-fleet border border-fleet-line bg-white p-4"><div className="flex items-start justify-between gap-3"><span><strong className="block text-sm font-black text-fleet-night">{job.delivery_code}</strong><span className="mt-1 block text-xs font-semibold leading-5 text-slate-500">{job.pickup_address} to {job.dropoff_address}</span></span><StatusBadge tone={job.status === "delivered" ? "green" : "blue"}>{job.status.replaceAll("_", " ")}</StatusBadge></div><div className="mt-3 flex items-center justify-between text-sm font-black text-fleet-night"><span>{formatMoney(job.price_ngn)}</span><span>{job.eta_minutes || 30} min</span></div></article>;
+  return <article className="rounded-fleet border border-fleet-line bg-white p-4"><div className="flex items-start justify-between gap-3"><span><strong className="block text-sm font-black text-fleet-night">{job.delivery_code}</strong>{job.vendor_name ? <span className="mt-1 block text-xs font-black text-fleet-ember">{job.vendor_name}</span> : null}<span className="mt-1 block text-xs font-semibold leading-5 text-slate-500">{job.pickup_address} to {job.dropoff_address}</span></span><StatusBadge tone={job.status === "delivered" ? "green" : "blue"}>{job.status.replaceAll("_", " ")}</StatusBadge></div><div className="mt-3 flex items-center justify-between text-sm font-black text-fleet-night"><span>{formatMoney(job.price_ngn)}</span><span>{job.eta_minutes || 30} min</span></div></article>;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

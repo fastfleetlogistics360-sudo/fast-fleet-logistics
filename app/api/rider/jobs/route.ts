@@ -154,7 +154,9 @@ export async function GET(request: Request) {
         !isRejectedByRider(job, rider.id) &&
         !hasQueuedDelivery && fastErrandVendorIsFunded(job.metadata) && jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, Boolean(rider.independent_bicycle_enabled), riderLocation, deliveryPolicy.rider, rider.campus_zone_id, hasActiveDelivery)
     );
-    return NextResponse.json({ jobs: mergeJobs([...available, ...assigned]).map((job) => stripUnassignedOfferSensitiveFields(job as Record<string, unknown>)) });
+    return NextResponse.json({
+      jobs: mergeJobs([...available, ...assigned]).map((job) => stripUnassignedOfferSensitiveFields(withVendorName(job as Record<string, unknown>)))
+    });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load rider jobs." }, { status: 500 });
   }
@@ -171,6 +173,25 @@ function stripUnassignedOfferSensitiveFields(job: Record<string, unknown>) {
   delete offer.users;
   const customer = users && typeof users === "object" ? users as Record<string, unknown> : null;
   return { ...offer, users: customer ? { full_name: customer.full_name || null, avatar_url: customer.avatar_url || null } : null };
+}
+
+function withVendorName(job: Record<string, unknown>) {
+  const metadata = job.metadata && typeof job.metadata === "object" && !Array.isArray(job.metadata) ? job.metadata as Record<string, unknown> : {};
+  const snapshot = metadata.marketplace_vendor_snapshot && typeof metadata.marketplace_vendor_snapshot === "object" && !Array.isArray(metadata.marketplace_vendor_snapshot)
+    ? metadata.marketplace_vendor_snapshot as Record<string, unknown>
+    : {};
+  const fastErrand = metadata.fast_errand && typeof metadata.fast_errand === "object" && !Array.isArray(metadata.fast_errand)
+    ? metadata.fast_errand as Record<string, unknown>
+    : {};
+  const fulfilment = fastErrand.fulfilment && typeof fastErrand.fulfilment === "object" && !Array.isArray(fastErrand.fulfilment)
+    ? fastErrand.fulfilment as Record<string, unknown>
+    : {};
+  const firstItem = Array.isArray(metadata.items) && metadata.items[0] && typeof metadata.items[0] === "object"
+    ? metadata.items[0] as Record<string, unknown>
+    : {};
+  const vendorName = [snapshot.display_name, fulfilment.business_name, firstItem.vendorName, firstItem.store]
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return vendorName ? { ...job, vendor_name: vendorName.trim().slice(0, 140) } : job;
 }
 
 function fastErrandVendorIsFunded(metadata: Record<string, unknown> | null | undefined) {

@@ -29,7 +29,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { businessCommissionRate } from "@/lib/business-commission";
 import { accountMessengerHref, accountTrackingHref } from "@/lib/tracking-links";
 
-type BusinessTab = "overview" | "dispatch" | "history" | "analytics" | "account";
+type BusinessTab = "overview" | "deliveries" | "dispatch" | "history" | "analytics" | "account";
 type BusinessKycStatus = "submitted" | "active" | "paused" | "rejected";
 
 type BusinessProfile = {
@@ -116,6 +116,7 @@ type BulkRow = {
 
 const tabs: Array<{ id: BusinessTab; label: string; icon: LucideIcon }> = [
   { id: "overview", label: "Overview", icon: Home },
+  { id: "deliveries", label: "Deliveries", icon: MessageCircle },
   { id: "dispatch", label: "Dispatch", icon: Plus },
   { id: "history", label: "History", icon: Clock },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
@@ -359,12 +360,19 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
       }
     }
     void load(false, true);
+    const onDeliveryUpdate = (event: Event) => {
+      const metadata = (event as CustomEvent<Record<string, unknown> | undefined>).detail;
+      if (!metadata?.delivery_id && !metadata?.order_id && !metadata?.delivery_code && !metadata?.order_code) return;
+      void load(true);
+    };
+    window.addEventListener("fastfleet:delivery-update", onDeliveryUpdate);
     const timer = window.setInterval(() => {
       void load(true);
-    }, 60000);
+    }, 30000);
     return () => {
       mounted = false;
       window.clearInterval(timer);
+      window.removeEventListener("fastfleet:delivery-update", onDeliveryUpdate);
       removeOrderChannel?.();
     };
   }, []);
@@ -629,7 +637,8 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
             <BusinessKycStatusView loading={loading} profile={profile} status={kycStatus} rejectionReason={kycRejectionReason} />
           ) : (
             <>
-              {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} loyaltyCredit={loyaltyCredit} withdrawals={withdrawals} stats={stats} orders={orders} businessOrders={businessOrders} businessOrderError={businessOrderError} businessOrderLoading={businessOrderLoading} onOpenWithdrawal={() => setWithdrawalOpen(true)} onOpenDispatch={() => setActiveTab("dispatch")} onBusinessOrderStatus={updateBusinessOrder} /> : null}
+              {activeTab === "overview" ? <OverviewTab loading={loading} profile={profile} walletBalance={walletBalance} loyaltyCredit={loyaltyCredit} withdrawals={withdrawals} stats={stats} orders={orders} businessOrders={businessOrders} businessOrderError={businessOrderError} businessOrderLoading={businessOrderLoading} onOpenWithdrawal={() => setWithdrawalOpen(true)} onOpenDispatch={() => setActiveTab("dispatch")} onOpenDeliveries={() => setActiveTab("deliveries")} onBusinessOrderStatus={updateBusinessOrder} /> : null}
+              {activeTab === "deliveries" ? <DeliveryMessagesTab orders={orders} businessOrders={businessOrders} /> : null}
               {activeTab === "dispatch" ? <DispatchTab dispatch={dispatch} onDispatch={setDispatch} estimate={estimatePrice(dispatch)} loading={dispatchLoading} message={dispatchMessage} onSubmit={submitDispatch} addresses={addresses} bulkRows={bulkRows} onCsvFile={handleBulkCsv} onDownloadTemplate={downloadTemplate} onDispatchBulk={dispatchBulk} addressDraft={addressDraft} onAddressDraft={setAddressDraft} onAddAddress={addAddress} onDeleteAddress={deleteAddress} /> : null}
               {activeTab === "history" ? <HistoryTab orders={filteredOrders} status={historyStatus} onStatus={setHistoryStatus} onExport={exportHistory} /> : null}
               {activeTab === "analytics" ? <AnalyticsTab orders={orders} addresses={addresses} team={team} /> : null}
@@ -670,17 +679,17 @@ function BusinessMobileTabs({ activeTab, onChange, disabled = false }: { activeT
   };
 
   return (
-    <nav className="fixed inset-x-2 bottom-2 z-50 mx-auto grid max-w-3xl grid-cols-5 gap-0.5 rounded-[20px] border border-fleet-line bg-white/95 p-1.5 shadow-glow backdrop-blur sm:inset-x-3 sm:bottom-3 sm:gap-1 sm:rounded-[24px] sm:p-2" aria-label="Business dashboard navigation">
+    <nav className="fixed inset-x-2 bottom-2 z-50 mx-auto grid max-w-4xl grid-cols-6 gap-0.5 rounded-[20px] border border-fleet-line bg-white/95 p-1.5 shadow-glow backdrop-blur sm:inset-x-3 sm:bottom-3 sm:gap-1 sm:rounded-[24px] sm:p-2" aria-label="Business dashboard navigation">
       <Link href="/hub" className="grid min-h-12 place-items-center rounded-[15px] px-0.5 py-1.5 text-[0.58rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper sm:min-h-14 sm:text-[0.62rem]">
         <LayoutDashboard className="mb-1 h-4 w-4" />
         <span className="max-w-full truncate">Hub</span>
       </Link>
-      {mobileTabs.slice(0, 1).map(renderTab)}
+      {mobileTabs.slice(0, 2).map(renderTab)}
       <Link href="/marketplace/listing" className="grid min-h-12 place-items-center rounded-[15px] px-0.5 py-1.5 text-[0.58rem] font-black leading-none text-slate-500 transition hover:bg-fleet-paper sm:min-h-14 sm:text-[0.62rem]">
         <Store className="mb-1 h-4 w-4" />
         <span className="max-w-full truncate">Listing</span>
       </Link>
-      {mobileTabs.slice(1).map(renderTab)}
+      {mobileTabs.slice(2).map(renderTab)}
     </nav>
   );
 }
@@ -735,12 +744,12 @@ function BusinessKycStatusView({ loading, profile, status, rejectionReason }: { 
   );
 }
 
-function OverviewTab({ loading, profile, walletBalance, loyaltyCredit, withdrawals, stats, orders, businessOrders, businessOrderError, businessOrderLoading, onOpenWithdrawal, onOpenDispatch, onBusinessOrderStatus }: { loading: boolean; profile: BusinessProfile; walletBalance: number; loyaltyCredit: number; withdrawals: WithdrawalRow[]; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[]; businessOrders: BusinessOrderRow[]; businessOrderError: string | null; businessOrderLoading: string | null; onOpenWithdrawal: () => void; onOpenDispatch: () => void; onBusinessOrderStatus: (id: string, status: string) => void }) {
+function OverviewTab({ loading, profile, walletBalance, loyaltyCredit, withdrawals, stats, orders, businessOrders, businessOrderError, businessOrderLoading, onOpenWithdrawal, onOpenDispatch, onOpenDeliveries, onBusinessOrderStatus }: { loading: boolean; profile: BusinessProfile; walletBalance: number; loyaltyCredit: number; withdrawals: WithdrawalRow[]; stats: { today: number; monthSpend: number; active: number; addresses: number }; orders: DeliveryRow[]; businessOrders: BusinessOrderRow[]; businessOrderError: string | null; businessOrderLoading: string | null; onOpenWithdrawal: () => void; onOpenDispatch: () => void; onOpenDeliveries: () => void; onBusinessOrderStatus: (id: string, status: string) => void }) {
   if (loading) return <DashboardSkeleton />;
   const activeOrder = orders.find((order) => !["delivered", "cancelled"].includes(order.status)) || orders[0] || null;
   return (
     <div className="grid gap-5">
-      <Card className="p-5"><div className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-4"><ProfileImage src={profile.avatar_url} name={profile.business_name || "Business"} className="h-16 w-16 rounded-fleet text-lg" /><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">Business operations dashboard</p></div></div><Button size="sm" onClick={onOpenDispatch}><Plus className="h-4 w-4" />New dispatch</Button></div></Card>
+      <Card className="p-5"><div className="flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-4"><ProfileImage src={profile.avatar_url} name={profile.business_name || "Business"} className="h-16 w-16 rounded-fleet text-lg" /><div><h2 className="text-xl font-black text-fleet-night">{profile.business_name || "Business"}</h2><p className="text-sm font-semibold text-slate-500">Business operations dashboard</p></div></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={onOpenDeliveries}><MessageCircle className="h-4 w-4" />Delivery updates</Button><Button size="sm" onClick={onOpenDispatch}><Plus className="h-4 w-4" />New dispatch</Button></div></div></Card>
       <WalletDashboardCard
         userName={profile.business_name?.trim().split(/\s+/)[0] || "Business"}
         balance={walletBalance}
@@ -857,6 +866,48 @@ function BusinessOrderObserver({ order }: { order: BusinessOrderRow }) {
         <MessageCircle className="h-4 w-4" />
         Open messenger
       </LinkButton>
+    </div>
+  );
+}
+
+function DeliveryMessagesTab({ orders, businessOrders }: { orders: DeliveryRow[]; businessOrders: BusinessOrderRow[] }) {
+  const entries = [
+    ...orders.map((order) => ({ id: order.id, deliveryId: order.id, code: order.delivery_code, pickup: order.pickup_address, dropoff: order.dropoff_address, status: order.status, updatedAt: order.created_at, source: "Business dispatch" })),
+    ...businessOrders.filter((order) => order.delivery_id).map((order) => ({ id: order.id, deliveryId: order.delivery_id || order.id, code: order.order_code || order.id, pickup: order.pickup_address, dropoff: order.dropoff_address, status: order.status, updatedAt: order.updated_at || order.created_at, source: order.marketplace_kind === "fast_errands" ? "FastErrand" : "Marketplace order" }))
+  ].sort((first, second) => new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime());
+  const seen = new Set<string>();
+  const uniqueEntries = entries.filter((entry) => {
+    if (seen.has(entry.deliveryId)) return false;
+    seen.add(entry.deliveryId);
+    return true;
+  });
+  const activeCount = uniqueEntries.filter((entry) => !["delivered", "cancelled"].includes(entry.status)).length;
+
+  return (
+    <div className="grid gap-4">
+      <Card className="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <span className="text-xs font-black uppercase tracking-[0.14em] text-fleet-ember">Dispatch monitor</span>
+            <h2 className="mt-1 text-2xl font-black text-fleet-night">Delivery messages</h2>
+            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-600">Follow rider assignment, pickup, FastConfirm, transit, and secure handoff updates without waiting for a notification.</p>
+          </div>
+          <StatusBadge tone={activeCount ? "blue" : "neutral"}>{activeCount} active</StatusBadge>
+        </div>
+      </Card>
+      {uniqueEntries.length ? uniqueEntries.map((entry) => (
+        <Card key={`${entry.id}:${entry.deliveryId}`} className="p-4 sm:p-5">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2"><StatusBadge tone={businessOrderTone(entry.status)}>{businessOrderLabel(entry.status)}</StatusBadge><span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{entry.source}</span></div>
+              <h3 className="mt-3 break-words text-lg font-black text-fleet-night">{entry.code}</h3>
+              <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">{entry.pickup} to {entry.dropoff}</p>
+              <p className="mt-2 text-xs font-bold text-slate-500">Updated {formatDateTime(entry.updatedAt)}</p>
+            </div>
+            <LinkButton href={accountMessengerHref(entry.deliveryId)} className="shrink-0"><MessageCircle className="h-4 w-4" />Open messenger</LinkButton>
+          </div>
+        </Card>
+      )) : <DashboardEmptyState title="No delivery messages yet" body="Delivery monitoring starts here as soon as you create a dispatch or release a customer order to riders." ctaLabel="New dispatch" ctaHref="/business/dashboard" />}
     </div>
   );
 }

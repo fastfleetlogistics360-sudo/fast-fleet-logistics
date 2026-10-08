@@ -2,11 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { Bike, CircleUserRound, LayoutDashboard, LogIn, Play, Store, UserPlus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { AppleIcon, GoogleIcon, InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
+import { InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 import { readReturningProfile, saveReturningProfile } from "@/lib/auth/returning-profile";
 import { defaultBrandPartners, type BrandPartner } from "@/lib/brand-partners";
 
@@ -62,7 +61,6 @@ function isInstalledApp() {
 }
 
 export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { initialPartners?: BrandPartner[] }) {
-  const [storePopup, setStorePopup] = useState(false);
   const [partners, setPartners] = useState<BrandPartner[]>(initialPartners);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const activePartners = partners.filter((partner) => partner.active);
@@ -186,10 +184,6 @@ export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { 
 
         </div>
         <div className="mx-auto mt-8 grid justify-items-center gap-6">
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <StoreBadge icon={<AppleIcon className="h-8 w-8" />} eyebrow="Download on the" label="App Store" onClick={() => setStorePopup(true)} />
-            <StoreBadge icon={<GoogleIcon className="h-8 w-8" />} eyebrow="GET IT ON" label="Google Play" onClick={() => setStorePopup(true)} />
-          </div>
           <div className="grid justify-items-center gap-4">
             <span className="text-xl font-semibold text-white">Follow us</span>
             <div className="flex flex-wrap justify-center gap-4">
@@ -239,7 +233,6 @@ export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { 
         </div>
       </section>
 
-      {storePopup ? <ComingSoonModal onClose={() => setStorePopup(false)} /> : null}
       <style jsx global>{`
         @keyframes fastfleet-partner-marquee {
           from {
@@ -295,44 +288,5 @@ function ActionItem({
     <Link href={item.href} className={classes}>
       {content}
     </Link>
-  );
-}
-
-function StoreBadge({ icon, eyebrow, label, onClick }: { icon: ReactNode; eyebrow: string; label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex min-h-14 min-w-[205px] items-center justify-center gap-3 rounded-[12px] border border-white/70 bg-black px-4 text-white shadow-[0_14px_34px_rgba(0,0,0,0.22)] transition hover:-translate-y-0.5 hover:border-fleet-gold focus:outline-none focus:ring-4 focus:ring-fleet-gold/20"
-    >
-      {icon}
-      <span className="grid text-left leading-none">
-        <span className="text-[0.68rem] font-black uppercase tracking-normal text-white/80">{eyebrow}</span>
-        <strong className="mt-1 text-xl font-black">{label}</strong>
-      </span>
-    </button>
-  );
-}
-
-function ComingSoonModal({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-[170] grid place-items-center bg-black/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Fast Fleets 360 app release access">
-      <motion.div
-        className="w-full max-w-sm rounded-[18px] border border-white/15 bg-white p-6 text-center text-fleet-night shadow-[0_28px_90px_rgba(0,0,0,0.35)]"
-        initial={{ opacity: 0, y: 18, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
-      >
-        <strong className="block text-2xl font-black">Release access underway</strong>
-        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Fast Fleets 360 mobile app access is being rolled out in controlled phases.</p>
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-fleet bg-fleet-ember px-4 text-sm font-black text-white transition hover:bg-[#f47e18] focus:outline-none focus:ring-4 focus:ring-fleet-gold/25"
-        >
-          Okay
-        </button>
-      </motion.div>
-    </div>
   );
 }

@@ -82,7 +82,7 @@ export function PackagePickupProof({ deliveryId, metadata, status, className, re
       </div>
 
       {secureProofUrl ? (
-        <Image src={secureProofUrl} alt="Package pickup proof" width={720} height={420} unoptimized className="mt-4 max-h-72 w-full rounded-fleet object-cover" />
+        <Image src={secureProofUrl} alt="Package pickup proof" width={720} height={420} priority={proof?.status === "pending"} unoptimized className="mt-4 max-h-72 w-full rounded-fleet object-cover" />
       ) : (
         <div className="mt-4 rounded-fleet bg-fleet-paper p-4 text-sm font-bold text-slate-600">The rider has not uploaded the package photo yet.</div>
       )}

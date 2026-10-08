@@ -58,6 +58,11 @@ async function showForegroundNotification(title: string, body: string, data?: Re
   new Notification(title, options);
 }
 
+function announceDeliveryUpdate(data?: Record<string, unknown>) {
+  if (!data || (!data.delivery_id && !data.order_id && !data.delivery_code && !data.order_code)) return;
+  window.dispatchEvent(new CustomEvent("fastfleet:delivery-update", { detail: data }));
+}
+
 export function PushNotificationRegistrar() {
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +70,7 @@ export function PushNotificationRegistrar() {
     let removeNativeRegistrationListener: (() => void) | undefined;
     let removeNativeRegistrationErrorListener: (() => void) | undefined;
     let removeNativeActionListener: (() => void) | undefined;
+    let removeNativeNotificationListener: (() => void) | undefined;
 
     function openNotificationTarget(data?: Record<string, unknown>) {
       const url = typeof data?.url === "string" && data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "";
@@ -124,6 +130,12 @@ export function PushNotificationRegistrar() {
       removeNativeActionListener = () => {
         void actionListener.remove().catch(() => null);
       };
+      const notificationListener = await PushNotifications.addListener("pushNotificationReceived", (payload) => {
+        announceDeliveryUpdate(payload.notification?.data as Record<string, unknown> | undefined);
+      });
+      removeNativeNotificationListener = () => {
+        void notificationListener.remove().catch(() => null);
+      };
       await PushNotifications.register().catch(() => null);
     }
 
@@ -168,6 +180,7 @@ export function PushNotificationRegistrar() {
           (payload) => {
             const row = payload.new as { title?: string; body?: string; metadata?: Record<string, unknown> };
             if (!row.title || !row.body) return;
+            announceDeliveryUpdate(row.metadata);
             void showForegroundNotification(row.title, row.body, row.metadata);
           }
         )
@@ -191,6 +204,7 @@ export function PushNotificationRegistrar() {
       removeNativeRegistrationListener?.();
       removeNativeRegistrationErrorListener?.();
       removeNativeActionListener?.();
+      removeNativeNotificationListener?.();
     };
   }, []);
 

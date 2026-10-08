@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, Bike, BriefcaseBusiness, Clock3, Handshake, PackageCheck, Play, ShieldCheck, Smartphone, Store, Truck, Utensils } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ArrowRight, Bike, BriefcaseBusiness, Clock3, Handshake, PackageCheck, ShieldCheck, Store, Truck, Utensils } from "lucide-react";
 import { AnimatedDescriptionCards } from "@/components/landing/animated-description-cards";
 import type { DescriptionCard } from "@/components/landing/animated-description-cards";
 import { LinkButton } from "@/components/ui/button";
@@ -127,7 +126,6 @@ export function MainPageSections() {
         body="Clear pricing, verified accounts, and live job updates."
         cards={trustCards}
       />
-      <AppComingSoonSection />
     </>
   );
 }
@@ -198,36 +196,5 @@ function ActionCard({
         </LinkButton>
       </div>
     </motion.article>
-  );
-}
-
-function AppComingSoonSection() {
-  return (
-    <section className="defer-render bg-white py-8 sm:py-10">
-      <div className="section-wrap">
-        <div className="smart-card-grid grid gap-4 rounded-fleet border border-white/70 bg-white/70 p-4 shadow-[0_14px_34px_rgba(8,17,31,0.1)] backdrop-blur-2xl sm:p-5 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div>
-            <span className="text-xs font-black uppercase tracking-[0.18em] text-fleet-ember">Mobile app</span>
-            <h2 className="mt-3 text-2xl font-black leading-tight text-fleet-night sm:text-4xl">Mobile apps are coming soon</h2>
-            <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-600">
-              Use the web platform while customer, rider, and business apps are prepared for release.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <StoreBadge icon={Play} label="Play Store" />
-            <StoreBadge icon={Smartphone} label="App Store" />
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function StoreBadge({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
-  return (
-    <span className="inline-flex min-h-11 items-center gap-2 rounded-fleet border border-fleet-line bg-white px-4 text-sm font-black text-fleet-night shadow-[0_10px_24px_rgba(8,17,31,0.08)]">
-      <Icon className="h-4 w-4 text-fleet-ember" />
-      {label}
-    </span>
   );
 }
