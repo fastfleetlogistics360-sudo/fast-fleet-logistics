@@ -120,6 +120,7 @@ export async function POST(request: Request) {
           purpose: "wallet_funding"
         }
       });
+      await markPaymentIntentPending(paymentDb, paymentIntent.id);
       return NextResponse.json({
         reference: squadCheckout.reference,
         authorizationUrl: squadCheckout.authorizationUrl
@@ -136,7 +137,6 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ error: "Wallet payment checkout could not start. Please try again." }, { status: 502 });
     }
-    await markPaymentIntentPending(paymentDb, paymentIntent.id).catch(() => undefined);
   } catch {
     return NextResponse.json({ error: "Wallet top-up failed." }, { status: 500 });
   }

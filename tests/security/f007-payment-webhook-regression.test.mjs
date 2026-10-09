@@ -132,6 +132,17 @@ test("F-007 gives an authenticated customer a safe pending-delivery recovery pat
   assert.match(verify, /String\(\(delivery\.metadata \|\| \{\}\)\.provider_reference \|\| ""\) !== reference/);
 });
 
+test("F-007 gives a pending wallet top-up a safe customer recovery action", () => {
+  const history = read("components/wallet/transaction-history.tsx");
+  const topUp = read("app/api/wallet/topup/route.ts");
+  assert.match(history, /function verifyPendingTopUp/);
+  assert.match(history, /\/api\/wallet\/verify\?reference=/);
+  assert.match(history, /This payment verification never creates another payment|No new charge will be created/);
+  assert.match(history, /transaction\.transaction_type === "wallet_funding"/);
+  assert.match(history, /transaction\.status === "pending"/);
+  assert.ok(topUp.indexOf("await markPaymentIntentPending(paymentDb, paymentIntent.id)") < topUp.indexOf("authorizationUrl: squadCheckout.authorizationUrl"));
+});
+
 test("F-007 preserves server-created intents before Squad redirects and minimizes provider metadata", () => {
   for (const path of ["app/api/deliveries/checkout/route.ts", "app/api/marketplace/checkout/route.ts", "app/api/wallet/topup/route.ts"]) {
     const source = read(path);
