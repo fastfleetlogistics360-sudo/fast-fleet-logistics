@@ -121,6 +121,17 @@ test("F-007 browser, webhook, reconciliation, and manual paths all use the one s
   }
 });
 
+test("F-007 gives an authenticated customer a safe pending-delivery recovery path", () => {
+  const tracking = read("components/tracking/live-order-tracking.tsx");
+  const verify = read("app/api/deliveries/verify/route.ts");
+  assert.match(tracking, /function PaymentRecoveryCard/);
+  assert.match(tracking, /\/api\/deliveries\/verify\?\$\{params\.toString\(\)\}/);
+  assert.match(tracking, /This check never creates another payment/);
+  assert.match(tracking, /order\.status !== "pending_payment"/);
+  assert.match(verify, /query = query\.eq\("customer_id", user\.id\)/);
+  assert.match(verify, /String\(\(delivery\.metadata \|\| \{\}\)\.provider_reference \|\| ""\) !== reference/);
+});
+
 test("F-007 preserves server-created intents before Squad redirects and minimizes provider metadata", () => {
   for (const path of ["app/api/deliveries/checkout/route.ts", "app/api/marketplace/checkout/route.ts", "app/api/wallet/topup/route.ts"]) {
     const source = read(path);

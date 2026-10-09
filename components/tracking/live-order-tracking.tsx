@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Bike, Clock3, MapPin, MessageCircle, Navigation2, PackageCheck, Phone, Route, ShieldCheck, Store } from "lucide-react";
+import { AlertTriangle, Bike, Clock3, MapPin, MessageCircle, Navigation2, PackageCheck, Phone, RefreshCw, Route, ShieldCheck, Store } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/cn";
@@ -12,7 +12,7 @@ import { FastFleetMap } from "@/components/maps/fastfleet-map";
 import { PackagePickupProof } from "@/components/tracking/package-pickup-proof";
 import { CustomerDeliveryConfirmation } from "@/components/tracking/customer-delivery-confirmation";
 import { RiderMatchSearch } from "@/components/booking/rider-match-search";
-import { LinkButton } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 
@@ -309,7 +309,9 @@ export function LiveOrderTracking({
   // FastConfirm available to the buyer during that linked delivery.
   const showPickupProof = !marketplaceOnly;
   const ongoingDelivery = !marketplaceOnly && isOngoingDelivery(order.status);
-  const showMessengerRoom = !marketplaceOnly && (ongoingDelivery || (mode === "messenger" && !completed));
+  // A payment awaiting confirmation is not an active delivery room yet. Keep
+  // the recovery panel visible even when the customer opens the messenger URL.
+  const showMessengerRoom = !marketplaceOnly && (ongoingDelivery || (mode === "messenger" && !completed && order.status !== "pending_payment"));
 
   if (showMessengerRoom) {
     return (
@@ -352,6 +354,16 @@ export function LiveOrderTracking({
               <LiveTrackingMap order={order} pickup={pickup} dropoff={dropoff} location={location} />
             </Card>
           )}
+
+          {!marketplaceOnly && order.status === "pending_payment" ? (
+            <PaymentRecoveryCard
+              order={order}
+              onSettled={() => {
+                setOrder((current) => ({ ...current, status: "searching", updated_at: new Date().toISOString() }));
+                setConnectionState("loading");
+              }}
+            />
+          ) : null}
 
           {!marketplaceOnly && order.status === "searching" ? <RiderMatchSearch deliveryId={order.id} deliveryCode={order.delivery_code} compact /> : null}
 
@@ -453,6 +465,83 @@ export function LiveOrderTracking({
         </aside>
       </div>
     </section>
+  );
+}
+
+type PaymentRecoveryState =
+  | { status: "checking"; message: string }
+  | { status: "pending"; message: string }
+  | { status: "success"; message: string }
+  | { status: "error"; message: string };
+
+/**
+ * Browser and native payment returns can be interrupted after a successful
+ * provider payment. This authenticated fallback checks the exact reference
+ * against Squad server-side; it never starts another charge.
+ */
+function PaymentRecoveryCard({ order, onSettled }: { order: TrackingOrder; onSettled: () => void }) {
+  const reference = typeof order.metadata?.provider_reference === "string" ? order.metadata.provider_reference.trim() : "";
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<PaymentRecoveryState>({
+    status: reference ? "checking" : "error",
+    message: reference ? "Checking the payment directly with Squad…" : "We could not find a safe payment reference for this delivery."
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!reference) return;
+
+    async function verifyPayment() {
+      if (!cancelled) setState({ status: "checking", message: "Checking the payment directly with Squad…" });
+      try {
+        const params = new URLSearchParams({
+          reference,
+          deliveryId: order.id,
+          code: order.delivery_code
+        });
+        const response = await fetch(`/api/deliveries/verify?${params.toString()}`, { cache: "no-store" });
+        const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: string; status?: string };
+        if (cancelled) return;
+        if (response.ok && payload.status === "successful") {
+          setState({ status: "success", message: "Payment confirmed. We are now finding a rider for this delivery." });
+          onSettled();
+          return;
+        }
+        if (response.status === 202) {
+          setState({ status: "pending", message: payload.message || "Squad is still confirming the payment. Do not pay again; you can safely check again shortly." });
+          return;
+        }
+        setState({ status: "error", message: payload.error || "We could not confirm this payment yet. Do not pay again; contact support if you were charged." });
+      } catch {
+        if (!cancelled) setState({ status: "error", message: "We could not reach payment verification. Do not pay again; try this safe status check again shortly." });
+      }
+    }
+
+    void verifyPayment();
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt, onSettled, order.delivery_code, order.id, reference]);
+
+  const tone = state.status === "success" ? "border-emerald-200 bg-emerald-50" : state.status === "error" ? "border-amber-200 bg-amber-50" : "border-sky-200 bg-sky-50";
+
+  return (
+    <Card className={`border p-4 sm:p-5 ${tone}`}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Payment status</p>
+          <h2 className="mt-1 text-xl font-black text-fleet-night">{state.status === "success" ? "Payment confirmed" : "Awaiting payment confirmation"}</h2>
+          <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-700">{state.message}</p>
+          <p className="mt-2 text-xs font-bold text-slate-600">Delivery code: {order.delivery_code}. This check never creates another payment.</p>
+        </div>
+        {state.status !== "success" ? (
+          <Button type="button" variant="secondary" className="shrink-0" onClick={() => setAttempt((current) => current + 1)} disabled={state.status === "checking"}>
+            <RefreshCw className={cn("h-4 w-4", state.status === "checking" && "animate-spin")} />
+            Check again
+          </Button>
+        ) : null}
+      </div>
+    </Card>
   );
 }
 
