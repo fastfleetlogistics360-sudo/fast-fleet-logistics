@@ -14,10 +14,10 @@ const mainActivity = read("android/app/src/main/java/com/fastfleetlogistics/app/
 const nativeReadiness = read("android/app/src/main/java/com/fastfleetlogistics/app/NativePushReadinessPlugin.java");
 const androidBuild = read("android/app/build.gradle");
 
-test("F-020 uses Capacitor's supported Android push API behind an explicit opt-in", () => {
+test("F-020 uses Capacitor's supported Android push API only when the installed binary contains Firebase resources", () => {
   assert.match(registrar, /import \{ Capacitor, registerPlugin \} from "@capacitor\/core"/);
   assert.match(registrar, /import \{ PushNotifications \} from "@capacitor\/push-notifications"/);
-  assert.match(registrar, /NEXT_PUBLIC_ENABLE_NATIVE_PUSH === "true"/);
+  assert.doesNotMatch(registrar, /NEXT_PUBLIC_ENABLE_NATIVE_PUSH/);
   assert.match(registrar, /Capacitor\.isNativePlatform\(\)/);
   assert.match(registrar, /Capacitor\.getPlatform\(\) !== "android"/);
   assert.match(registrar, /PushNotifications\.checkPermissions\(\)/);
@@ -53,7 +53,7 @@ test("F-020 keeps Firebase material out of source control and documents its serv
   assert.match(environmentExample, /^FCM_PROJECT_ID=/m);
   assert.match(environmentExample, /^FCM_CLIENT_EMAIL=/m);
   assert.match(environmentExample, /^FCM_PRIVATE_KEY=/m);
-  assert.match(environmentExample, /^NEXT_PUBLIC_ENABLE_NATIVE_PUSH=false$/m);
+  assert.doesNotMatch(environmentExample, /^NEXT_PUBLIC_ENABLE_NATIVE_PUSH=/m);
 });
 
 test("F-020 lets Android use Capacitor's default safe notification tap intent", () => {

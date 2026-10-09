@@ -32,16 +32,13 @@ In Firebase/Google Cloud:
 
 Never expose the private key in `NEXT_PUBLIC_*`, source control, chat, or a mobile binary.
 
-## 3. Enable the installed Android app only after Firebase is present
+## 3. The installed Android app enables itself only when Firebase is present
 
-Set this Vercel Production variable and redeploy the website **only after the
-new Android binary has been built and passed the device test**:
-
-```
-NEXT_PUBLIC_ENABLE_NATIVE_PUSH=true
-```
-
-The Android shell loads the deployed website, so this public build-time value must be in the deployed Next.js bundle. The matching `google-services.json` must also be present before building the Android AAB.
+No public Vercel feature flag is required. The Android app checks that its own
+installed binary contains resources generated from `google-services.json`
+before it asks for notification permission or registers an FCM token. This is
+important because a Vercel environment variable is not automatically compiled
+into an AAB built on a local machine.
 
 ## 4. Build and test before releasing
 
@@ -53,11 +50,11 @@ The Android shell loads the deployed website, so this public build-time value mu
 6. Confirm all three results: it displays with the Fast Fleet status-bar icon, tapping it opens only the intended internal screen, and the app does not crash.
 7. Finally approve a test rider KYC record and confirm the real server-generated notification is received.
 
-If registration fails, leave `NEXT_PUBLIC_ENABLE_NATIVE_PUSH=false`; do not repeatedly prompt the user or retry in a loop. The app continues to provide in-app notifications while push delivery is unavailable.
+If registration fails, do not repeatedly prompt the user or retry in a loop. The app continues to provide in-app notifications while push delivery is unavailable.
 
 ## Current code safeguards
 
-- Android FCM registration is explicitly opt-in.
+- Android FCM registration requires Firebase resources in the installed binary.
 - Older Android binaries without Firebase configuration safely skip native push
   registration; they are never shown a permission prompt by this feature.
 - A new binary refuses to build if `google-services.json` is missing.

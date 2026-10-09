@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { createClient } from "@/lib/supabase/client";
 
-// Native FCM requires android/app/google-services.json in the installed binary.
-// Keep it opt-in so native startup remains safe until Firebase is configured.
-const nativePushEnabled = process.env.NEXT_PUBLIC_ENABLE_NATIVE_PUSH === "true";
+type NativePushReadinessPlugin = {
+  check: () => Promise<{ ready?: boolean }>;
+};
+
+// This bridge checks resources generated from google-services.json inside the
+// installed Android binary. It deliberately does not depend on a Vercel public
+// variable: those variables are not present when the WebView assets are baked
+// into an AAB locally.
+const NativePushReadiness = registerPlugin<NativePushReadinessPlugin>("NativePushReadiness");
 
 function urlBase64ToUint8Array(value: string) {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
@@ -72,11 +78,11 @@ export function PushNotificationRegistrar() {
     }
 
     async function registerNativePush(prompt = false) {
-      // The app currently supports native FCM on Android only. Keeping the gate
-      // explicit prevents an unconfigured native binary from prompting or crashing.
-      if (!nativePushEnabled || !Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") return;
+      if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") return;
 
-      if (!Capacitor.isPluginAvailable("PushNotifications") || cancelled) return;
+      if (!Capacitor.isPluginAvailable("PushNotifications") || !Capacitor.isPluginAvailable("NativePushReadiness") || cancelled) return;
+      const readiness = await NativePushReadiness.check().catch(() => null);
+      if (!readiness?.ready || cancelled) return;
 
       const currentPermission = await PushNotifications.checkPermissions().catch(() => null);
       if (!currentPermission || cancelled) return;
@@ -154,8 +160,10 @@ export function PushNotificationRegistrar() {
     }
 
     async function canAskForNotificationPermission() {
-      if (nativePushEnabled && Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
-        if (!Capacitor.isPluginAvailable("PushNotifications")) return false;
+      if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
+        if (!Capacitor.isPluginAvailable("PushNotifications") || !Capacitor.isPluginAvailable("NativePushReadiness")) return false;
+        const readiness = await NativePushReadiness.check().catch(() => null);
+        if (!readiness?.ready) return false;
         const permission = await PushNotifications.checkPermissions().catch(() => null);
         return permission?.receive === "prompt";
       }
@@ -177,7 +185,7 @@ export function PushNotificationRegistrar() {
       } = await supabase.auth.getUser();
       if (!user || cancelled) return;
 
-      if (nativePushEnabled) void registerNativePush();
+      void registerNativePush();
       void registerWebPush();
 
       // Android cannot create an FCM token until a user has acted on its
@@ -206,7 +214,7 @@ export function PushNotificationRegistrar() {
     }
 
     const requestPush = () => {
-      if (nativePushEnabled) void registerNativePush(true);
+      void registerNativePush(true);
       void registerWebPush(true);
     };
     window.addEventListener("fastfleet:request-push-notifications", requestPush);
