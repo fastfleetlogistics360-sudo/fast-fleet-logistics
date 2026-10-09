@@ -5,6 +5,7 @@ import { settleSquadPayment, PaymentSettlementError } from "@/lib/payments/settl
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { hasValidPaymentReturnToken } from "@/lib/payments/payment-return";
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,16 +14,17 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return response({ error: "Please sign in to verify this marketplace payment." }, 401);
+    const signedReturn = hasValidPaymentReturnToken(request, reference);
+    if (!user && !signedReturn) return response({ error: "Please sign in to verify this marketplace payment." }, 401);
     const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentVerify, name: "marketplace:verify" });
     if (limited) return limited;
     const db = createAdminClient();
     if (!db) return response({ error: "Secure payment verification is temporarily unavailable." }, 503);
 
-    const intent = (await loadPaymentIntent(db, reference)) || await ensureLegacyMarketplacePaymentIntent(db, { reference, ownerUserId: user.id });
+    const intent = (await loadPaymentIntent(db, reference)) || (user ? await ensureLegacyMarketplacePaymentIntent(db, { reference, ownerUserId: user.id }) : null);
     if (!intent) return response({ error: "Marketplace payment was not found." }, 404);
 
-    const result = await settleSquadPayment(db, { reference, actor: { type: "customer", userId: user.id } });
+    const result = await settleSquadPayment(db, { reference, actor: user ? { type: "customer", userId: user.id } : { type: "reconciliation" } });
     return resultResponse(result, reference);
   } catch (error) {
     const status = error instanceof PaymentSettlementError ? 503 : 500;

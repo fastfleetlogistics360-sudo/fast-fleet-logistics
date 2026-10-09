@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
+import { addPaymentReturnToken } from "@/lib/payments/payment-return";
 import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, initiateSquadPayment } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
   let intent;
   try { intent = await createPaymentIntent(db, { reference, internalReference: `fast-errand-top-up:${errand.id}:${reference}`, purpose: "wallet_funding", ownerUserId: user.id, amountNgn: amount, walletId: wallet.id }); }
   catch { return NextResponse.json({ error: "Could not prepare the secure top-up." }, { status: 503 }); }
-  const callbackUrl = new URL(`${paymentCallbackOrigin(request)}/wallet/callback`); callbackUrl.searchParams.set("reference", reference); callbackUrl.searchParams.set("returnTo", "/fast-errands");
+  const callbackUrl = new URL(`${paymentCallbackOrigin(request)}/wallet/callback`); callbackUrl.searchParams.set("reference", reference); callbackUrl.searchParams.set("returnTo", "/fast-errands"); addPaymentReturnToken(callbackUrl, reference);
   try { const checkout = await initiateSquadPayment({ amountNgn: amount, email, reference, callbackUrl: callbackUrl.toString(), customerName: email, metadata: { purpose: "fast_errand_top_up", fast_errand_id: errand.id } }); await markPaymentIntentPending(db, intent.id); return NextResponse.json({ authorizationUrl: checkout.authorizationUrl }); }
   catch { await markPaymentIntentInitializationFailed(db, intent.id).catch(() => undefined); await db.from("transactions").update({ status: "failed" }).eq("provider_reference", reference); return NextResponse.json({ error: "Top-up payment could not start. Your card has not been charged." }, { status: 502 }); }
 }

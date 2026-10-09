@@ -14,6 +14,7 @@ import { cn } from "@/lib/cn";
 import { PLATFORM_CHECKOUT_FEE_NGN } from "@/lib/fare";
 import { formatMoney } from "@/lib/format";
 import { vendorIsOpen, vendorStatusLabel } from "@/lib/vendor-presentation";
+import { openSecureCheckout } from "@/lib/payments/open-secure-checkout";
 import {
   buildShoppingCategoryGroups,
   defaultShoppingMalls,
@@ -470,7 +471,7 @@ function ShoppingStorefront({
           ...stored
         ])
       );
-      window.location.assign(payload.authorizationUrl);
+      await openSecureCheckout(payload.authorizationUrl);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Shopping checkout failed.");
     } finally {

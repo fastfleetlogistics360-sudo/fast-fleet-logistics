@@ -3,6 +3,7 @@ import { customerVehicleSelection } from "@/lib/customer-vehicle-options";
 import { buildFastErrandV2Snapshot } from "@/lib/fast-errands-order-snapshot";
 import { FastErrandQuoteError, resolveFastErrandQuote, type FastErrandRequestedItem } from "@/lib/fast-errands-service-areas";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
+import { addPaymentReturnToken } from "@/lib/payments/payment-return";
 import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, initiateSquadPayment } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     }).select("id, order_code").single<{ id: string; order_code: string }>();
     if (orderError || !order) throw orderError || new Error("Could not create FastErrand order.");
     const intent = await createPaymentIntent(db, { reference, internalReference: `fast-errand-order:${order.id}`, purpose: "marketplace_business_order", ownerUserId: user.id, amountNgn: quote.customerTotalNgn, orderId: order.id });
-    const callbackUrl = new URL(`${paymentCallbackOrigin(request)}/fast-errands/callback`); callbackUrl.searchParams.set("reference", reference); callbackUrl.searchParams.set("code", order.order_code);
+    const callbackUrl = new URL(`${paymentCallbackOrigin(request)}/fast-errands/callback`); callbackUrl.searchParams.set("reference", reference); callbackUrl.searchParams.set("code", order.order_code); addPaymentReturnToken(callbackUrl, reference);
     try {
       const checkout = await initiateSquadPayment({ amountNgn: quote.customerTotalNgn, email, reference, callbackUrl: callbackUrl.toString(), customerName: phone || email, metadata: { purpose: "fast_errand_neighborhood_order", order_id: order.id, order_code: order.order_code } });
       await markPaymentIntentPending(db, intent.id);

@@ -16,6 +16,7 @@ import { useMarketplaceVehicleOptions, type MarketplaceVehicleOption } from "@/c
 import { LightVehicleOptions } from "@/components/booking/light-vehicle-options";
 import { shortVendorDescription, vendorIsOpen, vendorStatusLabel } from "@/lib/vendor-presentation";
 import { extractNigerianState } from "@/lib/location/state-matching";
+import { openSecureCheckout } from "@/lib/payments/open-secure-checkout";
 
 type StoreItem = {
   id?: string;
@@ -320,7 +321,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           ...stored
         ])
       );
-      window.location.assign(payload.authorizationUrl);
+      await openSecureCheckout(payload.authorizationUrl);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Checkout failed.");
     } finally {

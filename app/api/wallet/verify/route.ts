@@ -5,6 +5,7 @@ import { settleSquadPayment, PaymentSettlementError } from "@/lib/payments/settl
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { hasValidPaymentReturnToken } from "@/lib/payments/payment-return";
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,16 +14,17 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return response({ error: "Please sign in to verify wallet funding." }, 401);
+    const signedReturn = hasValidPaymentReturnToken(request, reference);
+    if (!user && !signedReturn) return response({ error: "Please sign in to verify wallet funding." }, 401);
     const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentVerify, name: "wallet:verify" });
     if (limited) return limited;
     const db = createAdminClient();
     if (!db) return response({ error: "Secure payment verification is temporarily unavailable." }, 503);
 
-    const intent = (await loadPaymentIntent(db, reference)) || await ensureLegacyWalletFundingIntent(db, { reference, ownerUserId: user.id });
+    const intent = (await loadPaymentIntent(db, reference)) || (user ? await ensureLegacyWalletFundingIntent(db, { reference, ownerUserId: user.id }) : null);
     if (!intent || intent.purpose !== "wallet_funding") return response({ error: "Wallet funding was not found." }, 404);
 
-    const result = await settleSquadPayment(db, { reference, actor: { type: "customer", userId: user.id } });
+    const result = await settleSquadPayment(db, { reference, actor: user ? { type: "customer", userId: user.id } : { type: "reconciliation" } });
     if (result.status === "settled" || result.status === "already_settled") {
       const { data: wallet } = await db
         .from("wallets")

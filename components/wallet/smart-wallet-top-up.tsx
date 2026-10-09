@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { WalletType } from "@/types/domain";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { openSecureCheckout } from "@/lib/payments/open-secure-checkout";
 import { DEFAULT_WALLET_TOP_UP_NGN, DEFAULT_WALLET_TOP_UP_POLICY, isWalletTopUpAmountAllowed, type WalletTopUpPolicy, walletTopUpRangeLabel } from "@/lib/wallet-topup-policy";
 
 type SmartWalletTopUpProps = {
@@ -93,7 +94,7 @@ export function SmartWalletTopUp({ compact = false, className, returnTo, renderT
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not start Squad top-up.");
-      window.location.assign(data.authorizationUrl);
+      await openSecureCheckout(data.authorizationUrl);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not start Squad top-up.");
     } finally {

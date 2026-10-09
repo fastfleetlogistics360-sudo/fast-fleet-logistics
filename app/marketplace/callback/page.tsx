@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/format";
 import { accountTrackingHref } from "@/lib/tracking-links";
 import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
+import { closeSecureCheckout } from "@/lib/payments/open-secure-checkout";
 
 type VerificationState =
   | { status: "loading"; message: string }
@@ -27,12 +28,14 @@ function MarketplaceCallbackContent() {
   const reference = searchParams.get("reference") || searchParams.get("transaction_ref") || searchParams.get("TransactionRef") || searchParams.get("trxref");
   const code = searchParams.get("code") || reference || "";
   const returnTo = sanitizeReturnTo(searchParams.get("returnTo"), code ? accountTrackingHref(code) : "/dashboard");
+  const paymentReturnToken = searchParams.get("paymentReturnToken") || "";
   const [state, setState] = useState<VerificationState>({
     status: "loading",
     message: "Confirming marketplace payment with Squad..."
   });
 
   useEffect(() => {
+    void closeSecureCheckout();
     if (!reference) {
       setState({ status: "error", message: "Missing payment reference." });
       return;
@@ -44,7 +47,9 @@ function MarketplaceCallbackContent() {
     async function verify() {
       try {
         attempts += 1;
-        const response = await fetch(`/api/marketplace/verify?reference=${encodeURIComponent(reference || "")}`);
+        const params = new URLSearchParams({ reference: reference || "" });
+        if (paymentReturnToken) params.set("paymentReturnToken", paymentReturnToken);
+        const response = await fetch(`/api/marketplace/verify?${params.toString()}`);
         const data = await response.json();
         if (response.status === 202) {
           setState({ status: "pending", message: data.message || "Squad is still confirming this payment." });
@@ -71,7 +76,7 @@ function MarketplaceCallbackContent() {
     return () => {
       stopped = true;
     };
-  }, [code, reference, returnTo]);
+  }, [code, paymentReturnToken, reference, returnTo]);
 
   const Icon = state.status === "success" ? CheckCircle2 : state.status === "error" ? XCircle : Loader2;
   const codeLabel = state.status === "success" ? state.orderCode || state.deliveryCode : null;

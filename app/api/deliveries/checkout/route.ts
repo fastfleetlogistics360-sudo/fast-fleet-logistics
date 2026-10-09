@@ -5,6 +5,7 @@ import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
+import { addPaymentReturnToken } from "@/lib/payments/payment-return";
 import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, initiateSquadPayment, paymentChannelsFor } from "@/lib/payments/squad";
 import { launchPromoMetadata, quoteLaunchDeliveryPromo, redeemLaunchDeliveryPromo, reserveLaunchDeliveryPromo, voidLaunchDeliveryPromo } from "@/lib/promos/launch-first-150";
@@ -299,6 +300,7 @@ export async function POST(request: Request) {
     callbackUrl.searchParams.set("deliveryId", delivery.id);
     callbackUrl.searchParams.set("matchToken", customerMatchToken);
     callbackUrl.searchParams.set("returnTo", accountTrackingHref(delivery.delivery_code));
+    addPaymentReturnToken(callbackUrl, squadReference);
 
     let squadCheckout;
     try {

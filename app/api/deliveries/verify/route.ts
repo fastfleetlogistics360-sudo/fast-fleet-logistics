@@ -5,6 +5,7 @@ import { settleSquadPayment, PaymentSettlementError } from "@/lib/payments/settl
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { hasValidPaymentReturnToken } from "@/lib/payments/payment-return";
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,8 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return response({ error: "Please sign in to verify this delivery payment." }, 401);
+    const signedReturn = hasValidPaymentReturnToken(request, reference);
+    if (!user && !signedReturn) return response({ error: "Please sign in to verify this delivery payment." }, 401);
     const limited = await enforceRateLimit(request, { ...rateLimitPolicies.paymentVerify, name: "deliveries:verify" });
     if (limited) return limited;
     const db = createAdminClient();
@@ -26,7 +28,7 @@ export async function GET(request: NextRequest) {
     let query = db
       .from("deliveries")
       .select("id, delivery_code, customer_id, metadata")
-      .eq("customer_id", user.id);
+    if (user) query = query.eq("customer_id", user.id);
     query = deliveryId ? query.eq("id", deliveryId) : query.eq("delivery_code", code);
     const { data: delivery, error: deliveryError } = await query.maybeSingle<{
       id: string;
@@ -39,14 +41,14 @@ export async function GET(request: NextRequest) {
       return response({ error: "Delivery not found for this payment." }, 404);
     }
 
-    const intent = (await loadPaymentIntent(db, reference)) || await ensureLegacyDeliveryPaymentIntent(db, {
+    const intent = (await loadPaymentIntent(db, reference)) || (user ? await ensureLegacyDeliveryPaymentIntent(db, {
       reference,
       ownerUserId: user.id,
       deliveryId: delivery.id
-    });
+    }) : null);
     if (!intent || intent.delivery_id !== delivery.id) return response({ error: "Payment intent not found." }, 404);
 
-    const result = await settleSquadPayment(db, { reference, actor: { type: "customer", userId: user.id } });
+    const result = await settleSquadPayment(db, { reference, actor: user ? { type: "customer", userId: user.id } : { type: "reconciliation" } });
     return resultResponse(result, { deliveryId: delivery.id, deliveryCode: delivery.delivery_code });
   } catch (error) {
     const status = error instanceof PaymentSettlementError ? 503 : 500;

@@ -66,6 +66,7 @@ export function ActiveOrderMessengerSheet({
   const proof = pickupProofFromMetadata(activeOrder.metadata);
   const proofDeliveryId = activeOrder.delivery_id || activeOrder.id || null;
   const showFastConfirmPreview = Boolean(proof?.url && proofDeliveryId);
+  const proofVersion = typeof proof?.uploaded_at === "string" ? proof.uploaded_at : "";
 
   function dismiss() {
     try {
@@ -107,7 +108,7 @@ export function ActiveOrderMessengerSheet({
           {showFastConfirmPreview ? (
             <Link href={href} className="mt-2 flex items-center gap-2 rounded-[11px] border border-fleet-gold/40 bg-amber-50/70 p-1.5">
               <Image
-                src={`/api/uploads/access?scope=delivery-proof&id=${encodeURIComponent(proofDeliveryId || "")}`}
+                src={`/api/uploads/access?scope=delivery-proof&id=${encodeURIComponent(proofDeliveryId || "")}&v=${encodeURIComponent(proofVersion)}`}
                 alt="FastConfirm package photo"
                 width={80}
                 height={52}

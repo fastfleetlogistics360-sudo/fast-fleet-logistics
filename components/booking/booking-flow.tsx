@@ -17,6 +17,7 @@ import { currentLocationUpdatedEvent, readStoredCurrentLocation, type StoredCurr
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { RiderMatchSearch } from "@/components/booking/rider-match-search";
 import type { CustomerVehicleOptionId } from "@/lib/customer-vehicle-options";
+import { openSecureCheckout } from "@/lib/payments/open-secure-checkout";
 
 const steps = [
   "Pickup",
@@ -209,7 +210,7 @@ export function BookingFlow() {
       } finally {
         if (!controller.signal.aborted) setEstimateLoading(false);
       }
-    }, 450);
+    }, 250);
 
     return () => {
       controller.abort();
@@ -283,7 +284,7 @@ export function BookingFlow() {
       if (!response.ok) throw new Error(payload.error || "Could not create delivery checkout.");
 
       if (payload.authorizationUrl) {
-        window.location.assign(payload.authorizationUrl);
+        await openSecureCheckout(payload.authorizationUrl);
         return;
       }
 

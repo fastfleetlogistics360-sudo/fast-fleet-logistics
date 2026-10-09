@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
+import { addPaymentReturnToken } from "@/lib/payments/payment-return";
 import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, getSquadPaymentEnvironment, initiateSquadPayment } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
@@ -106,6 +107,7 @@ export async function POST(request: Request) {
     callbackUrl.searchParams.set("reference", reference);
     callbackUrl.searchParams.set("returnTo", safeReturnTo);
     callbackUrl.searchParams.set("walletType", walletType);
+    addPaymentReturnToken(callbackUrl, reference);
 
     try {
       const squadCheckout = await initiateSquadPayment({

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
+import { closeSecureCheckout } from "@/lib/payments/open-secure-checkout";
 
 export default function FastErrandCallbackPage() {
   return <Suspense fallback={<CallbackShell />}><FastErrandCallbackContent /></Suspense>;
@@ -14,15 +15,19 @@ function FastErrandCallbackContent() {
   const search = useSearchParams();
   const reference = search.get("reference") || search.get("transaction_ref") || "";
   const code = search.get("code") || "";
+  const paymentReturnToken = search.get("paymentReturnToken") || "";
   const [state, setState] = useState<"loading" | "pending" | "success" | "error">("loading");
   const [message, setMessage] = useState("Confirming your FastErrand payment with Squad...");
   useEffect(() => {
+    void closeSecureCheckout();
     if (!reference) { setState("error"); setMessage("Missing payment reference."); return; }
     let stopped = false; let attempt = 0;
     const verify = async () => {
       try {
         attempt += 1;
-        const response = await fetch(`/api/fast-errands/verify?reference=${encodeURIComponent(reference)}&code=${encodeURIComponent(code)}`);
+        const params = new URLSearchParams({ reference, code });
+        if (paymentReturnToken) params.set("paymentReturnToken", paymentReturnToken);
+        const response = await fetch(`/api/fast-errands/verify?${params.toString()}`);
         const data = await response.json();
         if (response.status === 202 && attempt < 8 && !stopped) { setState("pending"); setMessage(data.message || "Payment is still being confirmed."); window.setTimeout(verify, 5000); return; }
         if (!response.ok) throw new Error(data.error || "Payment verification failed.");
@@ -30,7 +35,7 @@ function FastErrandCallbackContent() {
       } catch (error) { setState("error"); setMessage(error instanceof Error ? error.message : "Payment verification failed."); }
     };
     verify(); return () => { stopped = true; };
-  }, [code, reference]);
+  }, [code, paymentReturnToken, reference]);
   return <CallbackShell state={state} message={message} code={code} />;
 }
 

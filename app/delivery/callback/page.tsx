@@ -8,6 +8,7 @@ import { accountTrackingHref } from "@/lib/tracking-links";
 import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
 import { RiderMatchSearch } from "@/components/booking/rider-match-search";
+import { closeSecureCheckout } from "@/lib/payments/open-secure-checkout";
 
 type VerificationState =
   | { status: "loading"; message: string }
@@ -29,6 +30,7 @@ function DeliveryCallbackContent() {
   const code = searchParams.get("code") || "";
   const deliveryId = searchParams.get("deliveryId") || "";
   const matchToken = searchParams.get("matchToken") || null;
+  const paymentReturnToken = searchParams.get("paymentReturnToken") || "";
   const returnTo = sanitizeReturnTo(searchParams.get("returnTo"), code ? accountTrackingHref(code) : "/dashboard");
   const [state, setState] = useState<VerificationState>({
     status: "loading",
@@ -36,6 +38,7 @@ function DeliveryCallbackContent() {
   });
 
   useEffect(() => {
+    void closeSecureCheckout();
     if (!reference) {
       setState({ status: "error", message: "Missing payment reference." });
       return;
@@ -50,6 +53,7 @@ function DeliveryCallbackContent() {
         const params = new URLSearchParams({ reference: reference || "" });
         if (code) params.set("code", code);
         if (deliveryId) params.set("deliveryId", deliveryId);
+        if (paymentReturnToken) params.set("paymentReturnToken", paymentReturnToken);
         const response = await fetch(`/api/deliveries/verify?${params.toString()}`);
         const data = await response.json();
         if (response.status === 202) {
@@ -79,7 +83,7 @@ function DeliveryCallbackContent() {
     return () => {
       stopped = true;
     };
-  }, [code, deliveryId, reference, returnTo]);
+  }, [code, deliveryId, paymentReturnToken, reference, returnTo]);
 
   const Icon = state.status === "success" ? CheckCircle2 : state.status === "error" ? XCircle : Loader2;
 
