@@ -94,7 +94,21 @@ async function notifyPromotionSubscribers(
   );
 
   const notificationCount = results.filter((result) => result.status === "fulfilled" && !result.value.error).length;
-  return { notificationCount, promotionId: promotion.id, promotionTitle: promotion.title };
+  const push = results.reduce(
+    (summary, result) => {
+      if (result.status !== "fulfilled" || !result.value.push) return summary;
+      const attempt = result.value.push;
+      summary.accepted += attempt.accepted;
+      summary.attempted += attempt.attempted;
+      summary.failed += attempt.failed;
+      summary.fcmAttempted += attempt.fcm.attempted;
+      summary.fcmAccepted += attempt.fcm.accepted;
+      summary.fcmFailed += attempt.fcm.failed;
+      return summary;
+    },
+    { accepted: 0, attempted: 0, failed: 0, fcmAttempted: 0, fcmAccepted: 0, fcmFailed: 0 }
+  );
+  return { notificationCount, promotionId: promotion.id, promotionTitle: promotion.title, push };
 }
 
 function safeNotificationUrl(value: string) {

@@ -22,6 +22,23 @@ type SupabaseLike = {
   from: (table: string) => any;
 };
 
+type PushSendResult = {
+  accepted: boolean;
+  attempted: boolean;
+  expired: boolean;
+  provider: "fcm" | "web_push";
+  status?: number;
+  reason?: string;
+};
+
+type PushDispatchSummary = {
+  accepted: number;
+  attempted: number;
+  failed: number;
+  fcm: { accepted: number; attempted: number; failed: number };
+  webPush: { accepted: number; attempted: number; failed: number };
+};
+
 let cachedAccessToken: { value: string; expiresAt: number } | null = null;
 
 function base64Url(input: string | Buffer) {
@@ -224,12 +241,12 @@ function encryptWebPushPayload(payload: Record<string, unknown>, userPublicKey: 
 
 async function sendFcm(subscription: PushSubscriptionRow, notification: NotificationPayload) {
   const config = firebaseConfig();
-  if (!config) return { expired: false };
+  if (!config) return { accepted: false, attempted: false, expired: false, provider: "fcm" as const, reason: "Firebase server configuration is missing." };
   const metadata = enrichMetadata(notification);
   const token = subscription.token || (subscription.keys && typeof subscription.keys === "object" ? String((subscription.keys as { token?: string }).token || "") : "");
-  if (!token) return { expired: false };
+  if (!token) return { accepted: false, attempted: false, expired: false, provider: "fcm" as const, reason: "The Android FCM token is missing." };
   const accessToken = await getFirebaseAccessToken();
-  if (!accessToken) return { expired: false };
+  if (!accessToken) return { accepted: false, attempted: false, expired: false, provider: "fcm" as const, reason: "Firebase OAuth authentication failed." };
 
   const response = await fetch(`https://fcm.googleapis.com/v1/projects/${config.projectId}/messages:send`, {
     method: "POST",
@@ -268,18 +285,24 @@ async function sendFcm(subscription: PushSubscriptionRow, notification: Notifica
       }
     })
   }).catch(() => null);
-  return { expired: response?.status === 404 };
+  if (!response) return { accepted: false, attempted: true, expired: false, provider: "fcm" as const, reason: "Firebase could not be reached." };
+  if (!response.ok) {
+    const reason = (await response.text().catch(() => "")).slice(0, 500) || `Firebase returned HTTP ${response.status}.`;
+    console.error("FCM push request was rejected", { status: response.status, reason });
+    return { accepted: false, attempted: true, expired: response.status === 404, provider: "fcm" as const, status: response.status, reason };
+  }
+  return { accepted: true, attempted: true, expired: false, provider: "fcm" as const, status: response.status };
 }
 
 async function sendWebPush(subscription: PushSubscriptionRow, notification: NotificationPayload) {
   const endpoint = subscription.endpoint || "";
   const keys = subscription.keys && typeof subscription.keys === "object" ? (subscription.keys as { p256dh?: string; auth?: string }) : null;
-  if (!endpoint || !keys?.p256dh || !keys.auth) return { expired: false };
+  if (!endpoint || !keys?.p256dh || !keys.auth) return { accepted: false, attempted: false, expired: false, provider: "web_push" as const, reason: "Browser push subscription is incomplete." };
   const metadata = enrichMetadata(notification);
   const authorization = createVapidAuthorization(endpoint);
-  if (!authorization) return { expired: false };
+  if (!authorization) return { accepted: false, attempted: false, expired: false, provider: "web_push" as const, reason: "Web push server configuration is missing." };
   const body = encryptWebPushPayload(webPushPayload(notification, metadata), keys.p256dh, keys.auth);
-  if (!body) return { expired: false };
+  if (!body) return { accepted: false, attempted: false, expired: false, provider: "web_push" as const, reason: "Browser push payload could not be encrypted." };
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -292,24 +315,47 @@ async function sendWebPush(subscription: PushSubscriptionRow, notification: Noti
     },
     body
   }).catch(() => null);
-  return { expired: response?.status === 404 || response?.status === 410 };
+  if (!response) return { accepted: false, attempted: true, expired: false, provider: "web_push" as const, reason: "Browser push service could not be reached." };
+  if (!response.ok) return { accepted: false, attempted: true, expired: response.status === 404 || response.status === 410, provider: "web_push" as const, status: response.status, reason: `Browser push returned HTTP ${response.status}.` };
+  return { accepted: true, attempted: true, expired: false, provider: "web_push" as const, status: response.status };
 }
 
-export async function dispatchPushForNotification(db: SupabaseLike, notification: NotificationPayload) {
+export async function dispatchPushForNotification(db: SupabaseLike, notification: NotificationPayload): Promise<PushDispatchSummary> {
   const { data } = await db
     .from("push_subscriptions")
     .select("id, provider, endpoint, token, keys")
     .eq("user_id", notification.user_id)
     .limit(20);
-  const outcomes = await Promise.allSettled(
-    ((data || []) as PushSubscriptionRow[]).map((subscription) => {
+  const subscriptions = (data || []) as PushSubscriptionRow[];
+  const outcomes = await Promise.allSettled<PushSendResult>(
+    subscriptions.map((subscription) => {
       if (subscription.provider === "fcm") return sendFcm(subscription, notification);
       if (subscription.provider === "web_push") return sendWebPush(subscription, notification);
-      return Promise.resolve({ expired: false });
+      return Promise.resolve({ accepted: false, attempted: false, expired: false, provider: "web_push" as const, reason: "Unsupported push provider." });
     })
   );
-  const expiredIds = outcomes.flatMap((outcome, index) => outcome.status === "fulfilled" && outcome.value?.expired && (data || [])[index]?.id ? [String((data || [])[index].id)] : []);
+  const summary: PushDispatchSummary = { accepted: 0, attempted: 0, failed: 0, fcm: { accepted: 0, attempted: 0, failed: 0 }, webPush: { accepted: 0, attempted: 0, failed: 0 } };
+  outcomes.forEach((outcome) => {
+    if (outcome.status !== "fulfilled") {
+      summary.failed += 1;
+      return;
+    }
+    const channel = outcome.value.provider === "fcm" ? summary.fcm : summary.webPush;
+    if (outcome.value.attempted) {
+      summary.attempted += 1;
+      channel.attempted += 1;
+    }
+    if (outcome.value.accepted) {
+      summary.accepted += 1;
+      channel.accepted += 1;
+    } else if (outcome.value.attempted) {
+      summary.failed += 1;
+      channel.failed += 1;
+    }
+  });
+  const expiredIds = outcomes.flatMap((outcome, index) => outcome.status === "fulfilled" && outcome.value.expired && subscriptions[index]?.id ? [String(subscriptions[index].id)] : []);
   if (expiredIds.length) await db.from("push_subscriptions").delete().in("id", expiredIds).catch(() => null);
+  return summary;
 }
 
 export async function insertNotificationWithPush(db: SupabaseLike, notification: NotificationPayload) {
@@ -327,9 +373,7 @@ export async function insertNotificationWithPush(db: SupabaseLike, notification:
     .select("id, user_id, title, body, type, metadata")
     .single();
 
-  if (!error && data) {
-    await dispatchPushForNotification(db, data as NotificationPayload);
-  }
+  const push = !error && data ? await dispatchPushForNotification(db, data as NotificationPayload) : null;
 
-  return { data, error };
+  return { data, error, push };
 }

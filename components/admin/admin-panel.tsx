@@ -1870,7 +1870,15 @@ export function AdminPanel() {
         const count = Number(result.notification?.notificationCount || 0);
         const suffix = result.notification?.skippedReason ? ` ${result.notification.skippedReason}` : "";
         const promotionTitle = typeof result.notification?.promotionTitle === "string" ? `“${result.notification.promotionTitle}”` : "This promotion";
-        setAdminMessage(`Hub promotions saved. ${promotionTitle} push sent to ${count.toLocaleString("en-NG")} subscribed user${count === 1 ? "" : "s"}.${suffix}`);
+        const push = result.notification?.push;
+        const attempted = Number(push?.attempted || 0);
+        const accepted = Number(push?.accepted || 0);
+        const fcmAttempted = Number(push?.fcmAttempted || 0);
+        const fcmAccepted = Number(push?.fcmAccepted || 0);
+        const delivery = attempted
+          ? ` Push accepted for ${accepted.toLocaleString("en-NG")} of ${attempted.toLocaleString("en-NG")} registered device${attempted === 1 ? "" : "s"}${fcmAttempted ? `, including ${fcmAccepted.toLocaleString("en-NG")} of ${fcmAttempted.toLocaleString("en-NG")} Android FCM device${fcmAttempted === 1 ? "" : "s"}` : ""}.`
+          : " No registered device push was attempted.";
+        setAdminMessage(`Hub promotions saved. ${promotionTitle} notification created for ${count.toLocaleString("en-NG")} subscribed user${count === 1 ? "" : "s"}.${delivery}${suffix}`);
       } else {
         setAdminMessage("Hub promotions saved. The /hub carousel will load the updated active slides.");
       }
