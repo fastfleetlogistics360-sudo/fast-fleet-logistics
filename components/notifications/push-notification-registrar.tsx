@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { createClient } from "@/lib/supabase/client";
@@ -64,6 +64,8 @@ function announceDeliveryUpdate(data?: Record<string, unknown>) {
 }
 
 export function PushNotificationRegistrar() {
+  const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     let removeRealtimeChannel: (() => void) | undefined;
@@ -162,6 +164,25 @@ export function PushNotificationRegistrar() {
       });
     }
 
+    async function canAskForNotificationPermission() {
+      if (nativePushEnabled && Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
+        if (!Capacitor.isPluginAvailable("NativePushReadiness")) return false;
+        const readiness = await NativePushReadiness.check().catch(() => null);
+        if (!readiness?.ready) return false;
+        const permission = await PushNotifications.checkPermissions().catch(() => null);
+        return permission?.receive === "prompt";
+      }
+
+      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      return Boolean(
+        publicKey &&
+          "serviceWorker" in navigator &&
+          "PushManager" in window &&
+          "Notification" in window &&
+          Notification.permission === "default"
+      );
+    }
+
     async function setupForUser() {
       const supabase = createClient();
       const {
@@ -171,6 +192,13 @@ export function PushNotificationRegistrar() {
 
       if (nativePushEnabled) void registerNativePush();
       void registerWebPush();
+
+      // Android cannot create an FCM token until a user has acted on its
+      // notification permission prompt. Offer that opt-in to every signed-in
+      // role, rather than only when a rider turns online.
+      void canAskForNotificationPermission().then((canAsk) => {
+        if (canAsk && !cancelled) setShowPermissionPrompt(true);
+      });
 
       const channel = supabase
         .channel(`foreground-notifications:${user.id}`)
@@ -208,5 +236,25 @@ export function PushNotificationRegistrar() {
     };
   }, []);
 
-  return null;
+  if (!showPermissionPrompt) return null;
+
+  return (
+    <div className="fixed inset-x-4 bottom-4 z-[100] mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:bottom-6" role="dialog" aria-label="Enable notifications">
+      <p className="text-base font-black text-fleet-night">Stay updated</p>
+      <p className="mt-1 text-sm font-medium leading-5 text-slate-600">Enable notifications for delivery, order, wallet, and account updates.</p>
+      <div className="mt-4 flex justify-end gap-2">
+        <button type="button" className="min-h-10 rounded-lg px-3 text-sm font-bold text-slate-600" onClick={() => setShowPermissionPrompt(false)}>Not now</button>
+        <button
+          type="button"
+          className="min-h-10 rounded-lg bg-fleet-night px-4 text-sm font-black text-white"
+          onClick={() => {
+            setShowPermissionPrompt(false);
+            window.dispatchEvent(new Event("fastfleet:request-push-notifications"));
+          }}
+        >
+          Enable notifications
+        </button>
+      </div>
+    </div>
+  );
 }

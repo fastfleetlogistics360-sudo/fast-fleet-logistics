@@ -3,8 +3,8 @@ package com.fastfleetlogistics.app;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import com.getcapacitor.annotation.PluginMethod;
 
 /**
  * Allows the web layer to verify that the installed Android binary includes the
