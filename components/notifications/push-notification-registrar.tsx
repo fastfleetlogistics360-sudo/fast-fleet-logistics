@@ -1,22 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Capacitor, registerPlugin } from "@capacitor/core";
+import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { createClient } from "@/lib/supabase/client";
 
 // Native FCM requires android/app/google-services.json in the installed binary.
 // Keep it opt-in so native startup remains safe until Firebase is configured.
 const nativePushEnabled = process.env.NEXT_PUBLIC_ENABLE_NATIVE_PUSH === "true";
-
-type NativePushReadinessPlugin = {
-  check: () => Promise<{ ready?: boolean }>;
-};
-
-// New Android binaries provide this small native preflight. Older installed
-// binaries do not, which lets us safely skip FCM instead of calling Firebase
-// before its google-services configuration has been compiled into the app.
-const NativePushReadiness = registerPlugin<NativePushReadinessPlugin>("NativePushReadiness");
 
 function urlBase64ToUint8Array(value: string) {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
@@ -85,9 +76,7 @@ export function PushNotificationRegistrar() {
       // explicit prevents an unconfigured native binary from prompting or crashing.
       if (!nativePushEnabled || !Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") return;
 
-      if (!Capacitor.isPluginAvailable("NativePushReadiness")) return;
-      const readiness = await NativePushReadiness.check().catch(() => null);
-      if (!readiness?.ready || cancelled) return;
+      if (!Capacitor.isPluginAvailable("PushNotifications") || cancelled) return;
 
       const currentPermission = await PushNotifications.checkPermissions().catch(() => null);
       if (!currentPermission || cancelled) return;
@@ -166,9 +155,7 @@ export function PushNotificationRegistrar() {
 
     async function canAskForNotificationPermission() {
       if (nativePushEnabled && Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
-        if (!Capacitor.isPluginAvailable("NativePushReadiness")) return false;
-        const readiness = await NativePushReadiness.check().catch(() => null);
-        if (!readiness?.ready) return false;
+        if (!Capacitor.isPluginAvailable("PushNotifications")) return false;
         const permission = await PushNotifications.checkPermissions().catch(() => null);
         return permission?.receive === "prompt";
       }
