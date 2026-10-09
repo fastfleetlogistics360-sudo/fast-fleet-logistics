@@ -24,6 +24,7 @@ export default function robots(): MetadataRoute.Robots {
         "/choose-account-type",
         "/delivery/callback",
         "/wallet/callback",
+        "/payment/callback",
         "/marketplace/callback"
       ]
     },

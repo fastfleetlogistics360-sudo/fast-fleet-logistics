@@ -141,6 +141,18 @@ test("F-007 browser, webhook, reconciliation, and manual paths all use the one s
   }
 });
 
+test("F-007 routes the account-wide Squad redirect to the owner's specific payment callback", () => {
+  const paymentReturn = read("app/api/payments/return/route.ts");
+  const paymentReturnPage = read("app/payment/callback/page.tsx");
+  assert.match(paymentReturn, /supabase\.auth\.getUser\(\)/);
+  assert.match(paymentReturn, /intent\.owner_user_id !== user\.id/);
+  assert.match(paymentReturn, /\/wallet\/callback\?reference=/);
+  assert.match(paymentReturn, /\/delivery\/callback\?/);
+  assert.match(paymentReturn, /\/marketplace\/callback\?reference=/);
+  assert.match(paymentReturnPage, /\/api\/payments\/return\?reference=/);
+  assert.match(paymentReturnPage, /window\.location\.replace\(result\.destination\)/);
+});
+
 test("F-007 gives an authenticated customer a safe pending-delivery recovery path", () => {
   const tracking = read("components/tracking/live-order-tracking.tsx");
   const verify = read("app/api/deliveries/verify/route.ts");
