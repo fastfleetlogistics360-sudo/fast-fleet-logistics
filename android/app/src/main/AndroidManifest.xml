@@ -43,6 +43,19 @@
                     android:host="www.fastfleet.com.ng" />
             </intent-filter>
 
+            <!-- Squad finishes in a Chrome Custom Tab. This private hand-off
+                 returns the verified HTTPS callback to the authenticated app. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="fastfleets360"
+                    android:host="payment-return" />
+            </intent-filter>
+
         </activity>
 
         <provider

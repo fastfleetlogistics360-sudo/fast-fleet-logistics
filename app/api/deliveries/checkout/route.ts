@@ -44,6 +44,7 @@ type CheckoutPayload = {
   payment?: "card" | "wallet" | "transfer" | "";
   note?: string;
   total?: number;
+  nativeCheckout?: boolean;
 };
 
 export async function POST(request: Request) {
@@ -300,6 +301,7 @@ export async function POST(request: Request) {
     callbackUrl.searchParams.set("deliveryId", delivery.id);
     callbackUrl.searchParams.set("matchToken", customerMatchToken);
     callbackUrl.searchParams.set("returnTo", accountTrackingHref(delivery.delivery_code));
+    if (payload.nativeCheckout === true) callbackUrl.searchParams.set("nativeReturn", "1");
     addPaymentReturnToken(callbackUrl, squadReference);
 
     let squadCheckout;

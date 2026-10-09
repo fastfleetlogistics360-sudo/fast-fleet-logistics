@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
 import { RiderMatchSearch } from "@/components/booking/rider-match-search";
 import { closeSecureCheckout } from "@/lib/payments/open-secure-checkout";
+import { handOffExternalAndroidPaymentReturn } from "@/lib/payments/native-payment-return";
 
 type VerificationState =
   | { status: "loading"; message: string }
@@ -31,6 +32,7 @@ function DeliveryCallbackContent() {
   const deliveryId = searchParams.get("deliveryId") || "";
   const matchToken = searchParams.get("matchToken") || null;
   const paymentReturnToken = searchParams.get("paymentReturnToken") || "";
+  const nativeReturn = searchParams.get("nativeReturn") === "1";
   const returnTo = sanitizeReturnTo(searchParams.get("returnTo"), code ? accountTrackingHref(code) : "/dashboard");
   const [state, setState] = useState<VerificationState>({
     status: "loading",
@@ -38,6 +40,7 @@ function DeliveryCallbackContent() {
   });
 
   useEffect(() => {
+    if (nativeReturn && handOffExternalAndroidPaymentReturn(window.location.href)) return;
     void closeSecureCheckout();
     if (!reference) {
       setState({ status: "error", message: "Missing payment reference." });
@@ -83,7 +86,7 @@ function DeliveryCallbackContent() {
     return () => {
       stopped = true;
     };
-  }, [code, deliveryId, paymentReturnToken, reference, returnTo]);
+  }, [code, deliveryId, nativeReturn, paymentReturnToken, reference, returnTo]);
 
   const Icon = state.status === "success" ? CheckCircle2 : state.status === "error" ? XCircle : Loader2;
 

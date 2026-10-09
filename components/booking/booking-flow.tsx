@@ -18,6 +18,7 @@ import { extractNigerianState } from "@/lib/location/state-matching";
 import { RiderMatchSearch } from "@/components/booking/rider-match-search";
 import type { CustomerVehicleOptionId } from "@/lib/customer-vehicle-options";
 import { openSecureCheckout } from "@/lib/payments/open-secure-checkout";
+import { Capacitor } from "@capacitor/core";
 
 const steps = [
   "Pickup",
@@ -273,7 +274,8 @@ export function BookingFlow() {
           vehicle: selectedVehicle,
           vehicleOption: form.vehicleOption,
           speed: selectedSpeed,
-          total: estimate.total
+          total: estimate.total,
+          nativeCheckout: Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
         })
       });
       const payload = await response.json();
