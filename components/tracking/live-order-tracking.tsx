@@ -194,8 +194,15 @@ export function LiveOrderTracking({
   useEffect(() => {
     if (!order.delivery_code || isComplete(order.status)) return;
     let stopped = false;
+    const isPrivateMessenger = mode === "messenger" && initialOrder.tracking_kind !== "marketplace_order";
     async function refreshTracking() {
-      const response = await fetch(`/api/tracking?code=${encodeURIComponent(order.delivery_code)}`, { cache: "no-store" }).catch(() => null);
+      // Android can keep the WebView alive while its realtime socket and
+      // timers are paused. The account-only endpoint includes FastConfirm
+      // metadata; public tracking intentionally never does.
+      const endpoint = isPrivateMessenger
+        ? `/api/account/delivery-live-state?deliveryId=${encodeURIComponent(order.id)}`
+        : `/api/tracking?code=${encodeURIComponent(order.delivery_code)}`;
+      const response = await fetch(endpoint, { cache: "no-store" }).catch(() => null);
       if (!response?.ok || stopped) return;
       const payload = (await response.json().catch(() => ({}))) as {
         delivery?: Partial<TrackingOrder> & { last_location?: DeliveryLocation | null };
@@ -232,14 +239,24 @@ export function LiveOrderTracking({
       const matchesMarketplaceOrder = Boolean(initialOrder.marketplace_order?.id) && String(metadata?.order_id || "") === initialOrder.marketplace_order?.id;
       if (matchesDelivery || matchesMarketplaceOrder) void refreshTracking();
     };
+    const onResume = () => {
+      if (document.visibilityState === "visible") void refreshTracking();
+    };
+    const onFocus = () => void refreshTracking();
     window.addEventListener("fastfleet:delivery-update", onDeliveryUpdate);
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("pageshow", onFocus);
     void refreshTracking();
     return () => {
       stopped = true;
       window.clearInterval(timer);
       window.removeEventListener("fastfleet:delivery-update", onDeliveryUpdate);
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pageshow", onFocus);
     };
-  }, [order.delivery_code, order.status]);
+  }, [initialOrder.tracking_kind, mode, order.delivery_code, order.id, order.status]);
 
   useEffect(() => {
     if (isComplete(order.status)) setConnectionState("complete");

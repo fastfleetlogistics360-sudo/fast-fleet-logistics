@@ -56,9 +56,19 @@ export function RiderMatchSearch({ deliveryId, deliveryCode, matchToken = null, 
       }
     }
     refresh();
+    const onResume = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    const onFocus = () => void refresh();
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("pageshow", onFocus);
     return () => {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pageshow", onFocus);
     };
   }, [deliveryId, matchToken]);
 
