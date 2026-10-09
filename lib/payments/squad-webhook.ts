@@ -44,12 +44,13 @@ export function verifySquadWebhookSignature(rawBody: string, suppliedSignature: 
 export function parseSquadStandardPaymentWebhook(payload: unknown): SquadWebhookEvent | null {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
   const record = payload as Record<string, unknown>;
-  const nested = record.data && typeof record.data === "object" && !Array.isArray(record.data)
-    ? (record.data as Record<string, unknown>)
-    : {};
-  const eventType = text(record.Event || record.event || record.type || nested.Event || nested.event);
+  // Squad standard payments use the documented `Event`, `TransactionRef`,
+  // and capitalized `Body` shape. Some older variants use `data` instead.
+  // Accept both only after HMAC validation of the untouched raw body.
+  const nested = objectRecord(record.Body) || objectRecord(record.body) || objectRecord(record.data) || {};
+  const eventType = text(record.Event || record.event || record.type || nested.Event || nested.event || nested.type);
   const providerReference = text(
-    record.transaction_ref || record.transaction_reference || nested.transaction_ref || nested.transaction_reference
+    record.TransactionRef || record.transaction_ref || record.transaction_reference || nested.TransactionRef || nested.transaction_ref || nested.transaction_reference
   );
   const providerStatus = text(
     record.transaction_status || record.status || nested.transaction_status || nested.status
@@ -86,4 +87,8 @@ function normaliseEventType(value: string) {
 
 function text(value: unknown) {
   return typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+}
+
+function objectRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }

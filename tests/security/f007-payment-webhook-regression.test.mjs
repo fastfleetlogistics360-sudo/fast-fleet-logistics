@@ -33,6 +33,17 @@ function loadWebhookModule() {
 const webhook = loadWebhookModule();
 const signed = (body) => crypto.createHmac("sha512", squadSecret).update(body, "utf8").digest("hex");
 const validBody = JSON.stringify({ Event: "charge_successful", transaction_ref: "FFD-12345678-ABCD", transaction_status: "Success", transaction_amount: 125000, transaction_currency_id: "NGN" });
+const documentedSquadBody = JSON.stringify({
+  Event: "charge_successful",
+  TransactionRef: "FFW-12345678-ABCD",
+  Body: {
+    amount: 125000,
+    transaction_ref: "FFW-12345678-ABCD",
+    gateway_ref: "FFW-12345678-ABCD_1_2_3",
+    transaction_status: "Success",
+    currency: "NGN"
+  }
+});
 
 test("F-007 validates genuine standard-payment webhooks using HMAC-SHA512", () => {
   assert.equal(webhook.verifySquadWebhookSignature(validBody, signed(validBody)).valid, true);
@@ -59,6 +70,15 @@ test("F-007 parses only identified standard payment events and derives replay-sa
   assert.equal(webhook.isSuccessfulSquadWebhookEvent({ ...parsed, eventType: "refund" }), false);
   assert.match(webhook.squadWebhookPayloadDigest(validBody), /^[a-f0-9]{64}$/);
   assert.match(webhook.squadWebhookEventKey(parsed), /^[a-f0-9]{64}$/);
+});
+
+test("F-007 accepts Squad's documented capitalized standard-payment webhook body", () => {
+  const parsed = webhook.parseSquadStandardPaymentWebhook(JSON.parse(documentedSquadBody));
+  assert.equal(parsed.eventType, "charge_successful");
+  assert.equal(parsed.providerReference, "FFW-12345678-ABCD");
+  assert.equal(parsed.providerStatus, "Success");
+  assert.equal(parsed.gatewayReference, "FFW-12345678-ABCD_1_2_3");
+  assert.equal(webhook.verifySquadWebhookSignature(documentedSquadBody, signed(documentedSquadBody)).valid, true);
 });
 
 test("F-007 webhook route keeps raw-body validation ahead of parsing and returns no-store responses", () => {
