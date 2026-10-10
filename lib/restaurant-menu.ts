@@ -28,18 +28,26 @@ export type RestaurantKitchen = {
 export const restaurantMenuSettingsKey = "restaurant_menu";
 export const restaurantMenuStorageKey = "fastfleet_restaurant_menu";
 
-// Reusable food photography keeps every menu card visual while the kitchen
-// gathers and uploads its own dish-by-dish photography. The cover is supplied
-// directly by The Motherland Kitchen.
+// Most of these are crops from the verified Motherland Kitchen menu artwork
+// supplied for this listing. The remaining dish-specific images are real
+// Nigerian-style food photography used only where a matching TMK photo was
+// not publicly indexed.
 const motherlandKitchenPhotos = {
-  soup: "https://images.unsplash.com/photo-1668356852725-05a0ceb2b60e?auto=format&fit=crop&w=600&q=82",
-  rice: "https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?auto=format&fit=crop&w=600&q=82",
+  pepperSoup: "https://images.unsplash.com/photo-1645066804237-08145dd196e9?auto=format&fit=crop&w=600&q=82",
+  vegetableSoup: "/restaurants/motherland-vegetable-soup.png",
+  egusi: "/restaurants/motherland-egusi-soup.png",
+  chickenStew: "/restaurants/motherland-chicken-stew.png",
+  rice: "/restaurants/motherland-jollof-rice.png",
+  friedRice: "/restaurants/motherland-fried-rice.png",
   pasta: "https://images.unsplash.com/photo-1551892374-ecf8754cf8b0?auto=format&fit=crop&w=600&q=82",
-  fish: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=82",
-  protein: "https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=600&q=82",
-  seafood: "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=600&q=82",
-  porridge: "https://images.unsplash.com/photo-1596797038530-2c107229654b?auto=format&fit=crop&w=600&q=82",
-  swallow: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=82"
+  fish: "https://images.unsplash.com/photo-1725393325387-07f0d4951528?auto=format&fit=crop&w=600&q=82",
+  assorted: "/restaurants/motherland-peppered-assorted.png",
+  pepperedMeat: "/restaurants/motherland-peppered-meat.png",
+  wings: "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?auto=format&fit=crop&w=600&q=82",
+  snails: "https://images.unsplash.com/photo-1738071020203-784282e6d4c6?auto=format&fit=crop&w=600&q=82",
+  crab: "https://images.unsplash.com/photo-1570377622872-f35b21afd668?auto=format&fit=crop&w=600&q=82",
+  porridge: "https://images.unsplash.com/photo-1721942893905-3de47ae22b88?auto=format&fit=crop&w=600&q=82",
+  swallow: "/restaurants/motherland-egusi-soup.png"
 } as const;
 
 export const defaultRestaurantKitchens: RestaurantKitchen[] = [
@@ -183,37 +191,37 @@ export const defaultRestaurantKitchens: RestaurantKitchen[] = [
     mealTypes: ["SOUP BOWL", "RICE & COMBOS", "PASTA", "SEAFOOD", "PEPPERED PROTEIN", "PORRIDGE", "EXTRAS"],
     imageUrl: "/restaurants/the-motherland-kitchen-cover.png",
     items: [
-      { id: "goat-meat-pepper-soup", name: "Nigerian Goat Meat Pepper Soup", type: "SOUP BOWL", price: 12500, portion: "1 bowl", imageUrl: motherlandKitchenPhotos.soup },
+      { id: "goat-meat-pepper-soup", name: "Nigerian Goat Meat Pepper Soup", type: "SOUP BOWL", price: 12500, portion: "1 bowl", imageUrl: motherlandKitchenPhotos.pepperSoup },
       { id: "village-combo", name: "Village Combo", type: "RICE & COMBOS", price: 7950, portion: "1 portion", imageUrl: motherlandKitchenPhotos.rice },
-      { id: "office-lunch-fried-beef-or-chicken", name: "TMK Office Lunch — Fried Beef or Chicken", type: "RICE & COMBOS", price: 7500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.rice },
-      { id: "tmk-combo-rice", name: "TMK Combo Rice", type: "RICE & COMBOS", price: 7500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.rice },
+      { id: "office-lunch-fried-beef-or-chicken", name: "TMK Office Lunch — Fried Beef or Chicken", type: "RICE & COMBOS", price: 7500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.chickenStew },
+      { id: "tmk-combo-rice", name: "TMK Combo Rice", type: "RICE & COMBOS", price: 7500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.friedRice },
       { id: "tmk-ibile-pasta", name: "TMK Ibile Pasta", type: "PASTA", price: 17500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.pasta },
       { id: "jollof-rice-with-beef-or-chicken", name: "Jollof Rice with Beef or Chicken", type: "RICE & COMBOS", price: 7500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.rice },
-      { id: "okro-vegetable-with-protein-and-eba", name: "Okro Vegetable with Protein of Your Choice and Eba", type: "SOUP BOWL", price: 8500, portion: "1 bowl with eba", imageUrl: motherlandKitchenPhotos.swallow },
-      { id: "ogbono-with-beef-or-chicken-and-eba", name: "Ogbono with Beef or Chicken and Eba", type: "SOUP BOWL", price: 8550, portion: "1 bowl with eba", imageUrl: motherlandKitchenPhotos.soup },
+      { id: "okro-vegetable-with-protein-and-eba", name: "Okro Vegetable with Protein of Your Choice and Eba", type: "SOUP BOWL", price: 8500, portion: "1 bowl with eba", imageUrl: motherlandKitchenPhotos.vegetableSoup },
+      { id: "ogbono-with-beef-or-chicken-and-eba", name: "Ogbono with Beef or Chicken and Eba", type: "SOUP BOWL", price: 8550, portion: "1 bowl with eba", imageUrl: motherlandKitchenPhotos.egusi },
       { id: "peppered-full-fried-croaker-fish", name: "Peppered Full Fried Croaker Fish", type: "SEAFOOD", price: 22500, portion: "1 full fish", imageUrl: motherlandKitchenPhotos.fish },
       { id: "peppered-full-fried-titus-fish", name: "Peppered Full Fried Titus Fish", type: "SEAFOOD", price: 18000, portion: "1 full fish", imageUrl: motherlandKitchenPhotos.fish },
-      { id: "three-litres-seafood-afang", name: "3 Litres Seafood Afang with Eba, Semo or Poundo", type: "SOUP BOWL", price: 85000, portion: "3 litres", imageUrl: motherlandKitchenPhotos.soup },
-      { id: "three-litres-bitter-leaf-soup", name: "3 Litres Bitter Leaf Soup with Eba", type: "SOUP BOWL", price: 45000, portion: "3 litres", imageUrl: motherlandKitchenPhotos.soup },
-      { id: "oha-soup-with-protein", name: "Oha Soup with Protein of Your Choice", type: "SOUP BOWL", price: 9950, portion: "1 bowl", imageUrl: motherlandKitchenPhotos.soup },
-      { id: "three-litres-seafood-okro", name: "3 Litres Seafood Okro with Eba", type: "SOUP BOWL", price: 105000, portion: "3 litres", imageUrl: motherlandKitchenPhotos.soup },
+      { id: "three-litres-seafood-afang", name: "3 Litres Seafood Afang with Eba, Semo or Poundo", type: "SOUP BOWL", price: 85000, portion: "3 litres", imageUrl: motherlandKitchenPhotos.vegetableSoup },
+      { id: "three-litres-bitter-leaf-soup", name: "3 Litres Bitter Leaf Soup with Eba", type: "SOUP BOWL", price: 45000, portion: "3 litres", imageUrl: motherlandKitchenPhotos.vegetableSoup },
+      { id: "oha-soup-with-protein", name: "Oha Soup with Protein of Your Choice", type: "SOUP BOWL", price: 9950, portion: "1 bowl", imageUrl: motherlandKitchenPhotos.vegetableSoup },
+      { id: "three-litres-seafood-okro", name: "3 Litres Seafood Okro with Eba", type: "SOUP BOWL", price: 105000, portion: "3 litres", imageUrl: motherlandKitchenPhotos.vegetableSoup },
       { id: "three-litres-egusi-with-protein", name: "3 Litres Egusi with Protein of Your Choice and Semo or Eba", type: "SOUP BOWL", price: 50000, portion: "3 litres", imageUrl: motherlandKitchenPhotos.swallow },
       { id: "extra-poundo-two", name: "Extra Poundo", type: "EXTRAS", price: 2000, portion: "2 wraps", imageUrl: motherlandKitchenPhotos.swallow },
       { id: "extra-eba-two", name: "Extra Eba", type: "EXTRAS", price: 1500, portion: "2 wraps", imageUrl: motherlandKitchenPhotos.swallow },
       { id: "extra-semo-two", name: "Extra Semo", type: "EXTRAS", price: 1800, portion: "2 wraps", imageUrl: motherlandKitchenPhotos.swallow },
-      { id: "beef-spicy-assorted", name: "Beef Spicy Assorted", type: "PEPPERED PROTEIN", price: 8950, portion: "1 portion", imageUrl: motherlandKitchenPhotos.protein },
-      { id: "spicy-wings", name: "Spicy Wings", type: "PEPPERED PROTEIN", price: 9500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.protein },
-      { id: "peppered-turkey-gizzard", name: "Peppered Turkey Gizzard", type: "PEPPERED PROTEIN", price: 8000, portion: "1 portion", imageUrl: motherlandKitchenPhotos.protein },
-      { id: "peppered-snails", name: "Peppered Snails", type: "SEAFOOD", price: 21500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.seafood },
-      { id: "peppered-crabs", name: "Peppered Crabs", type: "SEAFOOD", price: 6500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.seafood },
+      { id: "beef-spicy-assorted", name: "Beef Spicy Assorted", type: "PEPPERED PROTEIN", price: 8950, portion: "1 portion", imageUrl: motherlandKitchenPhotos.assorted },
+      { id: "spicy-wings", name: "Spicy Wings", type: "PEPPERED PROTEIN", price: 9500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.wings },
+      { id: "peppered-turkey-gizzard", name: "Peppered Turkey Gizzard", type: "PEPPERED PROTEIN", price: 8000, portion: "1 portion", imageUrl: motherlandKitchenPhotos.assorted },
+      { id: "peppered-snails", name: "Peppered Snails", type: "SEAFOOD", price: 21500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.snails },
+      { id: "peppered-crabs", name: "Peppered Crabs", type: "SEAFOOD", price: 6500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.crab },
       { id: "fish", name: "Fish", type: "PEPPERED PROTEIN", price: 4850, portion: "1 portion", imageUrl: motherlandKitchenPhotos.fish },
-      { id: "peppered-goat-meat", name: "Peppered Goat Meat", type: "PEPPERED PROTEIN", price: 8500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.protein },
-      { id: "peppered-beef", name: "Peppered Beef", type: "PEPPERED PROTEIN", price: 4850, portion: "1 portion", imageUrl: motherlandKitchenPhotos.protein },
-      { id: "peppered-turkey", name: "Peppered Turkey", type: "PEPPERED PROTEIN", price: 7500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.protein },
-      { id: "peppered-chicken", name: "Peppered Chicken", type: "PEPPERED PROTEIN", price: 7000, portion: "1 portion", imageUrl: motherlandKitchenPhotos.protein },
+      { id: "peppered-goat-meat", name: "Peppered Goat Meat", type: "PEPPERED PROTEIN", price: 8500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.pepperedMeat },
+      { id: "peppered-beef", name: "Peppered Beef", type: "PEPPERED PROTEIN", price: 4850, portion: "1 portion", imageUrl: motherlandKitchenPhotos.pepperedMeat },
+      { id: "peppered-turkey", name: "Peppered Turkey", type: "PEPPERED PROTEIN", price: 7500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.pepperedMeat },
+      { id: "peppered-chicken", name: "Peppered Chicken", type: "PEPPERED PROTEIN", price: 7000, portion: "1 portion", imageUrl: motherlandKitchenPhotos.pepperedMeat },
       { id: "yam-porridge", name: "Yam Porridge", type: "PORRIDGE", price: 6500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.porridge },
       { id: "plantain-porridge", name: "Plantain Porridge", type: "PORRIDGE", price: 7500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.porridge },
-      { id: "farmer-rice", name: "Farmer Rice", type: "RICE & COMBOS", price: 9550, portion: "1 portion", imageUrl: motherlandKitchenPhotos.rice }
+      { id: "farmer-rice", name: "Farmer Rice", type: "RICE & COMBOS", price: 9550, portion: "1 portion", imageUrl: motherlandKitchenPhotos.friedRice }
     ]
   }
 ];
