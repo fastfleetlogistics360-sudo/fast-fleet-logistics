@@ -145,6 +145,12 @@ export function PhoneAuthForm({
   }, [message, searchParams]);
 
   useEffect(() => {
+    if (searchParams.get("verified") === "1" && !message) {
+      setMessage("Login created successfully. Sign in with the email and password you created.");
+    }
+  }, [message, searchParams]);
+
+  useEffect(() => {
     if (effectiveLockedRole || mode !== "login") return;
     const cachedProfile = readReturningProfile();
     setReturningProfile(cachedProfile);
@@ -204,7 +210,7 @@ export function PhoneAuthForm({
       const redirectTo =
         typeof window === "undefined"
           ? undefined
-          : `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(safeDestination)}&role=${encodeURIComponent(role)}`;
+          : `${window.location.origin}/auth/callback?flow=signup_confirmation&returnTo=${encodeURIComponent(safeDestination)}&role=${encodeURIComponent(role)}`;
       const result = await supabase.auth.signUp({
         email: email.trim(),
         password: password.trim(),
@@ -307,7 +313,7 @@ export function PhoneAuthForm({
         return;
       }
       const supabase = createClient();
-      const redirectTo = typeof window === "undefined" ? undefined : `${window.location.origin}/auth?mode=reset`;
+      const redirectTo = typeof window === "undefined" ? undefined : `${window.location.origin}/auth/callback?flow=password_recovery`;
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
       if (error) throw error;
       setMessage("Password reset email sent. Check your inbox for the secure link.");
@@ -396,7 +402,7 @@ export function PhoneAuthForm({
           }}
           className="text-sm font-bold text-slate-500 transition hover:text-fleet-night"
         >
-          Not {returningProfile.firstName}? Switch account
+          Not {returningProfile.firstName}? <span className="text-fleet-ember">Switch account</span>
         </button>
       </div>
     </>

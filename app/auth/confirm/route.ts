@@ -49,6 +49,13 @@ export async function GET(request: NextRequest) {
     return redirectToAuth(request, redirectHints.returnTo, "Email verified, but no session was returned. Please sign in.");
   }
 
+  // Password-recovery email templates deliberately use this token-hash route
+  // rather than a browser-bound PKCE callback. That lets a person safely open
+  // their reset email on a phone or another browser and still set a new password.
+  if (type === "recovery") {
+    return redirectWithCookies(new URL("/auth/reset-password", request.url), cookiesToSet);
+  }
+
   const [{ data: existingProfile }, { data: existingUser }] = await Promise.all([
     supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>(),
     supabase.from("users").select("role").eq("id", user.id).maybeSingle<{ role?: string | null }>()

@@ -13,6 +13,7 @@ type CookieToSet = {
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+  const flow = requestUrl.searchParams.get("flow");
   const requestedReturnTo = requestUrl.searchParams.get("returnTo");
   const requestedRole = parseSelfServiceRole(requestUrl.searchParams.get("role"));
   const providerError = requestUrl.searchParams.get("error_description") || requestUrl.searchParams.get("error");
@@ -41,6 +42,13 @@ export async function GET(request: NextRequest) {
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
+    // Supabase confirms an email before it redirects here. A confirmation link
+    // opened outside the browser that created the account cannot complete the
+    // PKCE session exchange, but the account is still confirmed. Do not tell a
+    // new customer that their successful account creation has failed.
+    if (flow === "signup_confirmation" && isPkceError(error.message)) {
+      return redirectToVerifiedSignIn(request, requestedReturnTo);
+    }
     return redirectToAuth(request, requestedReturnTo, friendlyAuthError(error.message));
   }
 
@@ -49,6 +57,10 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) {
     return redirectToAuth(request, requestedReturnTo, "OAuth sign-in succeeded but no session was returned.");
+  }
+
+  if (flow === "password_recovery") {
+    return redirectWithCookies(new URL("/auth/reset-password", request.url), cookiesToSet);
   }
 
   const [{ data: existingProfile }, { data: existingUser }] = await Promise.all([
@@ -74,6 +86,18 @@ export async function GET(request: NextRequest) {
   return redirectWithCookies(new URL(safeDashboardRedirectForRole(requestedReturnTo || "/hub", accountRole), request.url), cookiesToSet);
 }
 
+function redirectToVerifiedSignIn(request: NextRequest, returnTo: string | null) {
+  const authUrl = new URL("/auth", request.url);
+  if (returnTo) authUrl.searchParams.set("returnTo", returnTo);
+  authUrl.searchParams.set("verified", "1");
+  return NextResponse.redirect(authUrl);
+}
+
+function isPkceError(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("code verifier") || normalized.includes("pkce");
+}
+
 function redirectToAuth(request: NextRequest, returnTo: string | null, error: string) {
   const authUrl = new URL("/auth", request.url);
   if (returnTo) authUrl.searchParams.set("returnTo", returnTo);
@@ -92,7 +116,7 @@ function friendlyAuthError(message: string) {
   if (normalized.includes("external code")) {
     return "Google sign-in could not be completed. Please try again or contact support if the problem continues.";
   }
-  if (normalized.includes("code verifier") || normalized.includes("pkce")) {
+  if (isPkceError(message)) {
     return "This verification link opened in a different browser session. Please request a new verification email, or open the link in the same browser you used to register.";
   }
   return message;
