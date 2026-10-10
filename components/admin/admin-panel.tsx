@@ -2796,7 +2796,7 @@ export function AdminPanel() {
 
 function LiveCutoverSection() {
   const [preview, setPreview] = useState<{
-    scope?: { activeDeliveries?: number; customerOrBusinessWalletsToConvert?: number; sandboxSourceBalanceNgn?: number; projectedLoyaltyCreditNgn?: number; pendingSquadTransactions?: number; pendingPaymentIntents?: number; lockedWallets?: number; lockedBalanceNgn?: number };
+    scope?: { activeDeliveries?: number; customerOrBusinessWalletsToConvert?: number; sandboxSourceBalanceNgn?: number; projectedLoyaltyCreditNgn?: number; pendingSquadTransactions?: number; pendingPaymentIntents?: number; lockedWallets?: number; lockedBalanceNgn?: number; riderMigrationAvailable?: boolean; riderWalletsToConvert?: number; riderSandboxSourceBalanceNgn?: number; riderProjectedLoyaltyCreditNgn?: number; riderLegacyUntaggedCreditNgn?: number };
     warnings?: string[];
     execute?: { confirmationText?: string };
     error?: string;
@@ -2849,7 +2849,7 @@ function LiveCutoverSection() {
         <div>
           <span className="text-xs font-black uppercase tracking-[0.15em] text-amber-700">One-time launch step</span>
           <h2 className="mt-1 text-2xl font-black text-fleet-night">Clean test data for LIVE payments</h2>
-          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">First preview the list. Then run the cleanup once. It turns sandbox wallet balances into platform-fee loyalty credit, closes test deliveries, and leaves investor balances alone.</p>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-600">First preview the list. Then run the cleanup once. It turns explicit sandbox wallet balances into platform-fee loyalty credit, closes test deliveries, protects rider earnings and live cash, and leaves investor balances alone.</p>
         </div>
         <Button type="button" variant="secondary" onClick={loadPreview} disabled={busy}>
           <RefreshCw className={cn("h-4 w-4", busy ? "animate-spin" : "")} />Preview cleanup
@@ -2866,6 +2866,10 @@ function LiveCutoverSection() {
         <CutoverMetric label="Pending payment records" value={String(scope.pendingPaymentIntents || 0)} />
         <CutoverMetric label="Locked wallets" value={String(scope.lockedWallets || 0)} />
         <CutoverMetric label="Locked amount" value={formatMoney(scope.lockedBalanceNgn || 0)} />
+        <CutoverMetric label="Rider wallets to convert" value={scope.riderMigrationAvailable ? String(scope.riderWalletsToConvert || 0) : "Migration pending"} />
+        <CutoverMetric label="Rider sandbox value" value={scope.riderMigrationAvailable ? formatMoney(scope.riderSandboxSourceBalanceNgn || 0) : "—"} />
+        <CutoverMetric label="Rider loyalty credit" value={scope.riderMigrationAvailable ? formatMoney(scope.riderProjectedLoyaltyCreditNgn || 0) : "—"} />
+        <CutoverMetric label="Legacy untagged rider credits" value={scope.riderMigrationAvailable ? formatMoney(scope.riderLegacyUntaggedCreditNgn || 0) : "—"} />
       </div> : <p className="mt-5 text-sm font-bold text-slate-500">Click “Preview cleanup” first. Nothing changes when you preview.</p>}
 
       {preview?.warnings?.map((warning) => <p key={warning} className="mt-3 rounded-fleet border border-amber-200 bg-amber-100/60 p-3 text-sm font-bold text-amber-900">{warning}</p>)}
