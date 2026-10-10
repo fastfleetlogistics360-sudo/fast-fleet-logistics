@@ -416,6 +416,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [profile, setProfile] = useState<RiderProfile>({});
   const [walletBalance, setWalletBalance] = useState(0);
+  const [loyaltyCredit, setLoyaltyCredit] = useState(0);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
   const [incomingExpires, setIncomingExpires] = useState(30);
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -661,7 +662,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
           supabase.from("users").select("full_name, email, phone, avatar_url, default_zone").eq("id", user.id).maybeSingle(),
           supabase.from("rider_applications").select("full_name, phone, email, lga").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
           fetchRiderAvailability().then((data) => ({ data })).catch(() => supabase.from("rider_profiles").select(riderProfileFields).eq("user_id", user.id).maybeSingle()),
-          supabase.from("wallets").select("balance_ngn").eq("user_id", user.id).eq("wallet_type", "rider").maybeSingle(),
+          supabase.from("wallets").select("balance_ngn, loyalty_credit_ngn").eq("user_id", user.id).eq("wallet_type", "rider").maybeSingle(),
           fetch("/api/wallet/withdrawals?accountKind=rider", { cache: "no-store" }).then((response) => response.json()).catch(() => ({ withdrawals: [] }))
         ]);
 	        let riderData = (riderResult.data as RiderProfile | null) || {};
@@ -712,6 +713,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
         setOnline(nextOnline);
         setOnlineSince((current) => (nextOnline ? current || new Date() : null));
         setWalletBalance(Number((walletResult.data as { balance_ngn?: number } | null)?.balance_ngn || 0));
+        setLoyaltyCredit(Number((walletResult.data as { loyalty_credit_ngn?: number } | null)?.loyalty_credit_ngn || 0));
 	        setJobs(Array.isArray(jobsResult) ? jobsResult : ((jobsResult.data || []) as JobRow[]));
         setWithdrawals(Array.isArray(withdrawalsResult.withdrawals) ? withdrawalsResult.withdrawals : []);
       } catch {
@@ -961,6 +963,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
               online={online}
               onToggleOnline={toggleOnline}
               walletBalance={walletBalance}
+              loyaltyCredit={loyaltyCredit}
               profile={profile}
               incomingJob={incomingJob}
               incomingExpires={incomingExpires}
@@ -1041,13 +1044,14 @@ function MobileTabs({ activeTab, onChange }: { activeTab: RiderTab; onChange: (t
   );
 }
 
-function HomeTab({ loading, online, onToggleOnline, walletBalance, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, queuedJob, recentTrips, liveLocation, trackingActive, trackingMessage, offerNotice, onOpenWithdrawal, onOpenActiveJob, onRespond }: { loading: boolean; online: boolean; onToggleOnline: () => void; walletBalance: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; queuedJob: JobRow | null; recentTrips: JobRow[]; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onOpenWithdrawal: () => void; onOpenActiveJob: () => void; onRespond: (job: JobRow, accepted: boolean) => void }) {
+function HomeTab({ loading, online, onToggleOnline, walletBalance, loyaltyCredit, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, queuedJob, recentTrips, liveLocation, trackingActive, trackingMessage, offerNotice, onOpenWithdrawal, onOpenActiveJob, onRespond }: { loading: boolean; online: boolean; onToggleOnline: () => void; walletBalance: number; loyaltyCredit: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; queuedJob: JobRow | null; recentTrips: JobRow[]; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onOpenWithdrawal: () => void; onOpenActiveJob: () => void; onRespond: (job: JobRow, accepted: boolean) => void }) {
   if (loading) return <DashboardSkeleton />;
   return (
     <div className="grid gap-5">
       <WalletDashboardCard
         userName={profile.full_name?.trim().split(/\s+/)[0] || "Rider"}
         balance={walletBalance}
+        loyaltyCredit={loyaltyCredit}
         walletType="rider"
         accountKind="rider"
         kycStatus={(profile.application_status || "approved") === "approved" ? "verified" : "pending"}
