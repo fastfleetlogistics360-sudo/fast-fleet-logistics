@@ -32,14 +32,11 @@ const steps = [
   "Confirm"
 ];
 
-const parcels = ["Documents", "Retail parcel", "Food and grocery", "Fragile item", "Bulk goods", "Vendor dispatch"];
+const parcels = ["Documents", "Retail parcel", "Food and grocery", "Fragile item"];
 const speeds: Array<{ value: DeliverySpeed; label: string; body: string }> = [
   { value: "standard", label: "Standard", body: "Best price for routine jobs" },
-  { value: "same_day", label: "Same-day", body: "Complete before close of day" },
   { value: "express", label: "Express", body: "Faster dispatch and ETA" },
-  { value: "priority", label: "Priority", body: "Top queue, highest urgency" },
-  { value: "scheduled", label: "Scheduled", body: "Reserve a future pickup" },
-  { value: "interstate", label: "Inter-state", body: "Lagos, Ogun and beyond" }
+  { value: "scheduled", label: "Scheduled", body: "Reserve a future pickup" }
 ];
 
 type BookingPayment = "card" | "wallet" | "transfer";
