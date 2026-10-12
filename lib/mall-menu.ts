@@ -128,6 +128,16 @@ export const shoppingCategoryMeta: Record<MallCategory, ShoppingCategoryMeta> = 
   }
 };
 
+const stressfreeFoodsPhotos = {
+  chicken: "https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=720&q=82",
+  fish: "https://images.unsplash.com/photo-1534482421-64566f976cfa?auto=format&fit=crop&w=720&q=82",
+  beef: "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?auto=format&fit=crop&w=720&q=82",
+  offal: "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=720&q=82",
+  snails: "https://images.unsplash.com/photo-1550828520-4cb496926fc9?auto=format&fit=crop&w=720&q=82",
+  prawns: "https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?auto=format&fit=crop&w=720&q=82",
+  sausages: "https://images.unsplash.com/photo-1612392062798-3a6e9a64c0ee?auto=format&fit=crop&w=720&q=82"
+} as const;
+
 export const defaultShoppingMalls: ShoppingMall[] = [
   {
     id: "ikeja-city-mall",
@@ -248,6 +258,65 @@ export const defaultShoppingMalls: ShoppingMall[] = [
         products: [
           { id: "daily-sneakers-sneaker-lane-circle", name: "Daily Sneakers", price: 42000, image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=70", available: true },
           { id: "sports-socks-sneaker-lane-circle", name: "Sports Socks", price: 5200, image: "https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?auto=format&fit=crop&w=600&q=70", available: true }
+        ]
+      }
+    ]
+  },
+  {
+    id: "ajah-grocery-hub",
+    name: "Ajah Grocery Hub",
+    location: "Ajah, Lagos State",
+    image: "/shopping-stressfree-foods-cover.jpeg",
+    stores: [
+      {
+        id: "stressfree-foods-limited",
+        name: "Stressfree Foods Limited",
+        image: "/shopping-stressfree-foods-cover.jpeg",
+        operatingStatus: "open",
+        operatingStates: ["Lagos"],
+        locations: [{ state: "Lagos", pickupAddress: "12 Sikiru Oloko Street, Off Bisi Afolabi, Addo Road, Ajah, Lagos State", pickupNote: "Stressfree Foods Limited — Protein & Frozen Foods." }],
+        category: "Grocery",
+        pickupAddress: "12 Sikiru Oloko Street, Off Bisi Afolabi, Addo Road, Ajah, Lagos State",
+        pickupNote: "Stressfree Foods Limited — Protein & Frozen Foods.",
+        productTypes: ["Chicken & Turkey", "Frozen & Fresh Fish", "Beef & Goat", "Beef Accessories", "Snails & Prawns", "Extras"],
+        products: [
+          { id: "stressfree-orobo-chicken", name: "Orobo Chicken (1kg)", type: "Chicken & Turkey", price: 6800, image: stressfreeFoodsPhotos.chicken, available: true },
+          { id: "stressfree-soft-chicken", name: "Soft Chicken (1kg)", type: "Chicken & Turkey", price: 4700, image: stressfreeFoodsPhotos.chicken, available: true },
+          { id: "stressfree-boneless-chicken", name: "Boneless Chicken (1kg)", type: "Chicken & Turkey", price: 7000, image: stressfreeFoodsPhotos.chicken, available: true },
+          { id: "stressfree-chicken-wings", name: "Chicken Wings (1kg)", type: "Chicken & Turkey", price: 7500, image: stressfreeFoodsPhotos.chicken, available: true },
+          { id: "stressfree-full-chicken", name: "Full Chicken (from)", type: "Chicken & Turkey", price: 9000, image: stressfreeFoodsPhotos.chicken, available: true },
+          { id: "stressfree-native-chicken-2-5kg", name: "Native Chicken 2.5kg", type: "Chicken & Turkey", price: 16000, image: stressfreeFoodsPhotos.chicken, available: true },
+          { id: "stressfree-full-soft-chicken", name: "Full Chicken (Soft)", type: "Chicken & Turkey", price: 13000, image: stressfreeFoodsPhotos.chicken, available: true },
+          { id: "stressfree-gizzards", name: "Gizzards (1kg)", type: "Chicken & Turkey", price: 6500, image: stressfreeFoodsPhotos.chicken, available: true },
+          { id: "stressfree-chicken-head-legs", name: "Chicken Head & Legs (1kg)", type: "Chicken & Turkey", price: 2200, image: stressfreeFoodsPhotos.chicken, available: true },
+          { id: "stressfree-turkey-wings", name: "Turkey Wings (1kg)", type: "Chicken & Turkey", price: 10000, image: stressfreeFoodsPhotos.chicken, available: true },
+          { id: "stressfree-turkey-finger", name: "Turkey Finger (1kg)", type: "Chicken & Turkey", price: 7500, image: stressfreeFoodsPhotos.chicken, available: true },
+          { id: "stressfree-titus", name: "Titus (1kg)", type: "Frozen & Fresh Fish", price: 10000, image: stressfreeFoodsPhotos.fish, available: true },
+          { id: "stressfree-sawa", name: "Sawa (1kg)", type: "Frozen & Fresh Fish", price: 3300, image: stressfreeFoodsPhotos.fish, available: true },
+          { id: "stressfree-kote", name: "Kote (1kg)", type: "Frozen & Fresh Fish", price: 5000, image: stressfreeFoodsPhotos.fish, available: true },
+          { id: "stressfree-panla-hake", name: "Panla (Hake) (1kg)", type: "Frozen & Fresh Fish", price: 4800, image: stressfreeFoodsPhotos.fish, available: true },
+          { id: "stressfree-owere", name: "Owere (1kg)", type: "Frozen & Fresh Fish", price: 4700, image: stressfreeFoodsPhotos.fish, available: true },
+          { id: "stressfree-tilapia", name: "Tilapia (1kg)", type: "Frozen & Fresh Fish", price: 6000, image: stressfreeFoodsPhotos.fish, available: true },
+          { id: "stressfree-mullet", name: "Mullet (1kg)", type: "Frozen & Fresh Fish", price: 4500, image: stressfreeFoodsPhotos.fish, available: true },
+          { id: "stressfree-basa", name: "Basa", type: "Frozen & Fresh Fish", price: "ASK_PRICE", image: stressfreeFoodsPhotos.fish, available: true },
+          { id: "stressfree-beef", name: "Beef (1kg)", type: "Beef & Goat", price: 9500, image: stressfreeFoodsPhotos.beef, available: true },
+          { id: "stressfree-goat", name: "Goat (1kg)", type: "Beef & Goat", price: 11000, image: stressfreeFoodsPhotos.beef, available: true },
+          { id: "stressfree-ram", name: "Ram", type: "Beef & Goat", price: 17000, image: stressfreeFoodsPhotos.beef, available: true },
+          { id: "stressfree-assorted", name: "Assorted (1kg)", type: "Beef & Goat", price: 7000, image: stressfreeFoodsPhotos.offal, available: true },
+          { id: "stressfree-cowtail", name: "Cowtail (1kg)", type: "Beef & Goat", price: 10000, image: stressfreeFoodsPhotos.offal, available: true },
+          { id: "stressfree-torso", name: "Torso (1kg)", type: "Beef & Goat", price: 10000, image: stressfreeFoodsPhotos.beef, available: true },
+          { id: "stressfree-goat-head-legs", name: "Complete Goat Head & Legs (1kg)", type: "Beef & Goat", price: 7500, image: stressfreeFoodsPhotos.offal, available: true },
+          { id: "stressfree-shaki", name: "Shaki (Pack)", type: "Beef Accessories", price: 5000, image: stressfreeFoodsPhotos.offal, available: true },
+          { id: "stressfree-ponmo", name: "Ponmo (Pack)", type: "Beef Accessories", price: 3000, image: stressfreeFoodsPhotos.offal, available: true },
+          { id: "stressfree-cowleg", name: "Cowleg (Pack)", type: "Beef Accessories", price: "ASK_PRICE", image: stressfreeFoodsPhotos.offal, available: true },
+          { id: "stressfree-brisket-bone", name: "Brisket Bone (1kg)", type: "Beef Accessories", price: 5000, image: stressfreeFoodsPhotos.beef, available: true },
+          { id: "stressfree-snails-1", name: "Snails 1 (Pack)", type: "Snails & Prawns", price: 8500, image: stressfreeFoodsPhotos.snails, available: true },
+          { id: "stressfree-snails-2", name: "Snails 2 (Pack)", type: "Snails & Prawns", price: 13500, image: stressfreeFoodsPhotos.snails, available: true },
+          { id: "stressfree-snails-3", name: "Snails 3 (Pack)", type: "Snails & Prawns", price: 17000, image: stressfreeFoodsPhotos.snails, available: true },
+          { id: "stressfree-prawns-1", name: "Prawns 1 (Pack)", type: "Snails & Prawns", price: 5000, image: stressfreeFoodsPhotos.prawns, available: true },
+          { id: "stressfree-prawns-2", name: "Prawns 2 (Pack)", type: "Snails & Prawns", price: 12500, image: stressfreeFoodsPhotos.prawns, available: true },
+          { id: "stressfree-sausages-10", name: "Sausages x10 (Pack)", type: "Extras", price: 2000, image: stressfreeFoodsPhotos.sausages, available: true },
+          { id: "stressfree-sausages-12", name: "Sausages x12 (Pack)", type: "Extras", price: 2300, image: stressfreeFoodsPhotos.sausages, available: true }
         ]
       }
     ]

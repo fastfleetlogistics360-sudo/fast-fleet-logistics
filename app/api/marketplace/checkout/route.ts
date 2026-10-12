@@ -45,6 +45,7 @@ export async function POST(request: Request) {
         deliveryFee?: number;
       };
       interstateConfirmed?: boolean;
+      freshDeliveryConfirmed?: boolean;
       vehicleOption?: unknown;
     };
 
@@ -105,6 +106,15 @@ export async function POST(request: Request) {
     const lecturerBenefit = await resolveLecturerBenefit({ program: campusProgram, userId: user.id, address, deliveryFee: estimate.deliveryFee, platformFee: estimate.platformFee });
     if (!estimate.allowed) {
       return NextResponse.json({ error: estimate.policyMessage || "This marketplace order cannot be delivered to that address." }, { status: 422 });
+    }
+    if (estimate.requiresFreshDeliveryConfirmation && payload.freshDeliveryConfirmed !== true) {
+      return NextResponse.json(
+        {
+          error: estimate.policyMessage || "Confirm this long fresh delivery before checkout.",
+          requiresFreshDeliveryConfirmation: true
+        },
+        { status: 409 }
+      );
     }
     if (estimate.interstateDispatch && payload.interstateConfirmed !== true) {
       return NextResponse.json(

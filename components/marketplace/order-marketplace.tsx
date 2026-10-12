@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Loader2, Minus, Plus, ShoppingCart, Utensils } from "lucide-react";
 import { formatMoney } from "@/lib/format";
@@ -131,6 +132,7 @@ function sortRestaurantsForCustomerState(stores: Store[], customerState?: string
 }
 
 export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: string; eyebrow: string; stores: Store[]; kind: "restaurant" | "shopping" }) {
+  const router = useRouter();
   const [liveStores, setLiveStores] = useState<Store[]>(stores);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [email, setEmail] = useState("");
@@ -139,6 +141,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [interstateConfirmed, setInterstateConfirmed] = useState(false);
+  const [freshDeliveryPromptOpen, setFreshDeliveryPromptOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<MarketplaceVehicleOption | null>(null);
   const [activeMenuType, setActiveMenuType] = useState("All Items");
   const [checkoutIsVisible, setCheckoutIsVisible] = useState(false);
@@ -229,7 +232,8 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
 
   useEffect(() => {
     setInterstateConfirmed(false);
-  }, [checkoutEstimate?.interstateDispatch, checkoutEstimate?.distanceKm]);
+    setFreshDeliveryPromptOpen(false);
+  }, [checkoutEstimate?.interstateDispatch, checkoutEstimate?.requiresFreshDeliveryConfirmation, checkoutEstimate?.distanceKm]);
 
   useEffect(() => {
     setSelectedVehicle((current) => vehicleOptions.find((option) => option.id === current?.id && option.availability.status !== "unavailable") || null);
@@ -240,7 +244,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
     setQuantities((current) => ({ ...current, [key]: Math.max(0, (current[key] || 0) + delta) }));
   }
 
-  async function checkout() {
+  async function checkout(freshDeliveryConfirmed = false) {
     setMessage(null);
     if (!orderingOpen) {
       setMessage("This restaurant is currently closed and cannot accept orders.");
@@ -266,6 +270,10 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
       setMessage(selectedVehicle.policyMessage || "This order cannot be delivered to that address.");
       return;
     }
+    if (selectedVehicle.requiresFreshDeliveryConfirmation && !freshDeliveryConfirmed) {
+      setFreshDeliveryPromptOpen(true);
+      return;
+    }
     if (selectedVehicle.interstateDispatch && !interstateConfirmed) {
       setMessage(selectedVehicle.policyMessage || "Confirm the interstate delivery timing before checkout.");
       return;
@@ -288,6 +296,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
           },
           amount: selectedVehicle.total,
           interstateConfirmed,
+          freshDeliveryConfirmed,
           vehicleOption: selectedVehicle.id
         })
       });
@@ -440,7 +449,17 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
                 I understand this is an interstate dispatch and delivery timing starts after the seller prepares my order.
               </label>
             ) : null}
-            <Button type="button" onClick={checkout} disabled={!orderingOpen || loading || vehicleLoading || !selectedVehicle?.allowed || Boolean(selectedVehicle?.interstateDispatch && !interstateConfirmed)}>
+            {checkoutEstimate?.requiresFreshDeliveryConfirmation && freshDeliveryPromptOpen ? (
+              <div role="alert" className="rounded-fleet border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-950">
+                <strong className="block text-sm">This kitchen is quite far away from you. Continue?</strong>
+                <p className="mt-1 text-amber-900">Fresh food may take longer to reach you. Please confirm before payment.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => router.push(kind === "restaurant" ? "/restaurants" : "/shopping")}>No, pick a closer kitchen</Button>
+                  <Button type="button" size="sm" onClick={() => checkout(true)} disabled={loading}>Yes, continue</Button>
+                </div>
+              </div>
+            ) : null}
+            <Button type="button" onClick={() => checkout()} disabled={!orderingOpen || loading || vehicleLoading || !selectedVehicle?.allowed || Boolean(selectedVehicle?.interstateDispatch && !interstateConfirmed)}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
               Pay with Squad
             </Button>

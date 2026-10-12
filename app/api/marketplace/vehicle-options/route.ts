@@ -57,6 +57,7 @@ export async function POST(request: Request) {
         deliverySpeed: estimate.deliverySpeed,
         allowed: estimate.allowed,
         policyMessage: estimate.policyMessage,
+        requiresFreshDeliveryConfirmation: estimate.requiresFreshDeliveryConfirmation,
         interstateDispatch: estimate.interstateDispatch,
         interstateDeliveryDays: estimate.interstateDeliveryDays,
         campus: { applied: estimate.campusAdjustment.applied, lecturerBenefit: lecturerBenefit.applied, message: lecturerBenefit.message, metadata: campusFeeMetadata({ program: campusProgram, adjustment: estimate.campusAdjustment, lecturerBenefit }) }

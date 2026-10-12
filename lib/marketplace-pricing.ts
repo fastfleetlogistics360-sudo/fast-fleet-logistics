@@ -103,6 +103,7 @@ export async function estimateMarketplaceCheckout({
     deliverySpeed: quote.speed,
     allowed: marketplacePolicy.allowed,
     policyMessage: marketplacePolicy.message,
+    requiresFreshDeliveryConfirmation: marketplacePolicy.requiresFreshDeliveryConfirmation,
     interstateDispatch: marketplacePolicy.interstateDispatch,
     interstateDeliveryDays: marketplacePolicy.interstateDeliveryDays,
     deliveryFee: campusAdjustment.deliveryFee,
@@ -186,9 +187,16 @@ function evaluateMarketplacePolicy({
 }) {
   const perishable = kind === "restaurant" || items.some((item) => /grocery|produce|fresh|meat|fish|dairy|bakery/i.test(`${item.name || ""} ${item.productName || ""} ${item.category || ""}`));
   if (perishable && quote.distanceKm > deliveryPolicy.marketplace.freshFoodMaxRouteKm) {
+    const sameState = Boolean(quote.pickupState && quote.dropoffState && quote.pickupState === quote.dropoffState);
     return {
-      allowed: false,
-      message: "This kitchen is too far for fresh delivery to your address. Please choose a kitchen or store closer to you.",
+      // A long fresh-food route is only customer-confirmable when both ends
+      // have been classified into the same state. Unknown state data fails
+      // closed with the existing hard stop.
+      allowed: sameState,
+      message: sameState
+        ? "This kitchen is quite far away from you. Continue?"
+        : "This kitchen is too far for fresh delivery to your address. Please choose a kitchen or store closer to you.",
+      requiresFreshDeliveryConfirmation: sameState,
       interstateDispatch: false,
       interstateDeliveryDays: null
     };
@@ -198,6 +206,7 @@ function evaluateMarketplacePolicy({
   return {
     allowed: true,
     message: interstateDispatch ? `Interstate dispatch: delivery may take up to ${deliveryPolicy.marketplace.interstateDeliveryDays} business days after the seller prepares your order.` : null,
+    requiresFreshDeliveryConfirmation: false,
     interstateDispatch,
     interstateDeliveryDays: interstateDispatch ? deliveryPolicy.marketplace.interstateDeliveryDays : null
   };

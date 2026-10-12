@@ -11,6 +11,7 @@ export type MarketplaceVehicleOption = LightVehicleOption & {
   deliverySpeed: "same_day" | "interstate";
   allowed: boolean;
   policyMessage: string | null;
+  requiresFreshDeliveryConfirmation: boolean;
   interstateDispatch: boolean;
   interstateDeliveryDays: number | null;
   vehicle: "bike";
