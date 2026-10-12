@@ -153,7 +153,7 @@ test("F-007 routes the account-wide Squad redirect to the owner's specific payme
   assert.match(paymentReturnPage, /window\.location\.replace\(result\.destination\)/);
 });
 
-test("F-007 returns an Android Custom Tab to the authenticated app before delivery verification", () => {
+test("F-007 returns Android and iOS external payment browsers to the authenticated app before delivery verification", () => {
   const checkout = read("app/api/deliveries/checkout/route.ts");
   const callback = read("app/delivery/callback/page.tsx");
   const bridge = read("lib/payments/native-payment-return.ts");
@@ -162,7 +162,7 @@ test("F-007 returns an Android Custom Tab to the authenticated app before delive
 
   assert.match(checkout, /nativeCheckout\?: boolean/);
   assert.match(checkout, /callbackUrl\.searchParams\.set\("nativeReturn", "1"\)/);
-  assert.match(callback, /handOffExternalAndroidPaymentReturn/);
+  assert.match(callback, /handOffExternalNativePaymentReturn/);
   assert.match(bridge, /Capacitor\.isNativePlatform\(\)/);
   assert.match(bridge, /fastfleets360/);
   assert.match(manifest, /android:scheme="fastfleets360"/);

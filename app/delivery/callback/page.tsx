@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
 import { RiderMatchSearch } from "@/components/booking/rider-match-search";
 import { closeSecureCheckout } from "@/lib/payments/open-secure-checkout";
-import { handOffExternalAndroidPaymentReturn } from "@/lib/payments/native-payment-return";
+import { handOffExternalNativePaymentReturn } from "@/lib/payments/native-payment-return";
 
 type VerificationState =
   | { status: "loading"; message: string }
@@ -40,7 +40,7 @@ function DeliveryCallbackContent() {
   });
 
   useEffect(() => {
-    if (nativeReturn && handOffExternalAndroidPaymentReturn(window.location.href)) return;
+    if (nativeReturn && handOffExternalNativePaymentReturn(window.location.href)) return;
     void closeSecureCheckout();
     if (!reference) {
       setState({ status: "error", message: "Missing payment reference." });

@@ -275,7 +275,7 @@ export function BookingFlow() {
           vehicleOption: form.vehicleOption,
           speed: selectedSpeed,
           total: estimate.total,
-          nativeCheckout: Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
+          nativeCheckout: Capacitor.isNativePlatform()
         })
       });
       const payload = await response.json();

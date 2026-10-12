@@ -50,6 +50,12 @@ const motherlandKitchenPhotos = {
   swallow: "/restaurants/motherland-egusi-soup.png"
 } as const;
 
+// Indexed photos from KingAdexqo's own Ikota restaurant listing.
+const kingAdexqoPhotos = {
+  packs: "https://files.chowdeck.com/fit-in/1200x675/images/a5nuroqw0bd81oyry3x0/1705878868.png",
+  trays: "https://files.chowdeck.com/fit-in/1200x675/images/2024/2024-06-12/U8SUy49Pz1lV8kZ0l53wg.PNG"
+} as const;
+
 export const defaultRestaurantKitchens: RestaurantKitchen[] = [
   {
     id: "fastfleet-kitchen-partners",
@@ -222,6 +228,35 @@ export const defaultRestaurantKitchens: RestaurantKitchen[] = [
       { id: "yam-porridge", name: "Yam Porridge", type: "PORRIDGE", price: 6500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.porridge },
       { id: "plantain-porridge", name: "Plantain Porridge", type: "PORRIDGE", price: 7500, portion: "1 portion", imageUrl: motherlandKitchenPhotos.porridge },
       { id: "farmer-rice", name: "Farmer Rice", type: "RICE & COMBOS", price: 9550, portion: "1 portion", imageUrl: motherlandKitchenPhotos.friedRice }
+    ]
+  },
+  {
+    id: "kingadexqo",
+    name: "KingAdexqo",
+    area: "Ikota, Ajah, Lagos",
+    address: "C293, Road 2, Ikota Shopping Complex, Ajah, Lagos State",
+    pickupNote: "C293, Road 2, Ikota Shopping Complex.",
+    description: "Freshly prepared small-chops packages and sharing trays from Ikota Shopping Complex.",
+    operatingStatus: "open",
+    mealTypes: ["SMALL CHOPS", "PARTY TRAYS", "EXTRAS"],
+    imageUrl: "/restaurants/kingadexqo-logo.jpeg",
+    items: [
+      { id: "small-chops-package-1200", name: "Small Chops Package", type: "SMALL CHOPS", price: 1200, portion: "1 spring roll, 1 samosa, 5 puff-puff, 2 mosa and 1 gizzard", imageUrl: kingAdexqoPhotos.packs },
+      { id: "small-chops-package-1500", name: "Small Chops Package with Chicken", type: "SMALL CHOPS", price: 1500, portion: "1 spring roll, 1 samosa, 5 puff-puff, 2 mosa, 1 gizzard and 1 chicken", imageUrl: kingAdexqoPhotos.packs },
+      { id: "small-chops-package-2000", name: "Small Chops Package with Stick Meat", type: "SMALL CHOPS", price: 2000, portion: "1 spring roll, 1 samosa, 5 puff-puff, 2 mosa, 1 gizzard, 1 stick meat and 1 chicken", imageUrl: kingAdexqoPhotos.packs },
+      { id: "small-chops-package-2500", name: "Premium Small Chops Package", type: "SMALL CHOPS", price: 2500, portion: "2 spring rolls, beef and chicken samosa, 5 puff-puff, 2 mosa, 1 gizzard, 1 stick meat and 1 chicken", imageUrl: kingAdexqoPhotos.packs },
+      { id: "small-chops-package-3000", name: "Small Chops Package with Fish in Batter", type: "SMALL CHOPS", price: 3000, portion: "2 spring rolls, beef and chicken samosa, 5 puff-puff, 2 mosa, 1 gizzard, 1 stick meat, 1 fish in batter and 1 chicken", imageUrl: kingAdexqoPhotos.packs },
+      { id: "small-chops-package-3500-prawn", name: "Small Chops Package with Prawn in Batter", type: "SMALL CHOPS", price: 3500, portion: "2 spring rolls, beef and chicken samosa, 5 puff-puff, 2 mosa, 1 gizzard, 1 stick meat, fish and prawn in batter, and 1 chicken", imageUrl: kingAdexqoPhotos.packs },
+      { id: "small-chops-package-3500-snail", name: "Small Chops Package with Pepper Snail", type: "SMALL CHOPS", price: 3500, portion: "2 spring rolls, beef and chicken samosa, 5 puff-puff, 2 mosa, 1 gizzard, 1 stick meat, 1 pepper snail and 1 chicken", imageUrl: kingAdexqoPhotos.packs },
+      { id: "small-chops-package-4500", name: "KingAdexqo Special Small Chops Package", type: "SMALL CHOPS", price: 4500, portion: "2 spring rolls, beef and chicken samosa, 5 puff-puff, 2 mosa, 1 gizzard, 1 stick meat, fish and prawn in batter, 1 pepper snail and 1 chicken", imageUrl: kingAdexqoPhotos.packs },
+      { id: "party-tray-9000", name: "Small Chops Tray", type: "PARTY TRAYS", price: 9000, portion: "5 spring rolls, 5 samosa, 20 puff-puff, 10 mosa, 5 gizzards, 5 stick meat and 5 chicken", imageUrl: kingAdexqoPhotos.trays },
+      { id: "party-tray-17000", name: "Small Chops Tray", type: "PARTY TRAYS", price: 17000, portion: "10 spring rolls, 10 samosa, 30 puff-puff, 10 mosa, 10 gizzards, 10 stick meat and 10 chicken", imageUrl: kingAdexqoPhotos.trays },
+      { id: "party-tray-29000", name: "Small Chops Tray", type: "PARTY TRAYS", price: 29000, portion: "20 spring rolls, 20 samosa, 40 puff-puff, 20 gizzards, 20 stick meat and 20 chicken", imageUrl: kingAdexqoPhotos.trays },
+      { id: "party-tray-30000", name: "Small Chops Tray with Fish and Prawns", type: "PARTY TRAYS", price: 30000, portion: "10 spring rolls, 10 samosa, 30 puff-puff, 10 mosa, 10 gizzards, 10 stick meat, 10 chicken, 10 prawns in batter and 10 fish in batter", imageUrl: kingAdexqoPhotos.trays },
+      { id: "party-tray-40000", name: "Deluxe Small Chops Tray", type: "PARTY TRAYS", price: 40000, portion: "10 spring rolls, 10 samosa, 30 puff-puff, 10 mosa, 10 gizzards, 10 stick meat, 10 chicken, 10 prawns in batter, 10 fish in batter, 10 snails and 10 chicken kebab", imageUrl: kingAdexqoPhotos.trays },
+      { id: "party-tray-80000", name: "Grand Small Chops Tray", type: "PARTY TRAYS", price: 80000, portion: "20 spring rolls, 20 samosa, 40 puff-puff, 20 mosa, 20 gizzards, 20 stick meat, 20 fish in batter, 20 prawns in batter, 20 pepper snails and 20 chicken", imageUrl: kingAdexqoPhotos.trays },
+      { id: "single-packaging-pouch", name: "Single Packaging Pouch", type: "EXTRAS", price: 100, portion: "1 pouch", imageUrl: kingAdexqoPhotos.packs },
+      { id: "paper-packaging-box", name: "Paper Packaging Box", type: "EXTRAS", price: 1000, portion: "1 box", imageUrl: kingAdexqoPhotos.packs }
     ]
   }
 ];

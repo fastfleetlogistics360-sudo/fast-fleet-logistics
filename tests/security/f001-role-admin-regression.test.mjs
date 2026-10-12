@@ -97,7 +97,8 @@ test("F-001 client signup/login cannot self-write admin roles", () => {
   assert.match(phoneAuth, /lockedRole\?: SelfServiceRole/);
   assert.match(phoneAuth, /parseSelfServiceRole\(value\)/);
   assert.match(phoneAuth, /normalizeSelfServiceRole/);
-  assert.match(phoneAuth, /userRole === "customer" \|\| userRole === "rider" \|\| userRole === "business"/);
+  assert.match(phoneAuth, /function roleFromRequest\(value: string \| null\): SelfServiceRole \| undefined/);
+  assert.match(phoneAuth, /return parseSelfServiceRole\(value\) \|\| undefined;/);
   assert.match(chooseAccount, /useState<SelfServiceRole>\("customer"\)/);
 });
 

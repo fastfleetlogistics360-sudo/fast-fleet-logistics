@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
 import { HUB_TOUR_VERSION } from "@/lib/hub-tour";
+import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const supabase = await createClient();
     const {
       data: { user }
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
+    const limited = await enforceRateLimit(request, rateLimitPolicies.accountProfileMutation);
+    if (limited) return limited;
 
     const { error } = await supabase
       .from("profiles")

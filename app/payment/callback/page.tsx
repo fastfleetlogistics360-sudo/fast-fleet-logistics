@@ -6,7 +6,7 @@ import { Loader2, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
 import { closeSecureCheckout } from "@/lib/payments/open-secure-checkout";
-import { handOffExternalAndroidPaymentReturn } from "@/lib/payments/native-payment-return";
+import { handOffExternalNativePaymentReturn } from "@/lib/payments/native-payment-return";
 
 export default function PaymentReturnPage() {
   return <Suspense fallback={<PaymentReturnShell />}><PaymentReturnContent /></Suspense>;
@@ -18,7 +18,7 @@ function PaymentReturnContent() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (handOffExternalAndroidPaymentReturn(window.location.href)) return;
+    if (handOffExternalNativePaymentReturn(window.location.href)) return;
     void closeSecureCheckout();
     if (!reference) {
       setError("Missing payment reference. Open your dashboard and check the payment there.");

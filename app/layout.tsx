@@ -6,6 +6,7 @@ import { AppInstallPrompt } from "@/components/layout/app-install-prompt";
 import { SiteShell } from "@/components/layout/site-shell";
 import { PwaRegister } from "@/components/layout/pwa-register";
 import { PushNotificationRegistrar } from "@/components/notifications/push-notification-registrar";
+import { NativeAppUrlHandler } from "@/components/layout/native-app-url-handler";
 
 export const runtime = "nodejs";
 
@@ -136,6 +137,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <PwaRegister />
+        <NativeAppUrlHandler />
         <PushNotificationRegistrar />
         <AppInstallPrompt />
         <LocationPermissionGate />
