@@ -634,7 +634,7 @@ function ShoppingStorefront({
               ) : null}
               {checkoutEstimate?.requiresFreshDeliveryConfirmation && freshDeliveryPromptOpen ? (
                 <div role="alert" className="rounded-fleet border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-950">
-                  <strong className="block text-sm">This kitchen is quite far away from you. Continue?</strong>
+                  <strong className="block text-sm">This store is quite far away from you. Continue?</strong>
                   <p className="mt-1 text-amber-900">Fresh food may take longer to reach you. Please confirm before payment.</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="secondary" onClick={() => router.push("/shopping")}>No, pick a closer store</Button>

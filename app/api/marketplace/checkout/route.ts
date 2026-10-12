@@ -200,7 +200,10 @@ export async function POST(request: Request) {
       }
     } else {
       try {
-        const { data: delivery, error: deliveryError } = await supabase.from("deliveries").insert({
+        // Managed marketplace vendors do not need a linked Business Account.
+        // The customer has already been authenticated above, so this server
+        // write avoids an unnecessary browser-session RLS dependency.
+        const { data: delivery, error: deliveryError } = await admin.from("deliveries").insert({
           delivery_code: reference,
           customer_id: user.id,
           pickup_address: pickupAddress,

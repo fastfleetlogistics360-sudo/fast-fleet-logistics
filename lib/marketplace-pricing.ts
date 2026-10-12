@@ -194,8 +194,8 @@ function evaluateMarketplacePolicy({
       // closed with the existing hard stop.
       allowed: sameState,
       message: sameState
-        ? "This kitchen is quite far away from you. Continue?"
-        : "This kitchen is too far for fresh delivery to your address. Please choose a kitchen or store closer to you.",
+        ? `This ${kind === "shopping" ? "store" : "kitchen"} is quite far away from you. Continue?`
+        : `This ${kind === "shopping" ? "store" : "kitchen"} is too far for fresh delivery to your address. Please choose a ${kind === "shopping" ? "store" : "kitchen or store"} closer to you.`,
       requiresFreshDeliveryConfirmation: sameState,
       interstateDispatch: false,
       interstateDeliveryDays: null

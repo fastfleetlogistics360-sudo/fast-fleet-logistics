@@ -47,7 +47,7 @@ test("F-012 makes database acceptance authoritative and atomically reserves bicy
 
 test("F-012 blocks cross-state fresh checkout and requires confirmation for long same-state fresh delivery", () => {
   assert.match(marketplacePricing, /freshFoodMaxRouteKm/);
-  assert.match(marketplacePricing, /This kitchen is too far for fresh delivery/);
+  assert.match(marketplacePricing, /is too far for fresh delivery/);
   assert.match(marketplacePricing, /requiresFreshDeliveryConfirmation/);
   assert.match(marketplacePricing, /interstateDeliveryDays/);
   assert.match(marketplacePricing, /recommendedMarketplaceVehicle/);
