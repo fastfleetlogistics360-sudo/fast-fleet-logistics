@@ -17,6 +17,7 @@ import { currentLocationUpdatedEvent, readStoredCurrentLocation, type StoredCurr
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { RiderMatchSearch } from "@/components/booking/rider-match-search";
 import type { CustomerVehicleOptionId } from "@/lib/customer-vehicle-options";
+import type { AddressResolutionCandidate } from "@/lib/maps/address-resolution";
 import { openSecureCheckout } from "@/lib/payments/open-secure-checkout";
 import { Capacitor } from "@capacitor/core";
 
@@ -92,6 +93,8 @@ type BookingEstimate = FareEstimate & {
   campusBenefit?: { applied?: boolean; message?: string | null } | null;
 };
 
+type AddressResolutionFailure = { code?: string; addressField?: "pickup" | "dropoff" | null; candidates?: AddressResolutionCandidate[]; error?: string };
+
 export function BookingFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -106,6 +109,7 @@ export function BookingFlow() {
   const [vehicleOptions, setVehicleOptions] = useState<BookingEstimate[]>([]);
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [estimateError, setEstimateError] = useState<string | null>(null);
+  const [addressResolution, setAddressResolution] = useState<{ field: "pickup" | "dropoff"; candidates: AddressResolutionCandidate[] } | null>(null);
   const selectedVehicleOptionRef = useRef<CustomerVehicleOptionId | "">("");
   const initialPickup = sanitizeAddressText(searchParams.get("pickup") || "");
   const initialDropoff = sanitizeAddressText(searchParams.get("dropoff") || "");
@@ -199,7 +203,13 @@ export function BookingFlow() {
           signal: controller.signal
         });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || "Could not calculate route estimate.");
+        if (!response.ok) {
+          const failure = payload as AddressResolutionFailure;
+          if (failure.code === "ADDRESS_AMBIGUOUS" && (failure.addressField === "pickup" || failure.addressField === "dropoff") && Array.isArray(failure.candidates)) {
+            setAddressResolution({ field: failure.addressField, candidates: failure.candidates });
+          }
+          throw new Error(failure.error || "Could not calculate route estimate.");
+        }
         const options = Array.isArray(payload.options) ? payload.options as BookingEstimate[] : [];
         setVehicleOptions(options);
         setEstimate(options.find((option) => option.id === selectedVehicleOptionRef.current) || null);
@@ -237,6 +247,27 @@ export function BookingFlow() {
     if (!option.id || !option.vehicle || option.availability?.status === "unavailable") return;
     setForm((previous) => ({ ...previous, vehicleOption: option.id || "", vehicle: option.vehicle || "" }));
     setEstimate(option);
+  }
+
+  function chooseResolvedAddress(candidate: AddressResolutionCandidate) {
+    if (!addressResolution) return;
+    const field = addressResolution.field;
+    setForm((previous) => field === "pickup" ? {
+      ...previous,
+      pickup: candidate.formattedAddress,
+      pickupState: candidate.state || extractNigerianState(candidate.formattedAddress),
+      pickupPlaceId: candidate.placeId,
+      pickupLatitude: candidate.latitude ?? null,
+      pickupLongitude: candidate.longitude ?? null
+    } : {
+      ...previous,
+      dropoff: candidate.formattedAddress,
+      dropoffState: candidate.state || extractNigerianState(candidate.formattedAddress),
+      dropoffPlaceId: candidate.placeId,
+      dropoffLatitude: candidate.latitude ?? null,
+      dropoffLongitude: candidate.longitude ?? null
+    });
+    setAddressResolution(null);
   }
 
   function next() {
@@ -339,10 +370,12 @@ export function BookingFlow() {
               contact={form.pickupContact}
               onValue={(value) => {
                 setPickupAutofillEnabled(false);
+                setAddressResolution((current) => current?.field === "pickup" ? null : current);
                 setForm((previous) => ({ ...previous, pickup: value, pickupState: extractNigerianState(value), pickupPlaceId: "", pickupLatitude: null, pickupLongitude: null }));
               }}
               onSelect={(selection) => {
                 setPickupAutofillEnabled(false);
+                setAddressResolution((current) => current?.field === "pickup" ? null : current);
                 setForm((previous) => ({
                   ...previous,
                   pickup: selection.address,
@@ -354,6 +387,7 @@ export function BookingFlow() {
               }}
               onContact={(value) => update("pickupContact", value)}
               placeholder="Pickup address in Lagos or Ogun"
+              resolutionCandidates={addressResolution?.field === "pickup" ? addressResolution.candidates : []}
             />
           ) : null}
           {current === 1 ? (
@@ -362,19 +396,23 @@ export function BookingFlow() {
               label="Delivery location"
               value={form.dropoff}
               contact={form.dropoffContact}
-              onValue={(value) => setForm((previous) => ({ ...previous, dropoff: value, dropoffState: extractNigerianState(value), dropoffPlaceId: "", dropoffLatitude: null, dropoffLongitude: null }))}
+              onValue={(value) => {
+                setAddressResolution((current) => current?.field === "dropoff" ? null : current);
+                setForm((previous) => ({ ...previous, dropoff: value, dropoffState: extractNigerianState(value), dropoffPlaceId: "", dropoffLatitude: null, dropoffLongitude: null }));
+              }}
               onSelect={(selection) =>
-                setForm((previous) => ({
+                { setAddressResolution((current) => current?.field === "dropoff" ? null : current); setForm((previous) => ({
                   ...previous,
                   dropoff: selection.address,
                   dropoffState: selection.state || extractNigerianState(selection.address),
                   dropoffPlaceId: selection.source === "google" ? selection.placeId || "" : "",
                   dropoffLatitude: selection.latitude ?? null,
                   dropoffLongitude: selection.longitude ?? null
-                }))
+                })); }
               }
               onContact={(value) => update("dropoffContact", value)}
               placeholder="Recipient address"
+              resolutionCandidates={addressResolution?.field === "dropoff" ? addressResolution.candidates : []}
             />
           ) : null}
           {current === 2 ? (
@@ -495,6 +533,19 @@ export function BookingFlow() {
           <PendingSummaryCard />
         )}
       </aside>
+      {addressResolution ? (
+        <div className="fixed inset-0 z-[250] grid place-items-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="address-choice-title">
+          <Card className="w-full max-w-lg p-5 shadow-2xl sm:p-6">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-fleet-ember">Location confirmation</p>
+            <h2 id="address-choice-title" className="mt-2 text-2xl font-black text-fleet-night">Which {addressResolution.field === "pickup" ? "pickup" : "drop-off"} location do you mean?</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Google found a few possible locations. Choose one so we never guess your route.</p>
+            <div className="mt-5 grid gap-2">
+              {addressResolution.candidates.map((candidate) => <button key={candidate.placeId} type="button" onClick={() => chooseResolvedAddress(candidate)} className="rounded-2xl border border-fleet-line p-4 text-left transition hover:border-orange-300 hover:bg-orange-50"><strong className="block text-sm text-fleet-night">{candidate.formattedAddress}</strong>{candidate.state ? <span className="mt-1 block text-xs font-bold text-slate-500">{candidate.state}</span> : null}</button>)}
+            </div>
+            <Button variant="secondary" className="mt-5 w-full" onClick={() => setAddressResolution(null)}>Edit the address instead</Button>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -508,6 +559,7 @@ function AddressStep({
   onSelect,
   onContact,
   placeholder
+  , resolutionCandidates = []
 }: {
   icon: LucideIcon;
   label: string;
@@ -517,13 +569,14 @@ function AddressStep({
   onSelect: (selection: AddressSelection) => void;
   onContact: (value: string) => void;
   placeholder: string;
+  resolutionCandidates?: AddressResolutionCandidate[];
 }) {
   return (
     <div className="grid gap-4">
       <span className="grid h-12 w-12 place-items-center rounded-fleet bg-fleet-night text-white">
         <Icon className="h-5 w-5" />
       </span>
-      <AddressAutocompleteInput label={label} value={value} onChange={onValue} onSelect={onSelect} placeholder={placeholder} />
+      <AddressAutocompleteInput label={label} value={value} onChange={onValue} onSelect={onSelect} placeholder={placeholder} resolutionCandidates={resolutionCandidates} />
       <label className="form-field">
         <span className="form-label">Contact phone</span>
         <input className="form-input" value={contact} onChange={(event) => onContact(event.target.value)} placeholder="+234..." inputMode="tel" />

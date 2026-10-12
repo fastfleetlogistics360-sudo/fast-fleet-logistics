@@ -4,6 +4,7 @@ import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { resolveFastErrandQuote, FastErrandQuoteError, type FastErrandRequestedItem } from "@/lib/fast-errands-service-areas";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readFastErrandAgeAcknowledgementFromCookieHeader } from "@/lib/fast-errands-age-access";
+import { AddressResolutionError, addressResolutionPayload } from "@/lib/maps/address-resolution";
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
     const quote = await resolveFastErrandQuote({ db, items: Array.isArray(payload.items) ? payload.items : [], address, acknowledgedMinimumAge });
     return NextResponse.json({ quote: safeQuote(quote, true) });
   } catch (error) {
+    if (error instanceof AddressResolutionError) return NextResponse.json(addressResolutionPayload(error), { status: 422 });
     if (error instanceof FastErrandQuoteError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     return NextResponse.json({ error: "Could not calculate a FastErrand quote. Please try again." }, { status: 500 });
   }

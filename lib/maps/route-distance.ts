@@ -1,3 +1,5 @@
+import { AddressResolutionError, resolveAddressForRouting } from "@/lib/maps/address-resolution";
+
 export type RouteLocation = {
   address?: string | null;
   placeId?: string | null;
@@ -37,15 +39,13 @@ export async function getGoogleRouteEstimate({
     ((hasUsableAddress(origin) && hasPlaceId(origin)) || (hasUsableAddress(destination) && hasPlaceId(destination)));
   const finalPayload = retryWithAddress ? await requestGoogleRoute(apiKey, routeRequestBody(withoutPlaceId(origin), withoutPlaceId(destination))) : payload;
 
-  if (finalPayload.error) {
-    throw new Error(readGoogleError(finalPayload) || "Google route distance could not be completed.");
-  }
+  const fallbackOrigin = retryWithAddress ? withoutPlaceId(origin) : origin;
+  const fallbackDestination = retryWithAddress ? withoutPlaceId(destination) : destination;
+  if (finalPayload.error) return retryWithResolvedAddress(apiKey, fallbackOrigin, fallbackDestination, readGoogleError(finalPayload));
 
   const route = Array.isArray(finalPayload.routes) ? finalPayload.routes[0] : null;
   const distanceMeters = Number(route?.distanceMeters);
-  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
-    throw new Error("Google could not calculate a route distance for those addresses.");
-  }
+  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) return retryWithResolvedAddress(apiKey, fallbackOrigin, fallbackDestination, "Google could not calculate a route distance for those addresses.");
 
   const durationSeconds = parseGoogleDurationSeconds(route?.duration);
   return {
@@ -55,6 +55,31 @@ export async function getGoogleRouteEstimate({
     durationText: formatDurationText(durationSeconds),
     source: "google-routes"
   };
+}
+
+async function retryWithResolvedAddress(apiKey: string, origin: RouteLocation, destination: RouteLocation, originalError: string): Promise<GoogleRouteEstimate> {
+  const originResolved = await resolveRouteLocation(origin, "pickup");
+  const destinationResolved = await resolveRouteLocation(destination, "drop-off");
+  const payload = await requestGoogleRoute(apiKey, routeRequestBody(originResolved, destinationResolved));
+  if (payload.error) throw new Error(readGoogleError(payload) || originalError || "Google could not calculate a route distance for those addresses.");
+  const route = Array.isArray(payload.routes) ? payload.routes[0] : null;
+  const distanceMeters = Number(route?.distanceMeters);
+  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) throw new Error("Google could not calculate a route distance for those addresses.");
+  const durationSeconds = parseGoogleDurationSeconds(route?.duration);
+  return { distanceMeters: Math.round(distanceMeters), distanceKm: Math.round((distanceMeters / 1000) * 10) / 10, durationSeconds, durationText: formatDurationText(durationSeconds), source: "google-routes" };
+}
+
+async function resolveRouteLocation(location: RouteLocation, label: "pickup" | "drop-off"): Promise<RouteLocation> {
+  if (hasPlaceId(location) || hasCoordinates(location)) return location;
+  try {
+    const resolved = await resolveAddressForRouting(String(location.address || ""));
+    return { address: resolved.formattedAddress, placeId: resolved.placeId, latitude: resolved.latitude, longitude: resolved.longitude };
+  } catch (error) {
+    if (error instanceof AddressResolutionError) {
+      throw new AddressResolutionError(error.kind, error.kind === "ambiguous" ? `Choose the correct ${label} location to continue.` : `We could not identify the ${label} address. Please add a clearer street address or landmark.`, error.candidates, label === "pickup" ? "pickup" : "dropoff");
+    }
+    throw error;
+  }
 }
 
 function routeRequestBody(origin: RouteLocation, destination: RouteLocation) {
@@ -92,7 +117,7 @@ function toWaypoint(location: RouteLocation) {
 
   const latitude = Number(location.latitude);
   const longitude = Number(location.longitude);
-  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+  if (hasCoordinates(location)) {
     return {
       location: {
         latLng: {
@@ -106,6 +131,13 @@ function toWaypoint(location: RouteLocation) {
   const address = String(location.address || "").trim();
   if (!address) throw new Error("A route address, place ID, or coordinates are required.");
   return { address };
+}
+
+function hasCoordinates(location: RouteLocation) {
+  return location.latitude != null
+    && location.longitude != null
+    && Number.isFinite(Number(location.latitude))
+    && Number.isFinite(Number(location.longitude));
 }
 
 function cleanPlaceId(value: unknown) {

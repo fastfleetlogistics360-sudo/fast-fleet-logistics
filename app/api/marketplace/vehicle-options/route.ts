@@ -9,6 +9,7 @@ import { campusFeeMetadata, loadCampusProgram, resolveLecturerBenefit } from "@/
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { AddressResolutionError, addressResolutionPayload } from "@/lib/maps/address-resolution";
 
 export async function POST(request: Request) {
   try {
@@ -64,7 +65,8 @@ export async function POST(request: Request) {
       };
     }));
     return NextResponse.json({ options });
-  } catch {
+  } catch (error) {
+    if (error instanceof AddressResolutionError) return NextResponse.json(addressResolutionPayload(error), { status: 422 });
     return NextResponse.json({ error: "Could not check marketplace rider options. Please try again." }, { status: 500 });
   }
 }

@@ -314,7 +314,7 @@ function ShoppingStorefront({
       })),
     [cartItems]
   );
-  const { options: vehicleOptions, loading: vehicleLoading, error: vehicleError } = useMarketplaceVehicleOptions({ kind: "shopping", address, items: checkoutItems });
+  const { options: vehicleOptions, loading: vehicleLoading, error: vehicleError, resolutionCandidates } = useMarketplaceVehicleOptions({ kind: "shopping", address, items: checkoutItems });
   const checkoutEstimate = selectedVehicle;
   const productsTotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
   const platformFee = checkoutEstimate?.platformFee ?? PLATFORM_CHECKOUT_FEE_NGN;
@@ -623,7 +623,7 @@ function ShoppingStorefront({
             <div className="mt-5 grid gap-3">
               <input className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email for receipt" type="email" />
             <input className="form-input" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" inputMode="tel" />
-            <AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} placeholder="Enter recipient street address" />
+            <AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} onSelect={(selection) => setAddress(selection.address)} resolutionCandidates={resolutionCandidates} placeholder="Enter recipient street address" />
               <LightVehicleOptions options={vehicleOptions} selectedId={selectedVehicle?.id || ""} loading={vehicleLoading} error={vehicleError} onSelect={(option) => setSelectedVehicle(option as MarketplaceVehicleOption)} />
               {checkoutEstimate?.policyMessage ? <div className={`rounded-fleet p-3 text-xs font-bold leading-5 ${checkoutEstimate.allowed ? "bg-blue-50 text-blue-800" : "bg-rose-50 text-rose-800"}`}>{checkoutEstimate.policyMessage}</div> : null}
               {checkoutEstimate?.interstateDispatch ? (

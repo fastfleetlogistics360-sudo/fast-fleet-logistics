@@ -4,6 +4,7 @@ import { createCustomerVehicleOptions } from "@/lib/customer-vehicle-options";
 import { loadFareConfig } from "@/lib/fare-settings";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { extractNigerianState } from "@/lib/location/state-matching";
+import { AddressResolutionError, addressResolutionPayload } from "@/lib/maps/address-resolution";
 import { quoteLaunchDeliveryPromo } from "@/lib/promos/launch-first-150";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -92,6 +93,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ options: pricedOptions });
   } catch (error) {
+    if (error instanceof AddressResolutionError) return NextResponse.json(addressResolutionPayload(error), { status: 422 });
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load live rider options. Please try again." }, { status: 500 });
   }
 }

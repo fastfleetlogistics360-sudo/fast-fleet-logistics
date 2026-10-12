@@ -5,6 +5,7 @@ import { MapPin } from "lucide-react";
 import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { readStoredCurrentLocation } from "@/lib/location/current-location";
 import { extractNigerianState } from "@/lib/location/state-matching";
+import type { AddressResolutionCandidate } from "@/lib/maps/address-resolution";
 
 declare global {
   interface Window {
@@ -44,6 +45,8 @@ type AddressAutocompleteInputProps = {
   placeholder?: string;
   /** Vendors can search mapped landmarks such as gates, cafés, and campuses. */
   mode?: "address" | "place";
+  /** Candidates returned only after a typed address could not be routed safely. */
+  resolutionCandidates?: AddressResolutionCandidate[];
 };
 
 export function AddressAutocompleteInput({
@@ -52,7 +55,8 @@ export function AddressAutocompleteInput({
   onChange,
   onSelect,
   placeholder = "Start typing the full street address",
-  mode = "address"
+  mode = "address",
+  resolutionCandidates = []
 }: AddressAutocompleteInputProps) {
   const inputId = useId();
   const sessionToken = useMemo(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`), []);
@@ -119,6 +123,10 @@ export function AddressAutocompleteInput({
     document.addEventListener("mousedown", closeOnOutsideClick);
     return () => document.removeEventListener("mousedown", closeOnOutsideClick);
   }, []);
+
+  useEffect(() => {
+    if (resolutionCandidates.length) setOpen(true);
+  }, [resolutionCandidates]);
 
   async function selectPrediction(prediction: AddressPrediction) {
     setSelectedPlaceId(prediction.placeId);
@@ -188,9 +196,10 @@ export function AddressAutocompleteInput({
           placeholder={placeholder}
           autoComplete="street-address"
         />
-        {open && predictions.length ? (
+        {open && (resolutionCandidates.length || predictions.length) ? (
           <div className="absolute left-0 right-0 top-full z-[120] mt-2 max-h-80 overflow-y-auto rounded-2xl border border-fleet-line bg-white shadow-[0_18px_48px_rgba(8,17,31,0.16)]">
-            {predictions.map((prediction) => (
+            {resolutionCandidates.length ? <p className="border-b border-fleet-line px-4 py-3 text-xs font-bold leading-5 text-slate-600">We found a few possible locations. Please choose the one you mean.</p> : null}
+            {(resolutionCandidates.length ? resolutionCandidates.map((candidate) => ({ placeId: candidate.placeId, description: candidate.formattedAddress, mainText: candidate.formattedAddress, secondaryText: candidate.state, source: "google" as const })) : predictions).map((prediction) => (
               <button
                 key={prediction.placeId}
                 type="button"

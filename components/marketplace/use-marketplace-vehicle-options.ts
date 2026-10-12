@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { LightVehicleOption } from "@/components/booking/light-vehicle-options";
 import type { MarketplaceEstimateItem } from "@/components/marketplace/use-marketplace-estimate";
+import type { AddressResolutionCandidate } from "@/lib/maps/address-resolution";
 
 export type MarketplaceVehicleOption = LightVehicleOption & {
   itemsTotal: number;
@@ -23,12 +24,14 @@ export function useMarketplaceVehicleOptions({ kind, address, items }: { kind: "
   const [options, setOptions] = useState<MarketplaceVehicleOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resolutionCandidates, setResolutionCandidates] = useState<AddressResolutionCandidate[]>([]);
 
   useEffect(() => {
     if (!items.length || address.trim().length < 6) {
       setOptions([]);
       setLoading(false);
       setError(null);
+      setResolutionCandidates([]);
       return;
     }
     const controller = new AbortController();
@@ -38,7 +41,11 @@ export function useMarketplaceVehicleOptions({ kind, address, items }: { kind: "
       try {
         const response = await fetch("/api/marketplace/vehicle-options", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, address, items }), signal: controller.signal });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || "Could not check rider options.");
+        if (!response.ok) {
+          setResolutionCandidates(payload.code === "ADDRESS_AMBIGUOUS" && Array.isArray(payload.candidates) ? payload.candidates : []);
+          throw new Error(payload.error || "Could not check rider options.");
+        }
+        setResolutionCandidates([]);
         setOptions(Array.isArray(payload.options) ? payload.options as MarketplaceVehicleOption[] : []);
       } catch (fetchError) {
         if (controller.signal.aborted) return;
@@ -51,5 +58,5 @@ export function useMarketplaceVehicleOptions({ kind, address, items }: { kind: "
     return () => { controller.abort(); window.clearTimeout(timer); };
   }, [address, items, kind]);
 
-  return { options, loading, error };
+  return { options, loading, error, resolutionCandidates };
 }
