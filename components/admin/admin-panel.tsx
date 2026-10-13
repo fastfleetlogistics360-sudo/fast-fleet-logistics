@@ -1247,7 +1247,7 @@ export function AdminPanel() {
       const response = await fetch("/api/admin/riders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status, reason, operatingZone, riderAccountType: riderAccountType || current?.rider_account_type || "independent", independentBicycleEnabled: options?.independentBicycleEnabled ?? current?.independent_bicycle_enabled === true })
+        body: JSON.stringify({ id, status, reason, operatingZone, riderAccountType: riderAccountType || current?.rider_account_type || "independent", independentBicycleEnabled: options?.independentBicycleEnabled ?? current?.independent_bicycle_enabled === true, tagOnly: options?.tagOnly === true })
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Could not update rider review.");
@@ -4733,7 +4733,9 @@ function RiderApprovalSection({
           const riderName = rider.users?.full_name || rider.users?.phone || "Rider";
           const bicycleApplicant = rider.onboarding_path === "bicycle_application";
           const canAct = !bicycleApplicant && rider.application_status !== "approved" && rider.application_status !== "rejected";
-          const canEditTag = !bicycleApplicant && rider.application_status !== "rejected";
+          // Bicycle applicants need the same explicit account-mode decision as
+          // standard riders. The server still owns the final transition.
+          const canEditTag = rider.application_status !== "rejected";
           const selectedAccountType = accountTypesByRider[rider.id] || normalizeRiderAccountType(rider.rider_account_type);
           const tagChanged = selectedAccountType !== normalizeRiderAccountType(rider.rider_account_type);
           const independentBicycleEnabled = independentBicyclesByRider[rider.id] ?? rider.independent_bicycle_enabled === true;
@@ -4790,7 +4792,8 @@ function RiderApprovalSection({
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
                 {bicycleApplicant ? (
                   <>
-                    {rider.application_status !== "approved" && rider.application_status !== "rejected" ? <><Button type="button" size="sm" onClick={() => onReview(rider.id, "approved", "fastfleets360")} disabled={busyAction === `rider:${rider.id}:approved`}>Approve bicycle applicant</Button><Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "rejected")} disabled={busyAction === `rider:${rider.id}:rejected`}>Reject</Button></> : null}
+                    {rider.application_status !== "approved" && rider.application_status !== "rejected" ? <><Button type="button" size="sm" onClick={() => onReview(rider.id, "approved", selectedAccountType, { independentBicycleEnabled })} disabled={busyAction === `rider:${rider.id}:approved`}>Approve bicycle applicant</Button><Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "rejected")} disabled={busyAction === `rider:${rider.id}:rejected`}>Reject</Button></> : null}
+                    {rider.application_status === "approved" ? <Button type="button" size="sm" variant="secondary" onClick={() => onReview(rider.id, "approved", selectedAccountType, { tagOnly: true, independentBicycleEnabled })} disabled={(!tagChanged && !bicycleChanged) || busyAction === `rider:${rider.id}:tag`}>Save bicycle account mode</Button> : null}
                     <a href="/operations/cyclist-applications" className="inline-flex min-h-9 items-center justify-center rounded-fleet border border-fleet-line px-3 text-sm font-black text-fleet-night hover:bg-fleet-paper">Review bicycle application</a>
                   </>
                 ) : rider.application_status === "approved" ? (
