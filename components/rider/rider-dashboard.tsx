@@ -1059,7 +1059,7 @@ function HomeTab({ loading, online, onToggleOnline, walletBalance, loyaltyCredit
         onWithdraw={onOpenWithdrawal}
         transactionHref="/rider/dashboard#transactions"
       />
-      {profile.onboarding_path === "bicycle_application" ? <BicycleAllocationCard /> : null}
+      {profile.onboarding_path === "bicycle_application" && !profile.independent_bicycle_enabled ? <BicycleAllocationCard /> : null}
       <Card className="p-5">
         <button type="button" onClick={onToggleOnline} className={cn("flex w-full items-center justify-between rounded-fleet p-5 text-left transition", online ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600")}>
           <span><strong className="block text-2xl font-black">{online ? "ONLINE" : "OFFLINE"}</strong><span className="text-sm font-bold">{online ? "You’re available for delivery requests — even when Fast Fleets isn’t open." : "Go online when you’re ready to receive delivery requests."}</span></span>

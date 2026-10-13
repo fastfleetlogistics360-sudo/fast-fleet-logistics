@@ -81,7 +81,12 @@ async function handleAvailability(rawVehicleType: unknown, requestedOnline?: boo
     if (profile.vehicle_type !== dispatchVehicle) patch.vehicle_type = dispatchVehicle;
 
     const approved = promotedFromApplication || profile.application_status === "approved";
-    if (profile.onboarding_path === "bicycle_application" && (requestedOnline === true || profile.online === true)) {
+    // An approved independent cyclist supplies their own bicycle. Only the
+    // Fast Fleets 360 bicycle path requires a currently assigned fleet asset
+    // before the rider can stay online.
+    const requiresAssignedFleetBicycle =
+      profile.onboarding_path === "bicycle_application" && profile.independent_bicycle_enabled !== true;
+    if (requiresAssignedFleetBicycle && (requestedOnline === true || profile.online === true)) {
       const assignedBicycle = await loadAssignedBicycleAsset(db, profile.id);
       if (!assignedBicycle?.id || assignedBicycle.status !== "available") {
         if (requestedOnline === true) {
