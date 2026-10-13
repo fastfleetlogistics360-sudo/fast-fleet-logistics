@@ -30,7 +30,7 @@ test("FastErrand service area schedule rejects gaps and overlaps", () => {
   assert.equal(validateFastErrandBands([{ ...bands[0] }, { ...bands[1], min_distance_exclusive_meters: 2001 }], 4000).valid, false);
 });
 
-test("Light FastErrand carts are evaluated for bicycle eligibility", () => {
+test("FastErrand carts remain bicycle-eligible regardless of cart size", () => {
   assert.match(deliveryServiceRules, /fast\\s\*errand/);
-  assert.match(deliveryServiceRules, /return isLightMarketplaceCart\(input\.items\)/);
+  assert.match(deliveryServiceRules, /if \(\/fast\\s\*errand\/\.test\(parcel\)\) return true;/);
 });

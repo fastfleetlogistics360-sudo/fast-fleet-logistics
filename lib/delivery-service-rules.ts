@@ -77,14 +77,17 @@ function classifyRouteType(pickupState: string, dropoffState: string, distanceKm
 }
 
 function isLightOrder(input: DeliveryRuleInput) {
-  if (input.marketplaceKind === "restaurant") return true;
-  if (input.marketplaceKind === "shopping") return isLightMarketplaceCart(input.items);
+  // Marketplace customers choose their rider option explicitly. Grocery and
+  // FastErrand carts therefore remain eligible to show Bicycle alongside Bike
+  // regardless of item count or item wording; the authoritative route cap
+  // and live bicycle-rider availability still decide whether it is selectable.
+  if (input.marketplaceKind === "restaurant" || input.marketplaceKind === "shopping") return true;
 
   const parcel = String(input.parcelType || "").toLowerCase();
   // FastErrands always use a neutral procurement parcel label. Evaluate the
   // resolved cart so a light grocery order can surface the Bicycle option,
   // while the existing bulky-item guard still keeps unsuitable carts off it.
-  if (/fast\s*errand/.test(parcel)) return isLightMarketplaceCart(input.items);
+  if (/fast\s*errand/.test(parcel)) return true;
   if (!parcel) return false;
   if (/(document|food|meal|grocery|retail|small|light|pharmacy|medicine|fashion|clothes|clothing|envelope|electronics|gadget|gadgets|phone|accessory|accessories)/i.test(parcel)) {
     return !bulkyItemPattern.test(parcel);
