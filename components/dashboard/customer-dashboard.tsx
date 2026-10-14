@@ -89,6 +89,7 @@ type OrderRow = {
   delivered_at?: string | null;
   proof_url?: string | null;
   metadata?: Record<string, unknown> | null;
+  contact_unlocked?: boolean;
   rider_profiles?: {
     plate_number?: string | null;
     vehicle_type?: string | null;
@@ -956,7 +957,11 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange, onPic
                 <p className="mt-1 text-sm font-semibold text-slate-600">{order.rider_profiles?.users?.full_name || "Driver assigned"} · Rating 4.9 · {order.rider_profiles?.vehicle_type || "bike"} · {order.rider_id ? riderAccountTypeLabel(order.rider_profiles?.rider_account_type) : "Driver tag pending"}</p>
               </div>
             </div>
-            <LinkButton href={`tel:${order.rider_profiles?.users?.phone || ""}`} className="mt-4 w-full">Call driver</LinkButton>
+            {order.contact_unlocked && order.rider_profiles?.users?.phone ? (
+              <LinkButton href={`tel:${order.rider_profiles.users.phone}`} className="mt-4 w-full">Call driver</LinkButton>
+            ) : (
+              <p className="mt-4 rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-600">Your rider, {order.rider_profiles?.users?.full_name || "the assigned rider"}, has accepted your delivery. Complete payment to proceed.</p>
+            )}
           </Card> : null}
         </>
       ) : (

@@ -69,6 +69,7 @@ export type TrackingOrder = {
     plate_number?: string | null;
     vehicle_color?: string | null;
     rider_account_type?: RiderAccountType | null;
+    contact_unlocked?: boolean;
   } | null;
 };
 
@@ -194,7 +195,10 @@ export function LiveOrderTracking({
   useEffect(() => {
     if (!order.delivery_code || isComplete(order.status)) return;
     let stopped = false;
-    const isPrivateMessenger = mode === "messenger" && initialOrder.tracking_kind !== "marketplace_order";
+    // This component is rendered only on the authenticated account order
+    // pages. Use the ownership-checked endpoint for every delivery view so
+    // public tracking cannot become a rider identity/contact fallback.
+    const isPrivateMessenger = initialOrder.tracking_kind !== "marketplace_order";
     async function refreshTracking() {
       // Android can keep the WebView alive while its realtime socket and
       // timers are paused. The account-only endpoint includes FastConfirm
@@ -261,51 +265,6 @@ export function LiveOrderTracking({
   useEffect(() => {
     if (isComplete(order.status)) setConnectionState("complete");
   }, [order.status]);
-
-  useEffect(() => {
-    if (!order.rider_id || order.rider?.full_name) return;
-    const supabase = createClient();
-    let mounted = true;
-    async function loadRiderDetails() {
-      const trackingResponse = await fetch(`/api/tracking?code=${encodeURIComponent(order.delivery_code)}`, { cache: "no-store" }).catch(() => null);
-      if (trackingResponse?.ok) {
-        const payload = (await trackingResponse.json().catch(() => ({}))) as { delivery?: { rider?: TrackingOrder["rider"] } };
-        if (mounted && payload.delivery?.rider?.full_name) {
-          setOrder((current) => ({ ...current, rider: payload.delivery?.rider || current.rider }));
-          return;
-        }
-      }
-      const { data } = await supabase
-        .from("rider_profiles")
-        .select("plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url)")
-        .eq("id", order.rider_id)
-        .maybeSingle<{
-          plate_number?: string | null;
-          vehicle_type?: string | null;
-          vehicle_color?: string | null;
-          rider_account_type?: RiderAccountType | null;
-          users?: { full_name?: string | null; phone?: string | null; email?: string | null; avatar_url?: string | null } | null;
-        }>();
-      if (!mounted || !data) return;
-      setOrder((current) => ({
-        ...current,
-        rider: {
-          full_name: data.users?.full_name || null,
-          phone: data.users?.phone || null,
-          email: data.users?.email || null,
-          avatar_url: data.users?.avatar_url || null,
-          vehicle_type: data.vehicle_type || null,
-          plate_number: data.plate_number || null,
-          vehicle_color: data.vehicle_color || null,
-          rider_account_type: data.rider_account_type || null
-        }
-      }));
-    }
-    void loadRiderDetails();
-    return () => {
-      mounted = false;
-    };
-  }, [order.delivery_code, order.rider?.full_name, order.rider_id]);
 
   const pickup = toPoint(order.pickup_latitude, order.pickup_longitude);
   const dropoff = toPoint(order.dropoff_latitude, order.dropoff_longitude);
@@ -440,10 +399,14 @@ export function LiveOrderTracking({
               </div>
             </div>
             <div className="mt-5 grid gap-2">
-              <LinkButton href={`tel:${order.rider?.phone || ""}`} className="w-full" variant={order.rider?.phone ? "primary" : "secondary"}>
-                <Phone className="h-4 w-4" />
-                Call rider
-              </LinkButton>
+              {order.rider?.contact_unlocked && order.rider.phone ? (
+                <LinkButton href={`tel:${order.rider.phone}`} className="w-full">
+                  <Phone className="h-4 w-4" />
+                  Call rider
+                </LinkButton>
+              ) : (
+                <p className="rounded-fleet bg-fleet-paper px-3 py-3 text-sm font-bold text-slate-600">Your rider, {riderName}, has accepted your delivery. Complete payment to proceed.</p>
+              )}
               <LinkButton href={`/support?topic=delivery-message&delivery=${order.delivery_code}`} variant="secondary" className="w-full">
                 <MessageCircle className="h-4 w-4" />
                 Message support
@@ -656,10 +619,14 @@ function OngoingDeliveryRoom({
               </div>
             </div>
             <div className="mt-5 grid gap-2">
-              <LinkButton href={`tel:${order.rider?.phone || ""}`} className="w-full" variant={order.rider?.phone ? "primary" : "secondary"}>
-                <Phone className="h-4 w-4" />
-                Call rider
-              </LinkButton>
+              {order.rider?.contact_unlocked && order.rider.phone ? (
+                <LinkButton href={`tel:${order.rider.phone}`} className="w-full">
+                  <Phone className="h-4 w-4" />
+                  Call rider
+                </LinkButton>
+              ) : (
+                <p className="rounded-fleet bg-fleet-paper px-3 py-3 text-sm font-bold text-slate-600">Your rider, {riderName}, has accepted your delivery. Complete payment to proceed.</p>
+              )}
               <LinkButton href={`/support?topic=delivery-message&delivery=${order.delivery_code}`} variant="secondary" className="w-full">
                 <MessageCircle className="h-4 w-4" />
                 Message support

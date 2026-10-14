@@ -5,7 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import type { RiderAccountType } from "@/lib/rider-account-type";
 import { parseSelfServiceRole, parseUserRole, roleHome } from "@/lib/auth/roles";
 import { publicTrackingHref } from "@/lib/tracking-links";
+import { deliveryPaymentIsVerified } from "@/lib/payment-authorization";
 import { LiveOrderTracking, type DeliveryLocation, type TrackingOrder } from "@/components/tracking/live-order-tracking";
+import { PickupOrderStatus } from "@/components/marketplace/pickup-order-status";
 
 export type AccountOrderViewMode = "tracking" | "messenger";
 
@@ -16,7 +18,7 @@ const deliverySelectWithoutRiderTag =
   "id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, dropoff_address, dropoff_latitude, dropoff_longitude, status, price_ngn, distance_km, eta_minutes, created_at, updated_at, metadata, rider_id, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))";
 
 const marketplaceOrderSelect =
-  "id, order_code, customer_id, delivery_id, marketplace_kind, items, pickup_address, dropoff_address, status, amount, distance_km, eta_minutes, created_at, updated_at";
+  "id, order_code, customer_id, delivery_id, marketplace_kind, items, pickup_address, dropoff_address, fulfilment_method, payment_status, status, amount, distance_km, eta_minutes, created_at, updated_at";
 
 type DeliveryRow = {
   id: string;
@@ -58,6 +60,8 @@ type MarketplaceOrderRow = {
   items?: Array<{ name?: string; productName?: string; quantity?: number; store?: string; vendorName?: string }> | null;
   pickup_address?: string | null;
   dropoff_address?: string | null;
+  fulfilment_method?: string | null;
+  payment_status?: string | null;
   status?: string | null;
   amount?: number | string | null;
   distance_km?: number | string | null;
@@ -92,17 +96,18 @@ export async function AccountOrderPage({ params, mode }: { params: Promise<{ ord
 
   const directDelivery = await loadDirectDelivery(db, lookup, user.id);
   if (directDelivery) {
-    const order = await toTrackingOrder(directDelivery);
+    const order = await toTrackingOrder(db, directDelivery);
     const location = await loadLocation(db, directDelivery.id);
     return <LiveOrderTracking initialOrder={order} initialLocation={location} mode={mode} backHref={backHref} />;
   }
 
   const marketplaceOrder = await loadMarketplaceOrder(db, lookup, user.id);
   if (!marketplaceOrder) redirect(publicTrackingHref(lookup));
+  if (marketplaceOrder.fulfilment_method === "PICKUP") return <PickupOrderStatus orderId={marketplaceOrder.id} orderCode={marketplaceOrder.order_code || marketplaceOrder.id} initialStatus={marketplaceOrder.status || "pending"} pickupAddress={marketplaceOrder.pickup_address || null} />;
 
   const linkedDelivery = marketplaceOrder.delivery_id ? await loadLinkedDelivery(db, marketplaceOrder.delivery_id) : null;
   if (linkedDelivery) {
-    const order = await toTrackingOrder(linkedDelivery, marketplaceOrder);
+    const order = await toTrackingOrder(db, linkedDelivery, marketplaceOrder);
     const location = await loadLocation(db, linkedDelivery.id);
     return <LiveOrderTracking initialOrder={order} initialLocation={location} mode={mode} backHref={backHref} />;
   }
@@ -164,7 +169,7 @@ async function loadLocation(db: SupabaseClient, deliveryId: string) {
   return data || null;
 }
 
-async function toTrackingOrder(delivery: DeliveryRow, marketplaceOrder?: MarketplaceOrderRow | null): Promise<TrackingOrder> {
+async function toTrackingOrder(db: SupabaseClient, delivery: DeliveryRow, marketplaceOrder?: MarketplaceOrderRow | null): Promise<TrackingOrder> {
   let riderProfile = delivery.rider_profiles;
   if (delivery.rider_id && !riderProfile?.users?.full_name) {
     const admin = createAdminClient();
@@ -178,6 +183,7 @@ async function toTrackingOrder(delivery: DeliveryRow, marketplaceOrder?: Marketp
     }
   }
 
+  const contactUnlocked = await deliveryPaymentIsVerified(db, delivery);
   return {
     id: delivery.id,
     delivery_code: delivery.delivery_code,
@@ -199,13 +205,14 @@ async function toTrackingOrder(delivery: DeliveryRow, marketplaceOrder?: Marketp
     marketplace_order: marketplaceOrder ? marketplaceTrackingFields(marketplaceOrder) : null,
     rider: {
       full_name: riderProfile?.users?.full_name || null,
-      phone: riderProfile?.users?.phone || null,
-      email: riderProfile?.users?.email || null,
+      phone: contactUnlocked ? riderProfile?.users?.phone || null : null,
+      email: contactUnlocked ? riderProfile?.users?.email || null : null,
       avatar_url: riderProfile?.users?.avatar_url || null,
       vehicle_type: riderProfile?.vehicle_type || null,
       plate_number: riderProfile?.plate_number || null,
       vehicle_color: riderProfile?.vehicle_color || null,
-      rider_account_type: riderProfile?.rider_account_type || null
+      rider_account_type: riderProfile?.rider_account_type || null,
+      contact_unlocked: contactUnlocked
     }
   };
 }

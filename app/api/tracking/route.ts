@@ -64,7 +64,7 @@ export async function GET(request: Request) {
   const { data, error } = await supabase
     .from("deliveries")
     .select(
-      "id, rider_id, delivery_code, pickup_address, dropoff_address, status, vehicle_type, delivery_speed, price_ngn, eta_minutes, created_at, rider_profiles:rider_profiles!deliveries_rider_id_fkey(user_id, plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))"
+      "id, rider_id, delivery_code, pickup_address, dropoff_address, status, vehicle_type, delivery_speed, price_ngn, eta_minutes, created_at, rider_profiles:rider_profiles!deliveries_rider_id_fkey(user_id, plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, avatar_url))"
     )
     .eq("delivery_code", code)
     .maybeSingle<DeliveryRow>();
@@ -95,8 +95,6 @@ export async function GET(request: Request) {
   }
 
   let lastLocation: { latitude: number; longitude: number; updated_at?: string | null } | null = null;
-  let profileFallback: { full_name?: string | null; phone?: string | null; email?: string | null; avatar_url?: string | null } | null = null;
-
 	  if (data.rider_id) {
 	    const { data: location } = await supabase
 	      .from("delivery_locations")
@@ -115,15 +113,6 @@ export async function GET(request: Request) {
     }
   }
 
-  if (data.rider_profiles?.user_id && (!data.rider_profiles.users?.full_name || !data.rider_profiles.users?.avatar_url)) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, phone, email, avatar_url")
-      .eq("user_id", data.rider_profiles.user_id)
-      .maybeSingle<{ full_name?: string | null; phone?: string | null; email?: string | null; avatar_url?: string | null }>();
-    profileFallback = profile || null;
-  }
-
   return NextResponse.json({
     delivery: {
       id: data.id,
@@ -137,10 +126,13 @@ export async function GET(request: Request) {
       eta_minutes: data.eta_minutes || 0,
       created_at: data.created_at || null,
       rider: {
-        full_name: data.rider_profiles?.users?.full_name || profileFallback?.full_name || null,
-        phone: data.rider_profiles?.users?.phone || profileFallback?.phone || null,
-        email: data.rider_profiles?.users?.email || profileFallback?.email || null,
-        avatar_url: data.rider_profiles?.users?.avatar_url || profileFallback?.avatar_url || null,
+        // Public tracking is intentionally never an identity or contact API.
+        // An authenticated owner receives the rider name and, after payment,
+        // contact details only from the ownership-checked live-state endpoint.
+        full_name: null,
+        phone: null,
+        email: null,
+        avatar_url: data.rider_profiles?.users?.avatar_url || null,
         vehicle_type: data.rider_profiles?.vehicle_type || null,
         plate_number: data.rider_profiles?.plate_number || null,
         vehicle_color: data.rider_profiles?.vehicle_color || null,

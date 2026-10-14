@@ -2871,6 +2871,24 @@ alter table public.account_deletion_requests enable row level security;
 alter table public.pricing_rules enable row level security;
 alter table public.fraud_signals enable row level security;
 
+-- Keep customer access to rider contact details tied to an independently
+-- verified financial record, not to a mutable delivery status.
+create or replace function public.delivery_payment_is_verified(target_delivery_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.deliveries d
+    where d.id = target_delivery_id
+      and (coalesce(d.price_ngn, 0) = 0
+        or exists (select 1 from public.transactions t where t.delivery_id = d.id and t.transaction_type = 'delivery_payment' and t.status = 'successful'))
+  );
+$$;
+revoke all on function public.delivery_payment_is_verified(uuid) from public, anon, authenticated;
+
 drop policy if exists "Users can read own profile or admins read all" on public.users;
 create policy "Users can read own profile or admins read all"
   on public.users for select
@@ -2888,7 +2906,7 @@ create policy "Customers read assigned rider user profile"
       join public.rider_profiles rp on rp.id = d.rider_id
       where rp.user_id = users.id
         and d.customer_id = auth.uid()
-        and d.status in ('accepted', 'rider_arrived', 'picked_up', 'in_transit', 'awaiting_delivery_confirmation', 'delivered')
+        and public.delivery_payment_is_verified(d.id)
     )
   );
 
@@ -3017,7 +3035,7 @@ create policy "Customers read assigned rider profile"
       select 1 from public.deliveries d
       where d.rider_id = rider_profiles.id
         and d.customer_id = auth.uid()
-        and d.status in ('accepted', 'rider_arrived', 'picked_up', 'in_transit', 'awaiting_delivery_confirmation', 'delivered')
+        and public.delivery_payment_is_verified(d.id)
     )
   );
 

@@ -256,6 +256,7 @@ function ShoppingStorefront({
   const [interstateConfirmed, setInterstateConfirmed] = useState(false);
   const [freshDeliveryPromptOpen, setFreshDeliveryPromptOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<MarketplaceVehicleOption | null>(null);
+  const [fulfilmentMethod, setFulfilmentMethod] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
   const [activeVendorFilter, setActiveVendorFilter] = useState("all");
   const [activeProductType, setActiveProductType] = useState("All Items");
   const [checkoutIsVisible, setCheckoutIsVisible] = useState(false);
@@ -317,9 +318,9 @@ function ShoppingStorefront({
   const { options: vehicleOptions, loading: vehicleLoading, error: vehicleError, resolutionCandidates } = useMarketplaceVehicleOptions({ kind: "shopping", address, items: checkoutItems });
   const checkoutEstimate = selectedVehicle;
   const productsTotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
-  const platformFee = checkoutEstimate?.platformFee ?? PLATFORM_CHECKOUT_FEE_NGN;
-  const deliveryFee = checkoutEstimate?.deliveryFee ?? 0;
-  const finalTotal = checkoutEstimate?.total ?? productsTotal + platformFee;
+  const platformFee = fulfilmentMethod === "PICKUP" ? PLATFORM_CHECKOUT_FEE_NGN : checkoutEstimate?.platformFee ?? PLATFORM_CHECKOUT_FEE_NGN;
+  const deliveryFee = fulfilmentMethod === "PICKUP" ? 0 : checkoutEstimate?.deliveryFee ?? 0;
+  const finalTotal = fulfilmentMethod === "PICKUP" ? productsTotal + platformFee : checkoutEstimate?.total ?? productsTotal + platformFee;
   const activeCategory = selectedVendor?.store.category || category || visibleGroups[0]?.category || "Grocery";
   const meta = shoppingCategoryMeta[activeCategory];
   const heroImage = selectedVendor ? getShoppingStoreImage(selectedVendor.store, selectedVendor.mall) : categoryGroup?.image || meta.image;
@@ -408,23 +409,23 @@ function ShoppingStorefront({
       setMessage("Enter an email address for Squad checkout.");
       return;
     }
-    if (address.trim().length < 6) {
+    if (fulfilmentMethod === "DELIVERY" && address.trim().length < 6) {
       setMessage("Enter the delivery street address.");
       return;
     }
-    if (vehicleLoading || !selectedVehicle) {
+    if (fulfilmentMethod === "DELIVERY" && (vehicleLoading || !selectedVehicle)) {
       setMessage(vehicleError || "Choose an available Bicycle or Bike rider option before checkout.");
       return;
     }
-    if (!selectedVehicle.allowed) {
-      setMessage(selectedVehicle.policyMessage || "This order cannot be delivered to that address.");
+    if (fulfilmentMethod === "DELIVERY" && !selectedVehicle?.allowed) {
+      setMessage(selectedVehicle?.policyMessage || "This order cannot be delivered to that address.");
       return;
     }
-    if (selectedVehicle.requiresFreshDeliveryConfirmation && !freshDeliveryConfirmed) {
+    if (fulfilmentMethod === "DELIVERY" && selectedVehicle?.requiresFreshDeliveryConfirmation && !freshDeliveryConfirmed) {
       setFreshDeliveryPromptOpen(true);
       return;
     }
-    if (selectedVehicle.interstateDispatch && !interstateConfirmed) {
+    if (fulfilmentMethod === "DELIVERY" && selectedVehicle?.interstateDispatch && !interstateConfirmed) {
       setMessage(selectedVehicle.policyMessage || "Confirm the interstate delivery timing before checkout.");
       return;
     }
@@ -441,13 +442,14 @@ function ShoppingStorefront({
           address,
           items: checkoutItems,
           fees: {
-            platformFee: selectedVehicle.platformFee,
-            deliveryFee: selectedVehicle.deliveryFee
+            platformFee,
+            deliveryFee
           },
-          amount: selectedVehicle.total,
+          amount: finalTotal,
           interstateConfirmed,
           freshDeliveryConfirmed,
-          vehicleOption: selectedVehicle.id
+          vehicleOption: selectedVehicle?.id,
+          fulfilmentMethod
         })
       });
       const payload = await response.json();
@@ -465,12 +467,12 @@ function ShoppingStorefront({
             pickup_address: cartItems.map((item) => `${item.vendorName} · ${item.pickupAddress}`).join(", "),
             dropoff_address: address,
             status: payload.status || (businessOrder ? "received" : "searching"),
-            vehicle_type: payload.vehicle || selectedVehicle.vehicle,
+            vehicle_type: payload.vehicle || selectedVehicle?.vehicle || "bike",
             vehicle_subtype: payload.vehicleSubtype || null,
-            delivery_speed: selectedVehicle.deliverySpeed,
-            price_ngn: selectedVehicle.total,
-            distance_km: selectedVehicle.distanceKm,
-            eta_minutes: selectedVehicle.etaMinutes,
+            delivery_speed: selectedVehicle?.deliverySpeed || "same_day",
+            price_ngn: finalTotal,
+            distance_km: fulfilmentMethod === "PICKUP" ? 0 : selectedVehicle?.distanceKm,
+            eta_minutes: fulfilmentMethod === "PICKUP" ? 0 : selectedVehicle?.etaMinutes,
             metadata: { vehicle_subtype: payload.vehicleSubtype || null },
             source: businessOrder ? "business_marketplace_order" : "shopping_mall_checkout",
             marketplace_kind: "shopping",
@@ -613,7 +615,7 @@ function ShoppingStorefront({
 
             <div className="mt-5 grid gap-2 text-sm font-bold">
               <Summary label="Products" value={formatMoney(productsTotal)} />
-              <Summary label="Delivery fee" value={vehicleLoading ? "Estimating..." : checkoutEstimate ? formatMoney(deliveryFee) : "Choose a rider"} />
+              <Summary label="Delivery fee" value={fulfilmentMethod === "PICKUP" ? "₦0" : vehicleLoading ? "Estimating..." : checkoutEstimate ? formatMoney(deliveryFee) : "Choose a rider"} />
               <Summary label="Platform fee" value={formatMoney(platformFee)} />
               {checkoutEstimate?.campus?.lecturerBenefit ? <div className="rounded-fleet bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">{checkoutEstimate.campus.message}</div> : null}
               {checkoutEstimate ? <Summary label="Route distance" value={`${checkoutEstimate.distanceKm.toFixed(1)} km`} /> : null}
@@ -623,8 +625,8 @@ function ShoppingStorefront({
             <div className="mt-5 grid gap-3">
               <input className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email for receipt" type="email" />
             <input className="form-input" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" inputMode="tel" />
-            <AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} onSelect={(selection) => setAddress(selection.address)} resolutionCandidates={resolutionCandidates} placeholder="Enter recipient street address" />
-              <LightVehicleOptions options={vehicleOptions} selectedId={selectedVehicle?.id || ""} loading={vehicleLoading} error={vehicleError} onSelect={(option) => setSelectedVehicle(option as MarketplaceVehicleOption)} />
+              <div className="grid grid-cols-2 gap-2"><Button type="button" variant={fulfilmentMethod === "DELIVERY" ? "primary" : "secondary"} onClick={() => setFulfilmentMethod("DELIVERY")}>Delivery</Button><Button type="button" variant={fulfilmentMethod === "PICKUP" ? "primary" : "secondary"} onClick={() => setFulfilmentMethod("PICKUP")}>Pick-up</Button></div>
+              {fulfilmentMethod === "PICKUP" ? <div className="rounded-fleet bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">Collect from: {cartItems[0]?.pickupAddress || "the verified vendor address"}. No delivery fee or rider is included. Keep your secure pickup code private until collection.</div> : <><AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} onSelect={(selection) => setAddress(selection.address)} resolutionCandidates={resolutionCandidates} placeholder="Enter recipient street address" /><LightVehicleOptions options={vehicleOptions} selectedId={selectedVehicle?.id || ""} loading={vehicleLoading} error={vehicleError} onSelect={(option) => setSelectedVehicle(option as MarketplaceVehicleOption)} /></>}
               {checkoutEstimate?.policyMessage ? <div className={`rounded-fleet p-3 text-xs font-bold leading-5 ${checkoutEstimate.allowed ? "bg-blue-50 text-blue-800" : "bg-rose-50 text-rose-800"}`}>{checkoutEstimate.policyMessage}</div> : null}
               {checkoutEstimate?.interstateDispatch ? (
                 <label className="flex items-start gap-2 rounded-fleet border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-900">
@@ -642,7 +644,7 @@ function ShoppingStorefront({
                   </div>
                 </div>
               ) : null}
-              <Button type="button" onClick={() => checkout()} disabled={loading || vehicleLoading || cartItems.length === 0 || !selectedVehicle?.allowed || Boolean(selectedVehicle?.interstateDispatch && !interstateConfirmed)}>
+              <Button type="button" onClick={() => checkout()} disabled={loading || cartItems.length === 0 || (fulfilmentMethod === "DELIVERY" && (vehicleLoading || !selectedVehicle?.allowed || Boolean(selectedVehicle?.interstateDispatch && !interstateConfirmed)))}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
                 Checkout Shopping Order
               </Button>

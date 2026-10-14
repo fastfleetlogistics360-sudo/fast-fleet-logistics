@@ -73,6 +73,7 @@ type BusinessOrderRow = {
   package_type: string;
   vehicle_type: string;
   vehicle_subtype?: string | null;
+  fulfilment_method?: "DELIVERY" | "PICKUP" | null;
   status: string;
   amount: number;
   payment_status?: string | null;
@@ -146,7 +147,7 @@ const defaultDispatch = {
 type DispatchForm = typeof defaultDispatch;
 
 const businessOrderSelect =
-  "id, order_code, delivery_id, marketplace_kind, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, vehicle_subtype, status, amount, payment_status, created_at, updated_at";
+  "id, order_code, delivery_id, marketplace_kind, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, vehicle_subtype, fulfilment_method, status, amount, payment_status, created_at, updated_at";
 
 async function loadBusinessOrdersForProfile(supabase: ReturnType<typeof createClient>, businessProfileId?: string | null, userId?: string | null) {
   let apiOrders: BusinessOrderRow[] = [];
@@ -398,7 +399,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
       setBusinessOrders((current) => current.map((order) => (order.id === id ? (payload.order as BusinessOrderRow) : order)));
       if (status === "ready_for_pickup") {
         await fetchBusinessOrders(profile.id);
-        setDispatchMessage("Dispatch request sent to available riders.");
+        setDispatchMessage("Order marked ready for its next fulfilment step.");
       }
     } catch (error) {
       setDispatchMessage(error instanceof Error ? error.message : "Could not update business order.");
@@ -795,6 +796,9 @@ function OverviewTab({ loading, profile, walletBalance, loyaltyCredit, withdrawa
 }
 
 function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: BusinessOrderRow[]; error: string | null; busyAction: string | null; onStatus: (id: string, status: string) => void }) {
+  const [pickupCodes, setPickupCodes] = useState<Record<string, string>>({});
+  const [pickupMessage, setPickupMessage] = useState<string | null>(null);
+  const [pickupBusy, setPickupBusy] = useState<string | null>(null);
   const statuses = [
     ["received", "Order Received"],
     ["preparing", "Preparing Order"],
@@ -820,14 +824,16 @@ function BusinessOrdersPanel({ orders, error, busyAction, onStatus }: { orders: 
                 <div>
                   <strong className="block text-sm font-black text-fleet-night">{order.order_code || order.id}</strong>
                   <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
-                    {order.dropoff_address}
+                    {order.fulfilment_method === "PICKUP" ? `Customer collection · ${order.pickup_address}` : order.dropoff_address}
                   </span>
                   <span className="mt-1 block text-xs font-bold text-slate-500">
                     {formatMoney(Number(order.amount || 0))} · {businessOrderVehicleLabel(order)}
                   </span>
                 </div>
-                <span className="flex flex-wrap justify-end gap-2"><StatusBadge tone={order.marketplace_kind === "fast_errands" ? "blue" : "neutral"}>{order.marketplace_kind === "fast_errands" ? "FastErrand" : "Marketplace"}</StatusBadge><StatusBadge tone={businessOrderTone(order.status)}>{businessOrderLabel(order.status)}</StatusBadge></span>
+                <span className="flex flex-wrap justify-end gap-2"><StatusBadge tone={order.marketplace_kind === "fast_errands" ? "blue" : "neutral"}>{order.marketplace_kind === "fast_errands" ? "FastErrand" : order.fulfilment_method === "PICKUP" ? "Pickup" : "Marketplace"}</StatusBadge><StatusBadge tone={businessOrderTone(order.status)}>{businessOrderLabel(order.status)}</StatusBadge></span>
               </div>
+              {order.fulfilment_method === "PICKUP" && order.status === "ready_for_pickup" ? <div className="mt-3 rounded-fleet bg-emerald-50 p-3"><p className="text-xs font-bold text-emerald-800">Enter the customer’s six-digit code to confirm collection.</p><div className="mt-2 flex gap-2"><input className="form-input" value={pickupCodes[order.id] || ""} onChange={(event) => setPickupCodes((current) => ({ ...current, [order.id]: event.target.value.replace(/\D/g, "").slice(0, 6) }))} inputMode="numeric" placeholder="Pickup code" /><Button type="button" size="sm" disabled={pickupBusy === order.id || (pickupCodes[order.id] || "").length !== 6} onClick={async () => { setPickupBusy(order.id); setPickupMessage(null); try { const response = await fetch("/api/business/orders/pickup-confirmation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: order.id, code: pickupCodes[order.id] }) }); const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || "Could not verify pickup code."); setPickupMessage("Pickup completed. The order will refresh shortly."); } catch (pickupError) { setPickupMessage(pickupError instanceof Error ? pickupError.message : "Could not verify pickup code."); } finally { setPickupBusy(null); } }}>{pickupBusy === order.id ? "Verifying..." : "Confirm collection"}</Button></div></div> : null}
+              {pickupMessage ? <p className="mt-2 text-xs font-bold text-amber-800">{pickupMessage}</p> : null}
               <BusinessOrderItems order={order} />
               <div className="mt-4 grid gap-2 sm:grid-cols-4">
                 {statuses.map(([status, label]) => (

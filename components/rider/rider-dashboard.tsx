@@ -90,6 +90,7 @@ type JobRow = {
     email?: string | null;
     avatar_url?: string | null;
   } | null;
+  payment_verified?: boolean;
 };
 
 type WithdrawalRow = {
@@ -1277,7 +1278,8 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
                 : job.status === "awaiting_delivery_confirmation"
                   ? "Enter delivery PIN"
                 : "Complete delivery";
-  const actionDisabled = Boolean((needsUpload && !proofFile) || pendingReview);
+  const awaitingPayment = job.payment_verified === false;
+  const actionDisabled = Boolean(awaitingPayment || (needsUpload && !proofFile) || pendingReview);
   const customerName = job.users?.full_name || "Customer";
   const customerPhone = job.dropoff_contact || job.pickup_contact || job.users?.phone || "";
   const navigatingToDropoff = ["in_transit", "awaiting_delivery_confirmation"].includes(job.status);
@@ -1328,7 +1330,7 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
       <div className="grid gap-3 border-b border-fleet-line bg-white p-4 sm:grid-cols-3 sm:p-5">
         <RiderRoomDetail icon={UserRound} label="Customer" value={customerName} />
         <RiderRoomDetail icon={Phone} label="Phone" value={customerPhone || "Not provided"} />
-        <RiderRoomDetail icon={Navigation2} label="Next action" value={label} />
+        <RiderRoomDetail icon={Navigation2} label="Next action" value={awaitingPayment ? "Awaiting customer payment" : label} />
       </div>
 
       <div className="grid gap-3 bg-[#f7fafc] p-3 sm:p-5">
@@ -1401,6 +1403,7 @@ function ActiveJob({ job, proofFile, liveLocation, trackingActive, trackingMessa
           ) : null}
         </div>
         {trackingMessage ? <div className="rounded-fleet bg-white p-3 text-xs font-bold leading-5 text-slate-600">{trackingMessage}</div> : null}
+        {awaitingPayment ? <p className="rounded-fleet bg-amber-50 p-3 text-sm font-bold text-amber-900">Awaiting customer payment. Delivery actions will unlock automatically after Fast Fleets verifies payment.</p> : null}
         {job.status !== "awaiting_delivery_confirmation" ? <Button type="button" className="w-full bg-fleet-navy hover:bg-fleet-night" disabled={actionDisabled} onClick={() => onAdvance(job)}>{label}</Button> : null}
       </div>
     </Card>

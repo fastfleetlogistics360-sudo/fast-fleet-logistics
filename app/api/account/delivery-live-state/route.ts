@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { normalizeRiderAccountType, type RiderAccountType } from "@/lib/rider-account-type";
+import { deliveryPaymentIsVerified } from "@/lib/payment-authorization";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -64,6 +65,7 @@ export async function GET(request: Request) {
   if (error) return noStoreJson({ error: "Could not refresh this delivery." }, 500);
   if (!delivery?.id || delivery.customer_id !== user.id) return noStoreJson({ error: "Delivery not found." }, 404);
 
+  const paymentVerified = await deliveryPaymentIsVerified(db, delivery);
   const { data: location } = await db
     .from("delivery_locations")
     .select("latitude, longitude, heading, speed, status, updated_at")
@@ -88,13 +90,16 @@ export async function GET(request: Request) {
       rider_id: delivery.rider_id || null,
       rider: {
         full_name: delivery.rider_profiles?.users?.full_name || null,
-        phone: delivery.rider_profiles?.users?.phone || null,
-        email: delivery.rider_profiles?.users?.email || null,
+        // Name confirms the assignment. Direct contact is a separate,
+        // server-authorized capability released only after payment settles.
+        phone: paymentVerified ? delivery.rider_profiles?.users?.phone || null : null,
+        email: paymentVerified ? delivery.rider_profiles?.users?.email || null : null,
         avatar_url: delivery.rider_profiles?.users?.avatar_url || null,
         vehicle_type: delivery.rider_profiles?.vehicle_type || null,
         plate_number: delivery.rider_profiles?.plate_number || null,
         vehicle_color: delivery.rider_profiles?.vehicle_color || null,
-        rider_account_type: normalizeRiderAccountType(delivery.rider_profiles?.rider_account_type)
+        rider_account_type: normalizeRiderAccountType(delivery.rider_profiles?.rider_account_type),
+        contact_unlocked: paymentVerified
       },
       last_location:
         location?.latitude != null && location.longitude != null

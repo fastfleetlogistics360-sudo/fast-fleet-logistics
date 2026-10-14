@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isNoChargeDelivery, verifiedDeliveryPaymentIds } from "@/lib/payment-authorization";
 
 const orderSelectWithRiderTag =
   "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, metadata, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, avatar_url))";
@@ -14,6 +15,10 @@ const businessOrderSelect =
 
 const linkedMarketplaceDeliverySelect =
   "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, metadata, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))";
+
+type RiderUserProjection = { full_name?: string | null; phone?: string | null; email?: string | null; avatar_url?: string | null };
+type RiderProfileProjection = { plate_number?: string | null; vehicle_type?: string | null; vehicle_color?: string | null; rider_account_type?: string | null; users?: RiderUserProjection | RiderUserProjection[] | null };
+type DeliveryContactProjection = { id: string; price_ngn?: number | string | null; created_at?: string | null; rider_profiles?: RiderProfileProjection | RiderProfileProjection[] | null; [key: string]: unknown };
 
 export async function GET() {
   try {
@@ -132,9 +137,29 @@ async function loadOrders(db: SupabaseClient, userId: string) {
   const businessOrderCodes = new Set(mappedBusinessOrders.map((order) => String(order.delivery_code || "").toUpperCase()));
   const visibleDeliveries = (deliveries.data || []).filter((delivery) => !businessOrderCodes.has(String(delivery.delivery_code || "").toUpperCase()));
 
+  const allDeliveries = [...(deliveries.data || []), ...(linkedDeliveries.data || [])] as Array<{ id: string; price_ngn?: number | string | null }>;
+  const paidDeliveryIds = await verifiedDeliveryPaymentIds(db, allDeliveries.map((delivery) => delivery.id));
+  const contactUnlocked = (delivery: { id: string; price_ngn?: number | string | null }) => paidDeliveryIds.has(delivery.id) || isNoChargeDelivery(delivery);
+  const redactRiderContact = (delivery: DeliveryContactProjection) => {
+    const riderProfile = Array.isArray(delivery.rider_profiles) ? delivery.rider_profiles[0] : delivery.rider_profiles;
+    const users = Array.isArray(riderProfile?.users) ? riderProfile.users[0] : riderProfile?.users;
+    if (!users) return delivery;
+    const unlocked = contactUnlocked(delivery);
+    return {
+      ...delivery,
+      contact_unlocked: unlocked,
+      rider_profiles: {
+        ...riderProfile,
+        users: { ...users, phone: unlocked ? users.phone : null, email: unlocked ? users.email : null }
+      }
+    };
+  };
+
   return {
     ...deliveries,
-    data: [...mappedBusinessOrders, ...visibleDeliveries].sort((first, second) => new Date(second.created_at || 0).getTime() - new Date(first.created_at || 0).getTime())
+    data: ([...mappedBusinessOrders, ...visibleDeliveries] as unknown as DeliveryContactProjection[])
+      .map(redactRiderContact)
+      .sort((first, second) => new Date(second.created_at || 0).getTime() - new Date(first.created_at || 0).getTime())
   };
 }
 

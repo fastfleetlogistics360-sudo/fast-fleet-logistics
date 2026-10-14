@@ -13,7 +13,7 @@ import { sendWhatsAppText } from "@/lib/whatsapp/messages";
 import { parseFastErrandV2Snapshot } from "@/lib/fast-errands-order-snapshot";
 
 export const marketplaceOperationsOrderSelect =
-  "id, order_code, customer_id, business_id, business_profile_id, delivery_id, marketplace_kind, marketplace_vendor_id, marketplace_vendor_branch_id, marketplace_vendor_snapshot, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, vehicle_subtype, status, amount, payment_status, metadata, created_at, updated_at, delivered_at";
+  "id, order_code, customer_id, business_id, business_profile_id, delivery_id, marketplace_kind, marketplace_vendor_id, marketplace_vendor_branch_id, marketplace_vendor_snapshot, items, customer_contact, pickup_address, dropoff_address, package_type, vehicle_type, vehicle_subtype, fulfilment_method, status, amount, payment_status, metadata, created_at, updated_at, delivered_at";
 
 export type MarketplaceWorkflowOrder = Record<string, unknown>;
 
@@ -48,12 +48,12 @@ export async function transitionMarketplaceOrder(
   const snapshot = record(order.marketplace_vendor_snapshot);
   const pickupAddress = fastErrandSnapshot?.fulfilment.origin_address || String(order.pickup_address || snapshot.pickup_address || "Marketplace pickup");
   const pickupState = text(snapshot.state) || pinnedMarketplacePickup(orderItems)?.state || extractNigerianState(pickupAddress);
-  if (status === "ready_for_pickup" && !pickupState) {
+  if (status === "ready_for_pickup" && order.fulfilment_method !== "PICKUP" && !pickupState) {
     throw new MarketplaceWorkflowError("This order needs a saved vendor branch state before it can be released to riders.", 400);
   }
 
   let deliveryId = text(order.delivery_id) || null;
-  if (transitionCreatesDelivery(status, deliveryId)) {
+  if (transitionCreatesDelivery(status, deliveryId) && order.fulfilment_method !== "PICKUP") {
     const [deliveryPolicy, campusProgram, pickupPoint, dropoffPoint] = await Promise.all([
       loadDeliveryPolicy(),
       loadCampusProgram(),
@@ -168,7 +168,7 @@ export async function transitionMarketplaceOrder(
 
   const code = String(order.order_code || order.id);
   await Promise.allSettled([
-    order.customer_id ? insertNotificationWithPush(db, { user_id: String(order.customer_id), title: "Order status updated", body: `${code} is ${status.replaceAll("_", " ")}.`, type: "order_update", metadata: { order_id: order.id, order_code: code, delivery_id: deliveryId, status, url: accountMessengerHref(code), tag: `ff-${code}` } }) : Promise.resolve(),
+    order.customer_id ? insertNotificationWithPush(db, { user_id: String(order.customer_id), title: status === "ready_for_pickup" && order.fulfilment_method === "PICKUP" ? "Ready for pickup" : "Order status updated", body: status === "ready_for_pickup" && order.fulfilment_method === "PICKUP" ? `${code} is ready for collection. Open your order to view the secure pickup code.` : `${code} is ${status.replaceAll("_", " ")}.`, type: "order_update", metadata: { order_id: order.id, order_code: code, delivery_id: deliveryId, status, url: accountMessengerHref(code), tag: `ff-${code}` } }) : Promise.resolve(),
     actor.type === "business" ? insertNotificationWithPush(db, { user_id: actor.userId, title: status === "ready_for_pickup" ? "Dispatch request sent" : "Business order updated", body: `${code} is ${status.replaceAll("_", " ")}.`, type: "business_order_update", metadata: { order_id: order.id, order_code: code, delivery_id: deliveryId, status, tag: `ff-business-${code}` } }) : Promise.resolve(),
     orderMetadata.source === "whatsapp_ordering" && text(orderMetadata.whatsapp_phone) && String(order.status || "") !== status ? sendWhatsAppText({ to: text(orderMetadata.whatsapp_phone), body: whatsappUpdate(code, status) }) : Promise.resolve(),
     actor.type === "operator" ? db.from("marketplace_audit_events").insert({ marketplace_vendor_id: order.marketplace_vendor_id || null, order_id: order.id, actor_user_id: actor.userId, actor_type: "operator", action: "order_status_transition", previous_state: { status: order.status || null, delivery_id: order.delivery_id || null }, next_state: { status, delivery_id: deliveryId }, metadata: { operator_role: actor.role || "operator", marketplace_vendor_branch_id: order.marketplace_vendor_branch_id || null } }) : Promise.resolve()
@@ -200,7 +200,7 @@ function pinnedMarketplacePickup(items: Array<Record<string, unknown>>) { const 
 function record(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function text(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
 function number(value: unknown) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null; }
-function whatsappUpdate(code: string, status: string) { if (status === "received") return `${code} update: the business has received your order and will begin preparing it shortly.`; if (status === "preparing") return `${code} update: your order is now being prepared.`; if (status === "packing") return `${code} update: your order is packed and being prepared for dispatch.`; return `${code} update: your order is ready for pickup. We are now finding a rider and will send the rider details here once one accepts.`; }
+function whatsappUpdate(code: string, status: string) { if (status === "received") return `${code} update: the business has received your order and will begin preparing it shortly.`; if (status === "preparing") return `${code} update: your order is now being prepared.`; if (status === "packing") return `${code} update: your order is packed and being prepared for dispatch.`; return `${code} update: your order is ready for pickup.`; }
 /** Paid v2 FastErrands never consult mutable marketplace fare rules. */
 function fastErrandSnapshotDeliveryEstimate(snapshot: NonNullable<ReturnType<typeof parseFastErrandV2Snapshot>>) {
   const bicycle = snapshot.selected_vehicle.id === "bicycle";

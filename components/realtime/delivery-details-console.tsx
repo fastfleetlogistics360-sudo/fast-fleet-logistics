@@ -102,9 +102,7 @@ export function DeliveryDetailsConsole() {
                 </p>
               </div>
             </div>
-            <LinkButton href={`tel:${delivery.rider?.phone || ""}`} variant={delivery.rider?.phone ? "primary" : "secondary"} className="mt-5 w-full">
-              Call driver
-            </LinkButton>
+            {delivery.rider?.phone ? <LinkButton href={`tel:${delivery.rider.phone}`} className="mt-5 w-full">Call driver</LinkButton> : <p className="mt-5 rounded-fleet bg-fleet-paper p-3 text-sm font-bold text-slate-600">Rider contact is available only to the authenticated customer after payment verification.</p>}
           </Card>
         </div>
       ) : null}

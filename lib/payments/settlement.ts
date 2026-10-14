@@ -96,6 +96,11 @@ export async function settleSquadPayment(
   const settled = result.status === "settled";
   const alreadySettled = result.status === "already_settled";
   if (!settled && !alreadySettled) {
+    // Squad verification above already established a successful payment. If
+    // the atomic settlement RPC cannot safely dispatch it (for example a
+    // checkout completed after its rider reservation expired), leave an
+    // auditable review state instead of treating the payment as abandoned.
+    await markLateRiderPaymentForReview(db, intent).catch(() => undefined);
     return intentResult(intent, "requires_review", "PAYMENT_REQUIRES_REVIEW");
   }
 
@@ -112,6 +117,11 @@ export async function settleSquadPayment(
   };
   await runPostSettlementEffects(db, intent, settlementResult).catch(() => undefined);
   return settlementResult;
+}
+
+async function markLateRiderPaymentForReview(db: SupabaseClient, intent: PaymentIntent) {
+  if (!intent.delivery_id || (intent.purpose !== "delivery_payment" && intent.purpose !== "marketplace_delivery_payment")) return;
+  await db.rpc("mark_late_rider_payment_for_review", { target_payment_intent_id: intent.id });
 }
 
 export async function observePaymentIntent(

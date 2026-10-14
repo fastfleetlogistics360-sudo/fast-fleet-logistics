@@ -13,6 +13,7 @@ import { riderCanReceiveDelivery } from "@/lib/rider-eligibility";
 import { accountMessengerHref } from "@/lib/tracking-links";
 import { notifyWhatsAppDeliveryUpdate } from "@/lib/whatsapp/delivery-updates";
 import { freezeFastErrandDeliveryPayout } from "@/lib/fast-errands-payouts";
+import { deliveryPaymentIsVerified, isNoChargeDelivery, verifiedDeliveryPaymentIds } from "@/lib/payment-authorization";
 import type { DeliveryStatus } from "@/types/domain";
 
 const statusFlow: Record<string, DeliveryStatus> = {
@@ -33,6 +34,7 @@ const offerSelect =
 
 type JobRow = {
   id: string;
+  price_ngn?: number | string | null;
   pickup_address?: string | null;
   pickup_latitude?: number | string | null;
   pickup_longitude?: number | string | null;
@@ -154,8 +156,13 @@ export async function GET(request: Request) {
         !isRejectedByRider(job, rider.id) &&
         !hasQueuedDelivery && fastErrandVendorIsFunded(job.metadata) && jobMatchesRiderDispatch(job, rider.operating_zone || rider.address, bicycleAsset, Boolean(rider.independent_bicycle_enabled), riderLocation, deliveryPolicy.rider, rider.campus_zone_id, hasActiveDelivery)
     );
+    const mergedJobs = mergeJobs([...available, ...assigned]);
+    const verifiedIds = await verifiedDeliveryPaymentIds(db, mergedJobs.map((job) => String(job.id || "")));
     return NextResponse.json({
-      jobs: mergeJobs([...available, ...assigned]).map((job) => stripUnassignedOfferSensitiveFields(withVendorName(job as Record<string, unknown>)))
+      jobs: mergedJobs.map((job) => {
+        const payment_verified = verifiedIds.has(String(job.id || "")) || isNoChargeDelivery(job);
+        return { ...stripUnassignedOfferSensitiveFields(withVendorName(job as Record<string, unknown>)), payment_verified };
+      })
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load rider jobs." }, { status: 500 });
@@ -254,13 +261,17 @@ export async function POST(request: Request) {
 
     const { data: current, error: currentError } = await db
       .from("deliveries")
-      .select("id, customer_id, delivery_code, dropoff_contact, status, rider_id, metadata")
+      .select("id, customer_id, delivery_code, dropoff_contact, status, rider_id, metadata, price_ngn")
       .eq("id", id)
-      .single<{ id: string; customer_id?: string | null; delivery_code?: string | null; dropoff_contact?: string | null; status: string; rider_id?: string | null; metadata?: Record<string, unknown> | null }>();
+      .single<{ id: string; customer_id?: string | null; delivery_code?: string | null; dropoff_contact?: string | null; status: string; rider_id?: string | null; metadata?: Record<string, unknown> | null; price_ngn?: number | string | null }>();
     if (currentError) throw currentError;
 
     if (current.rider_id !== rider.id) {
       return NextResponse.json({ error: "Only the assigned rider can update this delivery." }, { status: 403 });
+    }
+
+    if (!(await deliveryPaymentIsVerified(db, current))) {
+      return NextResponse.json({ error: "Awaiting customer payment. Delivery actions unlock after Fast Fleets verifies the payment." }, { status: 409 });
     }
 
     const nextStatus = statusFlow[String(current.status)];

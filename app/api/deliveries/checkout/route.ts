@@ -141,6 +141,7 @@ export async function POST(request: Request) {
     const code = `FF-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
     const squadReference = generatePaymentReference("FFD");
     const customerMatchToken = randomUUID();
+    const riderFirst = paymentMethod !== "wallet" && payableFare.total > 0;
     const metadata = {
       note: payload.note || "",
       scheduled_at: payload.scheduledAt || null,
@@ -169,7 +170,8 @@ export async function POST(request: Request) {
       ...campusMetadata,
       payment_choice: paymentMethod,
       payment_provider: paymentMethod === "wallet" ? "wallet" : "squad",
-      provider_reference: paymentMethod === "wallet" ? null : squadReference
+      provider_reference: paymentMethod === "wallet" ? null : squadReference,
+      rider_payment_reservation: riderFirst
     };
 
     const { data: delivery, error: insertError } = await db
@@ -189,7 +191,7 @@ export async function POST(request: Request) {
         vehicle_type: vehicle,
         delivery_speed: speed,
         payment_method: paymentMethod,
-        status: "pending_payment",
+        status: riderFirst ? "searching" : "pending_payment",
         price_ngn: payableFare.total,
         delivery_fee_ngn: estimate.deliveryFee,
         platform_fee_ngn: estimate.platformFee,
@@ -212,6 +214,12 @@ export async function POST(request: Request) {
         await db.from("deliveries").update({ status: "cancelled", metadata: { ...metadata, launch_promo_error: "reservation_failed" } }).eq("id", delivery.id);
         return NextResponse.json({ error: "Launch promo slots changed. Review the estimate and try again." }, { status: 400 });
       }
+    }
+
+    if (riderFirst) {
+      await db.from("delivery_events").insert({ delivery_id: delivery.id, actor_id: user.id, status: "searching", title: "Finding an available rider", body: "A rider must accept before payment is opened." });
+      await notifyEligibleRiders(db, { id: delivery.id, delivery_code: delivery.delivery_code, pickup_address: pickup, pickup_latitude: pickupLatitude, pickup_longitude: pickupLongitude, distance_km: estimate.distanceKm, price_ngn: payableFare.deliveryFee, delivery_fee_ngn: estimate.deliveryFee, vehicle_type: vehicle, vehicle_subtype: quote.vehicleSubtype, metadata }, (await loadDeliveryPolicy()).rider).catch(() => undefined);
+      return NextResponse.json({ deliveryId: delivery.id, deliveryCode: delivery.delivery_code, matchToken: customerMatchToken, status: "searching", riderFirst: true });
     }
 
     if (payableFare.total === 0) {

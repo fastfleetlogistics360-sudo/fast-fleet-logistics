@@ -22,6 +22,7 @@ import { createClient } from "@/lib/supabase/server";
 import { accountTrackingHref } from "@/lib/tracking-links";
 import { createCustomerVehicleOptions, customerVehicleSelection } from "@/lib/customer-vehicle-options";
 import { MarketplaceVendorResolutionError, resolveMarketplaceVendorForCheckout } from "@/lib/marketplace-vendors";
+import { issueMarketplacePickupCode } from "@/lib/marketplace-pickup-confirmation";
 
 export async function POST(request: Request) {
   try {
@@ -47,10 +48,12 @@ export async function POST(request: Request) {
       interstateConfirmed?: boolean;
       freshDeliveryConfirmed?: boolean;
       vehicleOption?: unknown;
+      fulfilmentMethod?: "DELIVERY" | "PICKUP";
     };
 
     const items = Array.isArray(payload.items) ? payload.items : [];
     const address = sanitizeAddressText(payload.address || "");
+    const fulfilmentMethod = payload.fulfilmentMethod === "PICKUP" ? "PICKUP" : "DELIVERY";
 
     if (!payload.email || !payload.email.includes("@")) {
       return NextResponse.json({ error: "Enter a valid email address for Squad checkout." }, { status: 400 });
@@ -58,7 +61,7 @@ export async function POST(request: Request) {
     if (!items.length) {
       return NextResponse.json({ error: "Add at least one item before checkout." }, { status: 400 });
     }
-    if (address.length < 6) {
+    if (fulfilmentMethod === "DELIVERY" && address.length < 6) {
       return NextResponse.json({ error: "Enter the delivery street address." }, { status: 400 });
     }
     const admin = createAdminClient();
@@ -72,7 +75,7 @@ export async function POST(request: Request) {
     const businessLinks = await resolveMarketplaceBusinessLinks(admin, payload.kind, items);
     const marketplaceKind = payload.kind === "shopping" ? "shopping" : "restaurant";
     const selectedVehicle = customerVehicleSelection(payload.vehicleOption);
-    if (!selectedVehicle || (selectedVehicle.id !== "bicycle" && selectedVehicle.id !== "motorcycle")) {
+    if (fulfilmentMethod === "DELIVERY" && (!selectedVehicle || (selectedVehicle.id !== "bicycle" && selectedVehicle.id !== "motorcycle"))) {
       return NextResponse.json({ error: "Choose an available Bicycle or Bike rider option." }, { status: 400 });
     }
     const resolvedItems = businessLinks.items;
@@ -94,20 +97,21 @@ export async function POST(request: Request) {
     const configuredPickup = configuredMarketplacePickupAddress(resolvedItems);
     const quotePickupAddress = configuredPickup || (business ? businessPickupAddressFor(business, marketplacePickupAddress(resolvedItems, marketplaceKind)) : null);
     const [fareConfig, deliveryPolicy, campusProgram] = await Promise.all([loadFareConfig(), loadDeliveryPolicy(), loadCampusProgram()]);
-    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: resolvedItems, address, pickupAddress: quotePickupAddress, fareConfig, deliveryPolicy, campusProgram, vehicleOption: selectedVehicle.id });
-    const liveVehicleOption = (await createCustomerVehicleOptions({
+    const vehicleOption = selectedVehicle?.id === "bicycle" || selectedVehicle?.id === "motorcycle" ? selectedVehicle.id : undefined;
+    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: resolvedItems, address: address || quotePickupAddress || "Pickup", pickupAddress: quotePickupAddress, fareConfig, deliveryPolicy, campusProgram, vehicleOption });
+    const liveVehicleOption = fulfilmentMethod === "DELIVERY" ? (await createCustomerVehicleOptions({
       db: admin,
       fareConfig,
       input: { pickup: { address: quotePickupAddress || marketplacePickupAddress(resolvedItems, marketplaceKind) }, dropoff: { address }, speed: "same_day", marketplaceKind, items: resolvedItems }
-    })).find((option) => option.id === selectedVehicle.id);
-    if (!liveVehicleOption || liveVehicleOption.availability.status === "unavailable") {
+    })).find((option) => option.id === selectedVehicle?.id) : null;
+    if (fulfilmentMethod === "DELIVERY" && (!liveVehicleOption || liveVehicleOption.availability.status === "unavailable")) {
       return NextResponse.json({ error: "That rider option is no longer available. Choose another option and try again." }, { status: 409 });
     }
     const lecturerBenefit = await resolveLecturerBenefit({ program: campusProgram, userId: user.id, address, deliveryFee: estimate.deliveryFee, platformFee: estimate.platformFee });
     if (!estimate.allowed) {
-      return NextResponse.json({ error: estimate.policyMessage || "This marketplace order cannot be delivered to that address." }, { status: 422 });
+      if (fulfilmentMethod === "DELIVERY") return NextResponse.json({ error: estimate.policyMessage || "This marketplace order cannot be delivered to that address." }, { status: 422 });
     }
-    if (estimate.requiresFreshDeliveryConfirmation && payload.freshDeliveryConfirmed !== true) {
+    if (fulfilmentMethod === "DELIVERY" && estimate.requiresFreshDeliveryConfirmation && payload.freshDeliveryConfirmed !== true) {
       return NextResponse.json(
         {
           error: estimate.policyMessage || "Confirm this long fresh delivery before checkout.",
@@ -116,7 +120,7 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-    if (estimate.interstateDispatch && payload.interstateConfirmed !== true) {
+    if (fulfilmentMethod === "DELIVERY" && estimate.interstateDispatch && payload.interstateConfirmed !== true) {
       return NextResponse.json(
         {
           error: estimate.policyMessage || "Confirm the interstate delivery timing before checkout.",
@@ -126,10 +130,10 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-    const platformFee = lecturerBenefit.applied ? 0 : estimate.platformFee;
-    const deliveryFee = lecturerBenefit.applied ? 0 : estimate.deliveryFee;
+    const platformFee = fulfilmentMethod === "PICKUP" ? fareConfig.platformFee : lecturerBenefit.applied ? 0 : estimate.platformFee;
+    const deliveryFee = fulfilmentMethod === "PICKUP" ? 0 : lecturerBenefit.applied ? 0 : estimate.deliveryFee;
     const expectedAmount = estimate.itemsTotal + deliveryFee + platformFee;
-    const operationalDeliveryFee = estimate.campusAdjustment.riderEarningNgn;
+    const operationalDeliveryFee = fulfilmentMethod === "PICKUP" ? 0 : estimate.campusAdjustment.riderEarningNgn;
     const campusMetadata = campusFeeMetadata({ program: campusProgram, adjustment: estimate.campusAdjustment, lecturerBenefit });
     const campusRiderPriorityUntil = estimate.campusAdjustment.applied
       ? new Date(Date.now() + campusProgram.riderPriorityMinutes * 60_000).toISOString()
@@ -151,11 +155,12 @@ export async function POST(request: Request) {
       configuredPickupItem
         ? Promise.resolve({ latitude: Number(configuredPickupItem.pickupLatitude), longitude: Number(configuredPickupItem.pickupLongitude) })
         : geocodeAddress(pickupAddress),
-      geocodeAddress(address)
+      fulfilmentMethod === "DELIVERY" ? geocodeAddress(address) : Promise.resolve(null)
     ]);
     let paymentIntentTarget: { purpose: PaymentIntentPurpose; internalReference: string; deliveryId?: string; orderId?: string } | null = null;
 
-    if (business) {
+    if (business || fulfilmentMethod === "PICKUP") {
+      if (!business) return NextResponse.json({ error: "Pickup is currently available only from verified vendor accounts." }, { status: 409 });
       try {
         const { data: order, error: orderError } = await admin
           .from("orders")
@@ -171,10 +176,10 @@ export async function POST(request: Request) {
             items: resolvedItems,
             customer_contact: payload.phone || payload.email,
             pickup_address: pickupAddress,
-            dropoff_address: address,
+            dropoff_address: fulfilmentMethod === "PICKUP" ? pickupAddress : address,
             package_type: payload.kind === "shopping" ? "shopping items" : "food order",
-            vehicle_type: estimate.vehicle,
-            vehicle_subtype: estimate.vehicleSubtype,
+            vehicle_type: fulfilmentMethod === "PICKUP" ? "bike" : estimate.vehicle,
+            vehicle_subtype: fulfilmentMethod === "PICKUP" ? null : estimate.vehicleSubtype,
             status: "pending",
             amount: expectedAmount,
             delivery_fee_ngn: operationalDeliveryFee,
@@ -184,11 +189,18 @@ export async function POST(request: Request) {
             route_source: estimate.routeSource,
             route_type: estimate.routeType,
             payment_method: "card",
-            payment_status: "pending"
+            payment_status: "pending",
+            fulfilment_method: fulfilmentMethod,
+            metadata: fulfilmentMethod === "PICKUP" ? { pickup_instructions: "Collect from the verified vendor address after the vendor marks the order ready." } : {}
           })
           .select("id, order_code")
           .single();
         if (orderError) throw orderError;
+        if (fulfilmentMethod === "PICKUP") {
+          const confirmation = issueMarketplacePickupCode(order.id);
+          const { error: confirmationError } = await admin.from("marketplace_pickup_confirmations").insert({ order_id: order.id, ...confirmation });
+          if (confirmationError) throw confirmationError;
+        }
         paymentIntentTarget = {
           purpose: "marketplace_business_order",
           internalReference: `order:${order.id}`,
@@ -253,7 +265,7 @@ export async function POST(request: Request) {
             route_duration_seconds: estimate.durationSeconds,
             bicycle_eligible: estimate.bicycleEligible,
             vehicle_subtype: estimate.vehicleSubtype,
-            customer_vehicle_option: selectedVehicle.id,
+            customer_vehicle_option: selectedVehicle?.id || null,
             marketplace_vehicle: estimate.vehicle,
             interstate_dispatch: estimate.interstateDispatch,
             interstate_delivery_days: estimate.interstateDeliveryDays,
