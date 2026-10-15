@@ -206,6 +206,9 @@ async function runPostSettlementEffects(db: SupabaseClient, intent: PaymentInten
         metadata: delivery.metadata && typeof delivery.metadata === "object" && !Array.isArray(delivery.metadata) ? delivery.metadata as Record<string, unknown> : {}
       }, (await loadDeliveryPolicy()).rider).catch(() => undefined);
     }
+    if (delivery?.metadata && typeof delivery.metadata === "object" && !Array.isArray(delivery.metadata) && (delivery.metadata as Record<string, unknown>).source === "fastfleet_marketplace") {
+      await confirmMarketplaceDeliveryOrderAfterPayment(db, intent.delivery_id);
+    }
   }
   if (!result.settledNow) return;
   if (intent.purpose === "delivery_payment" && intent.delivery_id) {
@@ -250,6 +253,36 @@ async function runPostSettlementEffects(db: SupabaseClient, intent: PaymentInten
     }
   }
   await announceWhatsAppPayment(db, intent, intent.provider_transaction_reference);
+}
+
+/** A marketplace delivery's vendor order stays non-actionable until the
+ * separately reserved rider's payment is independently settled. */
+async function confirmMarketplaceDeliveryOrderAfterPayment(db: SupabaseClient, deliveryId: string) {
+  const { data: order } = await db
+    .from("orders")
+    .update({ payment_status: "paid", updated_at: new Date().toISOString() })
+    .eq("delivery_id", deliveryId)
+    .eq("payment_status", "pending")
+    .select("id, order_code, customer_id, business_id, business_profile_id")
+    .maybeSingle<{ id: string; order_code: string | null; customer_id: string | null; business_id: string | null; business_profile_id: string | null }>();
+  if (!order?.business_id || !order.customer_id) return;
+  const code = order.order_code || deliveryId;
+  await Promise.allSettled([
+    insertNotificationWithPush(db, {
+      user_id: order.business_id,
+      title: "New paid marketplace order",
+      body: `${code} is paid and waiting for your team to prepare.`,
+      type: "business_order_received",
+      metadata: { order_id: order.id, order_code: code, business_profile_id: order.business_profile_id, url: "/business/dashboard#marketplace-orders", tag: `ff-business-${code}` }
+    }),
+    insertNotificationWithPush(db, {
+      user_id: order.customer_id,
+      title: "Marketplace payment confirmed",
+      body: `${code} has been sent to the business.`,
+      type: "order_update",
+      metadata: { order_id: order.id, order_code: code, status: "received", url: accountMessengerHref(code), tag: `ff-${code}` }
+    })
+  ]);
 }
 
 async function confirmStorageBookingAfterPayment(db: SupabaseClient, orderId: string) {

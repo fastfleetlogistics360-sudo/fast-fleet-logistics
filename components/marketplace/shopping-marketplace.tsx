@@ -453,7 +453,14 @@ function ShoppingStorefront({
         })
       });
       const payload = await response.json();
-      if (!response.ok || !payload.authorizationUrl) throw new Error(payload.error || "Squad checkout failed.");
+      if (!response.ok) throw new Error(payload.error || "Marketplace checkout failed.");
+      if (payload.riderFirst && payload.deliveryId && payload.deliveryCode) {
+        const params = new URLSearchParams({ deliveryId: String(payload.deliveryId), deliveryCode: String(payload.deliveryCode) });
+        if (payload.matchToken) params.set("matchToken", String(payload.matchToken));
+        router.push(`/delivery/match?${params.toString()}`);
+        return;
+      }
+      if (!payload.authorizationUrl) throw new Error(payload.error || "Squad checkout failed.");
       const deliveryCode = String(payload.reference || `FFM-${Date.now()}`).toUpperCase();
       const businessOrder = Boolean(payload.businessOrder);
       const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]");

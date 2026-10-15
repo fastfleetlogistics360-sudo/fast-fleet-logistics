@@ -23,6 +23,8 @@ import { accountTrackingHref } from "@/lib/tracking-links";
 import { createCustomerVehicleOptions, customerVehicleSelection } from "@/lib/customer-vehicle-options";
 import { MarketplaceVendorResolutionError, resolveMarketplaceVendorForCheckout } from "@/lib/marketplace-vendors";
 import { issueMarketplacePickupCode } from "@/lib/marketplace-pickup-confirmation";
+import { notifyEligibleRiders } from "@/lib/rider-delivery-opportunities";
+import { randomUUID } from "crypto";
 
 export async function POST(request: Request) {
   try {
@@ -96,9 +98,40 @@ export async function POST(request: Request) {
     const business = await loadActiveLinkedBusiness(admin, linkedBusinessId);
     const configuredPickup = configuredMarketplacePickupAddress(resolvedItems);
     const quotePickupAddress = configuredPickup || (business ? businessPickupAddressFor(business, marketplacePickupAddress(resolvedItems, marketplaceKind)) : null);
+    if (!quotePickupAddress) {
+      return NextResponse.json({ error: "This vendor has not configured a pickup address yet." }, { status: 409 });
+    }
     const [fareConfig, deliveryPolicy, campusProgram] = await Promise.all([loadFareConfig(), loadDeliveryPolicy(), loadCampusProgram()]);
     const vehicleOption = selectedVehicle?.id === "bicycle" || selectedVehicle?.id === "motorcycle" ? selectedVehicle.id : undefined;
-    const estimate = await estimateMarketplaceCheckout({ kind: payload.kind, items: resolvedItems, address: address || quotePickupAddress || "Pickup", pickupAddress: quotePickupAddress, fareConfig, deliveryPolicy, campusProgram, vehicleOption });
+    // A collection is not a delivery route. In particular, never send the
+    // vendor's address through route/geocoding resolution for PICKUP: doing so
+    // can incorrectly ask the customer to select a pickup point they do not
+    // control.
+    const estimate = fulfilmentMethod === "PICKUP"
+      ? {
+          itemsTotal: resolvedItems.reduce((sum, item) => sum + Math.round(Number(item.subtotal || 0)), 0),
+          pickupAddress: quotePickupAddress,
+          pickupState: null,
+          dropoffState: null,
+          distanceKm: 0,
+          etaMinutes: 0,
+          durationSeconds: 0,
+          routeSource: "pickup",
+          routeType: "pickup",
+          bicycleEligible: false,
+          vehicleSubtype: null,
+          vehicle: "bike" as const,
+          deliverySpeed: "same_day" as const,
+          allowed: true,
+          policyMessage: null,
+          requiresFreshDeliveryConfirmation: false,
+          interstateDispatch: false,
+          interstateDeliveryDays: null,
+          deliveryFee: 0,
+          platformFee: fareConfig.platformFee,
+          campusAdjustment: { applied: false, campusZoneId: null, deliveryFee: 0, platformFee: fareConfig.platformFee, totalDiscount: 0, riderEarningNgn: 0, pricingBand: "normal" as const }
+        }
+      : await estimateMarketplaceCheckout({ kind: payload.kind, items: resolvedItems, address, pickupAddress: quotePickupAddress, fareConfig, deliveryPolicy, campusProgram, vehicleOption });
     const liveVehicleOption = fulfilmentMethod === "DELIVERY" ? (await createCustomerVehicleOptions({
       db: admin,
       fareConfig,
@@ -152,14 +185,16 @@ export async function POST(request: Request) {
     const pickupAddress = estimate.pickupAddress;
     const configuredPickupItem = resolvedItems.find((item) => Number.isFinite(item.pickupLatitude) && Number.isFinite(item.pickupLongitude));
     const [pickupPoint, dropoffPoint] = await Promise.all([
-      configuredPickupItem
-        ? Promise.resolve({ latitude: Number(configuredPickupItem.pickupLatitude), longitude: Number(configuredPickupItem.pickupLongitude) })
-        : geocodeAddress(pickupAddress),
+      fulfilmentMethod === "PICKUP"
+        ? Promise.resolve(null)
+        : configuredPickupItem
+          ? Promise.resolve({ latitude: Number(configuredPickupItem.pickupLatitude), longitude: Number(configuredPickupItem.pickupLongitude) })
+          : geocodeAddress(pickupAddress),
       fulfilmentMethod === "DELIVERY" ? geocodeAddress(address) : Promise.resolve(null)
     ]);
     let paymentIntentTarget: { purpose: PaymentIntentPurpose; internalReference: string; deliveryId?: string; orderId?: string } | null = null;
 
-    if (business || fulfilmentMethod === "PICKUP") {
+    if (fulfilmentMethod === "PICKUP") {
       if (!business) return NextResponse.json({ error: "Pickup is currently available only from verified vendor accounts." }, { status: 409 });
       try {
         const { data: order, error: orderError } = await admin
@@ -212,6 +247,7 @@ export async function POST(request: Request) {
       }
     } else {
       try {
+        const customerMatchToken = randomUUID();
         // Managed marketplace vendors do not need a linked Business Account.
         // The customer has already been authenticated above, so this server
         // write avoids an unnecessary browser-session RLS dependency.
@@ -230,7 +266,7 @@ export async function POST(request: Request) {
           vehicle_type: estimate.vehicle,
           delivery_speed: estimate.deliverySpeed,
           payment_method: "card",
-          status: "pending_payment",
+          status: "searching",
           price_ngn: expectedAmount,
           delivery_fee_ngn: operationalDeliveryFee,
           platform_fee_ngn: platformFee,
@@ -270,7 +306,11 @@ export async function POST(request: Request) {
             interstate_dispatch: estimate.interstateDispatch,
             interstate_delivery_days: estimate.interstateDeliveryDays,
             payment_provider: "squad",
-            provider_reference: reference
+            provider_reference: reference,
+            customer_match_token: customerMatchToken,
+            match_started_at: new Date().toISOString(),
+            rider_payment_reservation: true,
+            payment_choice: "card"
           }
         }).select("id").single();
         if (deliveryError) throw deliveryError;
@@ -285,6 +325,8 @@ export async function POST(request: Request) {
           marketplace_vendor_id: vendorResolution.vendor.id,
           marketplace_vendor_branch_id: vendorResolution.branch.id,
           marketplace_vendor_snapshot: vendorResolution.snapshot,
+          business_id: business?.user_id || null,
+          business_profile_id: business?.id || null,
           items: resolvedItems,
           customer_contact: payload.phone || payload.email,
           pickup_address: pickupAddress,
@@ -301,7 +343,8 @@ export async function POST(request: Request) {
           route_source: estimate.routeSource,
           route_type: estimate.routeType,
           payment_method: "card",
-          payment_status: "pending"
+          payment_status: "pending",
+          metadata: business ? { business_order_pending_payment: true } : {}
         });
         if (unmanagedOrderError) {
           await admin.from("deliveries").delete().eq("id", delivery.id);
@@ -312,6 +355,36 @@ export async function POST(request: Request) {
           internalReference: `delivery:${delivery.id}`,
           deliveryId: delivery.id
         };
+        await admin.from("delivery_events").insert({
+          delivery_id: delivery.id,
+          actor_id: user.id,
+          status: "searching",
+          title: "Finding an available rider",
+          body: "A rider must accept before payment is opened."
+        });
+        await notifyEligibleRiders(admin, {
+          id: delivery.id,
+          delivery_code: reference,
+          pickup_address: pickupAddress,
+          pickup_latitude: pickupPoint?.latitude || null,
+          pickup_longitude: pickupPoint?.longitude || null,
+          distance_km: estimate.distanceKm,
+          price_ngn: deliveryFee,
+          delivery_fee_ngn: operationalDeliveryFee,
+          vehicle_type: estimate.vehicle,
+          vehicle_subtype: estimate.vehicleSubtype,
+          metadata: { source: "fastfleet_marketplace", rider_payment_reservation: true }
+        }, deliveryPolicy.rider).catch(() => undefined);
+        return NextResponse.json({
+          deliveryId: delivery.id,
+          deliveryCode: reference,
+          matchToken: customerMatchToken,
+          status: "searching",
+          riderFirst: true,
+          userId: user.id,
+          vehicle: estimate.vehicle,
+          vehicleSubtype: estimate.vehicleSubtype
+        });
       } catch {
         return NextResponse.json({ error: "Could not create the marketplace delivery." }, { status: 500 });
       }
