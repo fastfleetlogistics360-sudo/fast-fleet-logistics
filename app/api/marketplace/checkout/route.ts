@@ -250,10 +250,11 @@ export async function POST(request: Request) {
           await admin.from("orders").delete().eq("id", createdOrderId).eq("status", "pending").eq("payment_status", "pending");
         }
         console.error("Marketplace business-order initialization failed", {
+          reference,
           fulfilmentMethod,
-          message: error instanceof Error ? error.message : String(error)
+          ...databaseErrorSummary(error)
         });
-        return NextResponse.json({ error: "Could not create the business marketplace order." }, { status: 500 });
+        return NextResponse.json({ error: `Could not create the business marketplace order. Reference: ${reference}` }, { status: 500 });
       }
     } else {
       try {
@@ -416,6 +417,19 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Marketplace checkout failed." }, { status: 500 });
   }
+}
+
+/**
+ * PostgREST failures are often plain objects. Keep their useful database
+ * classification in private server logs, while the browser receives only the
+ * non-sensitive checkout reference needed to locate that log entry.
+ */
+function databaseErrorSummary(error: unknown) {
+  if (error instanceof Error) return { message: error.message.slice(0, 300) };
+  if (!error || typeof error !== "object") return { message: String(error).slice(0, 300) };
+  const source = error as Record<string, unknown>;
+  const value = (key: "code" | "message" | "hint") => typeof source[key] === "string" ? source[key].slice(0, 300) : undefined;
+  return { code: value("code"), message: value("message") || "Unknown database error", hint: value("hint") };
 }
 
 async function cancelMarketplacePaymentTarget(

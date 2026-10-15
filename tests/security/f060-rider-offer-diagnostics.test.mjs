@@ -4,6 +4,8 @@ import test from "node:test";
 
 const dashboard = readFileSync("components/rider/rider-dashboard.tsx", "utf8");
 const distanceRoute = readFileSync("app/api/maps/distance/route.ts", "utf8");
+const riderJobsRoute = readFileSync("app/api/rider/jobs/route.ts", "utf8");
+const marketplaceCheckout = readFileSync("app/api/marketplace/checkout/route.ts", "utf8");
 
 test("F060: production rider offers never fall back to an unguarded browser query", () => {
   assert.match(dashboard, /if \(process\.env\.NODE_ENV === "production"\) return \[\] as JobRow\[\];/);
@@ -15,6 +17,19 @@ test("F060: rider acceptance failures are visible above the blocking offer modal
   assert.match(dashboard, /role="alert"/);
   assert.match(dashboard, /Could not update job \(HTTP \$\{response\.status\}\)/);
   assert.match(dashboard, /finally \{\s*setRespondingJobId\(null\);/);
+});
+
+test("F060: structured Supabase RPC failures keep their actionable message", () => {
+  assert.match(riderJobsRoute, /function publicErrorMessage\(error: unknown, fallback: string\)/);
+  assert.match(riderJobsRoute, /typeof message === "string" && message\.trim\(\)/);
+  assert.match(riderJobsRoute, /publicErrorMessage\(error, "Could not update rider job\."\)/);
+});
+
+test("F060: Pickup initialization logs structured database failures without returning them to customers", () => {
+  assert.match(marketplaceCheckout, /function databaseErrorSummary\(error: unknown\)/);
+  assert.match(marketplaceCheckout, /reference,\s*fulfilmentMethod,\s*\.\.\.databaseErrorSummary\(error\)/);
+  assert.match(marketplaceCheckout, /Reference: \$\{reference\}/);
+  assert.doesNotMatch(marketplaceCheckout, /error: databaseErrorSummary\(error\)/);
 });
 
 test("F060: pickup ETA routes coordinate pairs as coordinates and does not synthesize a fallback ETA", () => {

@@ -341,10 +341,20 @@ export async function POST(request: Request) {
 
     return updateResponse(db, id);
 	  } catch (error) {
-	    const message = error instanceof Error ? error.message : "Could not update rider job.";
+	    const message = publicErrorMessage(error, "Could not update rider job.");
 	    return NextResponse.json({ error: message }, { status: message.includes("accepted by another rider") ? 409 : 500 });
 	  }
 	}
+
+/** PostgREST errors are structured objects and are not always Error instances. */
+function publicErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message.trim().slice(0, 300);
+  }
+  return fallback;
+}
 
 async function updateResponse(supabase: SupabaseClient, id: string) {
   const { data, error } = await supabase
