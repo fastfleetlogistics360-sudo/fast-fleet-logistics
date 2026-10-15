@@ -178,8 +178,15 @@ async function loadRiderJobs(supabase: ReturnType<typeof createClient>, riderId:
     const response = await fetch(`/api/rider/jobs?includeAvailable=${includeAvailable ? "1" : "0"}`, { cache: "no-store" });
     const payload = (await response.json().catch(() => ({}))) as { jobs?: JobRow[] };
     if (response.ok && Array.isArray(payload.jobs)) return payload.jobs;
+    // Available offers are authorization-sensitive. A failed authoritative
+    // API response must never be replaced by a broad browser-side query in
+    // production, otherwise the dashboard can show an offer the server has
+    // already rejected as ineligible or unavailable.
+    if (process.env.NODE_ENV === "production") return [] as JobRow[];
   } catch {
-    // Fall back to the browser Supabase client below when the API is unavailable in local preview.
+    // The direct Supabase fallback is only for local development when the
+    // Next API route is not running. Production always uses the server gate.
+    if (process.env.NODE_ENV === "production") return [] as JobRow[];
   }
   if (!riderId) return [] as JobRow[];
   const riderState = extractNigerianState(riderZone);
@@ -328,18 +335,6 @@ function formatCoordinates(location: LiveRiderLocation) {
 function pickupDestination(job: JobRow) {
   if (job.pickup_latitude != null && job.pickup_longitude != null) return `${job.pickup_latitude},${job.pickup_longitude}`;
   return job.pickup_address;
-}
-
-function fallbackPickupEta(job: JobRow, liveLocation: LiveRiderLocation | null) {
-  if (liveLocation && job.pickup_latitude != null && job.pickup_longitude != null) {
-    const distanceKm = haversineKm(liveLocation, { latitude: Number(job.pickup_latitude), longitude: Number(job.pickup_longitude) });
-    return Math.max(4, Math.round((distanceKm / 24) * 60 + 5));
-  }
-  const routeEta = Number(job.eta_minutes || 0);
-  if (routeEta > 0) return Math.max(5, Math.round(routeEta * 0.45));
-  const distanceKm = Number(job.distance_km || 0);
-  if (distanceKm > 0) return Math.max(5, Math.round((distanceKm / 24) * 60));
-  return null;
 }
 
 function pickupEtaLabel(minutes: number | null, loading: boolean, liveLocation: LiveRiderLocation | null) {
@@ -594,8 +589,10 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
       return;
     }
 
-    const fallback = fallbackPickupEta(incomingJob, liveLocation);
-    setPickupEtaMinutes(fallback);
+    // `eta_minutes` describes the customer route, not the rider-to-pickup
+    // route. Do not manufacture a pickup ETA from it or from unverified GPS
+    // coordinates; the maps response is the only authoritative estimate.
+    setPickupEtaMinutes(null);
 
     if (!liveLocation) return;
     let cancelled = false;
@@ -611,7 +608,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
         if (minutes) setPickupEtaMinutes(minutes);
       })
       .catch(() => {
-        if (!cancelled) setPickupEtaMinutes(fallback);
+        if (!cancelled) setPickupEtaMinutes(null);
       })
       .finally(() => {
         if (!cancelled) setPickupEtaLoading(false);
@@ -820,8 +817,9 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
 	        headers: { "Content-Type": "application/json" },
 	        body: JSON.stringify({ id: job.id, action: accepted ? "accept" : "decline" })
 	      });
-	      const payload = await response.json();
-	      if (!response.ok) throw new Error(payload.error || "Could not update job.");
+	      const payload = (await response.json().catch(() => ({}))) as { job?: JobRow; error?: string; payment_verified?: boolean };
+	      if (!response.ok) throw new Error(payload.error || `Could not update job (HTTP ${response.status}).`);
+	      if (accepted && !payload.job?.id) throw new Error("The server did not confirm this acceptance. Refresh your jobs before trying again.");
 	      setJobs((current) => accepted ? [payload.job as JobRow, ...current.filter((item) => item.id !== job.id && item.status !== "searching")] : current.filter((item) => item.id !== job.id));
 	      if (accepted) {
 	        const pendingCustomerPayment = (payload.job as JobRow | undefined)?.status === "awaiting_customer_payment" && payload.payment_verified !== true;
@@ -1019,7 +1017,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
 	          onClose={() => setActiveJobSheetOpen(false)}
 	        />
 	      ) : null}
-	      {online && incomingJob ? <IncomingJobModal job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={respondToJob} responding={respondingJobId === incomingJob.id} /> : null}
+	      {online && incomingJob ? <IncomingJobModal job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} offerNotice={offerNotice} onRespond={respondToJob} responding={respondingJobId === incomingJob.id} /> : null}
 	      {withdrawalOpen ? <WithdrawalModal amount={withdrawalAmount} onAmount={setWithdrawalAmount} profile={profile} loading={withdrawalLoading} message={withdrawalMessage} onClose={() => setWithdrawalOpen(false)} onSubmit={requestWithdrawal} /> : null}
         <ReviewPrompt subject={reviewSubject} />
     </section>
@@ -1191,10 +1189,11 @@ function OfferRoute({ pickup, dropoff }: { pickup: string; dropoff: string }) {
   return <div className="mt-3 min-w-0 text-sm font-semibold leading-5 text-slate-600"><p className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-fleet-ember">Pickup</p><p className="mt-0.5 break-words font-bold text-fleet-night">{pickup}</p><p className="my-1.5 text-center text-xs font-black uppercase tracking-[0.18em] text-fleet-night">TO</p><p className="text-[0.65rem] font-black uppercase tracking-[0.14em] text-fleet-ember">Dropoff</p><p className="mt-0.5 break-words font-bold text-fleet-night">{dropoff}</p></div>;
 }
 
-function IncomingJobModal({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLocation, onRespond, responding = false }: { job: JobRow; expires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; liveLocation: LiveRiderLocation | null; onRespond: (job: JobRow, accepted: boolean) => void; responding?: boolean }) {
+function IncomingJobModal({ job, expires, pickupEtaMinutes, pickupEtaLoading, liveLocation, offerNotice, onRespond, responding = false }: { job: JobRow; expires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; liveLocation: LiveRiderLocation | null; offerNotice: string | null; onRespond: (job: JobRow, accepted: boolean) => void; responding?: boolean }) {
   return (
 	    <div className="fixed inset-0 z-[110] grid place-items-end bg-fleet-night/35 p-3 sm:place-items-center">
       <div className="w-full max-w-lg">
+	        {offerNotice ? <div role="alert" className="mb-3 rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-800">{offerNotice}</div> : null}
 	        <IncomingJob job={job} expires={expires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={onRespond} responding={responding} />
       </div>
     </div>
