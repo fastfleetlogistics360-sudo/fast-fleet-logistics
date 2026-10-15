@@ -232,7 +232,10 @@ export async function POST(request: Request) {
         if (orderError) throw orderError;
         createdOrderId = order.id;
         if (fulfilmentMethod === "PICKUP") {
-          const confirmation = issueMarketplacePickupCode(order.id);
+          // `code` is only the transient plaintext needed to reveal the code
+          // to the authenticated customer. Never send it to PostgREST: the
+          // protected table stores only the digest and encrypted ciphertext.
+          const { code: _pickupCode, ...confirmation } = issueMarketplacePickupCode(order.id);
           const { error: confirmationError } = await admin.from("marketplace_pickup_confirmations").insert({ order_id: order.id, ...confirmation });
           if (confirmationError) throw confirmationError;
         }

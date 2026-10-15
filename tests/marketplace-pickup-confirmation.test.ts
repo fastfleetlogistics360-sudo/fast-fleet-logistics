@@ -18,3 +18,10 @@ test("marketplace pickup codes have a bounded expiry and remain customer-decrypt
   assert.match(code, /^\d{6}$/);
   assert.equal(verifyMarketplacePickupCode(code, orderId, confirmation.code_digest), true);
 });
+
+test("checkout persists only protected pickup confirmation fields", async () => {
+  const source = await import("node:fs").then(({ readFileSync }) => readFileSync("app/api/marketplace/checkout/route.ts", "utf8"));
+  assert.match(source, /const \{ code: _pickupCode, \.\.\.confirmation \} = issueMarketplacePickupCode/);
+  assert.match(source, /insert\(\{ order_id: order\.id, \.\.\.confirmation \}\)/);
+  assert.doesNotMatch(source, /insert\(\{ order_id: order\.id, \.\.\.issueMarketplacePickupCode/);
+});
