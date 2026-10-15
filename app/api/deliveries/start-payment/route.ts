@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { paymentCallbackOrigin } from "@/lib/payments/callback-url";
 import { addPaymentReturnToken } from "@/lib/payments/payment-return";
-import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending, type PaymentIntentPurpose } from "@/lib/payments/payment-intents";
+import { createPaymentIntent, markPaymentIntentInitializationFailed, markPaymentIntentPending } from "@/lib/payments/payment-intents";
 import { generatePaymentReference, initiateSquadPayment, paymentChannelsFor } from "@/lib/payments/squad";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -73,15 +73,12 @@ export async function POST(request: Request) {
     if (paymentMethod !== "card" && paymentMethod !== "transfer") return NextResponse.json({ error: "This delivery cannot be paid through Squad checkout." }, { status: 409 });
 
     const reference = generatePaymentReference("FFD");
-    const paymentPurpose: PaymentIntentPurpose = delivery.metadata?.source === "fastfleet_marketplace"
-      ? "marketplace_delivery_payment"
-      : "delivery_payment";
     let paymentIntent;
     try {
       paymentIntent = await createPaymentIntent(db, {
         reference,
         internalReference: `delivery:${delivery.id}`,
-        purpose: paymentPurpose,
+        purpose: "delivery_payment",
         ownerUserId: user.id,
         amountNgn: Number(delivery.price_ngn),
         deliveryId: delivery.id
@@ -126,7 +123,7 @@ export async function POST(request: Request) {
         callbackUrl: callbackUrl.toString(),
         customerName: profile?.full_name || null,
         channels: paymentChannelsFor(paymentMethod),
-        metadata: { purpose: paymentPurpose, delivery_code: delivery.delivery_code, payment_method: paymentMethod, rider_first: true }
+        metadata: { purpose: "delivery_payment", delivery_code: delivery.delivery_code, payment_method: paymentMethod, rider_first: true }
       });
     } catch {
       await markPaymentIntentInitializationFailed(db, paymentIntent.id).catch(() => undefined);
