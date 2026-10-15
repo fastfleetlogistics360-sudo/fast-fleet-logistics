@@ -85,6 +85,8 @@ type OrderRow = {
   price_ngn: number;
   source?: string | null;
   marketplace_kind?: string | null;
+  fulfilment_method?: string | null;
+  payment_status?: string | null;
   items?: Array<{ name?: string; productName?: string; quantity?: number; store?: string; vendorName?: string }> | null;
   created_at: string;
   delivered_at?: string | null;
@@ -110,8 +112,6 @@ type LocalDelivery = Partial<OrderRow> & {
   estimate?: { total?: number; etaMinutes?: number };
   source?: string;
 };
-
-const businessOrderStatuses = new Set(["received", "preparing", "packing", "ready_for_pickup", "rider_assigned", "accepted_pending_delivery", "picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered"]);
 
 type PromotionRow = {
   id: string;
@@ -883,6 +883,10 @@ function OrderRowCard({ order, compact }: { order: OrderRow; compact?: boolean }
     && Boolean(order.rider_id)
     && order.metadata?.rider_payment_reservation === true
     && ["awaiting_customer_payment", "searching"].includes(String(order.status));
+  const canResumePickupPayment = businessOrder
+    && order.fulfilment_method === "PICKUP"
+    && order.payment_status === "pending"
+    && !["cancelled", "refunded", "delivered"].includes(String(order.status));
 
   async function cancelPendingSearch() {
     if (!window.confirm("Cancel this delivery request? No payment has been collected.")) return;
@@ -923,6 +927,25 @@ function OrderRowCard({ order, compact }: { order: OrderRow; compact?: boolean }
     }
   }
 
+  async function resumePickupPayment() {
+    setPaymentBusy(true);
+    setPaymentError(null);
+    try {
+      const response = await fetch("/api/marketplace/start-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order.id })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; authorizationUrl?: string };
+      if (!response.ok || !payload.authorizationUrl) throw new Error(payload.error || "Payment checkout could not start.");
+      await openSecureCheckout(payload.authorizationUrl);
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : "Payment checkout could not start.");
+    } finally {
+      setPaymentBusy(false);
+    }
+  }
+
   return (
     <article className="rounded-[22px] border border-white/80 bg-white/[0.92] p-4 shadow-[0_16px_42px_rgba(8,17,31,0.08)] ring-1 ring-fleet-line/30 backdrop-blur-2xl">
       <div className="flex items-start justify-between gap-3">
@@ -933,7 +956,7 @@ function OrderRowCard({ order, compact }: { order: OrderRow; compact?: boolean }
         </div>
         <StatusBadge tone={statusTone(order.status)}>{customerOrderLabel(String(order.status))}</StatusBadge>
       </div>
-      {businessOrder && !liveDelivery ? <CustomerVendorProgress status={String(order.status)} compact /> : null}
+      {businessOrder && !liveDelivery ? <CustomerVendorProgress status={String(order.status)} paymentStatus={order.payment_status} compact /> : null}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <strong className="text-sm font-black text-fleet-night">{formatMoney(order.price_ngn)}</strong>
         <div className="flex gap-2">
@@ -947,6 +970,7 @@ function OrderRowCard({ order, compact }: { order: OrderRow; compact?: boolean }
           {order.status === "delivered" && (order.marketplace_kind || String(order.source || "").includes("marketplace") || String(order.metadata?.source || "").includes("marketplace")) ? <LinkButton href={`/api/customer/marketplace-receipt?${order.delivery_id ? `orderId=${encodeURIComponent(order.id)}` : `deliveryId=${encodeURIComponent(order.id)}`}`} size="sm" variant="secondary"><Download className="h-3.5 w-3.5" />Receipt</LinkButton> : null}
           {canCancelPendingRiderSearch ? <Button type="button" size="sm" variant="secondary" onClick={cancelPendingSearch} disabled={cancelling}>{cancelling ? "Cancelling…" : "Cancel delivery"}</Button> : null}
           {canResumeRiderPayment ? <Button type="button" size="sm" onClick={resumePayment} disabled={paymentBusy}>{paymentBusy ? "Opening payment…" : "Complete payment"}</Button> : null}
+          {canResumePickupPayment ? <Button type="button" size="sm" onClick={resumePickupPayment} disabled={paymentBusy}>{paymentBusy ? "Opening payment…" : "Complete payment"}</Button> : null}
           <LinkButton href={`/book?reorder=${order.delivery_code}`} size="sm">Re-order</LinkButton>
         </div>
       </div>
@@ -974,7 +998,7 @@ function TrackTab({ order, searchCode, onSearchCode, onLiveDeliveryChange, onPic
           <Card className={cn("p-5", customerPanelClass)}>
             <h2 className="text-xl font-black text-fleet-night">{order.delivery_code}</h2>
             {vendorOrder ? (
-              <CustomerVendorProgress status={String(order.status)} />
+              <CustomerVendorProgress status={String(order.status)} paymentStatus={order.payment_status} />
             ) : (
               <div className="mt-5 grid gap-4">
                 {steps.map((step, index) => (
@@ -1033,7 +1057,7 @@ function customerStepIndex(status: string) {
   return 0;
 }
 
-function CustomerVendorProgress({ status, compact = false }: { status: string; compact?: boolean }) {
+function CustomerVendorProgress({ status, paymentStatus, compact = false }: { status: string; paymentStatus?: string | null; compact?: boolean }) {
   const steps = [
     ["received", "Order Received"],
     ["preparing", "Preparing Order"],
@@ -1046,11 +1070,13 @@ function CustomerVendorProgress({ status, compact = false }: { status: string; c
     ["awaiting_delivery_confirmation", "Confirming Delivery"],
     ["delivered", "Delivered"]
   ] as const;
-  const index = Math.max(0, steps.findIndex(([value]) => value === status));
+  const index = steps.findIndex(([value]) => value === status);
+  const paid = paymentStatus === "paid";
   return (
     <div className={cn("grid gap-3", compact ? "mt-3" : "mt-5")}>
+      {!paid ? <p className="rounded-fleet border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">Payment pending — the vendor cannot prepare this order until Squad verifies payment.</p> : null}
       {steps.map(([value, label], stepIndex) => {
-        const active = stepIndex <= index || !businessOrderStatuses.has(status);
+        const active = paid && index >= 0 && stepIndex <= index;
         return (
           <div key={value} className="flex items-center gap-3">
             <span className={cn("h-4 w-4 rounded-full border-2", active ? "border-emerald-600 bg-emerald-600" : "border-slate-200 bg-white")} />

@@ -11,7 +11,7 @@ const orderSelectWithoutRiderTag =
   "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, metadata, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, users:users!rider_profiles_user_id_fkey(full_name, phone, avatar_url))";
 
 const businessOrderSelect =
-  "id, rider_id, order_code, delivery_id, marketplace_kind, items, pickup_address, dropoff_address, package_type, status, amount, created_at, updated_at, delivered_at, proof_of_delivery_url";
+  "id, rider_id, order_code, delivery_id, marketplace_kind, items, pickup_address, dropoff_address, package_type, fulfilment_method, payment_status, status, amount, created_at, updated_at, delivered_at, proof_of_delivery_url";
 
 const linkedMarketplaceDeliverySelect =
   "id, rider_id, delivery_code, pickup_address, dropoff_address, status, price_ngn, created_at, delivered_at, proof_url, metadata, rider_profiles:rider_profiles!deliveries_rider_id_fkey(plate_number, vehicle_type, vehicle_color, rider_account_type, users:users!rider_profiles_user_id_fkey(full_name, phone, email, avatar_url))";
@@ -128,6 +128,8 @@ async function loadOrders(db: SupabaseClient, userId: string) {
         delivered_at: linkedDelivery?.delivered_at || order.delivered_at,
         proof_url: order.proof_of_delivery_url,
         metadata: linkedDelivery?.metadata || null,
+        fulfilment_method: order.fulfilment_method,
+        payment_status: order.payment_status,
         rider_profiles: linkedDelivery?.rider_profiles || null,
         marketplace_kind: order.marketplace_kind,
         items: order.items,
