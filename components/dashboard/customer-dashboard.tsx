@@ -873,6 +873,30 @@ function OrderRowCard({ order, compact }: { order: OrderRow; compact?: boolean }
   const businessOrder = isBusinessMarketplaceOrder(order);
   const liveDelivery = hasLiveDelivery(order);
   const routeLabel = orderRouteLabel(order);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const canCancelPendingRiderSearch = !businessOrder && order.status === "searching" && !order.rider_id && order.metadata?.rider_payment_reservation === true;
+
+  async function cancelPendingSearch() {
+    if (!window.confirm("Cancel this delivery request? No payment has been collected.")) return;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      const response = await fetch("/api/deliveries/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deliveryId: order.id })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Could not cancel this delivery.");
+      window.location.reload();
+    } catch (error) {
+      setCancelError(error instanceof Error ? error.message : "Could not cancel this delivery.");
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   return (
     <article className="rounded-[22px] border border-white/80 bg-white/[0.92] p-4 shadow-[0_16px_42px_rgba(8,17,31,0.08)] ring-1 ring-fleet-line/30 backdrop-blur-2xl">
       <div className="flex items-start justify-between gap-3">
@@ -895,9 +919,11 @@ function OrderRowCard({ order, compact }: { order: OrderRow; compact?: boolean }
             {businessOrder && !liveDelivery ? "Status updates" : "Messenger"}
           </LinkButton>
           {order.status === "delivered" && (order.marketplace_kind || String(order.source || "").includes("marketplace") || String(order.metadata?.source || "").includes("marketplace")) ? <LinkButton href={`/api/customer/marketplace-receipt?${order.delivery_id ? `orderId=${encodeURIComponent(order.id)}` : `deliveryId=${encodeURIComponent(order.id)}`}`} size="sm" variant="secondary"><Download className="h-3.5 w-3.5" />Receipt</LinkButton> : null}
+          {canCancelPendingRiderSearch ? <Button type="button" size="sm" variant="secondary" onClick={cancelPendingSearch} disabled={cancelling}>{cancelling ? "Cancelling…" : "Cancel delivery"}</Button> : null}
           <LinkButton href={`/book?reorder=${order.delivery_code}`} size="sm">Re-order</LinkButton>
         </div>
       </div>
+      {cancelError ? <p className="mt-3 text-xs font-bold text-red-700" role="alert">{cancelError}</p> : null}
     </article>
   );
 }
