@@ -62,6 +62,7 @@ export const riderDashboardMenu: DashboardMenuSection[] = [
     title: "Rider",
     items: [
       { title: "Rider Dashboard", body: "Status, jobs, and earnings snapshot", href: "/rider/dashboard", icon: Home, tag: "Home" },
+      { title: "My customer orders", body: "Deliveries you personally booked", href: "/dashboard#orders", icon: PackageCheck, tag: "Orders" },
       { title: "Available Jobs", body: "Accept or decline incoming deliveries", href: "/rider/dashboard/job-requests", icon: Bell, tag: "Live" },
       { title: "Active Delivery", body: "Live map, route, recipient details", href: "/rider/dashboard/active-delivery", icon: MapPin, tag: "Live" },
       { title: "Delivery History", body: "Completed jobs and receipts", href: "/rider/dashboard/delivery-history", icon: Clock },

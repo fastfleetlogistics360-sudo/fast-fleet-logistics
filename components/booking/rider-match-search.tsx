@@ -161,7 +161,7 @@ export function RiderMatchSearch({ deliveryId, deliveryCode, matchToken = null, 
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
         {unavailable ? <LinkButton href="/book">Try again</LinkButton> : null}
         <LinkButton href={accountTrackingHref(match.deliveryCode || deliveryCode)}>Track delivery</LinkButton>
-        <LinkButton href="/dashboard" variant="secondary">Customer dashboard</LinkButton>
+        <LinkButton href="/dashboard#orders" variant="secondary">My orders</LinkButton>
       </div>
     </Card>
   );

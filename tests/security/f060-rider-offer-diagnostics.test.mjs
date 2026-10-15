@@ -24,6 +24,7 @@ test("F060: a claimed payment reservation cannot reappear as an incoming offer",
   assert.match(dashboard, /const incomingJob = jobs\.find\(isIncomingOffer\) \|\| null;/);
   assert.match(dashboard, /function isPaymentReservation/);
   assert.match(dashboard, /Reserved — awaiting payment/);
+  assert.ok(dashboard.indexOf("{paymentReservation ? <PaymentReservationCard job={paymentReservation} /> : null}") < dashboard.indexOf("<TransactionHistory accountKind=\"rider\" />"));
 });
 
 test("F060: structured Supabase RPC failures keep their actionable message", () => {

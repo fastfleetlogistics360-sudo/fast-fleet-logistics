@@ -1092,13 +1092,13 @@ function HomeTab({ loading, online, onToggleOnline, walletBalance, loyaltyCredit
         </button>
         <RiderAccountTypeCard accountType={profile.rider_account_type} />
       </Card>
+      {paymentReservation ? <PaymentReservationCard job={paymentReservation} /> : null}
       <TransactionHistory accountKind="rider" />
       <div className="grid grid-cols-2 gap-3">
         <Stat label="Trips" value={String(profile.completed_deliveries || recentTrips.length)} />
         <Stat label="Rating" value={(profile.rating || 4.9).toFixed(1)} />
       </div>
       {offerNotice ? <div className="rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-800">{offerNotice}</div> : null}
-	      {paymentReservation ? <PaymentReservationCard job={paymentReservation} /> : null}
 	      {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={onRespond} responding={respondingJobId === incomingJob.id} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
       {activeJob ? <ActiveJobLauncher job={activeJob} trackingActive={trackingActive} trackingMessage={trackingMessage} onOpen={onOpenActiveJob} /> : null}
       {queuedJob ? <Card className="border-amber-200 bg-amber-50 p-4"><StatusBadge tone="amber">Next delivery</StatusBadge><h3 className="mt-2 text-lg font-black text-fleet-night">{queuedJob.delivery_code}</h3><p className="mt-1 text-sm font-semibold text-slate-600">{queuedJob.pickup_address} to {queuedJob.dropoff_address}</p><p className="mt-2 text-xs font-bold text-amber-800">Accepted and waiting. It will activate immediately after your current delivery is confirmed.</p></Card> : null}

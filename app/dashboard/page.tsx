@@ -18,8 +18,10 @@ export default async function DashboardPage() {
   const { data: profile } = await supabase.from("profiles").select("account_type").eq("user_id", user.id).maybeSingle<{ account_type?: string | null }>();
   const role = parseUserRole(profile?.account_type);
   if (!role) redirect("/choose-account-type?returnTo=/dashboard");
-  const redirectTarget = role !== "customer" ? roleHome[role] : null;
-  if (redirectTarget) redirect(redirectTarget);
+  // A rider, business owner, or investor can also be the customer who placed
+  // a delivery. Customer orders are still scoped by customer_id in the API;
+  // do not strand those users on their role-specific dashboard.
+  if (role === "admin") redirect(roleHome.admin);
 
   return <CustomerDashboard />;
 }
