@@ -341,7 +341,7 @@ export function LiveOrderTracking({
             />
           ) : null}
 
-          {!marketplaceOnly && order.status === "searching" ? <RiderMatchSearch deliveryId={order.id} deliveryCode={order.delivery_code} compact /> : null}
+          {!marketplaceOnly && ["searching", "awaiting_customer_payment"].includes(order.status) ? <RiderMatchSearch deliveryId={order.id} deliveryCode={order.delivery_code} compact /> : null}
 
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <MetricCard icon={Clock3} label="ETA" value={marketplaceOnly ? "After pickup" : completed ? "Delivered" : etaMinutes ? `${etaMinutes} min` : "Calculating"} />
