@@ -19,6 +19,13 @@ test("F060: rider acceptance failures are visible above the blocking offer modal
   assert.match(dashboard, /finally \{\s*setRespondingJobId\(null\);/);
 });
 
+test("F060: a claimed payment reservation cannot reappear as an incoming offer", () => {
+  assert.match(dashboard, /function isIncomingOffer\(job: JobRow\) \{\s*return job\.status === "searching" && !job\.rider_id;/);
+  assert.match(dashboard, /const incomingJob = jobs\.find\(isIncomingOffer\) \|\| null;/);
+  assert.match(dashboard, /function isPaymentReservation/);
+  assert.match(dashboard, /Reserved — awaiting payment/);
+});
+
 test("F060: structured Supabase RPC failures keep their actionable message", () => {
   assert.match(riderJobsRoute, /function publicErrorMessage\(error: unknown, fallback: string\)/);
   assert.match(riderJobsRoute, /typeof message === "string" && message\.trim\(\)/);

@@ -323,6 +323,17 @@ function mergeJobs(jobs: JobRow[]) {
   });
 }
 
+// An offer is actionable only before it has been claimed. Rider-first
+// checkout temporarily returns the claimed delivery to `searching` while
+// Squad is open, so status alone must never make it an incoming offer again.
+function isIncomingOffer(job: JobRow) {
+  return job.status === "searching" && !job.rider_id;
+}
+
+function isPaymentReservation(job: JobRow) {
+  return Boolean(job.rider_id) && job.metadata?.rider_payment_reservation === true && ["awaiting_customer_payment", "searching"].includes(job.status) && job.payment_verified !== true;
+}
+
 function isRejectedByRider(job: JobRow, riderId: string | null | undefined) {
   const rejectedIds = job.metadata?.rejected_rider_ids;
   return Boolean(riderId && Array.isArray(rejectedIds) && rejectedIds.includes(riderId));
@@ -438,7 +449,8 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
     if (new URLSearchParams(window.location.search).get("tab") === "jobs") setActiveTab("jobs");
   }, []);
 
-  const incomingJob = jobs.find((job) => job.status === "searching") || null;
+  const incomingJob = jobs.find(isIncomingOffer) || null;
+  const paymentReservation = jobs.find(isPaymentReservation) || null;
   const activeJob = jobs.find((job) => ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(job.status)) || null;
   const queuedJob = jobs.find((job) => job.status === "accepted_pending_delivery") || null;
   const latestCompletedTrip = jobs.find((job) => job.status === "delivered") || null;
@@ -790,7 +802,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
 	      window.dispatchEvent(new Event("fastfleet:request-push-notifications"));
         const nextJobs = await loadRiderJobs(supabase, updatedProfile.id, dispatchVehicle, true, updatedProfile.operating_zone || updatedProfile.address || profile.operating_zone || profile.address || profile.lga);
         setJobs(nextJobs);
-        setOfferNotice(nextJobs.some((job) => job.status === "searching") ? "New dispatch orders are available." : null);
+        setOfferNotice(nextJobs.some(isIncomingOffer) ? "New dispatch orders are available." : null);
       } else {
         setJobs((current) => current.filter((job) => job.status !== "searching"));
         setOfferNotice(null);
@@ -977,6 +989,7 @@ export function RiderDashboard({ initialKycStatus = "approved", rejectionReason,
               loyaltyCredit={loyaltyCredit}
               profile={profile}
               incomingJob={incomingJob}
+              paymentReservation={paymentReservation}
               incomingExpires={incomingExpires}
               pickupEtaMinutes={pickupEtaMinutes}
               pickupEtaLoading={pickupEtaLoading}
@@ -1056,7 +1069,7 @@ function MobileTabs({ activeTab, onChange }: { activeTab: RiderTab; onChange: (t
   );
 }
 
-function HomeTab({ loading, online, onToggleOnline, walletBalance, loyaltyCredit, profile, incomingJob, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, queuedJob, recentTrips, liveLocation, trackingActive, trackingMessage, offerNotice, onOpenWithdrawal, onOpenActiveJob, onRespond, respondingJobId }: { loading: boolean; online: boolean; onToggleOnline: () => void; walletBalance: number; loyaltyCredit: number; profile: RiderProfile; incomingJob: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; queuedJob: JobRow | null; recentTrips: JobRow[]; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onOpenWithdrawal: () => void; onOpenActiveJob: () => void; onRespond: (job: JobRow, accepted: boolean) => void; respondingJobId: string | null }) {
+function HomeTab({ loading, online, onToggleOnline, walletBalance, loyaltyCredit, profile, incomingJob, paymentReservation, incomingExpires, pickupEtaMinutes, pickupEtaLoading, activeJob, queuedJob, recentTrips, liveLocation, trackingActive, trackingMessage, offerNotice, onOpenWithdrawal, onOpenActiveJob, onRespond, respondingJobId }: { loading: boolean; online: boolean; onToggleOnline: () => void; walletBalance: number; loyaltyCredit: number; profile: RiderProfile; incomingJob: JobRow | null; paymentReservation: JobRow | null; incomingExpires: number; pickupEtaMinutes: number | null; pickupEtaLoading: boolean; activeJob: JobRow | null; queuedJob: JobRow | null; recentTrips: JobRow[]; liveLocation: LiveRiderLocation | null; trackingActive: boolean; trackingMessage: string | null; offerNotice: string | null; onOpenWithdrawal: () => void; onOpenActiveJob: () => void; onRespond: (job: JobRow, accepted: boolean) => void; respondingJobId: string | null }) {
   if (loading) return <DashboardSkeleton />;
   return (
     <div className="grid gap-5">
@@ -1085,6 +1098,7 @@ function HomeTab({ loading, online, onToggleOnline, walletBalance, loyaltyCredit
         <Stat label="Rating" value={(profile.rating || 4.9).toFixed(1)} />
       </div>
       {offerNotice ? <div className="rounded-fleet border border-amber-200 bg-amber-50 p-3 text-sm font-black text-amber-800">{offerNotice}</div> : null}
+	      {paymentReservation ? <PaymentReservationCard job={paymentReservation} /> : null}
 	      {incomingJob ? <IncomingJob job={incomingJob} expires={incomingExpires} pickupEtaMinutes={pickupEtaMinutes} pickupEtaLoading={pickupEtaLoading} liveLocation={liveLocation} onRespond={onRespond} responding={respondingJobId === incomingJob.id} /> : <DashboardEmptyState title="No incoming job" body="Go online and new dispatch offers will appear here." ctaLabel="Open jobs" ctaHref="/rider/dashboard" icon={<Bike className="h-7 w-7" />} />}
       {activeJob ? <ActiveJobLauncher job={activeJob} trackingActive={trackingActive} trackingMessage={trackingMessage} onOpen={onOpenActiveJob} /> : null}
       {queuedJob ? <Card className="border-amber-200 bg-amber-50 p-4"><StatusBadge tone="amber">Next delivery</StatusBadge><h3 className="mt-2 text-lg font-black text-fleet-night">{queuedJob.delivery_code}</h3><p className="mt-1 text-sm font-semibold text-slate-600">{queuedJob.pickup_address} to {queuedJob.dropoff_address}</p><p className="mt-2 text-xs font-bold text-amber-800">Accepted and waiting. It will activate immediately after your current delivery is confirmed.</p></Card> : null}
@@ -1115,6 +1129,17 @@ function HomeTab({ loading, online, onToggleOnline, walletBalance, loyaltyCredit
         </div>
       </section>
     </div>
+  );
+}
+
+function PaymentReservationCard({ job }: { job: JobRow }) {
+  return (
+    <Card className="border-amber-200 bg-amber-50 p-4">
+      <StatusBadge tone="amber">Reserved — awaiting payment</StatusBadge>
+      <h2 className="mt-2 text-lg font-black text-fleet-night">{job.delivery_code}</h2>
+      <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">The customer is completing Squad payment. Delivery controls will unlock only after payment is verified.</p>
+      <p className="mt-2 text-xs font-bold text-amber-800">This is already your reservation, so it will not appear again as an incoming job.</p>
+    </Card>
   );
 }
 
@@ -1548,7 +1573,7 @@ function JobsTab({ loading, jobs, online, onToggleOnline }: { loading: boolean; 
   const [filter, setFilter] = useState<"active" | "queued" | "available" | "completed">("active");
   if (loading) return <DashboardSkeleton />;
   const filteredJobs = jobs.filter((job) => {
-    if (filter === "available") return job.status === "searching";
+    if (filter === "available") return isIncomingOffer(job);
     if (filter === "queued") return job.status === "accepted_pending_delivery";
     if (filter === "completed") return job.status === "delivered";
     return ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation"].includes(job.status);
