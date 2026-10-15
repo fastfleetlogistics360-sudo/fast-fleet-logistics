@@ -38,7 +38,11 @@ export async function POST(request: Request) {
       }>();
     if (deliveryError) throw deliveryError;
     if (!delivery) return NextResponse.json({ error: "Delivery not found." }, { status: 404 });
-    if (delivery.metadata?.rider_payment_reservation !== true || delivery.status !== "awaiting_customer_payment" || !delivery.rider_id) {
+    if (
+      delivery.metadata?.rider_payment_reservation !== true
+      || !["awaiting_customer_payment", "searching"].includes(delivery.status)
+      || !delivery.rider_id
+    ) {
       return NextResponse.json({ error: "A current rider acceptance is required before payment can begin." }, { status: 409 });
     }
     if (payload.matchToken && payload.matchToken !== String(delivery.metadata?.customer_match_token || "")) {
@@ -57,14 +61,12 @@ export async function POST(request: Request) {
 
     const { data: existingIntent, error: intentLookupError } = await db
       .from("payment_intents")
-      .select("id, status")
+      .select("id, status, provider_transaction_reference")
       .eq("delivery_id", delivery.id)
       .eq("purpose", "delivery_payment")
-      .maybeSingle<{ id: string; status: string }>();
+      .maybeSingle<{ id: string; status: string; provider_transaction_reference: string }>();
     if (intentLookupError) throw intentLookupError;
-    if (existingIntent) {
-      return NextResponse.json({ error: existingIntent.status === "settled" ? "This delivery has already been paid." : "A secure checkout has already been started for this delivery. Complete it or wait for the reservation to expire." }, { status: 409 });
-    }
+    if (existingIntent?.status === "settled") return NextResponse.json({ error: "This delivery has already been paid." }, { status: 409 });
 
     const { data: profile } = await supabase.from("users").select("email, full_name").eq("id", user.id).maybeSingle<{ email?: string | null; full_name?: string | null }>();
     const email = user.email || profile?.email || "";
@@ -72,36 +74,45 @@ export async function POST(request: Request) {
     const paymentMethod = String(delivery.metadata?.payment_choice || "card");
     if (paymentMethod !== "card" && paymentMethod !== "transfer") return NextResponse.json({ error: "This delivery cannot be paid through Squad checkout." }, { status: 409 });
 
-    const reference = generatePaymentReference("FFD");
-    let paymentIntent;
-    try {
-      paymentIntent = await createPaymentIntent(db, {
-        reference,
-        internalReference: `delivery:${delivery.id}`,
-        purpose: "delivery_payment",
-        ownerUserId: user.id,
-        amountNgn: Number(delivery.price_ngn),
-        deliveryId: delivery.id
-      });
-    } catch {
-      // The unique delivery internal reference is the server-side duplicate
-      // initiation gate; never create a second chargeable checkout.
-      return NextResponse.json({ error: "A secure checkout has already been started for this delivery." }, { status: 409 });
+    // A customer may close Squad before completing payment. Reopen the same
+    // provider reference rather than creating another chargeable intent.
+    const reference = existingIntent?.provider_transaction_reference || generatePaymentReference("FFD");
+    let paymentIntent: { id: string; provider_transaction_reference: string };
+    const createdPaymentIntent = !existingIntent;
+    if (existingIntent) {
+      paymentIntent = existingIntent;
+    } else {
+      try {
+        paymentIntent = await createPaymentIntent(db, {
+          reference,
+          internalReference: `delivery:${delivery.id}`,
+          purpose: "delivery_payment",
+          ownerUserId: user.id,
+          amountNgn: Number(delivery.price_ngn),
+          deliveryId: delivery.id
+        });
+      } catch {
+        // The unique delivery internal reference is the server-side duplicate
+        // initiation gate; reload the intent and never create a second charge.
+        return NextResponse.json({ error: "A secure checkout is already being prepared. Please try again." }, { status: 409 });
+      }
     }
 
     // Persist the exact intent reference before handing the customer to Squad.
     // If Squad reports a very late success after an initialization timeout,
     // the signed callback can still route it to the server-side review path.
-    const { data: referenceSaved, error: referenceError } = await db
-      .from("deliveries")
-      .update({ metadata: { ...delivery.metadata, provider_reference: reference }, updated_at: new Date().toISOString() })
-      .eq("id", delivery.id)
-      .eq("status", "awaiting_customer_payment")
-      .select("id")
-      .maybeSingle<{ id: string }>();
-    if (referenceError || !referenceSaved) {
-      await markPaymentIntentInitializationFailed(db, paymentIntent.id).catch(() => undefined);
-      return NextResponse.json({ error: "The rider reservation expired before checkout could start. No payment was collected." }, { status: 409 });
+    if (delivery.status === "awaiting_customer_payment") {
+      const { data: referenceSaved, error: referenceError } = await db
+        .from("deliveries")
+        .update({ metadata: { ...delivery.metadata, provider_reference: reference }, updated_at: new Date().toISOString() })
+        .eq("id", delivery.id)
+        .eq("status", "awaiting_customer_payment")
+        .select("id")
+        .maybeSingle<{ id: string }>();
+      if (referenceError || !referenceSaved) {
+        if (createdPaymentIntent) await markPaymentIntentInitializationFailed(db, paymentIntent.id).catch(() => undefined);
+        return NextResponse.json({ error: "The rider reservation expired before checkout could start. No payment was collected." }, { status: 409 });
+      }
     }
 
     const siteUrl = paymentCallbackOrigin(request);
@@ -126,22 +137,24 @@ export async function POST(request: Request) {
         metadata: { purpose: "delivery_payment", delivery_code: delivery.delivery_code, payment_method: paymentMethod, rider_first: true }
       });
     } catch {
-      await markPaymentIntentInitializationFailed(db, paymentIntent.id).catch(() => undefined);
+      if (createdPaymentIntent) await markPaymentIntentInitializationFailed(db, paymentIntent.id).catch(() => undefined);
       return NextResponse.json({ error: "Payment checkout could not start. Your rider reservation remains active until it expires." }, { status: 502 });
     }
 
     // Flip only after Squad has accepted the request. Expiry continues to own
     // the reservation clock and safely handles an abandoned checkout.
-    const { data: activated, error: activationError } = await db
-      .from("deliveries")
-      .update({ status: "searching", metadata: { ...delivery.metadata, payment_checkout_started_at: new Date().toISOString(), provider_reference: reference }, updated_at: new Date().toISOString() })
-      .eq("id", delivery.id)
-      .eq("status", "awaiting_customer_payment")
-      .select("id")
-      .maybeSingle<{ id: string }>();
-    if (activationError || !activated) {
-      await markPaymentIntentInitializationFailed(db, paymentIntent.id).catch(() => undefined);
-      return NextResponse.json({ error: "The rider reservation expired before checkout could start. No payment was collected." }, { status: 409 });
+    if (delivery.status === "awaiting_customer_payment") {
+      const { data: activated, error: activationError } = await db
+        .from("deliveries")
+        .update({ status: "searching", metadata: { ...delivery.metadata, payment_checkout_started_at: new Date().toISOString(), provider_reference: reference }, updated_at: new Date().toISOString() })
+        .eq("id", delivery.id)
+        .eq("status", "awaiting_customer_payment")
+        .select("id")
+        .maybeSingle<{ id: string }>();
+      if (activationError || !activated) {
+        if (createdPaymentIntent) await markPaymentIntentInitializationFailed(db, paymentIntent.id).catch(() => undefined);
+        return NextResponse.json({ error: "The rider reservation expired before checkout could start. No payment was collected." }, { status: 409 });
+      }
     }
     await markPaymentIntentPending(db, paymentIntent.id).catch(() => undefined);
     return NextResponse.json({ reference: squadCheckout.reference, authorizationUrl: squadCheckout.authorizationUrl, expiresAt: reservation.expires_at });

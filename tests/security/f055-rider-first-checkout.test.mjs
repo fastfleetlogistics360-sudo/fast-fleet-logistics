@@ -15,7 +15,7 @@ test("F055: rider-first checkout waits for acceptance before creating a Squad in
   assert.match(checkout, /rider_payment_reservation: riderFirst/);
   assert.match(checkout, /status: riderFirst \? "searching" : "pending_payment"/);
   assert.match(checkout, /if \(riderFirst\)[\s\S]*return NextResponse\.json/);
-  assert.match(startPayment, /status !== "awaiting_customer_payment"/);
+  assert.match(startPayment, /\["awaiting_customer_payment", "searching"\]\.includes\(delivery\.status\)/);
   assert.match(startPayment, /reservation\.status !== "reserved"/);
   assert.match(startPayment, /internalReference: `delivery:\$\{delivery\.id\}`/);
 });

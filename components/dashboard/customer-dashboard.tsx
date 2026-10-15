@@ -31,6 +31,7 @@ import { sanitizeAddressText } from "@/lib/location/address-formatting";
 import { accountMessengerHref, accountTrackingHref, publicTrackingHref } from "@/lib/tracking-links";
 import type { LaunchStateStatus } from "@/lib/launch-states";
 import { type PickupProof, metadataRecord } from "@/lib/pickup-proof";
+import { openSecureCheckout } from "@/lib/payments/open-secure-checkout";
 
 type CustomerTab = "home" | "orders" | "track" | "account";
 type OrderStatus = "pending" | "assigned" | "searching" | "accepted" | "rider_arrived" | "picked_up" | "in_transit" | "awaiting_delivery_confirmation" | "delivered" | "cancelled";
@@ -875,7 +876,13 @@ function OrderRowCard({ order, compact }: { order: OrderRow; compact?: boolean }
   const routeLabel = orderRouteLabel(order);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const canCancelPendingRiderSearch = !businessOrder && order.status === "searching" && !order.rider_id && order.metadata?.rider_payment_reservation === true;
+  const canResumeRiderPayment = !businessOrder
+    && Boolean(order.rider_id)
+    && order.metadata?.rider_payment_reservation === true
+    && ["awaiting_customer_payment", "searching"].includes(String(order.status));
 
   async function cancelPendingSearch() {
     if (!window.confirm("Cancel this delivery request? No payment has been collected.")) return;
@@ -894,6 +901,25 @@ function OrderRowCard({ order, compact }: { order: OrderRow; compact?: boolean }
       setCancelError(error instanceof Error ? error.message : "Could not cancel this delivery.");
     } finally {
       setCancelling(false);
+    }
+  }
+
+  async function resumePayment() {
+    setPaymentBusy(true);
+    setPaymentError(null);
+    try {
+      const response = await fetch("/api/deliveries/start-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deliveryId: order.id })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; authorizationUrl?: string };
+      if (!response.ok || !payload.authorizationUrl) throw new Error(payload.error || "Payment checkout could not start.");
+      await openSecureCheckout(payload.authorizationUrl);
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : "Payment checkout could not start.");
+    } finally {
+      setPaymentBusy(false);
     }
   }
 
@@ -920,10 +946,12 @@ function OrderRowCard({ order, compact }: { order: OrderRow; compact?: boolean }
           </LinkButton>
           {order.status === "delivered" && (order.marketplace_kind || String(order.source || "").includes("marketplace") || String(order.metadata?.source || "").includes("marketplace")) ? <LinkButton href={`/api/customer/marketplace-receipt?${order.delivery_id ? `orderId=${encodeURIComponent(order.id)}` : `deliveryId=${encodeURIComponent(order.id)}`}`} size="sm" variant="secondary"><Download className="h-3.5 w-3.5" />Receipt</LinkButton> : null}
           {canCancelPendingRiderSearch ? <Button type="button" size="sm" variant="secondary" onClick={cancelPendingSearch} disabled={cancelling}>{cancelling ? "Cancelling…" : "Cancel delivery"}</Button> : null}
+          {canResumeRiderPayment ? <Button type="button" size="sm" onClick={resumePayment} disabled={paymentBusy}>{paymentBusy ? "Opening payment…" : "Complete payment"}</Button> : null}
           <LinkButton href={`/book?reorder=${order.delivery_code}`} size="sm">Re-order</LinkButton>
         </div>
       </div>
       {cancelError ? <p className="mt-3 text-xs font-bold text-red-700" role="alert">{cancelError}</p> : null}
+      {paymentError ? <p className="mt-3 text-xs font-bold text-red-700" role="alert">{paymentError}</p> : null}
     </article>
   );
 }

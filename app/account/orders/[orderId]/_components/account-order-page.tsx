@@ -103,7 +103,7 @@ export async function AccountOrderPage({ params, mode }: { params: Promise<{ ord
 
   const marketplaceOrder = await loadMarketplaceOrder(db, lookup, user.id);
   if (!marketplaceOrder) redirect(publicTrackingHref(lookup));
-  if (marketplaceOrder.fulfilment_method === "PICKUP") return <PickupOrderStatus orderId={marketplaceOrder.id} orderCode={marketplaceOrder.order_code || marketplaceOrder.id} initialStatus={marketplaceOrder.status || "pending"} pickupAddress={marketplaceOrder.pickup_address || null} />;
+  if (marketplaceOrder.fulfilment_method === "PICKUP") return <PickupOrderStatus orderId={marketplaceOrder.id} orderCode={marketplaceOrder.order_code || marketplaceOrder.id} initialStatus={marketplaceOrder.status || "pending"} paymentStatus={marketplaceOrder.payment_status || "pending"} pickupAddress={marketplaceOrder.pickup_address || null} />;
 
   const linkedDelivery = marketplaceOrder.delivery_id ? await loadLinkedDelivery(db, marketplaceOrder.delivery_id) : null;
   if (linkedDelivery) {
