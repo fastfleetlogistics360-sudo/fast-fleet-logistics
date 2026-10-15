@@ -1,6 +1,10 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from "crypto";
 
 export const PICKUP_CONFIRMATION_MAX_ATTEMPTS = 5;
+// A code is issued before payment so it is ready as soon as the vendor marks
+// the paid order ready.  It must nevertheless have a bounded lifetime and be
+// rejected by both the application and the completion RPC after that time.
+export const MARKETPLACE_PICKUP_CODE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type PickupConfirmation = {
   order_id: string;
@@ -9,16 +13,23 @@ export type PickupConfirmation = {
   status: "pending" | "verified" | "expired" | "locked" | "replaced";
   attempts: number;
   max_attempts: number;
+  expires_at: string;
 };
 
-export function issueMarketplacePickupCode(orderId: string) {
+export function issueMarketplacePickupCode(orderId: string, now = new Date()) {
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   return {
     code,
     code_digest: digestMarketplacePickupCode(code, orderId),
     code_ciphertext: encryptMarketplacePickupCode(code, orderId),
-    max_attempts: PICKUP_CONFIRMATION_MAX_ATTEMPTS
+    max_attempts: PICKUP_CONFIRMATION_MAX_ATTEMPTS,
+    expires_at: new Date(now.getTime() + MARKETPLACE_PICKUP_CODE_TTL_MS).toISOString()
   };
+}
+
+export function marketplacePickupCodeExpired(confirmation: Pick<PickupConfirmation, "expires_at">, now = Date.now()) {
+  const expiresAt = Date.parse(confirmation.expires_at);
+  return !Number.isFinite(expiresAt) || expiresAt <= now;
 }
 
 export function normalizeMarketplacePickupCode(value: unknown) {

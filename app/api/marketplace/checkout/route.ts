@@ -194,6 +194,7 @@ export async function POST(request: Request) {
 
     if (business || fulfilmentMethod === "PICKUP") {
       if (!business) return NextResponse.json({ error: "Pickup is currently available only from verified vendor accounts." }, { status: 409 });
+      let createdOrderId: string | null = null;
       try {
         const { data: order, error: orderError } = await admin
           .from("orders")
@@ -229,6 +230,7 @@ export async function POST(request: Request) {
           .select("id, order_code")
           .single();
         if (orderError) throw orderError;
+        createdOrderId = order.id;
         if (fulfilmentMethod === "PICKUP") {
           const confirmation = issueMarketplacePickupCode(order.id);
           const { error: confirmationError } = await admin.from("marketplace_pickup_confirmations").insert({ order_id: order.id, ...confirmation });
@@ -240,7 +242,17 @@ export async function POST(request: Request) {
           orderId: order.id
         };
 
-      } catch {
+      } catch (error) {
+        // No payment intent exists at this point.  Do not leave an unpaid,
+        // non-actionable order behind when secure pickup-code initialization
+        // fails (for example, after a partial schema rollout).
+        if (createdOrderId) {
+          await admin.from("orders").delete().eq("id", createdOrderId).eq("status", "pending").eq("payment_status", "pending");
+        }
+        console.error("Marketplace business-order initialization failed", {
+          fulfilmentMethod,
+          message: error instanceof Error ? error.message : String(error)
+        });
         return NextResponse.json({ error: "Could not create the business marketplace order." }, { status: 500 });
       }
     } else {

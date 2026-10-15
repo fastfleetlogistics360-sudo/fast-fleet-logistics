@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { normalizeMarketplacePickupCode, verifyMarketplacePickupCode, type PickupConfirmation } from "@/lib/marketplace-pickup-confirmation";
+import { marketplacePickupCodeExpired, normalizeMarketplacePickupCode, verifyMarketplacePickupCode, type PickupConfirmation } from "@/lib/marketplace-pickup-confirmation";
 import { enforceRateLimit, rateLimitPolicies } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -21,9 +21,10 @@ export async function POST(request: Request) {
     const { data: order } = await db.from("orders").select("id, business_profile_id, fulfilment_method, payment_status, status").eq("id", orderId).eq("business_profile_id", profile.id).maybeSingle<{ id: string; business_profile_id?: string | null; fulfilment_method?: string | null; payment_status?: string | null; status?: string | null }>();
     if (!order || order.fulfilment_method !== "PICKUP") return NextResponse.json({ error: "Pickup order not found." }, { status: 404 });
     if (order.payment_status !== "paid" || order.status !== "ready_for_pickup") return NextResponse.json({ error: "Only a verified paid order ready for pickup can be collected." }, { status: 409 });
-    const { data: confirmation } = await db.from("marketplace_pickup_confirmations").select("order_id, code_digest, code_ciphertext, status, attempts, max_attempts").eq("order_id", order.id).maybeSingle<PickupConfirmation>();
+    const { data: confirmation } = await db.from("marketplace_pickup_confirmations").select("order_id, code_digest, code_ciphertext, status, attempts, max_attempts, expires_at").eq("order_id", order.id).maybeSingle<PickupConfirmation>();
     if (!confirmation || confirmation.status === "verified") return NextResponse.json({ error: "This pickup code has already been used." }, { status: 409 });
     if (confirmation.status === "locked" || confirmation.attempts >= confirmation.max_attempts) return NextResponse.json({ error: "Pickup code entry is locked. Contact support." }, { status: 423 });
+    if (marketplacePickupCodeExpired(confirmation)) return NextResponse.json({ error: "This pickup code has expired. Contact support for a replacement." }, { status: 409 });
     if (!verifyMarketplacePickupCode(code, order.id, confirmation.code_digest)) {
       const attempts = confirmation.attempts + 1; const locked = attempts >= confirmation.max_attempts;
       await db.from("marketplace_pickup_confirmations").update({ attempts, status: locked ? "locked" : "pending", updated_at: new Date().toISOString() }).eq("order_id", order.id).eq("attempts", confirmation.attempts);

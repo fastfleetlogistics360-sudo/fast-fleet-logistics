@@ -161,7 +161,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       jobs: mergedJobs.map((job) => {
         const payment_verified = verifiedIds.has(String(job.id || "")) || isNoChargeDelivery(job);
-        return { ...stripUnassignedOfferSensitiveFields(withVendorName(job as Record<string, unknown>)), payment_verified };
+        const offer = stripUnassignedOfferSensitiveFields(withVendorName(job as Record<string, unknown>));
+        return { ...stripPaymentPendingRiderDetails(offer, payment_verified), payment_verified };
       })
     });
   } catch (error) {
@@ -352,7 +353,35 @@ async function updateResponse(supabase: SupabaseClient, id: string) {
     .eq("id", id)
     .single();
   if (error) throw error;
-  return NextResponse.json({ job: data });
+  const paymentVerified = data ? await deliveryPaymentIsVerified(supabase, data) : false;
+  return NextResponse.json({ job: data ? stripPaymentPendingRiderDetails(data as Record<string, unknown>, paymentVerified) : data, payment_verified: paymentVerified });
+}
+
+/**
+ * A rider may reserve an unpaid rider-first job, but neither party receives
+ * contact details until the independent payment record is settled.  This is
+ * applied to both a fresh accept response and subsequent job-list refreshes;
+ * hiding the controls in the client alone is insufficient.
+ */
+function stripPaymentPendingRiderDetails(job: Record<string, unknown>, paymentVerified: boolean) {
+  const metadata = job.metadata && typeof job.metadata === "object" && !Array.isArray(job.metadata)
+    ? job.metadata as Record<string, unknown>
+    : null;
+  if (paymentVerified || metadata?.rider_payment_reservation !== true) return job;
+
+  const safe = { ...job };
+  // The reservation metadata contains internal matching and payment fields;
+  // it is not needed for a rider to wait for payment and must not become an
+  // alternate route to protected delivery details.
+  delete safe.metadata;
+  delete safe.pickup_contact;
+  delete safe.dropoff_contact;
+  delete safe.proof_url;
+  const customer = safe.users && typeof safe.users === "object" && !Array.isArray(safe.users)
+    ? safe.users as Record<string, unknown>
+    : null;
+  safe.users = customer ? { full_name: customer.full_name || null, avatar_url: customer.avatar_url || null } : null;
+  return safe;
 }
 
 function normalizeDispatchVehicle(vehicleType: string | null | undefined) {
