@@ -36,12 +36,16 @@ export function RiderMatchSearch({ deliveryId, deliveryCode, matchToken = null, 
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const redirectStarted = useRef(false);
+  const paymentLaunchStarted = useRef(false);
   const activeVehicle = match.vehicleOption || "motorcycle";
   const paymentRequired = match.paymentRequired === true;
   const assigned = match.riderAssigned || ["accepted", "rider_arrived", "picked_up", "in_transit", "awaiting_delivery_confirmation", "delivered"].includes(match.status);
   const queued = match.status === "accepted_pending_delivery";
   const unavailable = !match.riderAssigned && ["cancelled", "expired"].includes(match.status);
   const vehicleLabel = vehicles.find((vehicle) => vehicle.id === activeVehicle)?.label || "courier";
+  const expiryMs = match.paymentExpiresAt ? new Date(match.paymentExpiresAt).getTime() : 0;
+  const secondsRemaining = expiryMs ? Math.max(0, Math.ceil((expiryMs - now) / 1_000)) : null;
+  const reservationExpired = paymentRequired && secondsRemaining === 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +92,15 @@ export function RiderMatchSearch({ deliveryId, deliveryCode, matchToken = null, 
     return () => window.clearInterval(timer);
   }, [paymentRequired]);
 
+  // The rider's acceptance is the customer's payment prompt. Launch the
+  // protected checkout once the server exposes a live reservation; a retry
+  // remains available if Squad initialization fails.
+  useEffect(() => {
+    if (!paymentRequired || reservationExpired || paymentLaunchStarted.current) return;
+    paymentLaunchStarted.current = true;
+    void beginPayment();
+  }, [paymentRequired, reservationExpired]);
+
   useEffect(() => {
     if (!assigned || paymentRequired || !match.messengerHref || redirectStarted.current) return;
     redirectStarted.current = true;
@@ -95,9 +108,6 @@ export function RiderMatchSearch({ deliveryId, deliveryCode, matchToken = null, 
     return () => window.clearTimeout(timer);
   }, [assigned, paymentRequired, match.messengerHref, router]);
 
-  const expiryMs = match.paymentExpiresAt ? new Date(match.paymentExpiresAt).getTime() : 0;
-  const secondsRemaining = expiryMs ? Math.max(0, Math.ceil((expiryMs - now) / 1_000)) : null;
-  const reservationExpired = paymentRequired && secondsRemaining === 0;
   const title = unavailable ? "No rider is currently available" : reservationExpired ? "Payment reservation expired" : paymentRequired ? "Complete payment to proceed" : queued ? "Courier scheduled" : assigned ? "Courier found" : "Finding an available rider";
   const message = reservationExpired
     ? "This rider reservation has expired. Refresh the delivery state to search for another available rider."
@@ -126,6 +136,7 @@ export function RiderMatchSearch({ deliveryId, deliveryCode, matchToken = null, 
       await openSecureCheckout(payload.authorizationUrl);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Payment checkout could not start.");
+      paymentLaunchStarted.current = false;
       setCheckoutBusy(false);
     }
   }
