@@ -23,6 +23,7 @@ import { accountTrackingHref } from "@/lib/tracking-links";
 import { createCustomerVehicleOptions, customerVehicleSelection } from "@/lib/customer-vehicle-options";
 import { MarketplaceVendorResolutionError, resolveMarketplaceVendorForCheckout } from "@/lib/marketplace-vendors";
 import { issueMarketplacePickupCode } from "@/lib/marketplace-pickup-confirmation";
+import { mondayBreakfastPayable, reserveMondayFreeBreakfast } from "@/lib/promos/monday-free-breakfast";
 
 export async function POST(request: Request) {
   try {
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
       freshDeliveryConfirmed?: boolean;
       vehicleOption?: unknown;
       fulfilmentMethod?: "DELIVERY" | "PICKUP";
+      mondayBreakfastRequested?: boolean;
     };
 
     const items = Array.isArray(payload.items) ? payload.items : [];
@@ -163,7 +165,28 @@ export async function POST(request: Request) {
     }
     const platformFee = fulfilmentMethod === "PICKUP" ? fareConfig.platformFee : lecturerBenefit.applied ? 0 : estimate.platformFee;
     const deliveryFee = fulfilmentMethod === "PICKUP" ? 0 : lecturerBenefit.applied ? 0 : estimate.deliveryFee;
-    const expectedAmount = estimate.itemsTotal + deliveryFee + platformFee;
+    let mondayBreakfastDiscount = 0;
+    // The request flag affects presentation only. The database RPC below
+    // independently verifies that this resolved vendor is a restaurant.
+    const campaignOrderId = marketplaceKind === "restaurant" && payload.mondayBreakfastRequested === true ? crypto.randomUUID() : null;
+    if (campaignOrderId) {
+      const reservation = await reserveMondayFreeBreakfast({
+        db: admin,
+        vendorId: vendorResolution.vendor.id,
+        customerId: user.id,
+        orderId: campaignOrderId,
+        foodSubtotalNgn: estimate.itemsTotal,
+        idempotencyKey: `monday-breakfast:${campaignOrderId}`
+      });
+      mondayBreakfastDiscount = reservation.eligible ? reservation.subsidyNgn : 0;
+    }
+    const mondayBreakfastPrice = mondayBreakfastPayable({
+      foodSubtotalNgn: estimate.itemsTotal,
+      subsidyNgn: mondayBreakfastDiscount,
+      platformFeeNgn: platformFee,
+      deliveryFeeNgn: deliveryFee
+    });
+    const expectedAmount = mondayBreakfastPrice.totalNgn;
     const operationalDeliveryFee = fulfilmentMethod === "PICKUP" ? 0 : estimate.campusAdjustment.riderEarningNgn;
     const campusMetadata = campusFeeMetadata({ program: campusProgram, adjustment: estimate.campusAdjustment, lecturerBenefit });
     const campusRiderPriorityUntil = estimate.campusAdjustment.applied
@@ -199,6 +222,7 @@ export async function POST(request: Request) {
         const { data: order, error: orderError } = await admin
           .from("orders")
           .insert({
+            ...(campaignOrderId ? { id: campaignOrderId } : {}),
             order_code: reference,
             customer_id: user.id,
             business_id: business.user_id,
@@ -225,7 +249,10 @@ export async function POST(request: Request) {
             payment_method: "card",
             payment_status: "pending",
             fulfilment_method: fulfilmentMethod,
-            metadata: fulfilmentMethod === "PICKUP" ? { pickup_instructions: "Collect from the verified vendor address after the vendor marks the order ready." } : {}
+            metadata: {
+              ...(fulfilmentMethod === "PICKUP" ? { pickup_instructions: "Collect from the verified vendor address after the vendor marks the order ready." } : {}),
+              ...(mondayBreakfastDiscount ? { monday_free_breakfast: { food_subtotal_ngn: mondayBreakfastPrice.foodSubtotalNgn, subsidy_ngn: mondayBreakfastPrice.subsidyNgn, customer_food_amount_ngn: mondayBreakfastPrice.customerFoodAmountNgn, platform_fee_ngn: mondayBreakfastPrice.platformFeeNgn, delivery_fee_ngn: mondayBreakfastPrice.deliveryFeeNgn } } : {})
+            }
           })
           .select("id, order_code")
           .single();
@@ -251,6 +278,7 @@ export async function POST(request: Request) {
         // fails (for example, after a partial schema rollout).
         if (createdOrderId) {
           await admin.from("orders").delete().eq("id", createdOrderId).eq("status", "pending").eq("payment_status", "pending");
+          await admin.rpc("release_monday_free_breakfast", { target_order_id: createdOrderId, next_state: "cancelled" });
         }
         console.error("Marketplace business-order initialization failed", {
           reference,
@@ -326,7 +354,8 @@ export async function POST(request: Request) {
         // Managed vendors may intentionally have no Business Account. Keep the
         // canonical delivery flow, while recording the Marketplace order and
         // immutable vendor identity independently of that account relationship.
-        const { error: unmanagedOrderError } = await admin.from("orders").insert({
+        const { data: unmanagedOrder, error: unmanagedOrderError } = await admin.from("orders").insert({
+          ...(campaignOrderId ? { id: campaignOrderId } : {}),
           order_code: reference,
           customer_id: user.id,
           delivery_id: delivery.id,
@@ -350,16 +379,18 @@ export async function POST(request: Request) {
           route_source: estimate.routeSource,
           route_type: estimate.routeType,
           payment_method: "card",
-          payment_status: "pending"
-        });
-        if (unmanagedOrderError) {
+          payment_status: "pending",
+          metadata: mondayBreakfastDiscount ? { monday_free_breakfast: { food_subtotal_ngn: mondayBreakfastPrice.foodSubtotalNgn, subsidy_ngn: mondayBreakfastPrice.subsidyNgn, customer_food_amount_ngn: mondayBreakfastPrice.customerFoodAmountNgn, platform_fee_ngn: mondayBreakfastPrice.platformFeeNgn, delivery_fee_ngn: mondayBreakfastPrice.deliveryFeeNgn } } : {}
+        }).select("id").single();
+        if (unmanagedOrderError || !unmanagedOrder) {
           await admin.from("deliveries").delete().eq("id", delivery.id);
-          throw unmanagedOrderError;
+          throw unmanagedOrderError || new Error("Could not create marketplace order.");
         }
         paymentIntentTarget = {
           purpose: "marketplace_delivery_payment",
           internalReference: `delivery:${delivery.id}`,
-          deliveryId: delivery.id
+          deliveryId: delivery.id,
+          orderId: unmanagedOrder.id
         };
       } catch {
         return NextResponse.json({ error: "Could not create the marketplace delivery." }, { status: 500 });
@@ -441,6 +472,7 @@ async function cancelMarketplacePaymentTarget(
 ) {
   if (target.orderId) {
     await db.from("orders").update({ status: "cancelled", payment_status: "failed", updated_at: new Date().toISOString() }).eq("id", target.orderId);
+    await db.rpc("release_monday_free_breakfast", { target_order_id: target.orderId, next_state: "cancelled" });
     return;
   }
   if (target.deliveryId) {

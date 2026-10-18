@@ -208,6 +208,17 @@ async function runPostSettlementEffects(db: SupabaseClient, intent: PaymentInten
     }
   }
   if (!result.settledNow) return;
+  // A campaign reservation is created only by the restaurant checkout and is
+  // linked to this immutable order ID. Completing it here keeps the subsidy
+  // ledger on the verified-payment path; shopping orders never have one.
+  if (intent.order_id) {
+    try {
+      await db.rpc("complete_monday_free_breakfast", { target_order_id: intent.order_id });
+    } catch {
+      // Campaign completion is retriable/auditable; never turn an already
+      // verified provider payment into a failed settlement.
+    }
+  }
   if (intent.purpose === "delivery_payment" && intent.delivery_id) {
     await markFastErrandCustomerFundsConfirmed(db, intent.delivery_id);
   }

@@ -18,6 +18,7 @@ import { LightVehicleOptions } from "@/components/booking/light-vehicle-options"
 import { shortVendorDescription, vendorIsOpen, vendorStatusLabel } from "@/lib/vendor-presentation";
 import { extractNigerianState } from "@/lib/location/state-matching";
 import { openSecureCheckout } from "@/lib/payments/open-secure-checkout";
+import { mondayBreakfastPayable } from "@/lib/promos/monday-free-breakfast";
 
 type StoreItem = {
   id?: string;
@@ -144,6 +145,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const [freshDeliveryPromptOpen, setFreshDeliveryPromptOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<MarketplaceVehicleOption | null>(null);
   const [fulfilmentMethod, setFulfilmentMethod] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
+  const [mondayBreakfastDiscount, setMondayBreakfastDiscount] = useState(0);
   const [activeMenuType, setActiveMenuType] = useState("All Items");
   const [checkoutIsVisible, setCheckoutIsVisible] = useState(false);
   const checkoutRef = useRef<HTMLDivElement | null>(null);
@@ -209,7 +211,9 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const itemsTotal = selectedItems.reduce((sum, item) => sum + item.subtotal, 0);
   const platformFee = fulfilmentMethod === "PICKUP" ? PLATFORM_CHECKOUT_FEE_NGN : checkoutEstimate?.platformFee ?? PLATFORM_CHECKOUT_FEE_NGN;
   const deliveryFee = fulfilmentMethod === "PICKUP" ? 0 : checkoutEstimate?.deliveryFee ?? 0;
-  const total = fulfilmentMethod === "PICKUP" ? itemsTotal + platformFee : checkoutEstimate?.total ?? itemsTotal + platformFee;
+  const totalBeforeBreakfast = fulfilmentMethod === "PICKUP" ? itemsTotal + platformFee : checkoutEstimate?.total ?? itemsTotal + platformFee;
+  const breakfastPrice = mondayBreakfastPayable({ foodSubtotalNgn: itemsTotal, subsidyNgn: mondayBreakfastDiscount, platformFeeNgn: platformFee, deliveryFeeNgn: deliveryFee });
+  const total = breakfastPrice.totalNgn;
   const menuTypes = useMemo(() => {
     const types = liveStores.flatMap((store) => store.items.map((item) => item.type).filter(Boolean));
     return ["All Items", ...Array.from(new Set(types))];
@@ -239,6 +243,19 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   useEffect(() => {
     setSelectedVehicle((current) => vehicleOptions.find((option) => option.id === current?.id && option.availability.status !== "unavailable") || null);
   }, [vehicleOptions]);
+
+  useEffect(() => {
+    if (kind !== "restaurant" || !checkoutItems.length) { setMondayBreakfastDiscount(0); return; }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch("/api/marketplace/monday-breakfast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "restaurant", items: checkoutItems }), signal: controller.signal });
+        const quote = await response.json().catch(() => ({}));
+        if (!controller.signal.aborted) setMondayBreakfastDiscount(response.ok && quote.eligible ? Math.min(itemsTotal, Number(quote.subsidyNgn || 0)) : 0);
+      } catch { if (!controller.signal.aborted) setMondayBreakfastDiscount(0); }
+    }, 250);
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [checkoutItems, itemsTotal, kind]);
 
   function changeQuantity(key: string, delta: number) {
     if (!orderingOpen) return;
@@ -296,6 +313,7 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
             deliveryFee
           },
           amount: total,
+          mondayBreakfastRequested: kind === "restaurant" && mondayBreakfastDiscount > 0,
           interstateConfirmed,
           freshDeliveryConfirmed,
           vehicleOption: selectedVehicle?.id,
@@ -433,11 +451,14 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
 
           <div className="mt-5 grid gap-2 text-sm font-bold">
             <Summary label="Items" value={formatMoney(itemsTotal)} />
+              {mondayBreakfastDiscount > 0 ? <Summary label="Monday Breakfast Discount" value={`−${formatMoney(mondayBreakfastDiscount)}`} /> : null}
               <Summary label="Platform fee" value={formatMoney(platformFee)} />
               <Summary label="Delivery fee" value={fulfilmentMethod === "PICKUP" ? "₦0" : vehicleLoading ? "Estimating..." : checkoutEstimate ? formatMoney(deliveryFee) : "Choose a rider"} />
               {checkoutEstimate?.campus?.lecturerBenefit ? <div className="rounded-fleet bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">{checkoutEstimate.campus.message}</div> : null}
             {checkoutEstimate ? <Summary label="Route distance" value={`${checkoutEstimate.distanceKm.toFixed(1)} km`} /> : null}
           </div>
+
+          {kind === "restaurant" && mondayBreakfastDiscount > 0 ? <div className="mt-4 rounded-fleet border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-900"><strong className="block">MONDAY FREE BREAKFAST</strong>Get up to ₦3,000 off your meal · Every Monday · 10 AM – 12 PM WAT. Available for pickup and delivery.</div> : null}
 
           <div className="mt-5 grid gap-3">
             <input className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email for receipt" type="email" />
