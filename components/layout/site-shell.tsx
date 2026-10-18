@@ -28,6 +28,7 @@ import { InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icon
 import { SmartWalletTopUp } from "@/components/wallet/smart-wallet-top-up";
 import { createClient } from "@/lib/supabase/client";
 import { clearServiceWorkerSession } from "@/lib/service-worker-session";
+import { MondayBreakfastMarquee } from "@/components/layout/monday-breakfast-marquee";
 
 const SupportWidget = dynamic(() => import("@/components/support/support-widget").then((mod) => mod.SupportWidget), { ssr: false });
 const CookieConsent = dynamic(() => import("@/components/layout/cookie-consent").then((mod) => mod.CookieConsent), { ssr: false });
@@ -165,6 +166,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={cn("min-h-screen text-fleet-ink", hasSiteChrome ? "site-canvas" : "bg-fleet-paper")}>
+      <MondayBreakfastMarquee />
       {hasPageHeader ? (
       <header className="sticky top-0 z-50 border-b border-white/80 bg-white/[0.88] text-fleet-night shadow-[0_16px_42px_rgba(8,17,31,0.10)] backdrop-blur-2xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-2.5 sm:px-6">

@@ -211,7 +211,6 @@ export function OrderMarketplace({ title, eyebrow, stores, kind }: { title: stri
   const itemsTotal = selectedItems.reduce((sum, item) => sum + item.subtotal, 0);
   const platformFee = fulfilmentMethod === "PICKUP" ? PLATFORM_CHECKOUT_FEE_NGN : checkoutEstimate?.platformFee ?? PLATFORM_CHECKOUT_FEE_NGN;
   const deliveryFee = fulfilmentMethod === "PICKUP" ? 0 : checkoutEstimate?.deliveryFee ?? 0;
-  const totalBeforeBreakfast = fulfilmentMethod === "PICKUP" ? itemsTotal + platformFee : checkoutEstimate?.total ?? itemsTotal + platformFee;
   const breakfastPrice = mondayBreakfastPayable({ foodSubtotalNgn: itemsTotal, subsidyNgn: mondayBreakfastDiscount, platformFeeNgn: platformFee, deliveryFeeNgn: deliveryFee });
   const total = breakfastPrice.totalNgn;
   const menuTypes = useMemo(() => {
