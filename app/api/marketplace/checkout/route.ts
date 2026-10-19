@@ -24,6 +24,8 @@ import { createCustomerVehicleOptions, customerVehicleSelection } from "@/lib/cu
 import { MarketplaceVendorResolutionError, resolveMarketplaceVendorForCheckout } from "@/lib/marketplace-vendors";
 import { issueMarketplacePickupCode } from "@/lib/marketplace-pickup-confirmation";
 import { mondayBreakfastPayable, reserveMondayFreeBreakfast } from "@/lib/promos/monday-free-breakfast";
+import { insertNotificationWithPush } from "@/lib/notifications/push";
+import { notifyEligibleRiders } from "@/lib/rider-delivery-opportunities";
 
 export async function POST(request: Request) {
   try {
@@ -51,11 +53,13 @@ export async function POST(request: Request) {
       vehicleOption?: unknown;
       fulfilmentMethod?: "DELIVERY" | "PICKUP";
       mondayBreakfastRequested?: boolean;
+      paymentMethod?: "card" | "wallet";
     };
 
     const items = Array.isArray(payload.items) ? payload.items : [];
     const address = sanitizeAddressText(payload.address || "");
     const fulfilmentMethod = payload.fulfilmentMethod === "PICKUP" ? "PICKUP" : "DELIVERY";
+    const paymentMethod = payload.paymentMethod === "wallet" ? "wallet" : "card";
 
     if (!payload.email || !payload.email.includes("@")) {
       return NextResponse.json({ error: "Enter a valid email address for Squad checkout." }, { status: 400 });
@@ -246,7 +250,7 @@ export async function POST(request: Request) {
             eta_minutes: estimate.etaMinutes,
             route_source: estimate.routeSource,
             route_type: estimate.routeType,
-            payment_method: "card",
+            payment_method: paymentMethod,
             payment_status: "pending",
             fulfilment_method: fulfilmentMethod,
             metadata: {
@@ -306,7 +310,7 @@ export async function POST(request: Request) {
           parcel_type: payload.kind === "shopping" ? "shopping items" : "food order",
           vehicle_type: estimate.vehicle,
           delivery_speed: estimate.deliverySpeed,
-          payment_method: "card",
+          payment_method: paymentMethod,
           status: "pending_payment",
           price_ngn: expectedAmount,
           delivery_fee_ngn: operationalDeliveryFee,
@@ -346,7 +350,7 @@ export async function POST(request: Request) {
             marketplace_vehicle: estimate.vehicle,
             interstate_dispatch: estimate.interstateDispatch,
             interstate_delivery_days: estimate.interstateDeliveryDays,
-            payment_provider: "squad",
+            payment_provider: paymentMethod === "wallet" ? "fastfleet_wallet" : "squad",
             provider_reference: reference
           }
         }).select("id").single();
@@ -378,7 +382,7 @@ export async function POST(request: Request) {
           eta_minutes: estimate.etaMinutes,
           route_source: estimate.routeSource,
           route_type: estimate.routeType,
-          payment_method: "card",
+          payment_method: paymentMethod,
           payment_status: "pending",
           metadata: mondayBreakfastDiscount ? { monday_free_breakfast: { food_subtotal_ngn: mondayBreakfastPrice.foodSubtotalNgn, subsidy_ngn: mondayBreakfastPrice.subsidyNgn, customer_food_amount_ngn: mondayBreakfastPrice.customerFoodAmountNgn, platform_fee_ngn: mondayBreakfastPrice.platformFeeNgn, delivery_fee_ngn: mondayBreakfastPrice.deliveryFeeNgn } } : {}
         }).select("id").single();
@@ -399,6 +403,39 @@ export async function POST(request: Request) {
 
     if (!paymentIntentTarget) {
       return NextResponse.json({ error: "Secure payment checkout is temporarily unavailable. Please try again." }, { status: 503 });
+    }
+
+    if (paymentMethod === "wallet") {
+      if (!paymentIntentTarget.orderId) return NextResponse.json({ error: "Wallet checkout requires a Marketplace order." }, { status: 409 });
+      const { error: walletError } = await supabase.rpc("pay_marketplace_order_from_wallet", {
+        target_order_id: paymentIntentTarget.orderId,
+        next_metadata: { source: "marketplace_checkout", marketplace_kind: marketplaceKind, payment_reference: reference }
+      });
+      if (walletError) {
+        await cancelMarketplacePaymentTarget(admin, paymentIntentTarget);
+        return NextResponse.json({ error: `${walletError.message}. Top up your wallet or choose card instead.` }, { status: 400 });
+      }
+      try {
+        const promotion = await admin.rpc("complete_monday_free_breakfast", { target_order_id: paymentIntentTarget.orderId });
+        if (promotion.error) console.error("Marketplace wallet promotion completion failed", { orderId: paymentIntentTarget.orderId, code: promotion.error.code });
+      } catch {
+        // The paid order remains valid. Campaign completion can be retried
+        // from its protected ledger path without reversing a wallet debit.
+      }
+      const { data: paidOrder } = await admin.from("orders")
+        .select("id, order_code, business_id, delivery_id")
+        .eq("id", paymentIntentTarget.orderId)
+        .maybeSingle<{ id: string; order_code?: string | null; business_id?: string | null; delivery_id?: string | null }>();
+      const orderCode = paidOrder?.order_code || reference;
+      await Promise.allSettled([
+        paidOrder?.business_id ? insertNotificationWithPush(admin, { user_id: paidOrder.business_id, title: "New paid marketplace order", body: `${orderCode} is paid and waiting for your team to prepare.`, type: "business_order_received", metadata: { order_id: paymentIntentTarget.orderId, order_code: orderCode, url: "/business/dashboard#marketplace-orders" } }) : Promise.resolve(),
+        insertNotificationWithPush(admin, { user_id: user.id, title: "Marketplace payment confirmed", body: `${orderCode} has been sent to the business.`, type: "order_update", metadata: { order_id: paymentIntentTarget.orderId, order_code: orderCode, status: "received", url: accountTrackingHref(orderCode) } })
+      ]);
+      if (paidOrder?.delivery_id) {
+        const { data: delivery } = await admin.from("deliveries").select("id, delivery_code, pickup_address, pickup_latitude, pickup_longitude, distance_km, price_ngn, delivery_fee_ngn, vehicle_type, vehicle_subtype, metadata").eq("id", paidOrder.delivery_id).maybeSingle();
+        if (delivery) await notifyEligibleRiders(admin, delivery, (await loadDeliveryPolicy()).rider).catch(() => undefined);
+      }
+      return NextResponse.json({ reference: orderCode, userId: user.id, vehicleSubtype: estimate.vehicleSubtype, vehicle: estimate.vehicle, interstateDispatch: estimate.interstateDispatch, businessOrder: Boolean(business), status: "received", paid: true, paymentMethod: "wallet" });
     }
 
     let paymentIntent;

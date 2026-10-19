@@ -250,6 +250,7 @@ function ShoppingStorefront({
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "wallet">("card");
   const [address, setAddress] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -405,7 +406,7 @@ function ShoppingStorefront({
       setMessage("Add at least one priced shopping product before checkout.");
       return;
     }
-    if (!email.trim()) {
+    if (paymentMethod === "card" && !email.trim()) {
       setMessage("Enter an email address for Squad checkout.");
       return;
     }
@@ -450,10 +451,11 @@ function ShoppingStorefront({
           freshDeliveryConfirmed,
           vehicleOption: selectedVehicle?.id,
           fulfilmentMethod
+          , paymentMethod
         })
       });
       const payload = await response.json();
-      if (!response.ok || !payload.authorizationUrl) throw new Error(payload.error || "Squad checkout failed.");
+      if (!response.ok) throw new Error(payload.error || "Shopping checkout failed.");
       const deliveryCode = String(payload.reference || `FFM-${Date.now()}`).toUpperCase();
       const businessOrder = Boolean(payload.businessOrder);
       const stored = JSON.parse(localStorage.getItem("fastfleet.next.deliveries") || "[]");
@@ -482,7 +484,11 @@ function ShoppingStorefront({
           ...stored
         ])
       );
-      await openSecureCheckout(payload.authorizationUrl);
+      if (paymentMethod === "wallet") {
+        router.push(`/account/orders/${encodeURIComponent(deliveryCode)}`);
+      } else if (payload.authorizationUrl) {
+        await openSecureCheckout(payload.authorizationUrl);
+      } else throw new Error("Secure card checkout failed.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Shopping checkout failed.");
     } finally {
@@ -625,6 +631,7 @@ function ShoppingStorefront({
             <div className="mt-5 grid gap-3">
               <input className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email for receipt" type="email" />
             <input className="form-input" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" inputMode="tel" />
+              <div className="grid grid-cols-2 gap-2"><Button type="button" variant={paymentMethod === "card" ? "primary" : "secondary"} onClick={() => setPaymentMethod("card")}>Card</Button><Button type="button" variant={paymentMethod === "wallet" ? "primary" : "secondary"} onClick={() => setPaymentMethod("wallet")}>Wallet</Button></div>
               <div className="grid grid-cols-2 gap-2"><Button type="button" variant={fulfilmentMethod === "DELIVERY" ? "primary" : "secondary"} onClick={() => setFulfilmentMethod("DELIVERY")}>Delivery</Button><Button type="button" variant={fulfilmentMethod === "PICKUP" ? "primary" : "secondary"} onClick={() => setFulfilmentMethod("PICKUP")}>Pick-up</Button></div>
               {fulfilmentMethod === "PICKUP" ? <div className="rounded-fleet bg-emerald-50 p-3 text-xs font-bold leading-5 text-emerald-800">Collect from: {cartItems[0]?.pickupAddress || "the verified vendor address"}. No delivery fee or rider is included. Keep your secure pickup code private until collection.</div> : <><AddressAutocompleteInput label="Delivery address" value={address} onChange={setAddress} onSelect={(selection) => setAddress(selection.address)} resolutionCandidates={resolutionCandidates} placeholder="Enter recipient street address" /><LightVehicleOptions options={vehicleOptions} selectedId={selectedVehicle?.id || ""} loading={vehicleLoading} error={vehicleError} onSelect={(option) => setSelectedVehicle(option as MarketplaceVehicleOption)} /></>}
               {checkoutEstimate?.policyMessage ? <div className={`rounded-fleet p-3 text-xs font-bold leading-5 ${checkoutEstimate.allowed ? "bg-blue-50 text-blue-800" : "bg-rose-50 text-rose-800"}`}>{checkoutEstimate.policyMessage}</div> : null}
