@@ -30,6 +30,13 @@ export async function verifiedDeliveryPaymentIds(db: SupabaseClient, deliveryIds
       .map((delivery) => [delivery.id, String(delivery.marketplace_order_id)])
   );
   const marketplaceOrderIds = [...new Set(deliveryToOrder.values())];
+  const marketplaceOrders = marketplaceOrderIds.length
+    ? await db
+        .from("orders")
+        .select("id, order_code, payment_method, payment_status")
+        .in("id", marketplaceOrderIds)
+    : { data: [], error: null };
+  if (marketplaceOrders.error) return new Set<string>();
   const marketplaceIntents = marketplaceOrderIds.length
     ? await db
         .from("payment_intents")
@@ -43,6 +50,19 @@ export async function verifiedDeliveryPaymentIds(db: SupabaseClient, deliveryIds
   const settledMarketplaceOrderIds = new Set((marketplaceIntents.data || [])
     .map((intent) => intent.order_id)
     .filter((orderId): orderId is string => typeof orderId === "string"));
+  const walletReferences = (marketplaceOrders.data || [])
+    .filter((order) => order.payment_method === "wallet" && order.payment_status === "paid" && typeof order.order_code === "string")
+    .map((order) => `${order.order_code}-wallet-checkout`);
+  const walletPayments = walletReferences.length
+    ? await db.from("transactions").select("provider_reference").in("provider_reference", walletReferences).eq("transaction_type", "delivery_payment").eq("status", "successful").eq("provider", "fastfleet_wallet")
+    : { data: [], error: null };
+  if (walletPayments.error) return new Set<string>();
+  const settledWalletReferences = new Set((walletPayments.data || []).map((payment) => payment.provider_reference));
+  for (const order of marketplaceOrders.data || []) {
+    if (order.payment_method === "wallet" && order.payment_status === "paid" && typeof order.order_code === "string" && settledWalletReferences.has(`${order.order_code}-wallet-checkout`)) {
+      settledMarketplaceOrderIds.add(order.id);
+    }
+  }
 
   return new Set([
     ...(intents.data || []).map((row) => row.delivery_id),
