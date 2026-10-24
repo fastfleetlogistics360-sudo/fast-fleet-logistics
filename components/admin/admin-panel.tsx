@@ -2280,6 +2280,7 @@ export function AdminPanel() {
               <Globe2 className="h-4 w-4" />
               Live monitoring
             </a>
+            <a href="/admin/vendor-dispatch" className="inline-flex min-h-10 items-center justify-center rounded-[14px] border border-fleet-line bg-white px-3.5 text-[0.84rem] font-extrabold text-fleet-night">Vendor Dispatch</a>
             <Button type="button" variant="dark" onClick={logout}>
               <LogOut className="h-4 w-4" />
               Logout

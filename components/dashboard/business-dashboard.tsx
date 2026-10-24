@@ -634,6 +634,7 @@ export function BusinessDashboard({ initialKycStatus = "active", initialKycRejec
             </div>
             <NotificationBell />
           </header>
+          {kycStatus === "active" ? <Link href="/vendor-dispatch" className="mb-4 inline-flex rounded-lg border border-fleet-line bg-white px-3 py-2 text-sm font-black text-fleet-night">Vendor Dispatch</Link> : null}
           {kycStatus !== "active" ? (
             <BusinessKycStatusView loading={loading} profile={profile} status={kycStatus} rejectionReason={kycRejectionReason} />
           ) : (
