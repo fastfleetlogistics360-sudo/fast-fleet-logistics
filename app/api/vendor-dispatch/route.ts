@@ -26,7 +26,7 @@ export async function GET() {
   const businessDate = lagosDate();
   const [authorization, deliveries, settlement] = await Promise.all([
     current.db.from("vendor_dispatch_authorizations").select("id, authorization_status, assigned_cyclist_id, rider_profiles(id, users:users!rider_profiles_user_id_fkey(full_name))").eq("restaurant_id", current.restaurant.id).maybeSingle(),
-    current.db.from("vendor_dispatch_deliveries").select("id, destination, delivery_fee_kobo, business_date, delivery_status, client_submission_id, created_at").eq("restaurant_id", current.restaurant.id).eq("business_date", businessDate).order("created_at", { ascending: false }),
+    current.db.from("vendor_dispatch_deliveries").select("id, destination, delivery_fee_kobo, business_date, delivery_status, client_submission_id, handoff_code, created_at").eq("restaurant_id", current.restaurant.id).eq("business_date", businessDate).order("created_at", { ascending: false }),
     current.db.from("vendor_dispatch_daily_settlements").select("id, delivery_count, total_delivery_fees_kobo, settlement_status, closed_at").eq("restaurant_id", current.restaurant.id).eq("business_date", businessDate).maybeSingle()
   ]);
   if (authorization.error || deliveries.error || settlement.error) return NextResponse.json({ error: authorization.error?.message || deliveries.error?.message || settlement.error?.message }, { status: 400 });
