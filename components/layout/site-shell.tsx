@@ -374,7 +374,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </div>
           <FooterGroup title="Customers" links={[["Book delivery", "/book"], ["Track package", "/track"], ["Dashboard", "/dashboard"]]} />
           <FooterGroup title="Partners" links={[["Register driver", "/rider/onboarding"], ["Driver dashboard", "/rider/dashboard"], ["Register business", "/business/register"], ["Business dashboard", "/business/dashboard"]]} />
-          <FooterGroup title="Platform" links={[["Services", "/services"], ["FastConfirm", "/fastconfirm"], ["Kwara Media Fashion Week partnership", "/partners/kwara-media-fashion-week"], ["Updates", "/updates"], ["About", "/about"], ["Founder", "/founder"], ["Privacy", "/privacy"], ["Terms", "/terms"], ["PWA ready", "/offline"]]} />
+          <FooterGroup title="Platform" links={[["Download the app", "/download"], ["Services", "/services"], ["FastConfirm", "/fastconfirm"], ["Kwara Media Fashion Week partnership", "/partners/kwara-media-fashion-week"], ["Updates", "/updates"], ["About", "/about"], ["Founder", "/founder"], ["Privacy", "/privacy"], ["Terms", "/terms"], ["PWA ready", "/offline"]]} />
         </div>
       </footer> : null}
 

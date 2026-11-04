@@ -52,7 +52,12 @@ const structuredData = {
     email: "support@fastfleet.com.ng",
     availableLanguage: ["English"]
   }],
-  sameAs: ["https://www.instagram.com/fastfleets360", "https://x.com/fastfleets360", "https://www.tiktok.com/@fastfleets360"],
+  sameAs: [
+    "https://play.google.com/store/apps/details?id=com.fastfleetlogistics.app",
+    "https://www.instagram.com/fastfleets360",
+    "https://x.com/fastfleets360",
+    "https://www.tiktok.com/@fastfleets360"
+  ],
   founder: {
     "@type": "Person",
     "@id": "https://fastfleet.com.ng/founder#person",

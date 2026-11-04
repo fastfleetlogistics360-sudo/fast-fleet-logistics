@@ -26,6 +26,7 @@ const publicRoutes: SitemapEntry[] = [
   { path: "/business/register", changeFrequency: "weekly", priority: 0.82 },
   { path: "/marketplace/listing", changeFrequency: "weekly", priority: 0.76 },
   { path: "/support", changeFrequency: "weekly", priority: 0.72 },
+  { path: "/download", changeFrequency: "weekly", priority: 0.8 },
   { path: "/updates", changeFrequency: "weekly", priority: 0.7 },
   { path: "/updates/fast-fleets-360-now-live", changeFrequency: "monthly", priority: 0.78 },
   { path: "/partners/kwara-media-fashion-week", changeFrequency: "monthly", priority: 0.8 },
