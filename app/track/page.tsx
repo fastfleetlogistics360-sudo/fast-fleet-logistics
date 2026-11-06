@@ -7,7 +7,11 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
-  title: "Track Delivery"
+  title: "Track Your Delivery in Real Time",
+  description: "Track your Fast Fleets 360 delivery status, rider movement, ETA, and package handoffs in one secure delivery view.",
+  keywords: ["track delivery Nigeria", "track dispatch rider", "delivery tracking Lagos", "package tracking Nigeria"],
+  alternates: { canonical: "/track" },
+  openGraph: { title: "Track Your Delivery | Fast Fleets 360", description: "Follow delivery status, ETA, rider movement, and package handoffs.", url: "/track", type: "website" }
 };
 
 export default function TrackPage() {

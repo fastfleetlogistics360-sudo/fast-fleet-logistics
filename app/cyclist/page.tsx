@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
   title: "Become a Bicycle Rider",
-  description: "Apply to deliver with Fast Fleets 360 using an assigned fleet bicycle.",
+  description: "Apply for bicycle rider opportunities with Fast Fleets 360. Join the delivery network, complete verification, and manage delivery work in Nigeria.",
+  keywords: ["bicycle rider jobs Nigeria", "dispatch rider jobs", "delivery rider jobs Lagos", "become a delivery rider"],
   alternates: { canonical: "/cyclist" },
   robots: { index: true, follow: true }
 };

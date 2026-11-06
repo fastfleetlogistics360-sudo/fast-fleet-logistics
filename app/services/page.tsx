@@ -15,6 +15,8 @@ const services = [
   { title: "FastErrands", body: "Buy from a verified store with a protected purchase budget—never rider cash.", href: "/fast-errands", icon: WalletCards, label: "Start a FastErrand" },
   { title: "FastConfirm™", body: "Review the pickup photo before your delivery continues, helping you confirm the right package is on the way.", href: "/fastconfirm", icon: Camera, label: "Explore FastConfirm" },
   { title: "Delivery", body: "Send parcels with clear pricing and live status updates.", href: "/book", icon: Truck, label: "Book a delivery" },
+  { title: "Rider-first booking", body: "For eligible card and transfer bookings, pay only after a rider accepts your request.", href: "/book-first-pay-after-acceptance", icon: Truck, label: "How payment timing works" },
+  { title: "Pickup orders", body: "Collect from participating vendors directly with no rider or delivery fee.", href: "/pickup-orders", icon: ShoppingBag, label: "Explore pickup orders" },
   { title: "Heavy Logistics", body: "Request transport for building materials, furniture, bulk goods, and more.", href: "/heavy-logistics", icon: Warehouse, label: "Request transport" },
   { title: "Business Dispatch", body: "Manage repeat deliveries, customer orders, teams, and payouts.", href: "/business/register", icon: BriefcaseBusiness, label: "Register a business" },
   { title: "Rider Network", body: "Apply, complete verification, and manage delivery work in one place.", href: "/rider/onboarding", icon: Bike, label: "Become a rider" }

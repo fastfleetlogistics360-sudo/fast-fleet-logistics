@@ -12,7 +12,11 @@ import { DEFAULT_LIVE_STATES, launchStatusLabel, normalizeLaunchStatus, normaliz
 import { parseSelfServiceRole, parseUserRole } from "@/lib/auth/roles";
 
 export const metadata: Metadata = {
-  title: "Book Delivery"
+  title: "Book Same-Day Dispatch Delivery",
+  description: "Book a Fast Fleets 360 dispatch rider for parcel delivery in Lagos, Ogun, and Oyo. Add your route and package details, see clear pricing, pay securely, and track the delivery.",
+  keywords: ["same day dispatch Lagos", "book dispatch rider", "parcel delivery Lagos", "delivery rider Ogun", "delivery service Oyo"],
+  alternates: { canonical: "/book" },
+  openGraph: { title: "Book Same-Day Dispatch Delivery | Fast Fleets 360", description: "Book a rider with clear pricing and delivery tracking.", url: "/book", type: "website" }
 };
 
 export default async function BookPage() {

@@ -372,9 +372,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
               })}
             </div>
           </div>
-          <FooterGroup title="Customers" links={[["Book delivery", "/book"], ["Track package", "/track"], ["Dashboard", "/dashboard"]]} />
-          <FooterGroup title="Partners" links={[["Register driver", "/rider/onboarding"], ["Driver dashboard", "/rider/dashboard"], ["Register business", "/business/register"], ["Business dashboard", "/business/dashboard"]]} />
-          <FooterGroup title="Platform" links={[["Download the app", "/download"], ["Services", "/services"], ["FastConfirm", "/fastconfirm"], ["Kwara Media Fashion Week partnership", "/partners/kwara-media-fashion-week"], ["Updates", "/updates"], ["About", "/about"], ["Founder", "/founder"], ["Privacy", "/privacy"], ["Terms", "/terms"], ["PWA ready", "/offline"]]} />
+          <FooterGroup title="Customers" links={[["Book delivery", "/book"], ["Track package", "/track"], ["Pickup orders", "/pickup-orders"], ["Dashboard", "/dashboard"]]} />
+          <FooterGroup title="Partners" links={[["Register driver", "/rider/onboarding"], ["Driver dashboard", "/rider/dashboard"], ["Register business", "/business/register"], ["Vendor Dispatch software", "/vendor-dispatch-software"], ["Business dashboard", "/business/dashboard"]]} />
+          <FooterGroup title="Platform" links={[["Download the app", "/download"], ["Services", "/services"], ["Book first, pay after acceptance", "/book-first-pay-after-acceptance"], ["FastConfirm", "/fastconfirm"], ["Kwara Media Fashion Week partnership", "/partners/kwara-media-fashion-week"], ["Updates", "/updates"], ["About", "/about"], ["Founder", "/founder"], ["Privacy", "/privacy"], ["Terms", "/terms"], ["PWA ready", "/offline"]]} />
         </div>
       </footer> : null}
 
