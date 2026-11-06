@@ -46,10 +46,10 @@ const heroBlurDataURL =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwMjA2MDgnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yOCcvPjxjaXJjbGUgY3g9JzQnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNDgnLz48L3N2Zz4=";
 const brandLogo = "/brand/fastfleet-logo-2026-header.png?v=20260717";
 const partnerLogos = [
-  { src: "/brand-partners/startsmart-africa-transparent.png", alt: "StartSmart Africa" },
-  { src: "/brand-partners/partner-mark-v7-transparent.png", alt: "Brand partner mark" },
-  { src: "/brand-partners/vision-adonai-transparent.png", alt: "Vision-Adonai Ventures" },
-  { src: "/brand-partners/nectar-greens-transparent.png", alt: "Brand partner logo" }
+  { src: "/brand-partners/startsmart-africa-transparent.webp", alt: "StartSmart Africa" },
+  { src: "/brand-partners/partner-mark-v7-transparent.webp", alt: "Brand partner mark" },
+  { src: "/brand-partners/vision-adonai-transparent.webp", alt: "Vision-Adonai Ventures" },
+  { src: "/brand-partners/nectar-greens-transparent.webp", alt: "Brand partner logo" }
 ];
 
 function isInstalledApp() {
