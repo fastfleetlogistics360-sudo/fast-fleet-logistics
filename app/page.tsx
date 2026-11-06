@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { LaunchLandingPage } from "@/components/landing/launch-landing-page";
-import { loadPublicBrandPartners } from "@/lib/public-content";
 
 export const revalidate = 300;
 
@@ -26,8 +25,6 @@ export const metadata: Metadata = {
 };
 
 export default async function LandingPage() {
-  const brandPartners = await loadPublicBrandPartners();
-
   return (
     <>
       <script
@@ -42,7 +39,7 @@ export default async function LandingPage() {
           })
         }}
       />
-      <LaunchLandingPage initialPartners={brandPartners} />
+      <LaunchLandingPage />
     </>
   );
 }

@@ -5,9 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Bike, CircleUserRound, LayoutDashboard, LogIn, Play, Store, UserPlus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { InstagramIcon, TikTokIcon, XIcon } from "@/components/icons/social-icons";
 import { readReturningProfile, saveReturningProfile } from "@/lib/auth/returning-profile";
-import { defaultBrandPartners, type BrandPartner } from "@/lib/brand-partners";
 
 type ActionItemConfig = {
   title: string;
@@ -43,16 +41,16 @@ const actionItems: ActionItemConfig[] = [
   }
 ];
 
-const socialItems = [
-  { label: "Instagram", href: "https://www.instagram.com/fastfleets360", icon: InstagramIcon },
-  { label: "X", href: "https://x.com/fastfleets360", icon: XIcon },
-  { label: "TikTok", href: "https://www.tiktok.com/@fastfleets360", icon: TikTokIcon }
-];
-
 const heroBackgroundImage = "https://images.unsplash.com/photo-1617347454431-f49d7ff5c3b1?auto=format&fit=crop&w=1500&q=70";
 const heroBlurDataURL =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nMTYnIGhlaWdodD0nOScgdmlld0JveD0nMCAwIDE2IDknIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2Zyc+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzknIGZpbGw9JyMwMjA2MDgnLz48Y2lyY2xlIGN4PScxMicgY3k9JzInIHI9JzUnIGZpbGw9JyNlZjZjMDAnIG9wYWNpdHk9Jy4yOCcvPjxjaXJjbGUgY3g9JzQnIGN5PSc3JyByPSc0JyBmaWxsPScjMGYzNDYwJyBvcGFjaXR5PScuNDgnLz48L3N2Zz4=";
 const brandLogo = "/brand/fastfleet-logo-2026-header.png?v=20260717";
+const partnerLogos = [
+  { src: "/brand-partners/startsmart-africa-transparent.png", alt: "StartSmart Africa" },
+  { src: "/brand-partners/partner-mark-v7-transparent.png", alt: "Brand partner mark" },
+  { src: "/brand-partners/vision-adonai-transparent.png", alt: "Vision-Adonai Ventures" },
+  { src: "/brand-partners/nectar-greens-transparent.png", alt: "Brand partner logo" }
+];
 
 function isInstalledApp() {
   if (typeof window === "undefined") return false;
@@ -60,15 +58,8 @@ function isInstalledApp() {
   return window.matchMedia("(display-mode: standalone)").matches || navigatorWithStandalone.standalone === true;
 }
 
-export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { initialPartners?: BrandPartner[] }) {
-  const [partners, setPartners] = useState<BrandPartner[]>(initialPartners);
+export function LaunchLandingPage() {
   const [hasActiveSession, setHasActiveSession] = useState(false);
-  const activePartners = partners.filter((partner) => partner.active);
-  const partnerLoop = [...activePartners, ...activePartners];
-
-  useEffect(() => {
-    setPartners(initialPartners);
-  }, [initialPartners]);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,85 +172,25 @@ export function LaunchLandingPage({ initialPartners = defaultBrandPartners }: { 
               </Link>
             </div>
           </div>
-
-        </div>
-        <div className="mx-auto mt-8 grid justify-items-center gap-6">
-          <div className="grid justify-items-center gap-4">
-            <span className="text-xl font-semibold text-white">Follow us</span>
-            <div className="flex flex-wrap justify-center gap-4">
-              {socialItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    aria-label={item.label}
-                    className="grid h-14 w-14 place-items-center rounded-full border border-white/80 bg-white/[0.03] text-white transition hover:-translate-y-1 hover:border-fleet-ember hover:bg-fleet-ember hover:text-white"
-                  >
-                    <Icon className="h-6 w-6" />
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
         </div>
       </section>
 
-      <section className="relative z-10 bg-black/[0.84] px-4 py-10 sm:px-6">
-        <div className="mx-auto max-w-7xl overflow-hidden">
-          <h2 className="text-center text-sm font-black uppercase tracking-normal text-fleet-gold">OUR BRAND PARTNERS</h2>
-          <div className="relative mt-5 overflow-hidden py-2 [mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]">
-            <div className="partner-marquee flex w-max gap-3">
-              {partnerLoop.map((partner, index) => (
-                <div
-                  key={`${partner.id || partner.image}-${index}`}
-                  className="relative h-24 shrink-0 overflow-hidden rounded-[10px] bg-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] sm:h-28"
-                  style={{ width: "clamp(9rem, 42vw, 12rem)" }}
-                >
-                  <img src={partner.image} alt="" loading="lazy" style={{ display: "block", height: "100%", width: "100%", objectFit: "cover" }} />
-                  {partner.name.trim() ? (
-                    <>
-                      <div className="absolute inset-0 bg-gradient-to-t from-fleet-night/80 via-fleet-night/10 to-white/10" />
-                      <span className="absolute inset-x-2 bottom-2 rounded-md bg-white/[0.92] px-2 py-1 text-center text-sm font-black text-fleet-night shadow-[0_8px_18px_rgba(0,0,0,0.16)]">
-                        {partner.name}
-                      </span>
-                    </>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+      <section className="relative z-10 px-4 py-12 sm:px-6 sm:py-16">
+        <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-[0.68rem] font-black uppercase tracking-[0.24em] text-white/[0.58]">Trusted collaborations</p>
+            <h2 className="mt-2 text-lg font-black uppercase tracking-[0.04em] text-white sm:text-xl">OUR BRAND PARTNERS</h2>
+          </div>
+          <div className="mt-8 grid grid-cols-2 items-center gap-x-6 gap-y-8 sm:grid-cols-4 sm:gap-x-10 lg:gap-x-14">
+            {partnerLogos.map((partner) => (
+              <div key={partner.src} className="relative h-28 sm:h-32 lg:h-36">
+                <Image src={partner.src} alt={partner.alt} fill sizes="(min-width: 1024px) 210px, (min-width: 640px) 22vw, 40vw" className="object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.34)]" />
+              </div>
+            ))}
           </div>
           <footer className="pt-14 text-center text-sm font-semibold text-white/[0.72]">© 2026 Fast Fleets 360. All rights reserved.</footer>
         </div>
       </section>
-
-      <style jsx global>{`
-        @keyframes fastfleet-partner-marquee {
-          from {
-            transform: translateX(-50%);
-          }
-          to {
-            transform: translateX(0);
-          }
-        }
-
-        .partner-marquee {
-          will-change: transform;
-          animation: fastfleet-partner-marquee 28s linear infinite;
-        }
-
-        .partner-marquee:hover {
-          animation-play-state: paused;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .partner-marquee {
-            animation: none;
-            transform: translateX(0);
-          }
-
-        }
-      `}</style>
     </main>
   );
 }
