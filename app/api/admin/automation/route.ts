@@ -14,20 +14,22 @@ export async function GET() {
   if (!admin) return NextResponse.json({ error: "Admin session required." }, { status: 401 });
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "Automation foundation is unavailable." }, { status: 503 });
-  const [settings, accounts, campaigns, posts, jobs, logs, approvals, permissions] = await Promise.all([
+  const [settings, accounts, campaigns, posts, jobs, logs, approvals, permissions, templates, departments] = await Promise.all([
     db.from("automation_settings").select("foundation_enabled, website_campaigns_enabled, instagram_publishing_enabled, zoho_campaigns_enabled, whatsapp_marketing_enabled, global_paused, paused_channels, updated_at").eq("id", true).maybeSingle(),
     db.from("publishing_accounts").select(safeSelect).order("created_at", { ascending: false }),
-    db.from("marketing_campaigns").select("id, name, objective, channel, status, starts_at, ends_at, created_at").order("created_at", { ascending: false }).limit(30),
-    db.from("marketing_posts").select("id, channel, status, scheduled_for, created_at, updated_at").order("updated_at", { ascending: false }).limit(30),
+    db.from("marketing_campaigns").select("id, name, objective, description, channel, status, department_id, proposed_schedule_at, starts_at, ends_at, created_at, updated_at").order("created_at", { ascending: false }).limit(80),
+    db.from("marketing_posts").select("id, campaign_id, template_id, department_id, title, channel, status, draft_content, content_version, rejection_reason, revision_reason, scheduled_for, created_at, created_by, updated_at, approved_by").order("updated_at", { ascending: false }).limit(100),
     db.from("marketing_job_outbox").select("id, channel, status, run_after, attempt_count, max_attempts, last_error_code, created_at").order("created_at", { ascending: false }).limit(30),
     db.from("publishing_logs").select("id, provider, event_type, outcome, response_code, created_at").order("created_at", { ascending: false }).limit(30),
     db.from("marketing_approval_events").select("id, post_id, event_type, from_status, to_status, reason, created_at").order("created_at", { ascending: false }).limit(30),
-    db.from("automation_admin_permissions").select("user_id, role, updated_at").order("updated_at", { ascending: false }).limit(50)
+    db.from("automation_admin_permissions").select("user_id, role, updated_at").order("updated_at", { ascending: false }).limit(50),
+    db.from("marketing_templates").select("id, name, channel, content, version, status, department_id, created_at, updated_at").order("updated_at", { ascending: false }).limit(100),
+    db.from("automation_departments").select("id, name, description, permissions, status, created_at, updated_at").order("name", { ascending: true }).limit(50)
   ]);
-  const failed = [settings, accounts, campaigns, posts, jobs, logs, approvals, permissions].find((result) => result.error);
+  const failed = [settings, accounts, campaigns, posts, jobs, logs, approvals, permissions, templates, departments].find((result) => result.error);
   if (failed?.error) return NextResponse.json({ error: "FAST AI migration has not been applied or is unavailable." }, { status: 503 });
   const permission = await automationPermissionFor(admin.userId);
-  return NextResponse.json({ permission: permission || "viewer", settings: settings.data, accounts: accounts.data || [], campaigns: campaigns.data || [], posts: posts.data || [], jobs: jobs.data || [], logs: logs.data || [], approvals: approvals.data || [], permissions: permissions.data || [] }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ permission: permission || "viewer", settings: settings.data, accounts: accounts.data || [], campaigns: campaigns.data || [], posts: posts.data || [], jobs: jobs.data || [], logs: logs.data || [], approvals: approvals.data || [], permissions: permissions.data || [], templates: templates.data || [], departments: departments.data || [] }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function PATCH(request: Request) {
