@@ -11,10 +11,6 @@
     {
       "path": "/api/cron/care360",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/automation-outbox",
-      "schedule": "*/10 * * * *"
     }
   ]
 }
