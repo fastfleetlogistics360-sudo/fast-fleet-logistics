@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { enforceAdminMutationRateLimit, requireAdminSession } from "@/app/api/admin/_auth";
-import { hasAutomationPermission } from "@/lib/automation/permissions";
+import { hasAutomationPermission, hasDepartmentPermission } from "@/lib/automation/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const channels = ["website", "instagram", "zoho_email", "whatsapp_marketing"] as const;
@@ -20,6 +20,8 @@ export async function POST(request: Request) {
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "Automation foundation is unavailable." }, { status: 503 });
   try {
+    const departmentCheck = await authorizeDepartmentAction(db, admin.userId, action, body, privilegedDecision);
+    if (!departmentCheck) return NextResponse.json({ error: "Department-scoped FAST AI permission required." }, { status: 403 });
     if (action === "create_campaign" || action === "update_campaign") return campaign(db, admin.userId, body, action === "create_campaign");
     if (action === "create_template" || action === "update_template" || action === "duplicate_template") return template(db, admin.userId, body, action);
     if (action === "create_content" || action === "update_content") return content(db, admin.userId, body, action === "create_content");
@@ -27,6 +29,14 @@ export async function POST(request: Request) {
     if (action === "create_department" || action === "update_department") {
       if (!(await hasAutomationPermission(admin.userId, "super_admin"))) return NextResponse.json({ error: "FAST AI Super Admin permission required." }, { status: 403 });
       return department(db, admin.userId, body, action === "create_department");
+    }
+    if (action === "set_department_membership") {
+      if (!(await hasAutomationPermission(admin.userId, "super_admin"))) return NextResponse.json({ error: "FAST AI Super Admin permission required." }, { status: 403 });
+      const departmentId = requiredUuid(body.departmentId, "Department"); const userId = requiredUuid(body.userId, "User"); const role = text(body.role, 20);
+      if (!["viewer", "editor", "approver", "manager"].includes(role)) return NextResponse.json({ error: "Unsupported department membership role." }, { status: 400 });
+      const { data, error } = await db.from("automation_department_memberships").upsert({ department_id: departmentId, user_id: userId, role, created_by: admin.userId, updated_by: admin.userId }, { onConflict: "department_id,user_id" }).select().single();
+      if (error) throw error;
+      return NextResponse.json({ membership: data });
     }
     return NextResponse.json({ error: "Unsupported FAST AI management action." }, { status: 400 });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message.slice(0, 240) : "FAST AI change could not be saved." }, { status: 400 }); }
@@ -46,19 +56,18 @@ async function campaign(db: NonNullable<ReturnType<typeof createAdminClient>>, a
 async function template(db: NonNullable<ReturnType<typeof createAdminClient>>, actor: string, body: Record<string, unknown>, action: string) {
   const channel = text(body.channel, 40), name = text(body.name, 160), content = contentObject(body.content);
   if (!name || !validChannel(channel)) throw new Error("A template name and supported channel are required.");
-  if (action === "create_template") { const { data, error } = await db.from("marketing_templates").insert({ name, channel, content, department_id: uuidOrNull(body.departmentId), created_by: actor, updated_by: actor }).select().single(); if (error) throw error; await db.from("marketing_template_versions").insert({ template_id: data.id, version: 1, content, created_by: actor }); return NextResponse.json({ template: data }); }
+  const super_override = await hasAutomationPermission(actor, "super_admin");
+  if (action === "create_template") { const { data, error } = await db.rpc("fast_ai_write_template", { target_id: null, next_name: name, next_channel: channel, next_content: content, next_department_id: uuidOrNull(body.departmentId), actor, create_new: true, super_override }); if (error) throw error; return NextResponse.json({ template: Array.isArray(data) ? data[0] : data }); }
   const id = requiredUuid(body.id, "Template");
-  if (action === "duplicate_template") { const { data: source, error: sourceError } = await db.from("marketing_templates").select("name, channel, content, department_id").eq("id", id).single(); if (sourceError) throw sourceError; const { data, error } = await db.from("marketing_templates").insert({ name: `${source.name} copy`.slice(0, 160), channel: source.channel, content: source.content, department_id: source.department_id, source_template_id: id, created_by: actor, updated_by: actor }).select().single(); if (error) throw error; await db.from("marketing_template_versions").insert({ template_id: data.id, version: 1, content: source.content, created_by: actor }); return NextResponse.json({ template: data }); }
-  const { data: current, error: currentError } = await db.from("marketing_templates").select("version").eq("id", id).single(); if (currentError) throw currentError; const version = Number(current.version || 1) + 1;
-  const status = text(body.status, 20); const { data, error } = await db.from("marketing_templates").update({ name, channel, content, department_id: uuidOrNull(body.departmentId), version, status: ["draft","active","archived"].includes(status) ? status : "draft", archived_at: status === "archived" ? new Date().toISOString() : null, archived_by: status === "archived" ? actor : null, updated_by: actor }).eq("id", id).select().single(); if (error) throw error; await db.from("marketing_template_versions").insert({ template_id: id, version, content, created_by: actor }); return NextResponse.json({ template: data });
+  if (action === "duplicate_template") { const { data: source, error: sourceError } = await db.from("marketing_templates").select("name, channel, content, department_id").eq("id", id).single(); if (sourceError) throw sourceError; const { data, error } = await db.rpc("fast_ai_write_template", { target_id: null, next_name: `${source.name} copy`.slice(0, 160), next_channel: source.channel, next_content: source.content, next_department_id: source.department_id, actor, create_new: true, super_override }); if (error) throw error; return NextResponse.json({ template: Array.isArray(data) ? data[0] : data }); }
+  const { data, error } = await db.rpc("fast_ai_write_template", { target_id: id, next_name: name, next_channel: channel, next_content: content, next_department_id: uuidOrNull(body.departmentId), actor, create_new: false, super_override }); if (error) throw error; return NextResponse.json({ template: Array.isArray(data) ? data[0] : data });
 }
 
 async function content(db: NonNullable<ReturnType<typeof createAdminClient>>, actor: string, body: Record<string, unknown>, create: boolean) {
   const channel = text(body.channel, 40), title = text(body.title, 240), draft_content = contentObject(body.content); if (!validChannel(channel)) throw new Error("Choose a supported content channel.");
-  const base = { channel, title, draft_content, campaign_id: uuidOrNull(body.campaignId), template_id: uuidOrNull(body.templateId), department_id: uuidOrNull(body.departmentId), updated_by: actor };
-  if (create) { const { data, error } = await db.from("marketing_posts").insert({ ...base, created_by: actor, status: "draft" }).select().single(); if (error) throw error; await db.from("marketing_content_versions").insert({ post_id: data.id, version: 1, title, content: draft_content, created_by: actor, reason: "Created" }); return NextResponse.json({ content: data }); }
-  const id = requiredUuid(body.id, "Content"); const { data: current, error: currentError } = await db.from("marketing_posts").select("content_version").eq("id", id).single(); if (currentError) throw currentError; const version = Number(current.content_version || 1) + 1;
-  const { data, error } = await db.from("marketing_posts").update({ ...base, content_version: version }).eq("id", id).select().single(); if (error) throw error; await db.from("marketing_content_versions").insert({ post_id: id, version, title, content: draft_content, created_by: actor, reason: "Edited" }); return NextResponse.json({ content: data });
+  const super_override = await hasAutomationPermission(actor, "super_admin");
+  if (create) { const { data, error } = await db.rpc("fast_ai_write_content", { target_id: null, next_title: title, next_channel: channel, next_content: draft_content, next_campaign_id: uuidOrNull(body.campaignId), next_template_id: uuidOrNull(body.templateId), next_department_id: uuidOrNull(body.departmentId), actor, create_new: true, super_override }); if (error) throw error; return NextResponse.json({ content: Array.isArray(data) ? data[0] : data }); }
+  const id = requiredUuid(body.id, "Content"); const { data, error } = await db.rpc("fast_ai_write_content", { target_id: id, next_title: title, next_channel: channel, next_content: draft_content, next_campaign_id: uuidOrNull(body.campaignId), next_template_id: uuidOrNull(body.templateId), next_department_id: uuidOrNull(body.departmentId), actor, create_new: false, super_override }); if (error) throw error; return NextResponse.json({ content: Array.isArray(data) ? data[0] : data });
 }
 
 async function transition(db: NonNullable<ReturnType<typeof createAdminClient>>, actor: string, body: Record<string, unknown>) {
@@ -76,3 +85,19 @@ function contentObject(value: unknown) { return value && typeof value === "objec
 function uuidOrNull(value: unknown) { const result = text(value, 80); return /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(result) ? result : null; }
 function requiredUuid(value: unknown, name: string) { const result = uuidOrNull(value); if (!result) throw new Error(`${name} identifier is required.`); return result; }
 function isoOrNull(value: unknown) { const result = text(value, 40); return result && !Number.isNaN(Date.parse(result)) ? new Date(result).toISOString() : null; }
+
+async function authorizeDepartmentAction(db: NonNullable<ReturnType<typeof createAdminClient>>, userId: string, action: string, body: Record<string, unknown>, privilegedDecision: boolean) {
+  if (action.startsWith("create_") && action !== "create_department") return hasDepartmentPermission(userId, uuidOrNull(body.departmentId), "editor");
+  if (action === "transition_content") {
+    const id = requiredUuid(body.id, "Content"); const { data, error } = await db.from("marketing_posts").select("department_id, created_by").eq("id", id).single<{ department_id?: string | null; created_by?: string | null }>(); if (error || !data) return false;
+    return hasDepartmentPermission(userId, data.department_id || null, privilegedDecision ? "approver" : "editor");
+  }
+  const table = action.includes("campaign") ? "marketing_campaigns" : action.includes("template") ? "marketing_templates" : action.includes("content") ? "marketing_posts" : null;
+  if (!table || action.includes("department")) return true;
+  const id = requiredUuid(body.id, "Record"); const { data, error } = await db.from(table).select("department_id, created_by").eq("id", id).single<{ department_id?: string | null; created_by?: string | null }>(); if (error || !data) return false;
+  const requestedDepartment = uuidOrNull(body.departmentId);
+  if (!requestedDepartment) return false;
+  if (requestedDepartment && requestedDepartment !== data.department_id && !(await hasDepartmentPermission(userId, requestedDepartment, "editor"))) return false;
+  if (data.created_by === userId) return hasDepartmentPermission(userId, data.department_id || null, "editor");
+  return hasDepartmentPermission(userId, data.department_id || null, "manager");
+}

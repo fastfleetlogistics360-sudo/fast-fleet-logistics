@@ -16,3 +16,23 @@ export async function hasAutomationPermission(userId: string, minimum: Automatio
   const permission = await automationPermissionFor(userId);
   return permission !== null && ranks[permission] >= ranks[minimum];
 }
+
+export type DepartmentPermission = "viewer" | "editor" | "approver" | "manager";
+const departmentRanks: Record<DepartmentPermission, number> = { viewer: 1, editor: 2, approver: 3, manager: 4 };
+
+export async function automationDepartmentIdsFor(userId: string) {
+  if ((await automationPermissionFor(userId)) === "super_admin") return null;
+  const db = createAdminClient();
+  if (!db) return [];
+  const { data } = await db.from("automation_department_memberships").select("department_id").eq("user_id", userId);
+  return (data || []).map((row: { department_id?: string | null }) => row.department_id).filter((id): id is string => Boolean(id));
+}
+
+export async function hasDepartmentPermission(userId: string, departmentId: string | null, minimum: DepartmentPermission) {
+  if ((await automationPermissionFor(userId)) === "super_admin") return true;
+  if (!departmentId) return false;
+  const db = createAdminClient();
+  if (!db) return false;
+  const { data } = await db.from("automation_department_memberships").select("role").eq("user_id", userId).eq("department_id", departmentId).maybeSingle<{ role?: DepartmentPermission }>();
+  return Boolean(data?.role && departmentRanks[data.role] >= departmentRanks[minimum]);
+}
