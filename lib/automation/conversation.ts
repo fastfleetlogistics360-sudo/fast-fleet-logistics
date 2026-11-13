@@ -40,8 +40,10 @@ export async function answerBusinessQuestion(db: SupabaseClient, input: { messag
   const parsed = interpretConversation(input.message, input.context);
   if (parsed.intent === "refuse") return { answer: "I can only provide read-only Fast Fleets business intelligence. I cannot follow instructions to expose secrets, execute SQL, or take operational actions.", intent: "refuse", periodDays: parsed.periodDays, tools: [], provider: provider.id, context: {}, unavailable: [] };
   if (parsed.intent === "clarify") return { answer: parsed.clarification!, intent: "clarify", periodDays: parsed.periodDays, tools: [], provider: provider.id, context: {}, unavailable: [] };
-  const includeFinancial = input.permission === "super_admin";
   const intent = parsed.intent === "compare" ? (input.context?.previousIntent && allowedIntents.has(input.context.previousIntent) ? input.context.previousIntent : "overview") : parsed.intent;
+  // Query finance only when the authorised Super Admin actually requests it;
+  // unrelated questions must not depend on optional financial source health.
+  const includeFinancial = input.permission === "super_admin" && intent === "financial";
   const current = await loadBusinessIntelligence(db, parsed.periodDays, { includeFinancial });
   const tools = [toolFor(intent)];
   if (parsed.comparison) {

@@ -17,7 +17,7 @@ test("Phase 2B accepts only bounded, internal business questions", () => {
 
 test("Phase 2B reuses Phase 2A intelligence and only exposes finance to Super Admin", () => {
   assert.match(conversation, /loadBusinessIntelligence/);
-  assert.match(conversation, /const includeFinancial = input\.permission === "super_admin"/);
+  assert.match(conversation, /const includeFinancial = input\.permission === "super_admin" && intent === "financial"/);
   assert.match(conversation, /No financial data was queried or returned for your role/);
   assert.match(conversation, /compare_reporting_periods/);
   assert.match(conversation, /previousIntent/);

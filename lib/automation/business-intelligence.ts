@@ -28,12 +28,17 @@ export async function loadBusinessIntelligence(db: SupabaseClient, periodDays: I
     if (filter) query = filter(query);
     const { count: result, error } = await query; if (error) throw error; return result || 0;
   };
+  const unavailableSources: string[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const optionalCount = async (label: string, table: string, filter?: (q: any) => any) => {
+    try { return await count(table, filter); } catch { unavailableSources.push(`${label} is unavailable because its approved source is not available in this environment.`); return null; }
+  };
   const [totalUsers, newUsers, totalDeliveries, completedDeliveries, pendingDeliveries, cancelledDeliveries, totalRiders, activeRiders, totalBusinesses, activeBusinesses, marketplaceVendors, activeMarketplaceVendors, catalogueItems, fastErrands, transactionRows, failedTransactions, successfulTransactions, recentUsers, recentDeliveries, completedTiming, riderRows, companyRevenueRows] = await Promise.all([
     count("users"), count("users", q => q.gte("created_at", since)),
     count("deliveries"), count("deliveries", q => q.eq("status", "delivered")), count("deliveries", q => q.in("status", ["draft", "pending", "assigned", "accepted", "picked_up", "in_transit"])), count("deliveries", q => q.eq("status", "cancelled")),
     count("rider_profiles"), count("rider_profiles", q => q.eq("online", true).eq("application_status", "approved")),
     count("business_profiles"), count("business_profiles", q => q.eq("registration_status", "active")),
-    count("marketplace_vendors"), count("marketplace_vendors", q => q.eq("lifecycle_status", "active")), count("fast_errand_catalog_items", q => q.eq("is_active", true)), count("fast_errand_orders", q => q.gte("created_at", since)),
+    count("marketplace_vendors"), count("marketplace_vendors", q => q.eq("lifecycle_status", "active")), optionalCount("Active FastErrand catalogue items", "fast_errand_catalog_items", q => q.eq("is_active", true)), optionalCount(`FastErrands created (${periodDays}d)`, "fast_errand_orders", q => q.gte("created_at", since)),
     includeFinancial ? db.from("transactions").select("transaction_type, amount_ngn, status, created_at").gte("created_at", since).limit(5000) : Promise.resolve({ data: [], error: null }),
     includeFinancial ? count("transactions", q => q.eq("status", "failed").gte("created_at", since)) : Promise.resolve(0), includeFinancial ? count("transactions", q => q.eq("status", "successful").gte("created_at", since)) : Promise.resolve(0),
     db.from("users").select("created_at").gte("created_at", since).order("created_at", { ascending: true }).limit(5000),
@@ -62,6 +67,7 @@ export async function loadBusinessIntelligence(db: SupabaseClient, periodDays: I
   const onlineRiders = approvedRiders.filter(row => row.online).length;
   const insights = buildInsights({ periodDays, completionRate, cancelledDeliveries, totalDeliveries, averageCompletionMinutes, newUsers, completedDeliveries, onlineRiders, activeBusinesses, transactionSuccessRate });
   const unavailable = ["Delivery fee totals are unavailable: deliveries and marketplace orders can represent the same fulfilment and must not be summed.", "Outstanding payments are unavailable: payment obligations do not have a single reconciled authoritative balance in the approved source tables."];
+  unavailable.push(...unavailableSources);
   if (!includeFinancial) unavailable.push("Financial intelligence is restricted to the FAST AI Super Admin role.");
   return {
     generatedAt: now.toISOString(), periodDays,
