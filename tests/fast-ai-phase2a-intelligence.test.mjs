@@ -12,6 +12,8 @@ test("Phase 2A intelligence has bounded, deterministic reporting periods", () =>
   assert.match(service, /if \(value === "90"\) return 90/);
   assert.match(service, /return 30/);
   assert.match(service, /limit\(5000\)/);
+  assert.match(service, /in\("status", \["searching", "pending_payment"\]\)/);
+  assert.doesNotMatch(service, /\["draft", "pending", "assigned", "accepted", "picked_up", "in_transit"\]/);
 });
 
 test("Phase 2A keeps financial metrics tied to authoritative records", () => {

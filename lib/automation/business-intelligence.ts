@@ -35,7 +35,7 @@ export async function loadBusinessIntelligence(db: SupabaseClient, periodDays: I
   };
   const [totalUsers, newUsers, totalDeliveries, completedDeliveries, pendingDeliveries, cancelledDeliveries, totalRiders, activeRiders, totalBusinesses, activeBusinesses, marketplaceVendors, activeMarketplaceVendors, catalogueItems, fastErrands, transactionRows, failedTransactions, successfulTransactions, recentUsers, recentDeliveries, completedTiming, riderRows, companyRevenueRows] = await Promise.all([
     count("users"), count("users", q => q.gte("created_at", since)),
-    count("deliveries"), count("deliveries", q => q.eq("status", "delivered")), count("deliveries", q => q.in("status", ["draft", "pending", "assigned", "accepted", "picked_up", "in_transit"])), count("deliveries", q => q.eq("status", "cancelled")),
+    count("deliveries"), count("deliveries", q => q.eq("status", "delivered")), count("deliveries", q => q.in("status", ["searching", "pending_payment"])), count("deliveries", q => q.eq("status", "cancelled")),
     count("rider_profiles"), count("rider_profiles", q => q.eq("online", true).eq("application_status", "approved")),
     count("business_profiles"), count("business_profiles", q => q.eq("registration_status", "active")),
     count("marketplace_vendors"), count("marketplace_vendors", q => q.eq("lifecycle_status", "active")), optionalCount("Active FastErrand catalogue items", "fast_errand_catalog_items", q => q.eq("is_active", true)), optionalCount(`FastErrands created (${periodDays}d)`, "fast_errand_orders", q => q.gte("created_at", since)),
