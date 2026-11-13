@@ -17,9 +17,9 @@ const dateKey = (value: string) => value.slice(0, 10);
 
 export function parseIntelligencePeriod(value: string | null): IntelligencePeriod { if (value === "7") return 7; if (value === "90") return 90; return 30; }
 
-export async function loadBusinessIntelligence(db: SupabaseClient, periodDays: IntelligencePeriod, options: { includeFinancial?: boolean } = {}): Promise<BusinessIntelligence> {
+export async function loadBusinessIntelligence(db: SupabaseClient, periodDays: IntelligencePeriod, options: { includeFinancial?: boolean; asOf?: Date } = {}): Promise<BusinessIntelligence> {
   const includeFinancial = options.includeFinancial === true;
-  const now = new Date(); const since = new Date(now.getTime() - periodDays * 86400000).toISOString();
+  const now = options.asOf || new Date(); const since = new Date(now.getTime() - periodDays * 86400000).toISOString();
   // Dynamic, approved table names cannot retain Supabase's generated table generic here.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const count = async (table: string, filter?: (q: any) => any) => {
