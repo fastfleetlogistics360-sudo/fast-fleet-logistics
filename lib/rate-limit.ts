@@ -116,6 +116,7 @@ export const rateLimitPolicies = {
   adminDestructiveMutation: policy("admin:destructive-mutation", 12, 10 * 60, "admin", "authenticated_user_or_ip", "RATE_LIMITED_ADMIN_ACTION", undefined, "admin_destructive"),
   fastAiIntelligenceRead: policy("admin:fast-ai-intelligence-read", 30, 5 * 60, "admin", "authenticated_user_or_ip", "RATE_LIMITED_ADMIN_ACTION"),
   fastAiConversation: policy("admin:fast-ai-conversation", 20, 5 * 60, "admin", "authenticated_user_or_ip", "RATE_LIMITED_ADMIN_ACTION"),
+  fastAiCustomerConversation: policy("customer:fast-ai-conversation", 12, 5 * 60, "support", "authenticated_user_or_ip", "RATE_LIMITED", "Please wait a moment before sending another FAST AI message."),
   cronDailyCommission: policy("cron:daily-commission", 5, 60 * 60, "internal_job", "ip_user_agent", "RATE_LIMITED"),
   cronCare360: policy("cron:care360", 8, 60 * 60, "internal_job", "ip_user_agent", "RATE_LIMITED"),
   safeReadMutation: policy("account:read-mutation", 60, 5 * 60, "account", "authenticated_user_or_ip", "RATE_LIMITED")

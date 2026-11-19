@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, BellRing, BookOpenText, Compass, Gift, Headphones, LayoutDashboard, Loader2, LogOut, MapPinned, PackageCheck, ShoppingBag, Store, Truck, Utensils, WalletCards, Warehouse, X } from "lucide-react";
+import { ArrowRight, BellRing, BookOpenText, Bot, Compass, Gift, Headphones, LayoutDashboard, Loader2, LogOut, MapPinned, PackageCheck, ShoppingBag, Store, Truck, Utensils, WalletCards, Warehouse, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { UserRole } from "@/types/domain";
 import type { HubPromotionSlide } from "@/lib/hub-promotion-slides";
@@ -16,6 +16,7 @@ import { HubPromotionCarousel } from "@/components/hub/hub-promotion-carousel";
 import { HubGuidedTour, type HubTourStep } from "@/components/hub/hub-guided-tour";
 import { createClient } from "@/lib/supabase/client";
 import { clearServiceWorkerSession } from "@/lib/service-worker-session";
+import { FastAiLauncher } from "@/components/fast-ai/fast-ai-launcher";
 
 type HubAction = {
   id: string;
@@ -84,6 +85,7 @@ export function QuickActionHub({ role, fullName, email, avatarUrl, shouldShowTou
     { id: "marketplace-listing", title: "Marketplace Listing", href: "/marketplace/listing", icon: Store, tone: "navy", description: "Publish and manage the products or services your business sells through Fast Fleets." }
   ] : [];
   const actions: HubAction[] = [
+    { id: "fast-ai", title: "FAST AI", href: "/fast-ai", icon: Bot, tone: "orange", description: "Ask about Fast Fleets services, deliveries, shopping, restaurants, and support." },
     { id: "dashboard", title: "Dashboard", href: roleHome[role], icon: LayoutDashboard, tone: "navy", description: "See your account activity, wallet, deliveries, and the tools that matter to your role." },
     { id: "dispatch", title: "Dispatch", href: "/book", icon: Truck, tone: "orange", description: "Book a rider for parcels, documents, and everyday deliveries." },
     { id: "fast-errands", title: "FastErrands", href: "/fast-errands", icon: WalletCards, tone: "orange", description: "Ask a verified runner to help with quick local errands." },
@@ -104,7 +106,7 @@ export function QuickActionHub({ role, fullName, email, avatarUrl, shouldShowTou
   const glance = overview?.glance || placeholderGlance(role);
 
   useEffect(() => {
-    const destinations = [roleHome[role], "/book", "/fast-errands", "/referrals", "/storage-facility", "/restaurants", "/shopping", "/heavy-logistics", "/track", "/services", "/updates", "/about", "/support"];
+    const destinations = ["/fast-ai", roleHome[role], "/book", "/fast-errands", "/referrals", "/storage-facility", "/restaurants", "/shopping", "/heavy-logistics", "/track", "/services", "/updates", "/about", "/support"];
     if (role === "business") destinations.push("/marketplace/listing");
     destinations.forEach((destination) => router.prefetch(destination));
   }, [role, router]);
@@ -160,6 +162,7 @@ export function QuickActionHub({ role, fullName, email, avatarUrl, shouldShowTou
         </section>
       </div>
       {tourOpen ? <HubGuidedTour steps={tourSteps} onFinish={() => setTourOpen(false)} /> : null}
+      <FastAiLauncher />
     </main>
   );
 }

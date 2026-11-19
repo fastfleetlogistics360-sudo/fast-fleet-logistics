@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Clock3, Download, Home, LayoutDashboard, LockKeyhole, MapPin, MessageCircle, PackageCheck, Radar, Search, ShieldCheck, Sparkles, UserRound, Wallet } from "lucide-react";
+import { Bell, Bot, Clock3, Download, Home, LayoutDashboard, LockKeyhole, MapPin, MessageCircle, PackageCheck, Radar, Search, ShieldCheck, Sparkles, UserRound, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { clearServiceWorkerSession } from "@/lib/service-worker-session";
@@ -33,7 +33,7 @@ import type { LaunchStateStatus } from "@/lib/launch-states";
 import { type PickupProof, metadataRecord } from "@/lib/pickup-proof";
 import { openSecureCheckout } from "@/lib/payments/open-secure-checkout";
 
-type CustomerTab = "home" | "orders" | "track" | "account";
+type CustomerTab = "home" | "orders" | "track" | "fast-ai" | "account";
 type OrderStatus = "pending" | "assigned" | "searching" | "accepted" | "rider_arrived" | "picked_up" | "in_transit" | "awaiting_delivery_confirmation" | "delivered" | "cancelled";
 
 type ProfileRow = {
@@ -148,6 +148,7 @@ const tabs: Array<{ id: CustomerTab; label: string; icon: LucideIcon }> = [
   { id: "home", label: "Home", icon: Home },
   { id: "orders", label: "Orders", icon: PackageCheck },
   { id: "track", label: "Track", icon: MapPin },
+  { id: "fast-ai", label: "FAST AI", icon: Bot },
   { id: "account", label: "Account", icon: UserRound }
 ];
 
@@ -516,6 +517,7 @@ export function CustomerDashboard() {
           ) : null}
           {activeTab === "track" && !stateIsOperational ? <TrackingPreview state={customerState} /> : null}
           {activeTab === "track" && stateIsOperational ? <TrackTab order={trackedOrder} searchCode={searchCode} onSearchCode={setSearchCode} onLiveDeliveryChange={handleLiveDeliveryChange} onPickupProofChange={handlePickupProofChange} /> : null}
+          {activeTab === "fast-ai" ? <FastAiDestination /> : null}
           {activeTab === "account" ? (
             <AccountTab
               profile={profile}
@@ -578,7 +580,7 @@ function DesktopNav({ activeTab, onChange }: { activeTab: CustomerTab; onChange:
 
 function MobileTabs({ activeTab, onChange }: { activeTab: CustomerTab; onChange: (tab: CustomerTab) => void }) {
   return (
-    <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-[24px] border border-white/80 bg-white/90 p-1.5 shadow-[0_18px_48px_rgba(8,17,31,0.18)] backdrop-blur-2xl lg:hidden">
+    <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-6 rounded-[24px] border border-white/80 bg-white/90 p-1.5 shadow-[0_18px_48px_rgba(8,17,31,0.18)] backdrop-blur-2xl lg:hidden">
       <Link href="/hub" className="grid min-h-14 place-items-center rounded-[18px] text-[0.7rem] font-black text-slate-500 transition">
         <LayoutDashboard className="h-4 w-4" />
         Hub
@@ -767,6 +769,10 @@ function HomeTab({
   return (
     <div className="grid gap-5">
       {loadError ? <div className="rounded-[18px] border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-700 shadow-[0_12px_28px_rgba(185,28,28,0.08)]">{loadError}</div> : null}
+      <Link href="/fast-ai" className="group relative overflow-hidden rounded-[22px] bg-fleet-night p-4 text-white shadow-[0_16px_42px_rgba(8,17,31,0.16)] transition hover:-translate-y-0.5 sm:p-5">
+        <div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-fleet-ember/30 blur-2xl" />
+        <div className="relative flex items-center justify-between gap-3"><div><span className="text-xs font-black uppercase tracking-[.16em] text-fleet-gold">Meet FAST AI</span><h2 className="mt-1 text-xl font-black">Your helpful Fast Fleets assistant</h2><p className="mt-1 max-w-xl text-sm font-semibold text-white/70">Ask about deliveries, shopping, restaurants, tracking guidance, and support.</p></div><span className="shrink-0 rounded-[14px] bg-white px-3 py-2 text-sm font-black text-fleet-night">Chat</span></div>
+      </Link>
       <div id="wallet">
         <WalletDashboardCard
           userName={profile.full_name?.trim().split(/\s+/)[0] || "there"}
@@ -815,6 +821,10 @@ function HomeTab({
       <TransactionHistory accountKind="customer" compact />
     </div>
   );
+}
+
+function FastAiDestination() {
+  return <Card className="overflow-hidden p-0"><div className="bg-fleet-night p-5 text-white"><Bot className="h-6 w-6 text-fleet-gold" /><h2 className="mt-3 text-2xl font-black">Ask FAST AI</h2><p className="mt-2 text-sm font-semibold text-white/75">Your friendly Fast Fleets 360 assistant for services, delivery guidance and support.</p><Link href="/fast-ai" className="mt-5 inline-flex rounded-[14px] bg-fleet-ember px-4 py-3 text-sm font-black text-white">Open FAST AI</Link></div></Card>;
 }
 
 function SummaryTile({ label, value }: { label: string; value: string }) {
