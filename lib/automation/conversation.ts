@@ -1,11 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadBusinessIntelligence, type BusinessIntelligence, type IntelligenceMetric, type IntelligencePeriod } from "@/lib/automation/business-intelligence";
 import type { AutomationPermission } from "@/lib/automation/permissions";
-import { configuredConversationProvider, type ConversationProviderId } from "@/lib/automation/conversation-provider";
+import { configuredConversationProvider, generateProviderAnswer, type ConversationProviderId } from "@/lib/automation/conversation-provider";
 
 export type ConversationIntent = "overview" | "deliveries" | "users" | "riders" | "vendors" | "marketplace" | "financial" | "recommendations" | "compare" | "clarify" | "refuse";
 export type ConversationContext = { previousIntent?: ConversationIntent; previousPeriodDays?: IntelligencePeriod };
-export type ConversationResult = { answer: string; intent: ConversationIntent; periodDays: IntelligencePeriod; tools: string[]; provider: ConversationProviderId; context: ConversationContext; unavailable: string[] };
+export type ConversationResult = { answer: string; intent: ConversationIntent; periodDays: IntelligencePeriod; tools: string[]; provider: ConversationProviderId; providerModel: string | null; mode: "generative" | "deterministic_fallback"; context: ConversationContext; unavailable: string[] };
 
 const allowedIntents = new Set<ConversationIntent>(["overview", "deliveries", "users", "riders", "vendors", "marketplace", "financial", "recommendations", "compare"]);
 const injections = /ignore (all |previous |prior )?(instructions|rules)|system prompt|developer message|reveal.*(secret|key|token)|execute (sql|query|command)|delete |refund|dispatch|cancel (a |the )?deliver|initiate (a )?payment/i;
@@ -38,8 +38,8 @@ const section = (data: BusinessIntelligence, intent: ConversationIntent) => inte
 export async function answerBusinessQuestion(db: SupabaseClient, input: { message: string; permission: AutomationPermission; context?: ConversationContext }): Promise<ConversationResult> {
   const provider = configuredConversationProvider();
   const parsed = interpretConversation(input.message, input.context);
-  if (parsed.intent === "refuse") return { answer: "I can only provide read-only Fast Fleets business intelligence. I cannot follow instructions to expose secrets, execute SQL, or take operational actions.", intent: "refuse", periodDays: parsed.periodDays, tools: [], provider: provider.id, context: {}, unavailable: [] };
-  if (parsed.intent === "clarify") return { answer: parsed.clarification!, intent: "clarify", periodDays: parsed.periodDays, tools: [], provider: provider.id, context: {}, unavailable: [] };
+  if (parsed.intent === "refuse") return { answer: "I can only provide read-only Fast Fleets business intelligence. I cannot follow instructions to expose secrets, execute SQL, or take operational actions.", intent: "refuse", periodDays: parsed.periodDays, tools: [], provider: "deterministic", providerModel: null, mode: "deterministic_fallback", context: {}, unavailable: [] };
+  if (parsed.intent === "clarify") return { answer: parsed.clarification!, intent: "clarify", periodDays: parsed.periodDays, tools: [], provider: "deterministic", providerModel: null, mode: "deterministic_fallback", context: {}, unavailable: [] };
   const intent = parsed.intent === "compare" ? (input.context?.previousIntent && allowedIntents.has(input.context.previousIntent) ? input.context.previousIntent : "overview") : parsed.intent;
   // Query finance only when the authorised Super Admin actually requests it;
   // unrelated questions must not depend on optional financial source health.
@@ -56,17 +56,24 @@ export async function answerBusinessQuestion(db: SupabaseClient, input: { messag
       const delta = metric.value - before; const direction = delta > 0 ? "up" : delta < 0 ? "down" : "unchanged";
       return `${metric.label}: ${format(metric)} (${direction} ${format({ ...metric, value: Math.abs(delta) })} versus the previous ${parsed.periodDays}-day period).`;
     });
-    return response(`Verified comparison: the latest ${parsed.periodDays}-day period is compared with the immediately preceding ${parsed.periodDays}-day period. ${comparisons.join(" ")}`, intent, parsed.periodDays, tools, current, input.permission, provider.id);
+    return enrich(response(`Verified comparison: the latest ${parsed.periodDays}-day period is compared with the immediately preceding ${parsed.periodDays}-day period. ${comparisons.join(" ")}`, intent, parsed.periodDays, tools, current, input.permission, provider.id), input.message, current);
   }
   if (intent === "recommendations") {
     const recommendations = current.recommendations.map(item => `${item.title.replace("Recommendation: ", "")}: ${item.recommendation} Evidence: ${item.evidence}`).join(" ");
-    return response(`Management priorities for the last ${parsed.periodDays} days: ${recommendations}`, intent, parsed.periodDays, tools, current, input.permission, provider.id);
+    return enrich(response(`Management priorities for the last ${parsed.periodDays} days: ${recommendations}`, intent, parsed.periodDays, tools, current, input.permission, provider.id), input.message, current);
   }
   if (intent === "financial" && !includeFinancial) return response("Financial intelligence is restricted to the FAST AI Super Admin role. No financial data was queried or returned for your role.", intent, parsed.periodDays, tools, current, input.permission, provider.id);
-  return response(`Verified ${intent === "overview" ? "business overview" : intent} for the last ${parsed.periodDays} days: ${section(current, intent).map(line).join(" ")}`, intent, parsed.periodDays, tools, current, input.permission, provider.id);
+  return enrich(response(`Verified ${intent === "overview" ? "business overview" : intent} for the last ${parsed.periodDays} days: ${section(current, intent).map(line).join(" ")}`, intent, parsed.periodDays, tools, current, input.permission, provider.id), input.message, current);
 }
 
 function response(answer: string, intent: ConversationIntent, periodDays: IntelligencePeriod, tools: string[], data: BusinessIntelligence, permission: AutomationPermission, provider: ConversationProviderId): ConversationResult {
-  return { answer, intent, periodDays, tools, provider, context: { previousIntent: intent, previousPeriodDays: periodDays }, unavailable: permission === "super_admin" ? data.unavailable.filter(item => !item.includes("Super Admin")) : data.unavailable };
+  return { answer, intent, periodDays, tools, provider, providerModel: null, mode: "deterministic_fallback", context: { previousIntent: intent, previousPeriodDays: periodDays }, unavailable: permission === "super_admin" ? data.unavailable.filter(item => !item.includes("Super Admin")) : data.unavailable };
 }
 function toolFor(intent: ConversationIntent) { return ({ deliveries: "get_delivery_metrics", users: "get_user_metrics", riders: "get_rider_metrics", vendors: "get_vendor_metrics", marketplace: "get_marketplace_metrics", financial: "get_financial_metrics", recommendations: "get_business_overview", overview: "get_business_overview" } as Partial<Record<ConversationIntent, string>>)[intent] || "get_business_overview"; }
+
+async function enrich(result: ConversationResult, question: string, data: BusinessIntelligence): Promise<ConversationResult> {
+  const metrics = section(data, result.intent).slice(0, 6).map(line).join(" ");
+  const brief = [`Reporting period: ${result.periodDays} days.`, `Authorised metrics: ${metrics}`, `Rule-based observations: ${data.insights.slice(0, 3).map(item => `${item.title}: ${item.evidence}`).join(" ") || "None."}`, `Unavailable or excluded: ${result.unavailable.slice(0, 4).join(" ") || "None."}`].join("\n");
+  const provider = await generateProviderAnswer({ question, intelligenceBrief: brief.slice(0, 8_000), deterministicAnswer: result.answer });
+  return { ...result, answer: provider.answer, provider: provider.provider, providerModel: provider.provider === "groq" ? configuredConversationProvider().model : null, mode: provider.mode };
+}

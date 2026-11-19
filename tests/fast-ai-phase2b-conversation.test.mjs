@@ -42,10 +42,10 @@ test("Phase 2B command centre keeps conversation context client-local and respon
   assert.match(component, /sm:p-5/);
 });
 
-test("Phase 2B has no external provider call or credential dependency", () => {
+test("Phase 2B keeps provider configuration behind a dedicated server-only boundary", () => {
   assert.doesNotMatch(conversation, /fetch\(|OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY/);
   const provider = read("lib/automation/conversation-provider.ts");
   assert.match(provider, /configuredConversationProvider/);
-  assert.match(provider, /reviewed server-only adapter/);
+  assert.match(provider, /Server-only language-provider boundary/);
   assert.match(provider, /id: "deterministic"/);
 });

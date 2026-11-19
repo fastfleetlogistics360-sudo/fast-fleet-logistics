@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   const started = Date.now();
   try {
     const result = await answerBusinessQuestion(db, { message, permission, context: body?.context });
-    await db.from("communication_logs").insert({ channel: "website", event_type: "fast_ai_conversation", metadata: { actor_id: admin.userId, role: permission, category: result.intent, tools: result.tools, outcome: "answered", provider: result.provider, latency_ms: Date.now() - started } });
+    await db.from("communication_logs").insert({ channel: "website", event_type: "fast_ai_conversation", metadata: { actor_id: admin.userId, role: permission, category: result.intent, tools: result.tools, outcome: "answered", provider: result.provider, provider_model: result.providerModel, response_mode: result.mode, latency_ms: Date.now() - started } });
     return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("fast_ai_conversation_failed", { message: error instanceof Error ? error.message : "unknown" });
