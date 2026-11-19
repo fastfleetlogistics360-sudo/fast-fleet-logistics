@@ -17,6 +17,9 @@ const unsafeRequest = /ignore (all |previous |prior )?(instructions|rules)|syste
 export function validateCustomerConversationInput(value: unknown) {
   if (typeof value !== "string") return null;
   const message = value.trim().replace(/\s+/g, " ");
+  // Never persist or send likely secrets/payment credentials to a provider.
+  // This is deliberately conservative: FAST AI has no valid need for them.
+  if (/\b(api[_ -]?key|password|authorization:\s*bearer|cvv|card number|bank account number)\b/i.test(message)) return null;
   return message.length >= 2 && message.length <= 1_200 ? message : null;
 }
 
