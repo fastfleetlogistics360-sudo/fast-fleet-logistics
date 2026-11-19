@@ -22,6 +22,15 @@ test("Phase 2C sends only the bounded aggregate brief to the server-only Groq ad
   } finally { restore(); }
 });
 
+test("Phase 2C accepts harmless list markers and the Fast Fleets 360 product name", async () => {
+  useGroq();
+  try {
+    const result = await generateProviderAnswer(request, async () => new Response(JSON.stringify({ choices: [{ message: { content: "1. Fast Fleets 360 recorded 12 deliveries during the verified 30-day reporting period." } }] }), { status: 200 }));
+    assert.equal(result.provider, "groq");
+    assert.equal(result.mode, "generative");
+  } finally { restore(); }
+});
+
 test("Phase 2C falls back safely when Groq is unavailable, rate-limited, or malformed", async () => {
   useGroq();
   try {
