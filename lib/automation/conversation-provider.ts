@@ -35,7 +35,10 @@ export async function generateProviderAnswer(input: GroqRequest, request: typeof
     if (!response.ok) return { answer: input.deterministicAnswer, provider: "deterministic", mode: "deterministic_fallback", failureCategory: response.status === 429 ? "rate_limited" : "provider_error" };
     const payload = await response.json().catch(() => null) as { choices?: Array<{ message?: { content?: unknown } }> } | null;
     const answer = typeof payload?.choices?.[0]?.message?.content === "string" ? payload.choices[0].message.content.trim() : "";
-    const validationFailure = validateProviderAnswer(answer, input.deterministicAnswer);
+    // The provider sees both strings. Treat them as the complete, bounded
+    // allow-list of numeric facts rather than rejecting a verified brief metric
+    // merely because it is not repeated in the narrower fallback wording.
+    const validationFailure = validateProviderAnswer(answer, `${input.intelligenceBrief}\n${input.deterministicAnswer}`);
     if (validationFailure) return { answer: input.deterministicAnswer, provider: "deterministic", mode: "deterministic_fallback", failureCategory: "invalid_response", validationFailure };
     return { answer, provider: "groq", mode: "generative" };
   } catch (error) {
@@ -53,7 +56,7 @@ function validateProviderAnswer(answer: string, verified: string): ProviderValid
 }
 
 // Generative prose may clarify the verified response, but it may not introduce
-// a numeric claim that was absent from the deterministic, database-backed answer.
+// a numeric claim that was absent from the authorised, database-backed input.
 function usesOnlyVerifiedNumbers(answer: string, verified: string) {
   const numericValue = (value: string) => Number(value.replace(/[,₦%]/g, ""));
   const verifiedNumbers = new Set((verified.match(/\d[\d,]*(?:\.\d+)?/g) || []).map(numericValue));

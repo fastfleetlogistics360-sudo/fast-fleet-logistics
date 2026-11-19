@@ -31,6 +31,16 @@ test("Phase 2C accepts harmless list markers and the Fast Fleets 360 product nam
   } finally { restore(); }
 });
 
+test("Phase 2C accepts a verified metric from the authorised brief when it is not repeated in the fallback", async () => {
+  useGroq();
+  try {
+    const briefOnlyMetric = { ...request, intelligenceBrief: "Reporting period: 30 days. Authorised metrics: Deliveries created: 12. Operating zones: 7." };
+    const result = await generateProviderAnswer(briefOnlyMetric, async () => new Response(JSON.stringify({ choices: [{ message: { content: "The verified brief records 7 operating zones for this reporting period." } }] }), { status: 200 }));
+    assert.equal(result.provider, "groq");
+    assert.equal(result.mode, "generative");
+  } finally { restore(); }
+});
+
 test("Phase 2C falls back safely and records only a fixed validation category", async () => {
   useGroq();
   try {
