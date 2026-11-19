@@ -9,7 +9,9 @@ export async function automationPermissionFor(userId: string): Promise<Automatio
   const db = createAdminClient();
   if (!db) return null;
   const { data } = await db.from("automation_admin_permissions").select("role").eq("user_id", userId).maybeSingle<{ role?: AutomationPermission }>();
-  return data?.role && data.role in ranks ? data.role : "viewer";
+  // Administrative authority and FAST AI analytics permission are distinct.
+  // An admin without an explicit automation role must not receive analytics.
+  return data?.role && data.role in ranks ? data.role : null;
 }
 
 export async function hasAutomationPermission(userId: string, minimum: AutomationPermission) {

@@ -91,11 +91,11 @@ function isAnalyticsIntent(intent: ConversationIntent) {
 }
 
 function isCompanyKnowledgeIntent(intent: ConversationIntent): intent is CompanyKnowledgeIntent {
-  return ["company_info", "customer_support", "delivery_request", "vendor_enquiry", "rider_enquiry"].includes(intent);
+  return ["company_info", "feature_info", "customer_support", "delivery_request", "vendor_enquiry", "rider_enquiry"].includes(intent);
 }
 
 async function answerCompanyKnowledge(question: string, intent: CompanyKnowledgeIntent, periodDays: IntelligencePeriod): Promise<ConversationResult> {
-  const answer = approvedCompanyKnowledge(intent);
+  const answer = approvedCompanyKnowledge(intent, question);
   const provider = await generateProviderAnswer({ question, intelligenceBrief: `Approved Fast Fleets 360 company knowledge:\n${answer}`, deterministicAnswer: answer });
   return {
     answer: provider.answer,
