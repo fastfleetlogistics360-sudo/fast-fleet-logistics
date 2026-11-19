@@ -31,6 +31,14 @@ test("Phase 2C accepts harmless list markers and the Fast Fleets 360 product nam
   } finally { restore(); }
 });
 
+test("Phase 2C presents validated provider Markdown as clean plain text", async () => {
+  useGroq();
+  try {
+    const result = await generateProviderAnswer(request, async () => new Response(JSON.stringify({ choices: [{ message: { content: "**Observations**\n- Fast Fleets 360 recorded 12 deliveries during the verified 30-day reporting period." } }] }), { status: 200 }));
+    assert.equal(result.answer, "Observations\n• Fast Fleets 360 recorded 12 deliveries during the verified 30-day reporting period.");
+  } finally { restore(); }
+});
+
 test("Phase 2C accepts a verified metric from the authorised brief when it is not repeated in the fallback", async () => {
   useGroq();
   try {
