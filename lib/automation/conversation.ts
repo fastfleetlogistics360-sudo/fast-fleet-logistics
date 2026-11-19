@@ -2,13 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadBusinessIntelligence, type BusinessIntelligence, type IntelligenceMetric, type IntelligencePeriod } from "@/lib/automation/business-intelligence";
 import type { AutomationPermission } from "@/lib/automation/permissions";
 import { configuredConversationProvider, generateProviderAnswer, type ConversationProviderId, type ProviderAnswer } from "@/lib/automation/conversation-provider";
+import { approvedCompanyKnowledge, companyKnowledgeIntentFor, type CompanyKnowledgeIntent } from "@/lib/automation/company-knowledge";
 
-export type ConversationIntent = "overview" | "deliveries" | "users" | "riders" | "vendors" | "marketplace" | "financial" | "recommendations" | "compare" | "clarify" | "refuse";
+export type ConversationIntent = CompanyKnowledgeIntent | "overview" | "deliveries" | "users" | "riders" | "vendors" | "marketplace" | "financial" | "recommendations" | "compare" | "clarify" | "refuse";
 export type ConversationContext = { previousIntent?: ConversationIntent; previousPeriodDays?: IntelligencePeriod };
 export type ConversationResult = { answer: string; intent: ConversationIntent; periodDays: IntelligencePeriod; tools: string[]; provider: ConversationProviderId; providerModel: string | null; mode: "generative" | "deterministic_fallback"; providerFailureCategory: ProviderAnswer["failureCategory"] | null; providerValidationFailure: ProviderAnswer["validationFailure"] | null; context: ConversationContext; unavailable: string[] };
 
-const allowedIntents = new Set<ConversationIntent>(["overview", "deliveries", "users", "riders", "vendors", "marketplace", "financial", "recommendations", "compare"]);
-const injections = /ignore (all |previous |prior )?(instructions|rules)|system prompt|developer message|reveal.*(secret|key|token)|execute (sql|query|command)|delete |refund|dispatch|cancel (a |the )?deliver|initiate (a )?payment/i;
+const analyticsIntents = new Set<ConversationIntent>(["overview", "deliveries", "users", "riders", "vendors", "marketplace", "financial", "recommendations"]);
+const injections = /ignore (all |previous |prior )?(instructions|rules)|system prompt|developer message|reveal.*(secret|key|token)|execute (sql|query|command)|delete |refund|dispatch (a |the )?(delivery|rider)|cancel (a |the )?deliver|initiate (a )?payment/i;
 
 export function validateConversationInput(value: unknown) {
   if (typeof value !== "string") return null;
@@ -21,14 +22,22 @@ export function interpretConversation(message: string, supplied?: ConversationCo
   const lower = message.toLowerCase();
   const comparison = /compare|versus|vs\.?|against|previous|prior/.test(lower) || (/\bthat\b/.test(lower) && supplied?.previousIntent !== undefined);
   const periodDays: IntelligencePeriod = /90\s*days?|quarter/.test(lower) ? 90 : /7\s*days?|this week|last week|today|yesterday/.test(lower) ? 7 : 30;
+  const publicMatch = companyKnowledgeIntentFor(message);
+  if (publicMatch) return { intent: publicMatch, periodDays, comparison: false };
   const explicit: Array<[ConversationIntent, RegExp]> = [
-    ["financial", /revenue|finance|financial|income|commission|earning|transaction/], ["deliveries", /deliver|completion|cancel/], ["users", /user|customer|growth|registration/],
-    ["riders", /rider|driver|fleet|zone|area/], ["vendors", /vendor|business|onboard/], ["marketplace", /marketplace|catalogue|catalog|errand|product/], ["recommendations", /prioriti[sz]|recommend|issue|investigate|what should/]
+    ["overview", /\b(business|company|operational)\s+(overview|performance|metrics|analytics|report)\b/],
+    ["financial", /\b(financial|finance|revenue|income|commission|earning|transaction)\s+(statistics|stats|metrics|analytics|performance|report|data)\b|\b(show|give|provide|analyse|analyze|report)\b.*\b(financial|finance|revenue|income|commission|earning|transaction)\b/],
+    ["deliveries", /\b(delivery|deliveries)\s+(statistics|stats|metrics|analytics|performance|report|data)\b|\b(show|give|provide|analyse|analyze|report)\b.*\b(delivery|deliveries)\b/],
+    ["users", /\b(user|customer|growth|registration)s?\s+(statistics|stats|metrics|analytics|performance|report|data)\b|\b(show|give|provide|analyse|analyze|report)\b.*\b(users?|customers?|growth|registrations?)\b/],
+    ["riders", /\b(rider|driver|fleet|zone|area)s?\s+(statistics|stats|metrics|analytics|performance|report|data)\b|\b(show|give|provide|analyse|analyze|report)\b.*\b(riders?|drivers?|fleet|zones?|areas?)\b/],
+    ["vendors", /\b(vendor|business|onboarding)s?\s+(statistics|stats|metrics|analytics|performance|report|data)\b|\b(show|give|provide|analyse|analyze|report)\b.*\b(vendors?|businesses|onboarding)\b/],
+    ["marketplace", /\b(marketplace|catalogue|catalog|errand|product)s?\s+(statistics|stats|metrics|analytics|performance|report|data)\b|\b(show|give|provide|analyse|analyze|report)\b.*\b(marketplace|catalogue|catalog|errands?|products?)\b/],
+    ["recommendations", /\b(prioriti[sz]e|recommend|investigate|management priorities)\b/]
   ];
   const found = explicit.find(([, expression]) => expression.test(lower))?.[0];
-  const inherited = supplied?.previousIntent && allowedIntents.has(supplied.previousIntent) ? supplied.previousIntent : undefined;
-  if (!found && !comparison && !/performance|overview|how (is|are)/.test(lower)) return { intent: "clarify", periodDays, comparison: false, clarification: "I can help with business performance, deliveries, users, riders, vendors, marketplace activity, financial metrics for Super Admins, or management priorities. Which area should I analyse?" };
-  return { intent: comparison ? "compare" : found || inherited || "overview", periodDays, comparison };
+  const inherited = comparison && /\b(that|those|them)\b/.test(lower) && supplied?.previousIntent && analyticsIntents.has(supplied.previousIntent) ? supplied.previousIntent : undefined;
+  if (!found && !inherited) return clarification(periodDays);
+  return { intent: comparison ? "compare" : found || inherited!, periodDays, comparison };
 }
 
 const format = (item: IntelligenceMetric) => item.value === null ? "Unavailable" : item.format === "currency" ? new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(item.value) : item.format === "percent" ? `${item.value.toFixed(1)}%` : item.format === "duration" ? `${item.value.toFixed(0)} minutes` : new Intl.NumberFormat("en-NG", { maximumFractionDigits: 1 }).format(item.value);
@@ -40,7 +49,10 @@ export async function answerBusinessQuestion(db: SupabaseClient, input: { messag
   const parsed = interpretConversation(input.message, input.context);
   if (parsed.intent === "refuse") return { answer: "I can only provide read-only Fast Fleets business intelligence. I cannot follow instructions to expose secrets, execute SQL, or take operational actions.", intent: "refuse", periodDays: parsed.periodDays, tools: [], provider: "deterministic", providerModel: null, mode: "deterministic_fallback", providerFailureCategory: null, providerValidationFailure: null, context: {}, unavailable: [] };
   if (parsed.intent === "clarify") return { answer: parsed.clarification!, intent: "clarify", periodDays: parsed.periodDays, tools: [], provider: "deterministic", providerModel: null, mode: "deterministic_fallback", providerFailureCategory: null, providerValidationFailure: null, context: {}, unavailable: [] };
-  const intent = parsed.intent === "compare" ? (input.context?.previousIntent && allowedIntents.has(input.context.previousIntent) ? input.context.previousIntent : "overview") : parsed.intent;
+  if (isCompanyKnowledgeIntent(parsed.intent)) return answerCompanyKnowledge(input.message, parsed.intent, parsed.periodDays);
+  // Fail closed: only an explicitly classified analytics intent can reach the loader.
+  if (!isAnalyticsIntent(parsed.intent) && parsed.intent !== "compare") return clarificationResult(parsed.periodDays);
+  const intent = parsed.intent === "compare" ? (input.context?.previousIntent && analyticsIntents.has(input.context.previousIntent) ? input.context.previousIntent : "overview") : parsed.intent;
   // Query finance only when the authorised Super Admin actually requests it;
   // unrelated questions must not depend on optional financial source health.
   const includeFinancial = input.permission === "super_admin" && intent === "financial";
@@ -64,6 +76,40 @@ export async function answerBusinessQuestion(db: SupabaseClient, input: { messag
   }
   if (intent === "financial" && !includeFinancial) return response("Financial intelligence is restricted to the FAST AI Super Admin role. No financial data was queried or returned for your role.", intent, parsed.periodDays, tools, current, input.permission, provider.id);
   return enrich(response(`Verified ${intent === "overview" ? "business overview" : intent} for the last ${parsed.periodDays} days: ${section(current, intent).map(line).join(" ")}`, intent, parsed.periodDays, tools, current, input.permission, provider.id), input.message, current);
+}
+
+function clarification(periodDays: IntelligencePeriod) {
+  return { intent: "clarify" as const, periodDays, comparison: false, clarification: "I can help with approved Fast Fleets services, customer support, delivery requests, vendor or rider onboarding, or an explicitly requested internal analytics report." };
+}
+
+function clarificationResult(periodDays: IntelligencePeriod): ConversationResult {
+  return { answer: clarification(periodDays).clarification, intent: "clarify", periodDays, tools: [], provider: "deterministic", providerModel: null, mode: "deterministic_fallback", providerFailureCategory: null, providerValidationFailure: null, context: {}, unavailable: [] };
+}
+
+function isAnalyticsIntent(intent: ConversationIntent) {
+  return analyticsIntents.has(intent);
+}
+
+function isCompanyKnowledgeIntent(intent: ConversationIntent): intent is CompanyKnowledgeIntent {
+  return ["company_info", "customer_support", "delivery_request", "vendor_enquiry", "rider_enquiry"].includes(intent);
+}
+
+async function answerCompanyKnowledge(question: string, intent: CompanyKnowledgeIntent, periodDays: IntelligencePeriod): Promise<ConversationResult> {
+  const answer = approvedCompanyKnowledge(intent);
+  const provider = await generateProviderAnswer({ question, intelligenceBrief: `Approved Fast Fleets 360 company knowledge:\n${answer}`, deterministicAnswer: answer });
+  return {
+    answer: provider.answer,
+    intent,
+    periodDays,
+    tools: [],
+    provider: provider.provider,
+    providerModel: provider.provider === "groq" ? configuredConversationProvider().model : null,
+    mode: provider.mode,
+    providerFailureCategory: provider.failureCategory || null,
+    providerValidationFailure: provider.validationFailure || null,
+    context: { previousIntent: intent, previousPeriodDays: periodDays },
+    unavailable: []
+  };
 }
 
 function response(answer: string, intent: ConversationIntent, periodDays: IntelligencePeriod, tools: string[], data: BusinessIntelligence, permission: AutomationPermission, provider: ConversationProviderId): ConversationResult {
