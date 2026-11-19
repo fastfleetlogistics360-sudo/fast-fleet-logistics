@@ -3,7 +3,8 @@
 export type ConversationProviderId = "deterministic" | "groq" | "external_unconfigured";
 export type ConversationProvider = { id: ConversationProviderId; configured: boolean; model: string | null };
 export type GroqRequest = { question: string; intelligenceBrief: string; deterministicAnswer: string };
-export type ProviderAnswer = { answer: string; provider: ConversationProviderId; mode: "generative" | "deterministic_fallback"; failureCategory?: "missing_configuration" | "timeout" | "rate_limited" | "provider_error" | "invalid_response" };
+export type ProviderValidationFailure = "empty_or_out_of_bounds" | "sensitive_content" | "unverified_numeric_claim";
+export type ProviderAnswer = { answer: string; provider: ConversationProviderId; mode: "generative" | "deterministic_fallback"; failureCategory?: "missing_configuration" | "timeout" | "rate_limited" | "provider_error" | "invalid_response"; validationFailure?: ProviderValidationFailure };
 
 const timeoutMs = 12_000;
 const endpoint = "https://api.groq.com/openai/v1/chat/completions";
@@ -34,15 +35,21 @@ export async function generateProviderAnswer(input: GroqRequest, request: typeof
     if (!response.ok) return { answer: input.deterministicAnswer, provider: "deterministic", mode: "deterministic_fallback", failureCategory: response.status === 429 ? "rate_limited" : "provider_error" };
     const payload = await response.json().catch(() => null) as { choices?: Array<{ message?: { content?: unknown } }> } | null;
     const answer = typeof payload?.choices?.[0]?.message?.content === "string" ? payload.choices[0].message.content.trim() : "";
-    if (!isSafeProviderAnswer(answer) || !usesOnlyVerifiedNumbers(answer, input.deterministicAnswer)) return { answer: input.deterministicAnswer, provider: "deterministic", mode: "deterministic_fallback", failureCategory: "invalid_response" };
+    const validationFailure = validateProviderAnswer(answer, input.deterministicAnswer);
+    if (validationFailure) return { answer: input.deterministicAnswer, provider: "deterministic", mode: "deterministic_fallback", failureCategory: "invalid_response", validationFailure };
     return { answer, provider: "groq", mode: "generative" };
   } catch (error) {
     return { answer: input.deterministicAnswer, provider: "deterministic", mode: "deterministic_fallback", failureCategory: error instanceof Error && error.name === "AbortError" ? "timeout" : "provider_error" };
   } finally { clearTimeout(timer); }
 }
 
-function isSafeProviderAnswer(answer: string) {
-  return answer.length >= 20 && answer.length <= 5_000 && !/\b(api[_ -]?key|authorization:\s*bearer|system prompt|developer message|supabase_service_role_key)\b/i.test(answer);
+// Returns only a fixed category: provider text, prompts, credentials, and raw
+// business records are intentionally never persisted in diagnostics.
+function validateProviderAnswer(answer: string, verified: string): ProviderValidationFailure | null {
+  if (answer.length < 20 || answer.length > 5_000) return "empty_or_out_of_bounds";
+  if (/\b(api[_ -]?key|authorization:\s*bearer|system prompt|developer message|supabase_service_role_key)\b/i.test(answer)) return "sensitive_content";
+  if (!usesOnlyVerifiedNumbers(answer, verified)) return "unverified_numeric_claim";
+  return null;
 }
 
 // Generative prose may clarify the verified response, but it may not introduce

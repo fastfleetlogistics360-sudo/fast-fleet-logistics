@@ -5,7 +5,7 @@ import { configuredConversationProvider, generateProviderAnswer, type Conversati
 
 export type ConversationIntent = "overview" | "deliveries" | "users" | "riders" | "vendors" | "marketplace" | "financial" | "recommendations" | "compare" | "clarify" | "refuse";
 export type ConversationContext = { previousIntent?: ConversationIntent; previousPeriodDays?: IntelligencePeriod };
-export type ConversationResult = { answer: string; intent: ConversationIntent; periodDays: IntelligencePeriod; tools: string[]; provider: ConversationProviderId; providerModel: string | null; mode: "generative" | "deterministic_fallback"; providerFailureCategory: ProviderAnswer["failureCategory"] | null; context: ConversationContext; unavailable: string[] };
+export type ConversationResult = { answer: string; intent: ConversationIntent; periodDays: IntelligencePeriod; tools: string[]; provider: ConversationProviderId; providerModel: string | null; mode: "generative" | "deterministic_fallback"; providerFailureCategory: ProviderAnswer["failureCategory"] | null; providerValidationFailure: ProviderAnswer["validationFailure"] | null; context: ConversationContext; unavailable: string[] };
 
 const allowedIntents = new Set<ConversationIntent>(["overview", "deliveries", "users", "riders", "vendors", "marketplace", "financial", "recommendations", "compare"]);
 const injections = /ignore (all |previous |prior )?(instructions|rules)|system prompt|developer message|reveal.*(secret|key|token)|execute (sql|query|command)|delete |refund|dispatch|cancel (a |the )?deliver|initiate (a )?payment/i;
@@ -38,8 +38,8 @@ const section = (data: BusinessIntelligence, intent: ConversationIntent) => inte
 export async function answerBusinessQuestion(db: SupabaseClient, input: { message: string; permission: AutomationPermission; context?: ConversationContext }): Promise<ConversationResult> {
   const provider = configuredConversationProvider();
   const parsed = interpretConversation(input.message, input.context);
-  if (parsed.intent === "refuse") return { answer: "I can only provide read-only Fast Fleets business intelligence. I cannot follow instructions to expose secrets, execute SQL, or take operational actions.", intent: "refuse", periodDays: parsed.periodDays, tools: [], provider: "deterministic", providerModel: null, mode: "deterministic_fallback", providerFailureCategory: null, context: {}, unavailable: [] };
-  if (parsed.intent === "clarify") return { answer: parsed.clarification!, intent: "clarify", periodDays: parsed.periodDays, tools: [], provider: "deterministic", providerModel: null, mode: "deterministic_fallback", providerFailureCategory: null, context: {}, unavailable: [] };
+  if (parsed.intent === "refuse") return { answer: "I can only provide read-only Fast Fleets business intelligence. I cannot follow instructions to expose secrets, execute SQL, or take operational actions.", intent: "refuse", periodDays: parsed.periodDays, tools: [], provider: "deterministic", providerModel: null, mode: "deterministic_fallback", providerFailureCategory: null, providerValidationFailure: null, context: {}, unavailable: [] };
+  if (parsed.intent === "clarify") return { answer: parsed.clarification!, intent: "clarify", periodDays: parsed.periodDays, tools: [], provider: "deterministic", providerModel: null, mode: "deterministic_fallback", providerFailureCategory: null, providerValidationFailure: null, context: {}, unavailable: [] };
   const intent = parsed.intent === "compare" ? (input.context?.previousIntent && allowedIntents.has(input.context.previousIntent) ? input.context.previousIntent : "overview") : parsed.intent;
   // Query finance only when the authorised Super Admin actually requests it;
   // unrelated questions must not depend on optional financial source health.
@@ -67,7 +67,7 @@ export async function answerBusinessQuestion(db: SupabaseClient, input: { messag
 }
 
 function response(answer: string, intent: ConversationIntent, periodDays: IntelligencePeriod, tools: string[], data: BusinessIntelligence, permission: AutomationPermission, provider: ConversationProviderId): ConversationResult {
-  return { answer, intent, periodDays, tools, provider, providerModel: null, mode: "deterministic_fallback", providerFailureCategory: null, context: { previousIntent: intent, previousPeriodDays: periodDays }, unavailable: permission === "super_admin" ? data.unavailable.filter(item => !item.includes("Super Admin")) : data.unavailable };
+  return { answer, intent, periodDays, tools, provider, providerModel: null, mode: "deterministic_fallback", providerFailureCategory: null, providerValidationFailure: null, context: { previousIntent: intent, previousPeriodDays: periodDays }, unavailable: permission === "super_admin" ? data.unavailable.filter(item => !item.includes("Super Admin")) : data.unavailable };
 }
 function toolFor(intent: ConversationIntent) { return ({ deliveries: "get_delivery_metrics", users: "get_user_metrics", riders: "get_rider_metrics", vendors: "get_vendor_metrics", marketplace: "get_marketplace_metrics", financial: "get_financial_metrics", recommendations: "get_business_overview", overview: "get_business_overview" } as Partial<Record<ConversationIntent, string>>)[intent] || "get_business_overview"; }
 
@@ -75,5 +75,5 @@ async function enrich(result: ConversationResult, question: string, data: Busine
   const metrics = section(data, result.intent).slice(0, 6).map(line).join(" ");
   const brief = [`Reporting period: ${result.periodDays} days.`, `Authorised metrics: ${metrics}`, `Rule-based observations: ${data.insights.slice(0, 3).map(item => `${item.title}: ${item.evidence}`).join(" ") || "None."}`, `Unavailable or excluded: ${result.unavailable.slice(0, 4).join(" ") || "None."}`].join("\n");
   const provider = await generateProviderAnswer({ question, intelligenceBrief: brief.slice(0, 8_000), deterministicAnswer: result.answer });
-  return { ...result, answer: provider.answer, provider: provider.provider, providerModel: provider.provider === "groq" ? configuredConversationProvider().model : null, mode: provider.mode, providerFailureCategory: provider.failureCategory || null };
+  return { ...result, answer: provider.answer, provider: provider.provider, providerModel: provider.provider === "groq" ? configuredConversationProvider().model : null, mode: provider.mode, providerFailureCategory: provider.failureCategory || null, providerValidationFailure: provider.validationFailure || null };
 }

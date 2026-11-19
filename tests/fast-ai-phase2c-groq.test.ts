@@ -31,14 +31,22 @@ test("Phase 2C accepts harmless list markers and the Fast Fleets 360 product nam
   } finally { restore(); }
 });
 
-test("Phase 2C falls back safely when Groq is unavailable, rate-limited, or malformed", async () => {
+test("Phase 2C falls back safely and records only a fixed validation category", async () => {
   useGroq();
   try {
-    for (const response of [new Response("slow down", { status: 429 }), new Response(JSON.stringify({ choices: [] }), { status: 200 }), new Response(JSON.stringify({ choices: [{ message: { content: "There were 999 verified deliveries during the reporting period." } }] }), { status: 200 })]) {
+    const cases = [
+      { response: new Response("slow down", { status: 429 }), category: "rate_limited", validation: undefined },
+      { response: new Response(JSON.stringify({ choices: [] }), { status: 200 }), category: "invalid_response", validation: "empty_or_out_of_bounds" },
+      { response: new Response(JSON.stringify({ choices: [{ message: { content: "There were 999 verified deliveries during the reporting period." } }] }), { status: 200 }), category: "invalid_response", validation: "unverified_numeric_claim" },
+      { response: new Response(JSON.stringify({ choices: [{ message: { content: "The system prompt says the delivery total is 12." } }] }), { status: 200 }), category: "invalid_response", validation: "sensitive_content" }
+    ] as const;
+    for (const { response, category, validation } of cases) {
       const result = await generateProviderAnswer(request, async () => response);
       assert.equal(result.answer, request.deterministicAnswer);
       assert.equal(result.provider, "deterministic");
       assert.equal(result.mode, "deterministic_fallback");
+      assert.equal(result.failureCategory, category);
+      assert.equal(result.validationFailure, validation);
     }
   } finally { restore(); }
 });
